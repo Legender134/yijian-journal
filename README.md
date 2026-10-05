@@ -2,7 +2,7 @@
 
 《逸剑风云决》的 Windows 本地辅助工具：静默自动存档、历史读档、任务与地点查询、百物图鉴、赠礼查询和多配方备料。
 
-[下载 Windows 版](https://github.com/Legender134/yijian-journal/releases/latest) · [完整使用说明](使用说明.txt) · [反馈问题](https://github.com/Legender134/yijian-journal/issues)
+[下载 Windows 版](https://github.com/Legender134/yijian-journal/releases/latest) · [完整使用说明](使用说明.txt) · [开发与贡献](CONTRIBUTING.md) · [反馈问题](https://github.com/Legender134/yijian-journal/issues)
 
 ## 下载与运行
 
@@ -53,6 +53,8 @@
 存档中的任务、背包等是**已保存时的记录**；未出现在记录中的任务不等于失败或错过。人物名、图鉴与地点名可能透露后续内容，少剧透模式只折叠详细说明。
 
 ## 从源码运行
+
+完整模块说明、隔离开发方式、资料生成与 PR 流程见 [开发与贡献指南](CONTRIBUTING.md)。普通功能开发不需要游戏本体，仓库已包含必要资料和合成存档测试。
 
 开发环境：Windows x64、Node.js 24、pnpm 11。所有运行时逻辑使用 Electron 和 Node 内置模块，npm 依赖仅用于开发和打包。
 

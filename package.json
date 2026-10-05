@@ -19,8 +19,9 @@
   "devDependencies": {
     "@electron/packager": "20.3.0",
     "electron": "44.5.1",
+    "playwright": "1.62.1",
     "prettier": "3.6.2",
-    "playwright": "1.62.1"
+    "sharp": "0.35.4"
   },
   "author": "Legender134",
   "repository": {

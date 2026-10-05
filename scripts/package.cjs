@@ -5,6 +5,8 @@ const path = require('node:path');
 const { audit } = require('./release-audit.cjs');
 const base = path.join(__dirname, '..');
 const version = require('../package.json').version;
+const electronVersion = require('electron/package.json').version;
+const cachedElectron = path.join(base, '.downloads', `electron-v${electronVersion}-win32-x64.zip`);
 (async () => {
   const output = await packager({
     dir: base,
@@ -12,8 +14,8 @@ const version = require('../package.json').version;
     executableName: '逸剑手札',
     platform: 'win32',
     arch: 'x64',
-    electronVersion: require('electron/package.json').version,
-    electronZipDir: fs.existsSync(path.join(base, '.downloads')) ? path.join(base, '.downloads') : undefined,
+    electronVersion,
+    electronZipDir: fs.existsSync(cachedElectron) ? path.dirname(cachedElectron) : undefined,
     out: process.env.YIJIAN_PACKAGE_OUT || path.join(base, 'dist', `v${version}`),
     overwrite: false,
     asar: true,

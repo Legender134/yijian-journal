@@ -16,3 +16,6 @@ journal.json*
 journal-before-import-*
 Thumbs.db
 Desktop.ini
+__pycache__/
+*.py[cod]
+.venv/
