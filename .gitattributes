@@ -1,0 +1,15 @@
+* text=auto eol=lf
+*.cjs text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.ico binary
+*.dll binary
+# Preserve the blank version overrides in the official UE4SS configuration.
+src/game-bridge/runtime/ue4ss/UE4SS-settings.ini whitespace=-blank-at-eol
+src/game-bridge/runtime/ue4ss/LICENSE -text whitespace=cr-at-eol
