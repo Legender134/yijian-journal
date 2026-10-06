@@ -3,6 +3,7 @@ const { packager } = require('@electron/packager');
 const fs = require('node:fs');
 const path = require('node:path');
 const { audit } = require('./release-audit.cjs');
+const { build } = require('./build-window-helper.cjs');
 const base = path.join(__dirname, '..');
 const version = require('../package.json').version;
 const electronVersion = require('electron/package.json').version;
@@ -19,6 +20,7 @@ const cachedElectron = path.join(base, '.downloads', `electron-v${electronVersio
     out: process.env.YIJIAN_PACKAGE_OUT || path.join(base, 'dist', `v${version}`),
     overwrite: false,
     asar: true,
+    extraResource: [build()],
     icon: path.join(base, 'src', 'assets', 'icon.ico'),
     appVersion: version,
     appCopyright: 'Personal local companion. Unofficial fan utility.',
@@ -29,7 +31,7 @@ const cachedElectron = path.join(base, '.downloads', `electron-v${electronVersio
       InternalName: 'YijianJournal',
     },
     ignore: [
-      /^\/(dist|test-results|tests|scripts|\.test-data|\.downloads|node_modules)(\/|$)/,
+      /^\/(dist|test-results|tests|scripts|\.test-data|\.downloads|\.build|node_modules)(\/|$)/,
       /^\/(docs|\.github|\.git)(\/|$)/,
       /pnpm-lock\.yaml$/,
       /\.gitignore$/,

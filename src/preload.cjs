@@ -38,6 +38,13 @@ contextBridge.exposeInMainWorld('journal', {
   openSource: (id) => call('source', id),
   launchGame: () => call('launch-game'),
   compact: () => call('compact'),
+  companionSnapshot: () => call('companion-snapshot'),
+  companionCollapse: () => call('companion-collapse'),
+  onCompanion: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on('journal:companion', listener);
+    return () => ipcRenderer.removeListener('journal:companion', listener);
+  },
   window: (action) => call('window', action),
   onState: (callback) => {
     const listener = (_event, state) => callback(state);

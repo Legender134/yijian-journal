@@ -34,6 +34,8 @@ Remove-Item Env:YIJIAN_TEST_DATA
 | 位置 | 职责 |
 | --- | --- |
 | `src/main.cjs` | Electron 主进程、窗口和托盘、IPC 参数检查、存读档调度。 |
+| `src/core/companion*.cjs` / `game-window.cjs` | 轻提示数据、显示与焦点控制、只读窗口组件协议。 |
+| `src/native/GameWindow.cs` | Windows 进程路径核验、前台窗口与客户区识别；不读游戏内存。 |
 | `src/preload.cjs` | 沙箱界面可调用的有限 API，新增操作需与主进程一起维护。 |
 | `src/renderer/` | 页面、交互、样式、图标、品质色、任务和备料展示。 |
 | `src/core/store.cjs` / `activity.cjs` | 周目与设置持久化、上一次记录、操作结果与草稿。 |

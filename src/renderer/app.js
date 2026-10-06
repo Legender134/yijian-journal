@@ -5,6 +5,7 @@ import { createMaterialViews } from './material-views.js';
 import { createGameImages } from './game-images.js';
 import { createQualityText } from './quality.js';
 import { createTimelineViews } from './timeline-views.js';
+import { createCompanionViews } from './companion-view.js';
 const api = window.journal;
 const compact = new URLSearchParams(location.search).has('compact');
 const root = document.querySelector('#app'),
@@ -33,6 +34,10 @@ let refreshRequest = 0;
 let referenceFollow;
 let nodeDraftQueue = Promise.resolve();
 let compactUndo = null;
+let companionData = null,
+  companionMode = 'expanded',
+  companionVisible = true,
+  companionRequest = 0;
 const pendingNodeDrafts = new Map();
 const submittingNodes = new Set();
 let timelineLoadInFlight = false;
@@ -191,6 +196,23 @@ const kindIcon = (k) =>
 const gameImages = createGameImages({ index: () => gameIndex, icon, esc });
 const picture = gameImages.picture;
 const qualityText = createQualityText({ index: () => gameIndex, esc });
+const companionViews = createCompanionViews({
+  esc,
+  icon,
+  act: (...args) => act(...args),
+  iconButton: (...args) => iconButton(...args),
+  picture,
+  qualityText,
+});
+async function refreshCompanion() {
+  if (!compact) return;
+  const request = ++companionRequest;
+  const data = await call('companionSnapshot');
+  if (request !== companionRequest || data.profileId !== profile().id) return;
+  const changed = JSON.stringify(companionData) !== JSON.stringify(data);
+  companionData = data;
+  if (changed) render(true);
+}
 document.addEventListener(
   'error',
   (event) => {
@@ -843,28 +865,59 @@ function savesPage() {
  }
  <p class="save-note">场景、时长和队伍来自存档本身。点击「查看存档回顾」可看缩略图、追踪任务与已学配方。无法解析的版本仍可备份；保存时间取自文件时间。</p>`;
 }
+function companionSettings() {
+  return `<section class="card"><h2 class="mb">游戏内轻提示</h2><div class="setting-row"><div><h3>平时显示一至两条</h3><p>优先显示置顶目标与备料缺口；鼠标穿透，不抢游戏焦点。Alt Tab 离开游戏后隐藏。接入组件连接时，在不可保存的场景及存读档过程中暂停轻提示。</p></div><button class="switch ${state.settings.companionEnabled !== false ? 'on' : ''}" role="switch" aria-checked="${state.settings.companionEnabled !== false}" aria-label="游戏内轻提示" data-action="companion-enabled"></button></div><div class="setting-row"><label for="companion-position">显示位置</label><select id="companion-position" class="input">${[
+    ['top-right', '右上角'],
+    ['bottom-right', '右下角'],
+    ['top-left', '左上角'],
+    ['bottom-left', '左下角'],
+  ]
+    .map(
+      ([id, text]) =>
+        `<option value="${id}" ${id === (state.settings.companionPosition || 'top-right') ? 'selected' : ''}>${text}</option>`,
+    )
+    .join(
+      '',
+    )}</select><label for="companion-opacity">提示透明度</label><select id="companion-opacity" class="input">${[1, 0.96, 0.85, 0.75, 0.65].map((n) => `<option value="${n}" ${n === (state.settings.compactOpacity ?? 0.96) ? 'selected' : ''}>${Math.round(n * 100)}%</option>`).join('')}</select></div><p class="small muted">Ctrl Alt J 展开或收起；Esc 先关闭详情，再收起面板。窗口化与无边框窗口可叠加；独占全屏的可见性取决于系统与游戏。材料来自标明时间的存档，不是实时背包。未连接游戏组件时无法自动识别战斗和对话。</p></section>`;
+}
 function settingsPage() {
-  return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">阅读与陪伴</h2><div class="setting-row"><div><h3>第一次使用这本手札</h3><p>看看存档回顾、备料、小窗和备份怎么用。</p></div>${act('help', '打开使用说明', 'btn', '', 'book')}</div><div class="setting-row"><div><h3>少剧透提示</h3><p>显示人物名、地点和提醒，详细步骤需要主动展开；不保证完全无剧透。</p></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3>随行小窗</h3><p>置顶显示待办与当前阶段提醒。${environment.shortcutReady ? 'Ctrl + Alt + J 可快速开关。' : '可使用右侧按钮开关。'}窗口可拖动、缩放。</p></div>${act('compact', '打开随行小窗', 'btn', '', 'pin')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3><p>每个周目有独立的进度、收藏、目标和笔记。</p></div>${act('profiles', '管理周目', 'btn', '', 'person')}</div></section>
- ${shortcutSettings()}<section class="card"><h2 class="mb">本机连接</h2><div class="setting-row"><div><h3>逸剑风云决 ${environment.game.installed ? '· 已找到' : '· 由 Steam 启动'}</h3><p>${esc(environment.game.path || '使用 Steam 游戏入口启动')}${environment.game.build ? ` · Build ${esc(environment.game.build)}` : ''}</p></div>${act('launch', '启动游戏', 'btn', '', 'game')}</div><div class="setting-row"><div><h3>游戏存档目录</h3><p class="mono">${esc(state.settings.savePath || '尚未选择')}</p></div>${act('choose-saves', '选择目录', 'btn', '', 'folder')}</div>${environment.detected.length > 1 ? `<div class="setting-row"><div><h3>检测到多个存档目录</h3><p>请选择你本次游玩的账户目录。</p></div><select id="detected-save" class="input">${environment.detected.map((p) => `<option value="${esc(p)}" ${p === state.settings.savePath ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>` : ''}<div class="setting-row"><div><h3>完整自动备份 · ${backupStatus()}</h3><p>时间线开启或正在存读档时暂停，避免重复复制全部存档。复制已保存的存档，不会替游戏执行保存。开启后每分钟检查变化，稳定后留存副本；文件没有变化时不重复备份，不会自动删除旧副本。</p></div><button class="switch ${state.settings.autoBackup ? 'on' : ''}" role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" data-action="auto-backup"></button></div></section>
+  return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">阅读与陪伴</h2><div class="setting-row"><div><h3>第一次使用这本手札</h3><p>看看存档回顾、备料、小窗和备份怎么用。</p></div>${act('help', '打开使用说明', 'btn', '', 'book')}</div><div class="setting-row"><div><h3>少剧透提示</h3><p>显示人物名、地点和提醒，详细步骤需要主动展开；不保证完全无剧透。</p></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3>随行小窗</h3><p>游戏中显示两条轻提示，按键展开查询与追踪。${environment.shortcutReady ? 'Ctrl + Alt + J 可展开或收起。' : '可使用右侧按钮开关。'}可在下方选择提示位置和透明度。</p></div>${act('compact', '打开随行小窗', 'btn', '', 'pin')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3><p>每个周目有独立的进度、收藏、目标和笔记。</p></div>${act('profiles', '管理周目', 'btn', '', 'person')}</div></section>
+ ${companionSettings()}${shortcutSettings()}<section class="card"><h2 class="mb">本机连接</h2><div class="setting-row"><div><h3>逸剑风云决 ${environment.game.installed ? '· 已找到' : '· 由 Steam 启动'}</h3><p>${esc(environment.game.path || '使用 Steam 游戏入口启动')}${environment.game.build ? ` · Build ${esc(environment.game.build)}` : ''}</p></div>${act('launch', '启动游戏', 'btn', '', 'game')}</div><div class="setting-row"><div><h3>游戏存档目录</h3><p class="mono">${esc(state.settings.savePath || '尚未选择')}</p></div>${act('choose-saves', '选择目录', 'btn', '', 'folder')}</div>${environment.detected.length > 1 ? `<div class="setting-row"><div><h3>检测到多个存档目录</h3><p>请选择你本次游玩的账户目录。</p></div><select id="detected-save" class="input">${environment.detected.map((p) => `<option value="${esc(p)}" ${p === state.settings.savePath ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>` : ''}<div class="setting-row"><div><h3>完整自动备份 · ${backupStatus()}</h3><p>时间线开启或正在存读档时暂停，避免重复复制全部存档。复制已保存的存档，不会替游戏执行保存。开启后每分钟检查变化，稳定后留存副本；文件没有变化时不重复备份，不会自动删除旧副本。</p></div><button class="switch ${state.settings.autoBackup ? 'on' : ''}" role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" data-action="auto-backup"></button></div></section>
  <section class="card"><h2 class="mb">记录与数据</h2><div class="setting-row"><div><h3>手札备份</h3><p>导出全部周目的记录。导入前会保留当前手札副本；此功能不包含游戏存档。</p></div><div class="row">${act('import', '导入', 'btn', '', 'upload')}${act('export', '导出手札', 'btn', '', 'download')}</div></div><div class="setting-row"><div><h3>本地数据目录</h3><p class="mono">${esc(environment.userData)}</p></div>${act('folder', '打开', 'btn', 'data', 'folder')}</div><div class="setting-row"><div><h3>游戏存档备份目录</h3><p class="mono">${esc(environment.backupRoot)}</p></div>${act('folder', '打开', 'btn', 'backups', 'folder')}</div></section>
  <section class="card"><div class="card-header"><h2>资料与版本</h2>${pill(`v${version}`)}</div><p class="small muted mb">${esc(catalog.notice)} 本地卡片可离线阅读，原文链接会在默认浏览器打开。本工具是个人非官方助手。</p><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></section></div>`;
 }
 function compactPage() {
+  document.body.classList.add('companion');
+  document.body.classList.toggle('passive', companionMode === 'hint');
+  if (companionMode === 'hint') return companionViews.passive(companionData);
+  const ref = companionData?.reference;
+  const sourceLine = `<p class="companion-reference">${esc(companionData?.referenceLabel || '正在核对参照')}<br>${ref ? `${esc(ref.mapName)} · ${esc(ref.name)} · ${when(ref.modifiedAt)}（存档时背包）` : '背包未核对，不能据此判断当前持有数量'}</p>${companionData?.error ? notice(companionData.error) : ''}${companionData?.windowError ? notice('窗口跟随暂不可用：' + companionData.windowError) : ''}`;
+  if (route === 'materials')
+    return companionViews.frame(materialPage(), timelineViews.chip(environment.health));
+  if (route === 'saves')
+    return companionViews.frame(
+      timelineViews.page(environment.timeline, timelineView),
+      timelineViews.chip(environment.health),
+    );
+  if (route === 'world') return companionViews.frame(worldPage(), timelineViews.chip(environment.health));
   const list = pending().slice(0, 5);
   const undo =
     compactUndo?.profileId === profile().id
       ? `<div class="notice"><span>已完成：${esc(compactUndo.title)}</span>${act('compact-undo', '撤销这次完成', 'text-btn')}</div>`
       : '';
-  return `<div class="compact-shell"><div class="compact-title"><div class="row">${icon('leaf')}逸剑手札 · 随行</div>${iconButton('main', 'maximize', '打开完整手札')}${iconButton('window-close', 'close', '关闭小窗')}</div><div class="compact-body"><div class="eyebrow">此刻的江湖</div><h2>${esc(stageTitle())}</h2><p class="small muted">${esc(profile().name)} · 手动记录的阶段</p>${undo}<div class="separator"></div>${list.length ? list.map(checkRow).join('') : empty('当前精选清单已处理', '在完整手札中切换阶段或添加目标。')}${orderedGoals()
-    .filter((g) => !g.done)
-    .slice(0, 3)
-    .map(
-      (g) =>
-        `<div class="compact-goal"><div class="row"><button class="check" data-action="goal-toggle" data-id="${g.id}" aria-label="完成目标 ${esc(g.title)}"></button><strong>${esc(g.title)}</strong></div>${g.detail ? `<details data-compact-detail="${esc(g.id)}"><summary>查看备忘与材料</summary><p class="preserve-text">${esc(g.detail)}</p></details>` : ''}</div>`,
-    )
-    .join(
-      '',
-    )}${profile().goals.filter((g) => !g.done).length > 3 ? `<p class="small muted">还有 ${profile().goals.filter((g) => !g.done).length - 3} 件待办，可在完整手札中查看。</p>` : ''}${profile().notes ? `<details class="compact-note" data-compact-detail="note"><summary>江湖随手记</summary><p class="preserve-text">${esc(profile().notes)}</p></details>` : ''}</div><div class="compact-foot"><span data-save-health>${timelineViews.chip(environment.health)}</span>${act('backup', '留一份备份', 'text-btn', '', 'archive')}</div></div>`;
+  const body = `<div class="eyebrow">${esc(profile().name)} · 我的追踪</div>${sourceLine}${undo}<h3 class="companion-section">我的目标</h3>${
+    orderedGoals()
+      .filter((g) => !g.done)
+      .map(
+        (g) =>
+          `<div class="compact-goal"><div class="row"><button class="check" data-action="goal-toggle" data-id="${g.id}" aria-label="完成目标 ${esc(g.title)}"></button><strong>${esc(g.title)}</strong>${iconButton('goal-pin', 'pin', g.pinned ? '取消优先提示' : '优先提示', g.id)}</div>${g.source ? act('goal-source', '查看当前详情', 'text-btn', g.id, 'book') : ''}${g.detail ? `<details data-compact-detail="${esc(g.id)}"><summary>添加时的备忘（不自动更新）</summary><p class="preserve-text">${esc(g.detail)}</p></details>` : ''}</div>`,
+      )
+      .join('') || '<p class="small muted">在图鉴或完整手札中添加目标，游玩时会优先提示置顶目标。</p>'
+  }${companionViews.materials(companionData)}<h3 class="companion-section">${esc(stageTitle())}</h3><p class="small muted">手动阶段的精选清单</p>${list.map(checkRow).join('')}${profile().notes ? `<details class="compact-note" data-compact-detail="note"><summary>江湖随手记</summary><p class="preserve-text">${esc(profile().notes)}</p></details>` : ''}`;
+  return companionViews.frame(
+    body,
+    `<span data-save-health>${timelineViews.chip(environment.health)}</span>`,
+  );
 }
 function render(preserve = false) {
   if (!catalog || !state || composing) return;
@@ -881,7 +934,17 @@ function render(preserve = false) {
     root.innerHTML = compactPage();
     for (const el of root.querySelectorAll('[data-compact-detail]'))
       el.open = opened.has(el.dataset.compactDetail);
-    root.querySelector('.compact-body').scrollTop = compactScroll;
+    const body = root.querySelector('.compact-body');
+    if (body) body.scrollTop = compactScroll;
+    if (focusId && companionMode === 'expanded') {
+      const field = document.getElementById(focusId);
+      if (field) {
+        if (fieldValue !== null) field.value = fieldValue;
+        field.focus();
+        if (selection && field.setSelectionRange && !['number', 'email'].includes(field.type))
+          field.setSelectionRange(...selection);
+      }
+    }
     return;
   }
   root.innerHTML = `<div class="layout"><aside class="sidebar"><div class="brand"><span class="seal">逸</span><div><div class="brand-name">逸剑手札</div><div class="brand-sub">WANDERING JOURNAL</div></div></div><div class="nav-section">我的江湖</div>${[
@@ -2111,6 +2174,16 @@ async function handle(action, id, target) {
       await saveNote();
       await call('compact');
       break;
+    case 'companion-collapse':
+      closeOverlay();
+      await call('companionCollapse');
+      break;
+    case 'companion-enabled':
+      await mutation({
+        type: 'settings',
+        value: { companionEnabled: state.settings.companionEnabled === false },
+      });
+      break;
     case 'main':
       await call('window', 'main');
       break;
@@ -2255,6 +2328,19 @@ document.addEventListener('compositionend', (event) => {
   render(true);
 });
 document.addEventListener('change', async (event) => {
+  if (['companion-position', 'companion-opacity'].includes(event.target.id)) {
+    const value =
+      event.target.id === 'companion-position'
+        ? { companionPosition: event.target.value }
+        : { compactOpacity: Number(event.target.value) };
+    try {
+      await mutation({ type: 'settings', value });
+    } catch (e) {
+      toast(e.message, true);
+      render(true);
+    }
+    return;
+  }
   if (event.target.id === 'timeline-filter') {
     timelineView.kind = event.target.value;
     timelineView.page = 0;
@@ -2365,6 +2451,11 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (event.key === 'Escape') {
+    event.preventDefault();
+    if (compact && !overlay.firstChild) {
+      escapeCollapse = true;
+      return;
+    }
     closeOverlay();
     return;
   }
@@ -2417,6 +2508,16 @@ document.addEventListener('keydown', (event) => {
     }
   }
 });
+let escapeCollapse = false;
+document.addEventListener('keyup', (event) => {
+  if (compact && event.key === 'Escape') {
+    event.preventDefault();
+    if (escapeCollapse) {
+      escapeCollapse = false;
+      call('companionCollapse').catch((e) => toast(e.message, true));
+    }
+  }
+});
 window.addEventListener('beforeunload', (event) => {
   if (drafts.size || pendingNodeDrafts.size) {
     const quitting = environment?.health?.quitting;
@@ -2433,6 +2534,18 @@ window.addEventListener('beforeunload', (event) => {
 try {
   const boot = await call('bootstrap');
   ({ catalog, gameIndex, state, environment, version } = boot);
+  if (compact) {
+    api.onCompanion((value) => {
+      companionVisible = value.visible;
+      if (companionMode === value.mode) return;
+      companionMode = value.mode;
+      if (companionMode === 'hint') closeOverlay();
+      render(true);
+      if (companionMode === 'expanded') refreshCompanion().catch(() => {});
+    });
+    companionData = await call('companionSnapshot');
+    companionMode = companionData.mode;
+  }
   render();
   if (environment.warning) toast(environment.warning, true);
   api.onState((next) => {
@@ -2442,6 +2555,11 @@ try {
     const currentBasket = JSON.stringify([profile().craftList || [], profile().reservations || {}]);
     const currentMode = profile().referenceMode;
     state = next;
+    if (compact) {
+      companionData = null;
+      ++companionRequest;
+      refreshCompanion().catch(() => {});
+    }
     if (currentBasket !== JSON.stringify([profile().craftList || [], profile().reservations || {}]))
       invalidateMaterials();
     if (
@@ -2474,7 +2592,6 @@ try {
       closeOverlay();
       return;
     }
-    if (compact) return;
     closeOverlay();
     route = 'saves';
     try {
@@ -2494,13 +2611,14 @@ try {
     }
   });
   setInterval(() => {
+    if (compact && companionVisible) refreshCompanion().catch(() => {});
     if (!document.hidden)
       call('health')
         .then(updateHealth)
         .catch(() => {});
     if (
       ['home', 'saves', 'world', 'materials', 'database'].includes(route) &&
-      !compact &&
+      (!compact || route !== 'home') &&
       !document.hidden &&
       (currentDrawer || !document.activeElement?.matches('select,input,textarea'))
     )

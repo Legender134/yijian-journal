@@ -1,19 +1,20 @@
 {
   "name": "yijian-journal",
   "productName": "逸剑手札",
-  "version": "1.10.10",
+  "version": "1.11.0",
   "description": "逸剑风云决个人桌面助手：原生自动存读档、历史时间线、任务地点、图鉴与备料",
   "main": "src/main.cjs",
   "private": true,
   "scripts": {
-    "start": "electron .",
+    "start": "node scripts/build-window-helper.cjs && electron .",
     "test": "node --test tests/*.test.cjs",
     "package": "node scripts/package.cjs",
     "smoke": "node scripts/smoke.cjs",
     "format": "prettier --write \"src/**/*.{cjs,js,css,html}\" \"scripts/*.cjs\" \"tests/*.cjs\"",
     "test:package": "node scripts/packaged-regression.cjs",
     "electron:install": "node node_modules/electron/install.js",
-    "release:zip": "node scripts/release-zip.cjs"
+    "release:zip": "node scripts/release-zip.cjs",
+    "build:window": "node scripts/build-window-helper.cjs"
   },
   "license": "MIT",
   "devDependencies": {

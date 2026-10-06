@@ -12,6 +12,7 @@ const {
   Menu,
   nativeImage,
   Notification,
+  screen,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -27,6 +28,10 @@ const { GameBridge } = require('./core/game-bridge.cjs');
 const { Shortcuts, DEFAULTS: DEFAULT_SHORTCUTS } = require('./core/shortcuts.cjs');
 const { Activity } = require('./core/activity.cjs');
 const { availableInventory } = require('./core/reservations.cjs');
+const { GameWindow } = require('./core/game-window.cjs');
+const { CompanionWindow } = require('./core/companion-window.cjs');
+const { companionSnapshot } = require('./core/companion.cjs');
+let companion, windowMonitor;
 let activity;
 const trayImages = new Map();
 let lastNotificationAt = 0;
@@ -84,7 +89,6 @@ function releaseTimelinePreview(senderId) {
   return timelinePreviews.delete(senderId);
 }
 let mainWindow,
-  compactWindow,
   store,
   saves,
   game,
@@ -146,7 +150,14 @@ function timelineStatus(t) {
 }
 function sendAction(action) {
   if (quitRequested) return;
-  const w = showMain();
+  let w;
+  if (
+    windowMonitor?.state?.gameForeground ||
+    (companion?.mode === 'expanded' && windowMonitor?.state?.available && windowMonitor.state.ownForeground)
+  ) {
+    if (companion.mode !== 'expanded') companion.expand();
+    w = companion.window;
+  } else w = showMain();
   if (rendererReady.has(w.webContents.id)) w.webContents.send('journal:action', { action });
   else pendingActions.set(w.webContents.id, action);
 }
@@ -287,16 +298,18 @@ function broadcast(channel, data) {
 }
 function makeWindow(compact = false) {
   const win = new BrowserWindow({
-    width: compact ? 400 : 1340,
+    width: compact ? 460 : 1340,
     height: compact ? 660 : 880,
-    minWidth: compact ? 340 : 980,
-    minHeight: compact ? 400 : 660,
+    minWidth: compact ? 200 : 980,
+    minHeight: compact ? 90 : 660,
     frame: false,
     show: false,
     title: compact ? '逸剑手札 · 随行' : '逸剑手札',
     backgroundColor: '#f5f3ec',
     icon: path.join(__dirname, 'assets', 'icon.png'),
     autoHideMenuBar: true,
+    skipTaskbar: compact,
+    resizable: !compact,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -337,30 +350,51 @@ function makeWindow(compact = false) {
     pendingActions.delete(senderId);
   });
   win.webContents.on('render-process-gone', (_event, details) => {
+    if (compact) {
+      win.destroy();
+      return;
+    }
     if (!isTest)
       dialog.showErrorBox('逸剑手札', `界面意外退出（${details.reason}）。记录已保存在本机，请重新打开。`);
   });
   win.loadFile(htmlPath, { query: compact ? { compact: '1' } : {} });
   if (compact) {
     win.setAlwaysOnTop(true, 'floating');
-    win.setOpacity(0.97);
+    win.setFocusable(false);
+    win.setIgnoreMouseEvents(true);
   }
   win.once('ready-to-show', () => {
-    if (!isTest || !process.env.YIJIAN_TEST_HIDDEN) win.show();
+    if (!compact && (!isTest || !process.env.YIJIAN_TEST_HIDDEN)) win.show();
   });
   return win;
 }
 function toggleCompact() {
-  if (compactWindow && !compactWindow.isDestroyed()) {
-    compactWindow.close();
-    compactWindow = null;
-    return false;
+  return companion.expand();
+}
+function readCompanion() {
+  const state = store.get(),
+    profile = state.profiles.find((p) => p.id === state.activeProfileId);
+  let reference = null,
+    error = '';
+  if (profile.referenceMode !== 'none' && state.settings.savePath) {
+    const scan = saves.scan(state.settings.savePath);
+    const selected = profile.saveSlot
+      ? scan.files.find((f) => f.name === profile.saveSlot && f.metadata)
+      : scan.files.find((f) => f.metadata);
+    error =
+      scan.error || (selected ? '' : profile.saveSlot ? '固定参照不存在或暂时无法解析' : '尚无有效游戏存档');
+    if (selected) {
+      if (Date.now() - Date.parse(selected.modifiedAt) < 1000 || bridge.busy)
+        error = '存档正在更新，稍后核对';
+      else
+        try {
+          reference = saves.details(state.settings.savePath, selected.name);
+        } catch (e) {
+          error = e.message;
+        }
+    }
   }
-  compactWindow = makeWindow(true);
-  compactWindow.on('closed', () => {
-    compactWindow = null;
-  });
-  return true;
+  return { ...companionSnapshot(state, catalog, reference, error), ...companion.status() };
 }
 function showMain() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -489,13 +523,21 @@ app.whenReady().then(() => {
         saves.details(store.get().settings.savePath, command.saveSlot);
       const state = store.mutate(command);
       broadcast('state', state);
+      companion?.update();
       return state;
     });
     handle('refresh', () => overview());
+    handle('companion-snapshot', () => readCompanion());
+    handle('companion-collapse', (event) => {
+      if (owner(event) !== companion.window) throw Error('只可收起随行面板');
+      releaseTimelinePreview(event.sender.id);
+      return companion.collapse();
+    });
     handle('health', () => health());
     handle('node-draft', (_event, id, value) => activity.draft(id, value));
     handle('ready', (event) => {
       rendererReady.add(event.sender.id);
+      if (owner(event) === companion.window) companion.rendererReady();
       const action = pendingActions.get(event.sender.id);
       pendingActions.delete(event.sender.id);
       if (action) event.sender.send('journal:action', { action });
@@ -857,12 +899,34 @@ app.whenReady().then(() => {
       if (action === 'minimize') w.minimize();
       else if (action === 'maximize') w.isMaximized() ? w.unmaximize() : w.maximize();
       else if (action === 'close') w.close();
-      else if (action === 'main') showMain();
-      else if (action === 'quit') requestQuit();
+      else if (action === 'main') {
+        if (w === companion.window) companion.collapse(false);
+        showMain();
+      } else if (action === 'quit') requestQuit();
       else throw new Error('窗口操作无效');
       return true;
     });
+    windowMonitor = new GameWindow(
+      app.isPackaged
+        ? path.join(process.resourcesPath, 'YijianWindow.exe')
+        : path.join(__dirname, '..', '.build', 'YijianWindow.exe'),
+      !isTest && game.path
+        ? path.join(game.path, 'Wandering_Sword', 'Binaries', 'Win64', 'JH-Win64-Shipping.exe')
+        : null,
+    );
+    companion = new CompanionWindow({
+      create: () => makeWindow(true),
+      monitor: windowMonitor,
+      screen,
+      settings: () => store.get().settings,
+      test: isTest,
+      quiet: () => {
+        const s = bridge.summary();
+        return s.busy || s.pending || s.quiescing || (s.connected && !s.ready);
+      },
+    });
     showMain();
+    if (!isTest) windowMonitor.start();
     if (!isTest) shortcutReady = globalShortcut.register('CommandOrControl+Alt+J', toggleCompact);
     shortcuts = new Shortcuts(
       globalShortcut,
@@ -900,5 +964,6 @@ app.on('will-quit', () => {
   tray?.destroy();
   autoBackup?.dispose();
   bridge?.dispose();
+  companion?.dispose();
   globalShortcut.unregisterAll();
 });

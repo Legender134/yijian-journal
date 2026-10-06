@@ -119,6 +119,20 @@ function validateState(s, ids) {
   if (s.settings.shortcuts !== undefined) require('./shortcuts.cjs').validate(s.settings.shortcuts);
   if (s.settings.saveFeedback !== undefined && typeof s.settings.saveFeedback !== 'boolean')
     throw Error('保存反馈设置无效');
+  if (s.settings.companionEnabled !== undefined && typeof s.settings.companionEnabled !== 'boolean')
+    throw Error('随行提示设置无效');
+  if (
+    s.settings.companionPosition !== undefined &&
+    !['top-right', 'bottom-right', 'top-left', 'bottom-left'].includes(s.settings.companionPosition)
+  )
+    throw Error('随行提示位置无效');
+  if (
+    s.settings.compactOpacity !== undefined &&
+    (!Number.isFinite(s.settings.compactOpacity) ||
+      s.settings.compactOpacity < 0.65 ||
+      s.settings.compactOpacity > 1)
+  )
+    throw Error('随行提示透明度无效');
   // Use the same byte ceiling for stored state, exports and imports. Otherwise
   // a valid multi-profile journal could export a file that cannot be imported.
   if (Buffer.byteLength(JSON.stringify(s, null, 2), 'utf8') > MAX_JOURNAL_BYTES)
@@ -282,7 +296,17 @@ class Store {
         const values = command.value;
         if (!values || typeof values !== 'object') throw new Error('设置无效');
         for (const key of Object.keys(values)) {
-          if (!['spoiler', 'autoBackup', 'saveFeedback'].includes(key)) throw new Error('不支持的设置');
+          if (
+            ![
+              'spoiler',
+              'autoBackup',
+              'saveFeedback',
+              'companionEnabled',
+              'companionPosition',
+              'compactOpacity',
+            ].includes(key)
+          )
+            throw new Error('不支持的设置');
           s.settings[key] = values[key];
         }
         break;

@@ -50,6 +50,12 @@ function audit(folder, { writeManifest = true } = {}) {
     }
   }
   assert.equal(hash(fs.readFileSync(path.join(folder, '使用说明.txt'))), packagedFiles['使用说明.txt']);
+  const helperSha256 = hash(fs.readFileSync(path.join(folder, 'resources', 'YijianWindow.exe')));
+  assert.equal(
+    helperSha256,
+    hash(fs.readFileSync(path.join(base, '.build', 'YijianWindow.exe'))),
+    'Packaged window helper differs from build',
+  );
   const manifest = {
     product: '逸剑手札',
     version: metadata.version,
@@ -58,6 +64,7 @@ function audit(folder, { writeManifest = true } = {}) {
     electron: require('electron/package.json').version,
     gameDataBuild: require('../src/data/game-index.json').build,
     archiveSha256: hash(fs.readFileSync(archive)),
+    helperSha256,
     packagedFiles,
   };
   if (writeManifest)

@@ -8,6 +8,7 @@ $manifest = Get-Content -LiteralPath (Join-Path $release 'release-manifest.json'
 if ($manifest.version -ne $Version) { throw 'Release version mismatch' }
 $sourceArchive = Join-Path $release 'resources\app.asar'
 if ((Get-FileHash -LiteralPath $sourceArchive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.archiveSha256) { throw 'Release hash mismatch' }
+if ((Get-FileHash -LiteralPath (Join-Path $release 'resources\YijianWindow.exe') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.helperSha256) { throw 'Window helper hash mismatch' }
 $installRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\YijianJournal'))
 $destination = [IO.Path]::GetFullPath((Join-Path $installRoot $Version))
 if ([IO.Path]::GetDirectoryName($destination) -ne $installRoot) { throw 'Unsafe installation target' }
@@ -16,6 +17,7 @@ New-Item -ItemType Directory -Path $destination -Force | Out-Null
 Get-ChildItem -LiteralPath $release -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $destination -Recurse }
 $installedHash = (Get-FileHash -LiteralPath (Join-Path $destination 'resources\app.asar') -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($installedHash -ne $manifest.archiveSha256) { throw 'Installed archive hash mismatch; shortcut was not changed' }
+if ((Get-FileHash -LiteralPath (Join-Path $destination 'resources\YijianWindow.exe') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.helperSha256) { throw 'Installed window helper hash mismatch; shortcut was not changed' }
 $desktop = [Environment]::GetFolderPath('Desktop')
 $shortcutPath = Join-Path $desktop '逸剑手札.lnk'
 $shellObject = New-Object -ComObject WScript.Shell

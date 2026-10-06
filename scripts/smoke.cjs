@@ -1,8 +1,5 @@
 'use strict';
-const { _electron: electron } = require(
-  process.env.PLAYWRIGHT_MODULE ||
-    'playwright',
-);
+const { _electron: electron } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
@@ -200,7 +197,59 @@ async function attach() {
     assert.equal(windows.length, 2);
     await windows[1].waitForSelector('.compact-shell');
     await windows[1].screenshot({ animations: 'disabled', path: path.join(results, '05-compact.png') });
-    await windows[1].locator('[data-action="window-close"]').click();
+    const quick = windows[1];
+    quick.on('pageerror', (e) => errors.push(e.message));
+    await quick.locator('[data-action="search"]').click();
+    await quick.locator('#global-search').fill('司马铃');
+    await quick.locator('.search-result').first().click();
+    await quick.locator('.drawer').waitFor();
+    assert.ok((await quick.locator('.drawer h1').innerText()).includes('司马铃'));
+    await quick.screenshot({ animations: 'disabled', path: path.join(results, '05-compact-search.png') });
+    await quick.keyboard.press('Escape');
+    assert.equal(await quick.locator('.drawer').count(), 0);
+    await quick.locator('.companion-tabs [data-action="navigate"][data-id="saves"]').click();
+    await quick.locator('.timeline-card').first().waitFor();
+    await quick.screenshot({ animations: 'disabled', path: path.join(results, '05-compact-history.png') });
+    await quick.locator('[data-action="navigate"][data-id="home"]').click();
+    // Renderer presentation under a synthetic passive-mode event; controller focus/input
+    // and native identity boundaries are separately tested without any game access.
+    await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));
+      w.setBounds({ ...w.getBounds(), width: 320, height: 112 });
+      w.webContents.send('journal:companion', { mode: 'hint', visible: true });
+    });
+    await quick.locator('.hint-shell').waitFor();
+    await quick.waitForFunction(() => innerWidth <= 321 && innerHeight <= 113);
+    assert((await quick.locator('.hint-line').count()) <= 2);
+    assert.equal(
+      await quick.evaluate(
+        () =>
+          document.documentElement.scrollWidth > innerWidth ||
+          document.documentElement.scrollHeight > innerHeight,
+      ),
+      false,
+    );
+    await quick.screenshot({ animations: 'disabled', path: path.join(results, '05-passive-hints.png') });
+    await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));
+      w.setBounds({ ...w.getBounds(), width: 460, height: 660 });
+      w.webContents.send('journal:companion', { mode: 'expanded', visible: true });
+    });
+    await quick.locator('.compact-shell').waitFor();
+    await quick.waitForFunction(() => innerWidth >= 450 && innerHeight >= 640);
+    await quick.locator('[data-action="companion-collapse"]').click();
+    assert.equal(
+      await quick.evaluate(async () => (await window.journal.companionSnapshot()).data.mode),
+      'hint',
+    );
+    assert.equal(
+      await app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((w) => w.webContents.getURL().includes('compact=1'))
+          .isVisible(),
+      ),
+      false,
+    );
     // The companion stays useful when the full window was closed first.
     await win.locator('[data-action="compact"]').first().click();
     await win.waitForTimeout(300);
@@ -211,7 +260,14 @@ async function attach() {
     win = app.windows().find((w) => w !== companion);
     if (!win) win = await app.waitForEvent('window');
     await win.waitForSelector('.layout');
-    await companion.locator('[data-action="window-close"]').click();
+    assert.equal(
+      await app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((w) => w.webContents.getURL().includes('compact=1'))
+          .isVisible(),
+      ),
+      false,
+    );
     await win.locator('[data-action="profiles"]').first().click();
     await win.locator('#profile-name').fill('测试二周目');
     await win.locator('[data-action="profile-create"]').click();
