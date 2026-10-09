@@ -1,5 +1,6 @@
 import {
   compileSearch,
+  compareSearchTitles,
   searchFilterFields,
   searchFilterSuggestions,
   insertSearchFilter,
@@ -2604,9 +2605,10 @@ function showSearchResults(value) {
   renderSearchSuggestions();
   const help = overlay.querySelector('#global-filter-help');
   if (help && !help.innerHTML) help.innerHTML = searchHelpViews.help(values);
-  let matches;
+  let matches, compareTitles;
   try {
     matches = compileSearch(q);
+    compareTitles = compareSearchTitles(q);
   } catch (e) {
     document.querySelector('#global-results').innerHTML = notice(e.message, true);
     return;
@@ -2622,7 +2624,7 @@ function showSearchResults(value) {
     list.push(
       ...all
         .filter((d) => d.group === group)
-        .sort((a, b) => Number(b.title === q) - Number(a.title === q))
+        .sort(compareTitles)
         .slice(0, quotas[group]),
     );
   const more = q

@@ -36,6 +36,49 @@ test('invalid or unfinished filters surface a useful error rather than silently 
   assert(compileSearch('')({}));
 });
 
+test('filtered name intent ranks the actual copper recipe ahead of recipes using copper before the result quota', async () => {
+  const { compileSearch, compareSearchTitles } = await modulePromise;
+  for (const query of [
+    '铜锭',
+    '种类:配方 铜锭',
+    '铜锭 kind:配方',
+    '种类：配方 "铜锭"',
+    '种类:配方 名称:铜锭',
+    '(种类:配方 铜锭) -品质:红',
+  ]) {
+    const found = entries.filter(compileSearch(query)).sort(compareSearchTitles(query)).slice(0, 12);
+    assert.equal(found.find((row) => row.kind === '配方')?.id, 'fusion-9501', query);
+  }
+});
+
+test('ranking respects quoted names, matching OR branches and negative or non-name facets while preserving ties', async () => {
+  const { compileSearch, compareSearchTitles } = await modulePromise;
+  const rank = (query, rows) =>
+    rows
+      .filter(compileSearch(query))
+      .sort(compareSearchTitles(query))
+      .map((row) => row.id);
+  const rows = [
+    { id: 'incidental', title: '另一配方', kind: '配方', materials: '铜锭', quality: '白' },
+    { id: 'copper', title: '铜锭', kind: '配方', quality: '绿' },
+    { id: 'facet', title: '绿', kind: '配方', quality: '绿', materials: '铜锭' },
+  ];
+  assert.deepEqual(rank('种类:配方 品质:绿 铜锭', rows), ['copper', 'facet']);
+  assert.deepEqual(rank('种类:配方 品质:绿', rows), ['copper', 'facet']);
+  assert.deepEqual(rank('种类:配方 -名称:另一配方', rows), ['copper', 'facet']);
+  assert.deepEqual(rank('(铜锭 品质:红) or 种类:配方', rows), ['incidental', 'copper', 'facet']);
+  assert.deepEqual(rank('(铜锭 品质:绿) or 名称:另一', rows), ['copper', 'incidental', 'facet']);
+  const spaced = [
+    { id: 'description', title: 'Elsewhere', kind: '物品', description: 'White Sword' },
+    { id: 'name', title: 'White Sword', kind: '物品' },
+  ];
+  for (const query of ['white sword', '种类:物品 "WHITE SWORD"', 'kind:物品 name:"White Sword"'])
+    assert.deepEqual(
+      rank(query, spaced),
+      ['name', 'description'].filter((id) => (query.includes('name:') ? id === 'name' : true)),
+    );
+});
+
 test('filter completion lists legal local values and preserves grouping, negation and caret suffix', async () => {
   const { searchFilterFields, searchFilterSuggestions, compileSearch, insertSearchFilter } =
     await modulePromise;

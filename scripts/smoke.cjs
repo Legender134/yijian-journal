@@ -381,6 +381,17 @@ async function attach() {
     await win.locator('[data-action="close-overlay"]').click();
     assert.equal(await win.locator('script:not([src])').count(), 0);
     await win.keyboard.press('Control+k');
+    for (const query of ['种类:配方 铜锭', '铜锭 kind:配方', '种类：配方 "铜锭"', '种类:配方 名称:铜锭']) {
+      await win.locator('#global-search').fill(query);
+      assert.equal(
+        await win.locator('.search-result[data-action="database-detail"]').first().getAttribute('data-id'),
+        'fusion-9501',
+        query,
+      );
+    }
+    await win.keyboard.press('Escape');
+    await win.keyboard.press('Control+k');
+    assert.equal(await win.locator('#global-search').inputValue(), '种类:配方 名称:铜锭');
     await win.locator('#global-search').fill('司马铃');
     assert.ok((await win.locator('.search-result').count()) > 0);
     await win.keyboard.press('ArrowDown');
