@@ -55,6 +55,26 @@ function card(view, action) {
 const collection = (plan, itemId = 1000) =>
   plan.actions.find((a) => a.kind === 'collection' && a.material.ids.includes(itemId));
 
+test('ten requested items use the saved four-item reference without reserving, auto-completing or rewriting that inventory', async () => {
+  const g = goal(1000);
+  g.source.quantity = 10;
+  const p = profile({ goals: [g] }),
+    r = reference([{ id: 1000, count: 4 }]),
+    before = structuredClone({ p, r }),
+    budget = resourceBudget(p, r),
+    plan = journeyPlan(p, r, budget),
+    action = collection(plan),
+    view = card(await html(plan), action);
+  assert.equal(action.material.count, 10);
+  assert.equal(action.material.onHand, 4);
+  assert.equal(action.material.missing, null);
+  assert.equal(action.prepared, false);
+  assert.equal(action.userDone, false);
+  assert.match(view, /需 10 · 已保存持有 4/);
+  assert.match(view, /仅收藏目标，未预留库存/);
+  assert.deepEqual({ p, r }, before);
+});
+
 test('a collection card shows saved holdings and its reference without reserving stock or completing the personal goal', async () => {
   const p = profile(),
     r = reference([{ id: 1000, count: 5 }]),

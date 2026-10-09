@@ -1763,6 +1763,10 @@ app.whenReady().then(async () => {
           bridge.canStop(),
         );
         const result = saves.restore(bound.id, source, () => bridge.canStop());
+        resultFeedback(
+          'success',
+          `历史备份「${backup.label}」已恢复 ${result.restored} 个文件；目标：${source.slice(0, 220)}；恢复前安全副本：${result.safetyId}`,
+        );
         broadcast('event', { type: 'backup', text: '历史备份恢复完成，当前进度安全副本已保留' });
         return { ...result, environment: overview() };
       }),

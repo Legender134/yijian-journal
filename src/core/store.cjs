@@ -96,7 +96,7 @@ function validateGoalSource(source, ids, plans = []) {
       source.quantity !== undefined &&
       (!Number.isSafeInteger(source.quantity) || source.quantity < 1 || source.quantity > 999)
     )
-      throw new Error('待办制作次数无效');
+      throw new Error('待办数量须为 1 至 999 的整数');
   } else if (source.type === 'quest') {
     if (!questIds.has(source.id) || source.quantity !== undefined) throw new Error('待办任务引用无效');
   } else if (source.type === 'planner') {
@@ -818,6 +818,14 @@ class Store {
           throw Error('目标地点须明确选择，或以地点未定移除');
         const g = p.goals.find((x) => x.id === command.id);
         if (!g) throw new Error('待办不存在');
+        if (Object.hasOwn(command, 'quantity')) {
+          if (g.source?.type !== 'database' || databaseKinds.get(g.source.id) !== '物品')
+            throw Error('只有物品收集目标可以修改收集数量');
+          if (command.quantity === undefined) throw Error('收集数量须为 1 至 999 的整数');
+          const source = { ...g.source, quantity: command.quantity };
+          validateGoalSource(source, this.ids, p.craftPlans);
+          g.source = source;
+        }
         g.title = text(command.title, 200);
         g.detail = text(command.detail || '', 2000);
         if (Object.hasOwn(command, 'placeId')) {

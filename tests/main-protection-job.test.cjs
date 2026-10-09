@@ -83,3 +83,106 @@ test('a failed protection operation releases the command barrier', async () => {
   await s.context.quick();
   assert.deepEqual(s.commands, ['save']);
 });
+
+function restoreSetup({ answer = 1, failPrepare = false, failRestore = false } = {}) {
+  const { Activity } = require('../src/core/activity.cjs');
+  const parent = path.join(__dirname, '..', '.test-data', 'restore-receipt');
+  fs.mkdirSync(parent, { recursive: true });
+  const directory = fs.mkdtempSync(path.join(parent, 'synthetic-'));
+  const activity = new Activity(directory),
+    calls = [],
+    events = [];
+  let handler;
+  const context = {
+    activity,
+    isTest: true,
+    broadcast: (...args) => events.push(args),
+    updateTray: () => {},
+    protectionJob: async (_label, work) => work(),
+    owner: () => null,
+    bridge: { busy: false, canStop: () => true },
+    timeline: { data: {} },
+    realDirectory: (value) => value,
+    store: { get: () => ({ settings: { savePath: 'synthetic-target-SaveGames' } }) },
+    protectionArchives: {
+      history: async () => ({
+        backups: [
+          {
+            id: 'history-backup',
+            label: '出发前保护点',
+            files: [{ name: '1.sav' }, { name: 'JHSaveConfig.sav' }],
+          },
+        ],
+      }),
+      prepareRecovery: async () => {
+        calls.push('prepare');
+        if (failPrepare) throw Error('synthetic verification failure');
+        return { id: 'bound-history' };
+      },
+    },
+    saves: {
+      pendingRestore: () => null,
+      restore: () => {
+        calls.push('restore');
+        if (failRestore) throw Error('synthetic restore failure');
+        return { restored: 2, safetyId: 'verified-safety-copy' };
+      },
+    },
+    dialog: { showMessageBox: async () => ({ response: answer }) },
+    overview: () => ({}),
+    handle: (name, callback) => {
+      assert.equal(name, 'protection-restore');
+      handler = callback;
+    },
+  };
+  vm.createContext(context);
+  vm.runInContext(
+    section('function resultFeedback(', '\nfunction bridgeEvent(') +
+      '\n' +
+      section("    handle('protection-restore',", "    handle('export',"),
+    context,
+  );
+  return { handler, activity, directory, calls, events, context };
+}
+
+test('history restore leaves a persistent receipt identifying target and verified protection copy', async () => {
+  const { Activity } = require('../src/core/activity.cjs');
+  const s = restoreSetup();
+  const result = await s.handler({}, 'archive', 'history-backup');
+  assert.equal(result.restored, 2);
+  assert.deepEqual(s.calls, ['prepare', 'restore']);
+  const receipt = new Activity(s.directory).get().events[0];
+  assert.equal(receipt.level, 'success');
+  for (const value of ['出发前保护点', '2', 'synthetic-target-SaveGames', 'verified-safety-copy'])
+    assert(receipt.message.includes(value));
+  assert(
+    s.events.some(
+      ([channel, event]) =>
+        channel === 'event' && event.type === 'operation' && event.result.message === receipt.message,
+    ),
+  );
+});
+
+test('history restore cancellation and failed verification or restore never leave a success receipt', async () => {
+  for (const flags of [{ answer: 0 }, { failPrepare: true }, { failRestore: true }]) {
+    const s = restoreSetup(flags);
+    if (flags.answer === 0) {
+      assert.equal((await s.handler({}, 'archive', 'history-backup')).cancelled, true);
+      assert.deepEqual(s.calls, []);
+    } else await assert.rejects(s.handler({}, 'archive', 'history-backup'), /synthetic/);
+    assert.deepEqual(s.activity.get().events, []);
+    assert(!s.events.some(([, event]) => event.type === 'operation'));
+  }
+});
+
+test('history restore remains successful when its receipt cannot be written, with the existing warning', async () => {
+  const s = restoreSetup();
+  s.activity.record = () => {
+    throw Error('synthetic disk fault');
+  };
+  assert.equal((await s.handler({}, 'archive', 'history-backup')).restored, 2);
+  assert.match(s.activity.warning, /操作结果未能写入本机/);
+  assert(
+    s.events.some(([, event]) => event.type === 'operation' && /记录未能写入/.test(event.result.message)),
+  );
+});

@@ -262,10 +262,13 @@ async function multiPlanFlow(page) {
       .list()
       .map((backup) => backup.id)
       .sort();
+    const activityFile = path.join(currentData, 'activity.json');
+    const beforeRestoreEvents = JSON.parse(fs.readFileSync(activityFile, 'utf8')).events;
     await dialogAnswer(0);
     await beginRestoreCycle(page);
     await page.locator('[data-action="protection-restore"]').click();
     await finishRestoreCycle(page, 0);
+    assert.deepEqual(JSON.parse(fs.readFileSync(activityFile, 'utf8')).events, beforeRestoreEvents);
     assert.equal(hash(path.join(currentGame, '1.sav')), before);
     assert.deepEqual(
       liveBackups
@@ -287,6 +290,11 @@ async function multiPlanFlow(page) {
     assert.equal(hash(path.join(currentGame, '1.sav')), oldHash);
     const safety = liveBackups.list().find((b) => b.kind === 'safety');
     assert(safety);
+    const restoreReceipt = JSON.parse(fs.readFileSync(activityFile, 'utf8')).events[0];
+    assert.equal(restoreReceipt.level, 'success');
+    for (const value of ['旧机器完整保护', currentGame.slice(0, 220), safety.id])
+      assert(restoreReceipt.message.includes(value));
+    assert.match(restoreReceipt.message, /已恢复 2 个文件/);
     assert.equal(
       crypto.createHash('sha256').update(liveBackups.verify(safety.id).buffers.get('1.sav')).digest('hex'),
       before,
@@ -321,8 +329,34 @@ async function multiPlanFlow(page) {
     assert.equal(exported.historicalArchives, 1);
     checks.push('使用历史手札前保留当前副本，保持本机路径并重新导出可校验保护包');
     await page.screenshot({ path: path.join(data, 'imported-history.png') });
+    await app.close();
+    app = null;
+    app = await _electron.launch({
+      executablePath: process.env.YIJIAN_EXECUTABLE || require('electron'),
+      args: process.env.YIJIAN_EXECUTABLE ? [] : [base],
+      env,
+      timeout: 30000,
+    });
+    pid = app.process().pid;
+    const restarted = await app.firstWindow();
+    restarted.on('pageerror', (e) => errors.push(e.message));
+    await restarted.waitForSelector('.layout');
+    await nav(restarted, 'saves');
+    const operationHistory = restarted.locator('.operation-history');
+    assert((await operationHistory.innerText()).includes(restoreReceipt.message));
+    assert(
+      JSON.parse(fs.readFileSync(activityFile, 'utf8')).events.some(
+        (event) => event.at === restoreReceipt.at && event.message === restoreReceipt.message,
+      ),
+    );
+    assert.equal(hash(path.join(currentGame, '1.sav')), oldHash);
+    for (const [n, digest] of Object.entries(foreign)) assert.equal(hash(path.join(currentGame, n)), digest);
+    await restarted.screenshot({ path: path.join(data, 'restore-receipt-restarted.png') });
+    checks.push(
+      '历史完整恢复留下目标与安全副本的持久成功回执，取消不记成功，冷重启后操作结果与恢复字节可核对',
+    );
     assert.deepEqual(errors, []);
-    assert.equal(await page.locator('.toast.error').count(), 0);
+    assert.equal(await restarted.locator('.toast.error').count(), 0);
     fs.writeFileSync(
       path.join(base, 'test-results', 'maturity-flows-ui-result.json'),
       JSON.stringify(

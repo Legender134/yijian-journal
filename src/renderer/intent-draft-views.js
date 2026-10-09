@@ -38,6 +38,7 @@ const fields = {
   goal: [
     ['title', 'goal-title'],
     ['detail', 'goal-detail'],
+    ['quantity', 'goal-quantity'],
     ['placeId', 'journey-place'],
     ['placeQuery', 'journey-place-search'],
   ],
@@ -54,7 +55,9 @@ export function readIntentValues(kind, scope) {
     fields[kind]
       .filter(
         ([name, id]) =>
-          kind !== 'goal' || !['placeId', 'placeQuery'].includes(name) || scope.querySelector('#' + id),
+          kind !== 'goal' ||
+          !['placeId', 'placeQuery', 'quantity'].includes(name) ||
+          scope.querySelector('#' + id),
       )
       .map(([name, id, checked]) => {
         const field = id ? scope.querySelector('#' + id) : scope.querySelector('[data-itinerary-place]');
@@ -131,7 +134,7 @@ export function createIntentDraftViews({ esc, act, when }) {
         : row.kind === 'journey-todo'
           ? `<p>${value.done ? '拟标为已完成' : '拟保留为未完成'}</p>`
           : '';
-    return `<div class="detail-block"><h3>${esc(title(row, index))}</h3><p class="small muted">${esc(INTENT_KIND_LABELS[row.kind])} · ${when(row.updatedAt || row.createdAt)}</p>${status}${value.placeId ? `<p>${esc(sourceName(index, value.placeId, 'place'))}</p>` : ''}${row.kind === 'journey-gift' ? `<p>件数：${esc(value.quantity || '尚未填写')} · ${value.done ? '拟标为已完成' : '拟保留为未完成'}</p>` : ''}${
+    return `<div class="detail-block"><h3>${esc(title(row, index))}</h3><p class="small muted">${esc(INTENT_KIND_LABELS[row.kind])} · ${when(row.updatedAt || row.createdAt)}</p>${status}${value.placeId ? `<p>${esc(sourceName(index, value.placeId, 'place'))}</p>` : ''}${row.kind === 'goal' && Object.hasOwn(value, 'quantity') ? `<p>收集数量：${esc(value.quantity || '尚未填写')} 件 · 正式保存后更新原目标</p>` : ''}${row.kind === 'journey-gift' ? `<p>件数：${esc(value.quantity || '尚未填写')} · ${value.done ? '拟标为已完成' : '拟保留为未完成'}</p>` : ''}${
       row.kind === 'craft-plan'
         ? `<p>${value.addGoal ? '拟加入行囊目标' : '拟仅保存计划'} · ${value.reserved ? '正式保存后保留材料' : '正式保存后暂不保留材料'}</p>${row.context.list.map((line) => `<p class="small">${esc(sourceName(index, line.id, 'recipe'))} × ${line.quantity}</p>`).join('')}${Object.entries(
             row.context.choices,
