@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>逸剑手札 · 恢复本机手札</title>
+    <link rel="stylesheet" href="startup-recovery.css" />
+  </head>
+  <body>
+    <main>
+      <div class="brand">逸剑手札 · 本机资料恢复</div>
+      <h1>先恢复你的手札，再继续江湖</h1>
+      <p class="lead">当前手札和上一份记录都无法读取。两个原件仍保留在本机，尚未替换。</p>
+      <p>选择之前导出的资料，软件会先完整校验，再展示可恢复的周目。确认前不会替换手札。</p>
+      <section aria-labelledby="choose-title">
+        <h2 id="choose-title">1. 选择恢复资料</h2>
+        <div class="choices">
+          <button data-mode="json">选择手札 JSON</button>
+          <button data-mode="protection">选择完整保护包</button>
+          <button data-mode="volumes">选择完整分卷目录</button>
+        </div>
+        <p class="hint">
+          分卷请选择含 transfer.json 和全部 part 文件的同一次导出目录。资料不完整时会拒绝恢复。
+        </p>
+        <div class="new-option">
+          <p>没有可用的导出备份？可以先保留损坏原件，从空手札开始使用离线助手。</p>
+          <button id="new-journal">保留损坏原件，开始新手札</button>
+          <p class="hint">点击后先预览并再次确认，不会立即新建。现有备份、旧时间线和游戏存档原样保留。</p>
+        </div>
+      </section>
+      <p id="status" role="status" aria-live="polite">正在读取恢复状态…</p>
+      <p id="error" role="alert" hidden></p>
+      <section id="preview" aria-labelledby="preview-title" hidden>
+        <h2 id="preview-title">2. 核对本次恢复范围</h2>
+        <p id="source"></p>
+        <ul id="profiles"></ul>
+        <p id="ignored"></p>
+        <p id="scope" class="scope">
+          仅恢复手札里的周目、笔记、待办、记录、草稿和计划。游戏存档、完整备份和原时间线仍保留在原处；本次不恢复它们。旧机器路径、账户和固定槽位不会绑定，自动存读档权限不会启用。
+        </p>
+        <p id="consequence">
+          确认后会先另存并校验两个损坏原件，随后原子替换本机手札。重新进入后，请在设置中重新确认本机存档目录；原生时间线须另外明确开启。
+        </p>
+        <label class="ack"
+          ><input id="ack" type="checkbox" /><span id="ack-text"
+            >我已核对周目和恢复范围，确认恢复这份手札</span
+          ></label
+        >
+        <button id="confirm" class="primary" disabled>保留损坏原件并恢复手札</button>
+      </section>
+      <footer>
+        <button id="cancel">保留原件并退出</button>
+        <p class="hint">请保留下面的本机目录，损坏原件及其他资料不会被删除。你也可以保留原件并退出。</p>
+        <p id="directory" class="directory"></p>
+      </footer>
+    </main>
+    <script src="startup-recovery.js"></script>
+  </body>
+</html>

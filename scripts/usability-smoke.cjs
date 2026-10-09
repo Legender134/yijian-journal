@@ -3,9 +3,7 @@
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
-const {
-  _electron,
-} = require('playwright');
+const { _electron } = require('playwright');
 const { Store } = require('../src/core/store.cjs'),
   { Timeline } = require('../src/core/timeline.cjs'),
   { Activity } = require('../src/core/activity.cjs');
@@ -74,7 +72,8 @@ async function shot(name) {
   try {
     await launch();
     assert.match(await win.locator('.save-health').first().innerText(), /自动保存已停止/);
-    await route('saves');
+    assert.match(await win.locator('.start-panel h2').innerText(), /存档保护需要核对/);
+    await win.locator('.start-panel .btn.primary[data-action="navigate"][data-id="saves"]').click();
     assert.match(await win.locator('.operation-history').innerText(), /合成测试连接异常/);
     assert.equal(await win.locator('[data-save-ready]').first().isDisabled(), true);
     assert.equal(await win.locator('[data-action="timeline-target"]').count(), 11);
@@ -165,11 +164,35 @@ async function shot(name) {
     await win.locator('#craft-save').selectOption('2.sav');
     await win.locator('[data-action="craft-calculate"]').click();
     await win.waitForFunction(() => document.querySelector('.craft-totals')?.textContent.includes('0 件'));
+    await win.locator('#craft-qty-fusion-7000').fill('3');
+    await win.locator('.craft-line [data-action="database-detail"][data-id="fusion-7000"]').click();
+    assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
+    assert.equal(await win.locator('#recipe-save').inputValue(), '2.sav');
+    await win.locator('#recipe-materials [data-action="database-detail"]').first().click();
+    await win.locator('[data-action="drawer-back"]').click();
+    assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
+    assert.equal(await win.locator('#recipe-save').inputValue(), '2.sav');
+    await close();
+    for (const reference of ['@latest', '']) {
+      await win.locator('#craft-save').selectOption(reference);
+      await win.locator('.craft-line [data-action="database-detail"][data-id="fusion-7000"]').click();
+      assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
+      assert.equal(await win.locator('#recipe-save').inputValue(), reference);
+      if (!reference) assert.equal(await win.locator('#recipe-materials .material-owned').count(), 0);
+      await close();
+    }
+    await win.locator('#craft-save').selectOption('2.sav');
+    await win.locator('#craft-qty-fusion-7000').fill('1');
+    await win.locator('[data-action="craft-calculate"]').click();
+    await win.waitForFunction(() => document.querySelector('.craft-totals')?.textContent.includes('0 件'));
+    report.checks.push(
+      'planned recipe retains quantity and fixed, latest, or no save; ingredient return keeps context',
+    );
     fs.writeFileSync(path.join(source, '2.sav'), stock(0));
     await broadcast();
     await win.waitForFunction(() => document.querySelector('.craft-totals')?.textContent.includes('5 件'));
     assert.equal(await win.locator('#craft-search').inputValue(), '布锦鞋精良图纸');
-    assert.match(await win.locator('.material-sources').innerText(), /获取线索/);
+    assert.match(await win.locator('.material-sources:not(.crafting-stages)').innerText(), /获取线索/);
     fs.writeFileSync(path.join(source, '2.sav'), stock(10));
     await broadcast();
     await win.waitForFunction(() => document.querySelector('.craft-totals')?.textContent.includes('0 件'));
@@ -235,7 +258,8 @@ async function shot(name) {
       document.querySelector('.home-save-choice')?.textContent.includes('仅查资料'),
     );
     assert.equal((await win.evaluate(() => window.journal.refresh())).data.recent, null);
-    assert.match(await win.locator('.content').innerText(), /先标记你的主线阶段/);
+    assert.equal(await win.locator('[data-persist-detail="home-stage"]').evaluate((el) => el.open), false);
+    await win.locator('[data-persist-detail="home-stage"] summary').click();
     await win.locator('[data-action="stage"]').first().click();
     await win.locator('#stage-select').selectOption('0');
     await win.locator('[data-action="stage-save"]').click();
@@ -257,14 +281,35 @@ async function shot(name) {
     assert.ok(await win.locator('.database-card').count());
     await win.keyboard.press('Control+k');
     await win.locator('#global-search').fill('剑');
-    const count = index.entries.filter((e) =>
-      [e.name, e.type, ...(e.hobbies || [])].join(' ').toLowerCase().includes('剑'),
-    ).length;
-    assert.match(
+    const searchSource = fs.readFileSync(path.join(base, 'src/renderer/search-query.js'), 'utf8');
+    const { compileSearch } = await import(
+      'data:text/javascript;base64,' + Buffer.from(searchSource).toString('base64')
+    );
+    const matches = index.entries.filter(compileSearch('剑'));
+    assert.equal(
       await win.locator('[data-action="search-all"][data-id="database"]').innerText(),
-      new RegExp(String(count)),
+      `百物图鉴 ${matches.length} 项 · 查看全部`,
     );
     await shot('search-all');
+    await win.locator('[data-action="search-all"][data-id="database"]').click();
+    assert.equal(await win.locator('#list-search').inputValue(), '剑');
+    const reachable = [];
+    const pages = Math.ceil(matches.length / 24);
+    for (let page = 0; page < pages; page++) {
+      await win.waitForFunction(
+        ({ current, total }) =>
+          document.querySelector('.pagination')?.textContent.includes(`第 ${current} / ${total} 页`),
+        { current: page + 1, total: pages },
+      );
+      reachable.push(
+        ...(await win.locator('.database-card').evaluateAll((cards) => cards.map((card) => card.dataset.id))),
+      );
+      if (page + 1 < pages) await win.locator('[data-action="database-page"]').last().click();
+    }
+    assert.deepEqual(
+      reachable,
+      matches.map((entry) => entry.id),
+    );
     const blocked = await win.evaluate(async () => ({
       launch: await window.journal.launchGame(),
       save: await window.journal.timelineSave(),

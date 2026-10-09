@@ -4,16 +4,19 @@ const test = require('node:test'),
 const fs = require('node:fs'),
   path = require('node:path'),
   os = require('node:os');
-const { GameBridge } = require('../src/core/game-bridge.cjs');
+const { GameBridge, bridgeStateRoot } = require('../src/core/game-bridge.cjs');
 const { Timeline, writeBytes } = require('../src/core/timeline.cjs');
-const { sha } = require('../src/core/saves.cjs');
+const { Saves, sha } = require('../src/core/saves.cjs');
+const { Store } = require('../src/core/store.cjs');
+const { AutoBackup } = require('../src/core/auto-backup.cjs');
 const { syntheticSave } = require('./fixtures.cjs');
+const { PROTOCOL, mac } = require('../src/core/native-io.cjs');
 function setup(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-bridge-'));
   const source = path.join(root, '76561190000000000', 'SaveGames');
   fs.mkdirSync(source, { recursive: true });
   const timeline = new Timeline(path.join(root, 'history'));
-  timeline.configure(source, false, 10);
+  timeline.configure(source, true, 10); // Explicit synthetic native consent, before connecting.
   const events = [];
   const bridge = new GameBridge(path.join(root, 'ipc'), timeline, {
     getGame: () => ({ installed: false }),
@@ -23,7 +26,7 @@ function setup(t) {
   });
   bridge.installation = () => ({ installed: true });
   const state = {
-    protocol: 1,
+    protocol: PROTOCOL,
     revision: bridge.revision,
     session: '1790000000-123456',
     token: bridge.token,
@@ -48,6 +51,167 @@ function setup(t) {
   });
   return { root, source, timeline, bridge, state, pulse, events };
 }
+function stateRootFixture(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-bridge-state-'));
+  t.after(() => {
+    assert.equal(path.dirname(path.resolve(root)), path.resolve(os.tmpdir()));
+    assert.ok(path.basename(root).startsWith('yijian-bridge-state-'));
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const userData = path.join(root, 'journal-data');
+  const game = { installed: true, path: path.join(root, 'synthetic-game') };
+  const bin = path.join(game.path, 'Wandering_Sword', 'Binaries', 'Win64');
+  const legacy = path.join(bin, 'ue4ss', 'YijianJournal');
+  const marker = path.join(bin, '.yijian-component.json');
+  fs.mkdirSync(bin, { recursive: true });
+  fs.writeFileSync(path.join(game.path, 'JH.exe'), 'synthetic, never executable');
+  return { root, userData, game, bin, legacy, marker };
+}
+
+test('fresh runtime state starts without write access to the game installation', (t) => {
+  const { userData, game, legacy } = stateRootFixture(t);
+  const timeline = new Timeline(path.join(userData, 'history'));
+  const options = { getGame: () => game, stopped: () => true, test: true };
+  const originalMkdir = fs.mkdirSync;
+  fs.mkdirSync = (target, ...args) => {
+    if (path.resolve(target).startsWith(path.resolve(game.path) + path.sep)) {
+      const error = Error('EPERM: synthetic read-only game directory');
+      error.code = 'EPERM';
+      throw error;
+    }
+    return originalMkdir(target, ...args);
+  };
+  let bridge;
+  try {
+    assert.throws(() => new GameBridge(legacy, timeline, options), /synthetic read-only/);
+    const selected = bridgeStateRoot(game, userData);
+    assert.equal(selected, path.join(userData, 'game-bridge'));
+    bridge = new GameBridge(selected, timeline, options);
+    assert.equal(bridge.root, fs.realpathSync(selected));
+    assert.match(fs.readFileSync(path.join(selected, 'token.txt'), 'utf8'), /^[a-f0-9]{64}$/);
+    assert.equal(fs.existsSync(legacy), false);
+    assert.equal(fs.readFileSync(path.join(game.path, 'JH.exe'), 'utf8'), 'synthetic, never executable');
+    assert.equal(timeline.data.enabled, false);
+  } finally {
+    fs.mkdirSync = originalMkdir;
+    bridge?.dispose();
+  }
+});
+
+test('recognized existing components keep their legacy runtime token and files', (t) => {
+  for (const mod of ['YijianJournalBridge', 'YijianSaveProbe']) {
+    const { userData, game, legacy, marker } = stateRootFixture(t);
+    fs.mkdirSync(path.join(legacy, 'receipts'), { recursive: true });
+    const retained = new Map([
+      ['token.txt', Buffer.from('a'.repeat(64))],
+      ['config.txt', Buffer.from('synthetic existing configuration')],
+      ['command.txt', Buffer.from('synthetic existing request')],
+    ]);
+    for (const [name, bytes] of retained) fs.writeFileSync(path.join(legacy, name), bytes);
+    const markerBytes = Buffer.from(
+      JSON.stringify({ schema: 1, mod, root: legacy.replaceAll('\\', '/').toUpperCase() }),
+    );
+    fs.writeFileSync(marker, markerBytes);
+    const selected = bridgeStateRoot(game, userData);
+    assert.equal(selected, legacy);
+    const bridge = new GameBridge(selected, new Timeline(path.join(userData, 'history')), {
+      getGame: () => game,
+      stopped: () => true,
+      test: true,
+    });
+    bridge.dispose();
+    assert.equal(bridge.token, retained.get('token.txt').toString());
+    for (const [name, bytes] of retained) assert.deepEqual(fs.readFileSync(path.join(legacy, name)), bytes);
+    assert.deepEqual(fs.readFileSync(marker), markerBytes);
+    assert.equal(fs.existsSync(path.join(userData, 'game-bridge')), false);
+  }
+});
+
+test('runtime selection preserves unrecognized markers and isolation never inspects game files', (t) => {
+  const { root, userData, game, legacy, marker } = stateRootFixture(t);
+  const foreign = path.join(root, 'foreign-runtime');
+  const fallback = path.join(userData, 'game-bridge');
+  for (const value of [
+    { schema: 2, mod: 'YijianJournalBridge', root: legacy },
+    { schema: 1, mod: 'another-component', root: legacy },
+    { schema: 1, mod: 'YijianJournalBridge', root: foreign },
+    { schema: 1, mod: 'YijianJournalBridge' },
+    null,
+    'malformed',
+  ]) {
+    const bytes = Buffer.from(value === 'malformed' ? '{broken' : JSON.stringify(value));
+    fs.writeFileSync(marker, bytes);
+    assert.equal(bridgeStateRoot(game, userData), fallback);
+    assert.deepEqual(fs.readFileSync(marker), bytes);
+    assert.equal(fs.existsSync(fallback), false);
+    assert.equal(fs.existsSync(foreign), false);
+  }
+  fs.writeFileSync(marker, JSON.stringify({ schema: 1, mod: 'YijianJournalBridge', root: legacy }));
+  const originalStat = fs.lstatSync;
+  let gameReads = 0;
+  fs.lstatSync = (file, ...args) => {
+    if (path.resolve(file).startsWith(path.resolve(game.path) + path.sep)) gameReads++;
+    return originalStat(file, ...args);
+  };
+  try {
+    assert.equal(bridgeStateRoot(game, userData, true), fallback);
+  } finally {
+    fs.lstatSync = originalStat;
+  }
+  assert.equal(gameReads, 0);
+  assert.equal(bridgeStateRoot({ installed: false }, userData), fallback);
+});
+
+test('legacy directories remain usable in passive mode, while enabled native saving fails closed', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-passive-bridge-'));
+  t.after(() => {
+    assert.equal(path.dirname(path.resolve(root)), path.resolve(os.tmpdir()));
+    assert.ok(path.basename(root).startsWith('yijian-passive-bridge-'));
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const source = path.join(root, 'SaveGames');
+  fs.mkdirSync(source);
+  const options = { getGame: () => ({ installed: false }), stopped: () => true };
+  const passiveTimeline = new Timeline(path.join(root, 'passive-history'));
+  passiveTimeline.configure(source, false, 10);
+  const passive = new GameBridge(path.join(root, 'passive-ipc'), passiveTimeline, options);
+  assert.equal(passive.error, '');
+  assert.equal(passiveTimeline.data.enabled, false);
+  assert.deepEqual(fs.readdirSync(source), []);
+  passive.dispose();
+  const activeTimeline = new Timeline(path.join(root, 'active-history'));
+  activeTimeline.configure(source, true, 10);
+  const active = new GameBridge(path.join(root, 'active-ipc'), activeTimeline, options);
+  assert.match(active.error, /Steam 账户/);
+  assert.equal(activeTimeline.data.enabled, false);
+  assert.deepEqual(fs.readdirSync(source), []);
+  active.dispose();
+});
+
+test('backup connection status requires the current revision and save directory, not only the token', (t) => {
+  const s = setup(t);
+  assert.equal(s.bridge.connected(), true);
+  assert.equal(s.bridge.summary().connected, true);
+  for (const change of [
+    { revision: 'obsolete-synthetic-revision' },
+    { source: path.join(s.root, 'another-account', 'SaveGames') },
+    { source: 123 },
+    { source: null },
+    { source: {} },
+    { token: 'b'.repeat(64) },
+  ]) {
+    writeBytes(
+      path.join(s.bridge.root, 'state.json'),
+      Buffer.from(JSON.stringify({ ...s.state, ...change, at: Math.floor(Date.now() / 1000) })),
+    );
+    assert.equal(s.bridge.connected(), false);
+    assert.equal(s.bridge.summary().connected, false);
+  }
+  s.pulse();
+  assert.equal(s.bridge.connected(), true);
+  assert.equal(fs.existsSync(path.join(s.bridge.root, 'command.txt')), false);
+});
+
 function transport(t, s, handler) {
   let last = '';
   const timer = setInterval(() => {
@@ -57,13 +221,16 @@ function transport(t, s, handler) {
     } catch {
       return;
     }
-    const [token, session, id, verb, expiry, mode] = text.trim().split('\t');
+    const rows = text.trim().split('\t');
+    const [token, session, id, verb, expiry, mode, signature] = rows;
     if (id === last) return;
     last = id;
     assert.equal(token, s.bridge.token);
     assert.equal(session, s.state.session);
     assert.match(id, /^[a-f0-9-]{36}$/);
     assert.ok(Number(expiry) >= Date.now() / 1000 - 1);
+    assert.equal(rows.length, 7);
+    assert.equal(signature, mac(token, rows.slice(0, 6).join('\t') + '\n' + s.bridge.grantBinding));
     handler({
       id,
       verb,
@@ -119,6 +286,90 @@ test('display readiness rejects missing components, blocked recovery and account
   s.bridge.statusAccount = null;
   assert.equal(s.bridge.summary().ready, false);
   assert.equal(s.bridge.summary().reason, '账户不可用');
+});
+
+test('an unavailable idle component stops native mode and permits verified file backups without game writes', (t) => {
+  for (const autoBackup of [true, false]) {
+    const s = setup(t);
+    const bytes = syntheticSave({ full: true, seconds: 1234 });
+    fs.writeFileSync(path.join(s.source, '1.sav'), bytes);
+    s.timeline.configure(s.source, true, 10);
+    fs.writeFileSync(path.join(s.source, '29.sav'), bytes);
+    s.timeline.record(bytes, 'auto', Date.now());
+    const ownerHash = s.timeline.data.ownerHash,
+      records = JSON.stringify(s.timeline.data.records);
+    const store = new Store(path.join(s.root, 'journal'), require('../src/data/catalog.cjs'));
+    store.setPath('savePath', s.source);
+    store.mutate({ type: 'settings', value: { autoBackup } });
+    const saves = new Saves(path.join(s.root, 'full-backups'));
+    let finish;
+    const backup = new AutoBackup(store, saves, () => {}, {
+      isBlocked: () => s.timeline.data.enabled,
+      schedule: (callback) => {
+        finish = callback;
+        return 1;
+      },
+      cancel: () => {},
+    });
+    t.after(() => backup.dispose());
+    backup.check();
+    assert.equal(finish, undefined);
+    s.bridge.heartbeat = () => null;
+    s.bridge.installation = () => ({ installed: false, reason: '合成游戏版本已更新，组件尚未适配' });
+    assert.equal(s.bridge.reconcileEnvironment(), true);
+    assert.equal(s.timeline.data.enabled, false);
+    assert.equal(s.timeline.data.ownerHash, ownerHash);
+    assert.equal(JSON.stringify(s.timeline.data.records), records);
+    assert.match(s.bridge.error, /版本已更新/);
+    assert.equal(s.bridge.reconcileEnvironment(), false);
+    assert.equal(s.events.length, 1);
+    assert.equal(fs.existsSync(path.join(s.bridge.root, 'command.txt')), false);
+    backup.check();
+    if (autoBackup) {
+      assert.equal(typeof finish, 'function');
+      finish();
+      const copies = saves.list();
+      assert.equal(copies.length, 1);
+      assert.deepEqual(saves.verify(copies[0].id).buffers.get('29.sav'), bytes);
+    } else {
+      assert.equal(finish, undefined);
+      assert.deepEqual(saves.list(), []);
+    }
+    assert.equal(store.get().settings.autoBackup, autoBackup);
+    assert.deepEqual(fs.readFileSync(path.join(s.source, '1.sav')), bytes);
+    assert.deepEqual(fs.readFileSync(path.join(s.source, '29.sav')), bytes);
+  }
+});
+
+test('idle component reconciliation preserves normal waiting and defers every in-flight or recovery state', (t) => {
+  for (const blocked of [
+    'healthy',
+    'busy',
+    'loadQueued',
+    'quiescing',
+    'disposed',
+    'test',
+    'pending',
+    'restore',
+  ]) {
+    const s = setup(t);
+    s.timeline.configure(s.source, true, 10);
+    s.bridge.heartbeat = () => null;
+    if (['busy', 'loadQueued', 'quiescing', 'disposed', 'test'].includes(blocked)) s.bridge[blocked] = true;
+    if (blocked === 'pending') s.timeline.data.pending = { type: 'save' };
+    if (blocked === 'restore') s.bridge.blocked = () => true;
+    let inspections = 0;
+    s.bridge.installation = () => {
+      inspections++;
+      return { installed: blocked === 'healthy', reason: '合成组件失效' };
+    };
+    assert.equal(s.bridge.reconcileEnvironment(), false);
+    assert.equal(inspections, blocked === 'healthy' ? 1 : 0);
+    assert.equal(s.timeline.data.enabled, true);
+    assert.equal(s.bridge.error, '');
+    assert.deepEqual(s.events, []);
+    assert.equal(fs.existsSync(path.join(s.bridge.root, 'command.txt')), false);
+  }
 });
 test('normal exit drains an in-flight save, prevents new commands, and preserves enabled state', async (t) => {
   const s = setup(t);
@@ -211,6 +462,155 @@ test('a transient unreadable heartbeat after save intent cancels only the unissu
   assert.equal(saved.playSeconds, 123);
   assert.equal(s.timeline.data.pending, null);
 });
+test('a short command read lock retries before dispatch and saves exactly once', async (t) => {
+  const s = setup(t);
+  s.timeline.configure(s.source, true, 10);
+  const command = path.join(s.bridge.root, 'command.txt');
+  const rename = fs.renameSync;
+  let attempts = 0,
+    commands = 0;
+  fs.renameSync = (from, to) => {
+    if (to === command && ++attempts === 1) {
+      const e = Error('synthetic Windows read lock');
+      Object.assign(e, { code: 'EPERM', syscall: 'rename' });
+      throw e;
+    }
+    return rename(from, to);
+  };
+  t.after(() => {
+    fs.renameSync = rename;
+  });
+  transport(t, s, (cmd) => {
+    commands++;
+    completeSave(s, cmd, 678);
+  });
+  const saved = await s.bridge.save('auto');
+  assert.equal(attempts, 2);
+  assert.equal(commands, 1);
+  assert.equal(saved.playSeconds, 678);
+  assert.equal(s.timeline.data.records.length, 1);
+  assert.equal(s.timeline.data.pending, null);
+  assert.equal(s.timeline.data.enabled, true);
+});
+
+test('persistent command read locks stop after bounded retries without uncertain intent', async (t) => {
+  const s = setup(t);
+  s.timeline.configure(s.source, true, 10);
+  const command = path.join(s.bridge.root, 'command.txt');
+  const previous = Buffer.from('previous synthetic command');
+  fs.writeFileSync(command, previous);
+  const rename = fs.renameSync;
+  let attempts = 0;
+  fs.renameSync = (from, to) => {
+    if (to === command) {
+      attempts++;
+      const e = Error('synthetic persistent read lock');
+      Object.assign(e, { code: 'EPERM', syscall: 'rename' });
+      throw e;
+    }
+    return rename(from, to);
+  };
+  t.after(() => {
+    fs.renameSync = rename;
+  });
+  await assert.rejects(s.bridge.save('auto'), (e) => {
+    assert.equal(e.notDispatched, true);
+    assert.equal(e.cause.code, 'EPERM');
+    assert.match(e.message, /无法发送游戏接入指令/);
+    return true;
+  });
+  assert.equal(attempts, 4);
+  assert.deepEqual(fs.readFileSync(command), previous);
+  assert.equal(s.timeline.data.pending, null);
+  assert.equal(s.timeline.data.enabled, false);
+  assert.deepEqual(fs.readdirSync(s.source), []);
+});
+
+test('command creation failures do not retry or leave uncertain intent', async (t) => {
+  const s = setup(t);
+  const command = path.join(s.bridge.root, 'command.txt');
+  const open = fs.openSync;
+  let attempts = 0;
+  fs.openSync = (file, ...args) => {
+    if (typeof file === 'string' && file.startsWith(command + '.') && file.endsWith('.tmp')) {
+      attempts++;
+      const e = Error('synthetic permission denied');
+      Object.assign(e, { code: 'EACCES', syscall: 'open' });
+      throw e;
+    }
+    return open(file, ...args);
+  };
+  t.after(() => {
+    fs.openSync = open;
+  });
+  await assert.rejects(s.bridge.save(), (e) => e.notDispatched && e.cause.code === 'EACCES');
+  assert.equal(attempts, 1);
+  assert.equal(s.timeline.data.pending, null);
+  assert.equal(fs.existsSync(command), false);
+  assert.deepEqual(fs.readdirSync(s.source), []);
+});
+
+test('command retries recheck readiness and refuse a changed game session', async (t) => {
+  const s = setup(t);
+  s.timeline.configure(s.source, true, 10);
+  const command = path.join(s.bridge.root, 'command.txt');
+  const rename = fs.renameSync,
+    ready = s.bridge.assertReady.bind(s.bridge);
+  let attempts = 0,
+    guards = 0;
+  fs.renameSync = (from, to) => {
+    if (to === command) {
+      attempts++;
+      const e = Error('synthetic Windows read lock');
+      Object.assign(e, { code: 'EPERM', syscall: 'rename' });
+      throw e;
+    }
+    return rename(from, to);
+  };
+  t.after(() => {
+    fs.renameSync = rename;
+  });
+  s.bridge.assertReady = () => {
+    const current = ready();
+    return ++guards >= 3 ? { ...current, session: 'new-synthetic-session' } : current;
+  };
+  await assert.rejects(s.bridge.save('auto'), (e) => e.waiting && e.notDispatched);
+  assert.equal(guards, 3);
+  assert.equal(attempts, 1);
+  assert.equal(s.timeline.data.pending, null);
+  assert.equal(s.timeline.data.enabled, true);
+  assert.equal(fs.existsSync(command), false);
+  assert.deepEqual(s.events, []);
+});
+
+test('read-back failures after command publication retain intent and never retry dispatch', async (t) => {
+  const s = setup(t);
+  s.timeline.configure(s.source, true, 10);
+  const command = path.join(s.bridge.root, 'command.txt');
+  const read = fs.readFileSync;
+  let checks = 0;
+  fs.readFileSync = (file, ...args) => {
+    if (file === command) {
+      checks++;
+      throw Error('synthetic post-publication verification failure');
+    }
+    return read(file, ...args);
+  };
+  t.after(() => {
+    fs.readFileSync = read;
+  });
+  await assert.rejects(s.bridge.save('auto'), (e) => {
+    assert.equal(e.notReplaced, false);
+    assert.equal(e.notDispatched, undefined);
+    return /post-publication/.test(e.message);
+  });
+  assert.equal(checks, 1);
+  assert.equal(s.timeline.data.pending.type, 'save');
+  assert.ok(read(command, 'utf8').includes(s.timeline.data.pending.id));
+  assert.equal(s.timeline.data.enabled, false);
+  assert.deepEqual(fs.readdirSync(s.source), []);
+});
+
 test('old receipt before asynchronous disk write is not reported as a successful checkpoint', async (t) => {
   const s = setup(t),
     bytes = syntheticSave({ seconds: 10 });
@@ -489,4 +889,17 @@ test('test environment cannot install, launch native autosave, or load actual co
   assert.throws(() => s.bridge.location(), /测试环境/);
   s.bridge.start();
   assert.equal(s.bridge.timer, undefined);
+});
+
+test('background native checks remain quiet during a protection command barrier', async (t) => {
+  const s = setup(t);
+  s.bridge.blocked = () => true;
+  s.bridge.heartbeat = () => {
+    throw Error('blocked check must not read transport');
+  };
+  s.bridge.save = () => {
+    throw Error('blocked check must not save');
+  };
+  await s.bridge.check();
+  assert.equal(s.bridge.error, '');
 });

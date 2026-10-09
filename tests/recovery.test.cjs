@@ -33,6 +33,40 @@ function values(source) {
     .filter((n) => !n.startsWith('.yijian-'))
     .map((n) => [n, sha(fs.readFileSync(path.join(source, n)))]);
 }
+test('explicit backup check results persist across restarts without modifying save or backup bytes', (t) => {
+  const { source, root, saves, snapshot } = fixture(t);
+  const originalManifest = fs.readFileSync(path.join(root, snapshot.id, 'manifest.json'));
+  const originalCopy = fs.readFileSync(path.join(root, snapshot.id, 'files', '1.sav'));
+  const current = fs.readFileSync(path.join(source, '1.sav'));
+  saves.recordCheck(snapshot.id, '备份文件异常：1.sav');
+  assert.match(new Saves(root).list().find((b) => b.id === snapshot.id).verificationError, /1.sav/);
+  saves.recordCheck(snapshot.id);
+  assert.equal(new Saves(root).list().find((b) => b.id === snapshot.id).verificationError, '');
+  assert.deepEqual(fs.readFileSync(path.join(root, snapshot.id, 'manifest.json')), originalManifest);
+  assert.deepEqual(fs.readFileSync(path.join(root, snapshot.id, 'files', '1.sav')), originalCopy);
+  assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), current);
+  assert.throws(() => saves.recordCheck('../foreign', 'invalid'), /编号/);
+});
+test('backup check metadata cannot follow a linked record or previous copy', (t) => {
+  const { base, root, saves, snapshot } = fixture(t);
+  const target = path.join(base, 'unrelated-check.json');
+  fs.writeFileSync(target, 'keep unrelated bytes');
+  for (const name of ['verification.json', 'verification.json.previous']) {
+    const linked = path.join(root, snapshot.id, name);
+    try {
+      fs.symlinkSync(target, linked);
+    } catch (e) {
+      if (process.platform === 'win32' && e.code === 'EPERM') {
+        t.skip('Windows account cannot create file symlinks');
+        return;
+      }
+      throw e;
+    }
+    assert.throws(() => saves.recordCheck(snapshot.id, 'bad'), /链接文件/);
+    assert.equal(fs.readFileSync(target, 'utf8'), 'keep unrelated bytes');
+    fs.unlinkSync(linked);
+  }
+});
 function crash(root, source, snapshot, stopAt = '1.sav') {
   const child = spawnSync(
     process.execPath,
@@ -168,6 +202,37 @@ test('malformed manifests do not break listing; corrupt operation remains explic
   fs.writeFileSync(saves.operationFile, '{bad');
   assert.equal(saves.pendingRestore().pending, true);
   assert.ok(saves.pendingRestore().error);
+});
+test('unreadable restore records give Chinese guidance without changing saves or protection copies', (t) => {
+  const { source, saves, snapshot } = fixture(t),
+    before = values(source),
+    hashes = saves.verify(snapshot.id).manifest.files.map((f) => f.sha256);
+  for (const damaged of ['{broken', '{}']) {
+    fs.writeFileSync(saves.operationFile, damaged);
+    const pending = saves.pendingRestore();
+    assert.equal(pending.pending, true);
+    assert.match(pending.error, /恢复记录无法读取.*暂停存档写入/);
+    assert.ok(pending.diagnostic);
+    assert.equal(pending.recordPath, saves.operationFile);
+    assert.throws(() => saves.restore(snapshot.id, source));
+    assert.deepEqual(values(source), before);
+    assert.equal(fs.readFileSync(saves.operationFile, 'utf8'), damaged);
+    assert.deepEqual(saves.verify(snapshot.id).manifest.files.map((f) => f.sha256), hashes);
+  }
+  const readFile = fs.readFileSync;
+  const blockedRead = t.mock.method(fs, 'readFileSync', function (file, ...args) {
+    if (file === saves.operationFile) throw Object.assign(Error('synthetic EACCES'), { code: 'EACCES' });
+    return readFile.call(this, file, ...args);
+  });
+  try {
+    const pending = saves.pendingRestore();
+    assert.equal(pending.pending, true);
+    assert.match(pending.error, /恢复记录无法读取/);
+    assert.match(pending.diagnostic, /EACCES/);
+    assert.deepEqual(values(source), before);
+  } finally {
+    blockedRead.mock.restore();
+  }
 });
 test('backup preview compares content, reports missing and extra files, and rename preserves bytes', (t) => {
   const { source, saves, snapshot } = fixture(t);

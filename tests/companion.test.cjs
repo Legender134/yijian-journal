@@ -8,7 +8,10 @@ const fs = require('node:fs'),
 const { CompanionWindow, boundsFor } = require('../src/core/companion-window.cjs');
 const { validWindow } = require('../src/core/game-window.cjs');
 const { companionSnapshot } = require('../src/core/companion.cjs');
-const { Store } = require('../src/core/store.cjs');
+const { Store, defaults } = require('../src/core/store.cjs');
+const { syntheticSave } = require('./fixtures.cjs');
+const { readMetadata } = require('../src/core/save-reader.cjs');
+const { enrich } = require('../src/core/game-data.cjs');
 const catalog = require('../src/data/catalog.cjs');
 const recipe = require('../src/data/game-index.json').entries.find(
   (e) => e.kind === '配方' && e.materials.every((m) => !m.alternatives),
@@ -158,6 +161,20 @@ test('bounds stay inside negative-coordinate and small client rectangles; helper
   ])
     assert(!validWindow(s));
 });
+test('unsaved companion edits are exposed after cancelled exit without toggling them closed', () => {
+  const f = setup();
+  f.set(game);
+  f.win.emit('ready-to-show');
+  f.controller.rendererReady();
+  f.controller.showEdits();
+  assert.equal(f.controller.mode, 'expanded');
+  assert.equal(f.win.isVisible(), true);
+  f.controller.showEdits();
+  assert.equal(f.controller.mode, 'expanded');
+  assert.equal(f.win.isVisible(), true);
+  assert(f.actions.some((a) => a[0] === 'focus'));
+  assert.equal(f.actions.filter((a) => a[0] === 'restore').length, 0);
+});
 test('material hints respect unknown stock, reservations, duplicate recipe goals, binding and profile isolation', () => {
   const profile = {
     id: 'a',
@@ -210,6 +227,186 @@ test('material hints respect unknown stock, reservations, duplicate recipe goals
   assert.equal(companionSnapshot({ ...state, activeProfileId: 'b' }, catalog, null).materials, null);
   assert.equal(inventory[0].count, recipe.materials[0].count * 3);
 });
+test('ready current materials do not hide shortages in other gift plans', () => {
+  const state = defaults(),
+    profile = state.profiles[0];
+  assert(!recipe.materials.some((m) => m.id === 100));
+  profile.craftList = [{ id: recipe.id, quantity: 1 }];
+  profile.journey = {
+    schema: 1,
+    places: [],
+    todos: [],
+    handledActionIds: [],
+    gifts: [{ id: 'gift', npcId: 'npc-5014', itemId: 'item-100', quantity: 2, note: '', done: false }],
+  };
+  const reference = {
+    name: '1.sav',
+    metadata: { money: 999999, inventory: recipe.materials.map((m) => ({ id: m.id, count: m.count })) },
+  };
+  const snapshot = companionSnapshot(state, catalog, reference);
+  assert.equal(snapshot.materials.missing, 0);
+  assert.equal(snapshot.allocations.missingTotal, 2);
+  assert.match(snapshot.hints[0].title, /当前清单材料已齐.*全部计划原料仍缺 2 件/);
+});
+
+test('raw materials that are ready still require processing and prepared ingredient rows do not crowd the next actions', () => {
+  const state = defaults(),
+    profile = state.profiles[0];
+  profile.craftList = [{ id: 'fusion-1002', quantity: 1 }];
+  const ref = {
+    name: '1.sav',
+    hash: 'synthetic-processing',
+    modifiedAt: '2026-10-08T00:00:00Z',
+    metadata: {
+      quests: [],
+      money: 100000,
+      inventory: [
+        { id: 10226, count: 3 },
+        { id: 10220, count: 1 },
+        { id: 10205, count: 5 },
+        { id: 10207, count: 2 },
+      ],
+    },
+  };
+  const snapshot = companionSnapshot(state, catalog, ref);
+  assert.match(snapshot.hints[0].title, /原料已齐.*先加工 2 次.*核对配方与制作费/);
+  assert.equal(snapshot.journeySummary.prepared, 3);
+  assert(snapshot.nextActions.every((a) => !a.title.startsWith('备料已齐')));
+  assert.equal(snapshot.allocations.physicalUsed[10221], undefined);
+});
+test('personal itinerary leads hints and vanishes after user handles it without marking a game quest complete', () => {
+  const state = defaults(),
+    p = state.profiles[0];
+  p.journey = {
+    schema: 1,
+    places: [],
+    gifts: [],
+    handledActionIds: [],
+    todos: [
+      {
+        id: 'own',
+        title: '去药铺',
+        detail: '自己的安排',
+        placeId: 'place-22',
+        done: false,
+      },
+    ],
+  };
+  const first = companionSnapshot(state, catalog, null);
+  assert.equal(first.hints[0].title, '去药铺');
+  assert.equal(first.hints[0].type, 'journey');
+  assert.equal(first.nextActions[0].kind, 'todo');
+  p.journey.handledActionIds.push(first.nextActions[0].id);
+  const handled = companionSnapshot(state, catalog, null);
+  assert.equal(handled.nextActions.length, 0);
+  assert.equal(handled.journeySummary.gameComplete, 0);
+  assert.equal(handled.journeySummary.handled, 1);
+});
+test('fresh profiles receive existing task hints without goals or a manual stage', () => {
+  const profile = {
+    id: 'fresh',
+    name: '我的江湖',
+    goals: [],
+    checks: {},
+    stage: 0,
+    stageConfirmed: false,
+    referenceMode: 'latest',
+  };
+  const state = { activeProfileId: profile.id, profiles: [profile] };
+  const reference = {
+    name: '1.sav',
+    modifiedAt: '2026-10-07T00:00:00Z',
+    hash: 'read-only',
+    metadata: {
+      mapName: '当前地点',
+      activeQuestFamilies: [
+        { id: 5200, name: '已经接到的任务', activeSteps: [{ name: '存档中的当前步骤' }] },
+        { id: 5202, name: '另一项已接任务', activeSteps: [] },
+        { id: 5203, name: '第三项已接任务', activeSteps: [] },
+      ],
+    },
+  };
+  const original = JSON.stringify(state);
+  const snapshot = companionSnapshot(state, catalog, reference);
+  assert.deepEqual(
+    snapshot.hints.map((h) => h.title),
+    ['存档中的当前步骤', '另一项已接任务'],
+  );
+  assert.equal(snapshot.hints[0].type, 'quest');
+  assert.equal(snapshot.quests.length, 3);
+  assert.equal(snapshot.reference.name, '1.sav');
+  assert.equal(JSON.stringify(state), original);
+  assert.equal(companionSnapshot(state, catalog, reference, '存档正在更新').quests.length, 0);
+  assert.equal(companionSnapshot(state, catalog, null).hints[0].type, 'help');
+  profile.referenceMode = 'none';
+  assert.equal(companionSnapshot(state, catalog, reference).quests.length, 0);
+});
+
+test('saved tracked tasks and child steps lead automatic hints without changing source records', () => {
+  const state = defaults();
+  for (const choice of [
+    { trackingQuest: 11077, trackingMainQuest: 5200, ids: ['quest-11077', 'quest-5200'] },
+    { trackingQuest: 5372, trackingMainQuest: 5200, ids: ['quest-5368', 'quest-5200'], title: '与莫弃交谈' },
+    { trackingQuest: 987654321, trackingMainQuest: 5200, ids: ['quest-5200', 'quest-11077'] },
+    { trackingQuest: 0, trackingMainQuest: 5372, ids: ['quest-5368', 'quest-11077'], title: '与莫弃交谈' },
+    { trackingQuest: 11077, trackingMainQuest: 5200, completed: true, ids: ['quest-5200', 'quest-5368'] },
+  ]) {
+    const bytes = syntheticSave({
+      full: true,
+      trackingQuest: choice.trackingQuest,
+      trackingMainQuest: choice.trackingMainQuest,
+      quests: [
+        { id: 11077, step: choice.completed ? 4 : 1 },
+        { id: 5200, step: 4 },
+        { id: 5201, step: 1 },
+        { id: 5368, step: 1 },
+        { id: 5371, step: 1 },
+        { id: 5372, step: 1 },
+      ],
+    });
+    const originalBytes = Buffer.from(bytes);
+    const reference = { name: '1.sav', metadata: enrich(readMetadata(bytes, { details: true })) };
+    const originalMetadata = structuredClone(reference.metadata);
+    const snapshot = companionSnapshot(state, catalog, reference);
+    assert.deepEqual(
+      snapshot.hints.map((hint) => hint.id),
+      choice.ids,
+    );
+    if (choice.title) assert.equal(snapshot.hints[0].title, choice.title);
+    assert.deepEqual(reference.metadata, originalMetadata);
+    assert.deepEqual(bytes, originalBytes);
+    assert.equal(reference.metadata.quests.find((quest) => quest.id === 5200).status, '已完成');
+  }
+  assert.equal(state.profiles[0].stageConfirmed, false);
+  assert.deepEqual(state.profiles[0].goals, []);
+});
+
+test('custom goals and material tracking keep priority over automatic task hints', () => {
+  const profile = {
+    id: 'a',
+    name: 'A',
+    goals: [{ id: 'goal', title: '我的置顶目标', pinned: true, done: false }],
+    checks: {},
+    stage: 0,
+    stageConfirmed: false,
+    craftList: [{ id: recipe.id, quantity: 1 }],
+  };
+  const reference = {
+    name: '1.sav',
+    metadata: {
+      activeQuestFamilies: [{ id: 5200, name: '已接任务', activeSteps: [] }],
+      inventory: [],
+      money: 0,
+    },
+  };
+  const snapshot = companionSnapshot({ activeProfileId: 'a', profiles: [profile] }, catalog, reference);
+  assert.deepEqual(
+    snapshot.hints.map((h) => h.type),
+    ['goal', 'material'],
+  );
+  assert.equal(snapshot.quests[0].name, '已接任务');
+});
+
 test('invalid overlay preferences are rejected atomically and valid settings persist', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-overlay-'));
   const store = new Store(dir, catalog),

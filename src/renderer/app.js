@@ -1,7 +1,31 @@
+import {
+  compileSearch,
+  searchFilterFields,
+  searchFilterSuggestions,
+  insertSearchFilter,
+} from './search-query.js';
+import { createSearchHelpViews } from './search-help-views.js';
 import { createGameViews } from './game-views.js';
 import { createComparisonViews } from './comparison-views.js';
 import { createWorldViews } from './world-views.js';
 import { createMaterialViews } from './material-views.js';
+import { createResourcePriorityViews } from './resource-priority-views.js';
+import { createRecipeDiscoveryViews } from './recipe-discovery-views.js';
+import { createProtectionViews } from './protection-views.js';
+import { createBackupViews } from './backup-views.js';
+import { createJourneyViews } from './journey-views.js';
+import { createJourneyTrashViews } from './journey-trash-views.js';
+import { projectItemUsage } from './item-usage.js';
+import { createItemUsageViews } from './item-usage-views.js';
+import { createEventJournalViews } from './event-journal-views.js';
+import {
+  createIntentDraftViews,
+  readIntentValues,
+  writeIntentValues,
+  intentTarget,
+} from './intent-draft-views.js';
+import { createGiftPicker, giftStock } from './gift-picker.js';
+import { createPlacePicker } from './place-picker.js';
 import { createGameImages } from './game-images.js';
 import { createQualityText } from './quality.js';
 import { createTimelineViews } from './timeline-views.js';
@@ -22,6 +46,30 @@ let catalog,
   drawerId = null,
   revealed = false,
   lastFocus = null;
+let searchSuggestions = [],
+  searchSuggestionIndex = -1;
+function renderSearchSuggestions() {
+  const container = overlay.querySelector('#global-filter-suggestions'),
+    input = overlay.querySelector('#global-search');
+  if (!container || !input) return;
+  container.innerHTML = searchHelpViews.suggestions(searchSuggestions, searchSuggestionIndex);
+  input.setAttribute('aria-expanded', String(searchSuggestions.length > 0));
+  if (searchSuggestions.length && searchSuggestionIndex >= 0)
+    input.setAttribute('aria-activedescendant', 'search-filter-option-' + searchSuggestionIndex);
+  else input.removeAttribute('aria-activedescendant');
+}
+function applySearchSuggestion(suggestion) {
+  const input = overlay.querySelector('#global-search');
+  if (!input) return;
+  if (!suggestion) {
+    toast('搜索内容最多 200 字，请先简化条件', true);
+    return;
+  }
+  input.value = suggestion.query;
+  input.focus();
+  input.setSelectionRange(suggestion.caret, suggestion.caret);
+  showSearchResults(input.value);
+}
 let databaseKind = '物品',
   databaseType = '全部',
   databasePage = 0,
@@ -31,14 +79,278 @@ let databaseKind = '物品',
   referenceSave = null,
   detailRequest = 0;
 let refreshRequest = 0;
+let protectionExportRequest = 0;
+let startingAssistance = false;
+let assistanceError = '';
 let referenceFollow;
 let nodeDraftQueue = Promise.resolve();
+let quitIntent = false;
 let compactUndo = null;
 let companionData = null,
   companionMode = 'expanded',
   companionVisible = true,
   companionRequest = 0;
 const pendingNodeDrafts = new Map();
+const pendingJournalDrafts = new Map();
+const pendingIntentDrafts = new Map(),
+  intentDraftVersions = new Map(),
+  intentDraftSaved = new Map();
+const itineraryIntentEditors = new Map();
+let activeIntentEditor = null,
+  intentDraftQueue = Promise.resolve(),
+  intentDraftTimer;
+let intentDraftConfirmation = null;
+function intentEditorKey(fieldId, profileId = profile().id) {
+  return profileId + '\u0000' + fieldId;
+}
+function availableIntentDrafts(p = profile()) {
+  const rows = new Map((p.intentDrafts || []).map((row) => [row.id, row]));
+  for (const [id, value] of pendingIntentDrafts)
+    if (value.profileId === p.id)
+      rows.set(id, {
+        ...rows.get(id),
+        ...value,
+        revision: intentDraftVersions.get(id) ?? value.expectedRevision,
+        pending: true,
+        updatedAt: value.capturedAt,
+      });
+  return [...rows.values()].sort((a, b) =>
+    String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')),
+  );
+}
+function intentEditor(kind, targetId, context = {}, row = null, scope = overlay) {
+  const value = {
+    id: row?.id || crypto.randomUUID(),
+    kind,
+    targetId,
+    context: structuredClone(context),
+    profileId: profile().id,
+    expectedTarget: structuredClone(intentTarget(profile(), kind, targetId, context)),
+    scope,
+    initial: JSON.stringify(readIntentValues(kind, scope)),
+    persisted: !!row && !row.pending,
+  };
+  intentDraftVersions.set(value.id, row?.revision || row?.expectedRevision || 0);
+  if (value.persisted) intentDraftSaved.set(value.id, value.initial);
+  return value;
+}
+function activateIntentEditor(kind, targetId, context = {}, row = null) {
+  activeIntentEditor = intentEditor(kind, targetId, context, row);
+  const dialog = overlay.querySelector('.modal');
+  dialog?.classList.add('personal-intent-editor');
+  dialog
+    ?.querySelector('.modal-footer')
+    ?.insertAdjacentHTML(
+      'beforebegin',
+      '<p id="intent-draft-status" class="save-note" role="status">输入后会自动暂存；正式保存才加入当前安排。</p>',
+    );
+  for (const button of dialog?.querySelectorAll('[data-action="close-overlay"]') || []) {
+    if (button.closest('.modal-footer')) button.textContent = '暂存并关闭';
+    button.setAttribute('aria-label', '暂存并关闭');
+  }
+  dialog
+    ?.querySelector('.modal-footer')
+    ?.insertAdjacentHTML(
+      'beforeend',
+      (['goal', 'journey-todo', 'journey-gift', 'craft-plan'].includes(kind)
+        ? act('intent-draft-copy', '另存为新草稿', 'text-btn', activeIntentEditor.id)
+        : '') +
+        act('intent-draft-recheck', '重新核对原安排…', 'text-btn', activeIntentEditor.id) +
+        act('intent-draft-discard', '放弃草稿…', 'text-btn', activeIntentEditor.id),
+    );
+}
+function captureIntentEditor(editor, force = false) {
+  if (!editor || !editor.scope?.isConnected || editor.submitting || editor.committed) return;
+  const values = readIntentValues(editor.kind, editor.scope),
+    signature = JSON.stringify(values);
+  if (!force && !editor.persisted && signature === editor.initial) return;
+  if (
+    signature === intentDraftSaved.get(editor.id) ||
+    signature === pendingIntentDrafts.get(editor.id)?.signature
+  )
+    return;
+  pendingIntentDrafts.set(editor.id, {
+    type: 'intent-draft-put',
+    id: editor.id,
+    kind: editor.kind,
+    targetId: editor.targetId,
+    context: editor.context,
+    values,
+    expectedRevision: intentDraftVersions.get(editor.id) || 0,
+    expectedTarget: editor.expectedTarget,
+    profileId: editor.profileId,
+    signature,
+    capturedAt: new Date().toISOString(),
+  });
+  if (editor === activeIntentEditor) {
+    const status = overlay.querySelector('#intent-draft-status');
+    if (status) status.textContent = '正在暂存这些编辑…';
+  }
+  clearTimeout(intentDraftTimer);
+  intentDraftTimer = setTimeout(
+    () =>
+      flushIntentDrafts().catch((error) => {
+        const status = overlay.querySelector('#intent-draft-status');
+        if (status) status.textContent = '暂存未完成，编辑仍保留：' + error.message;
+        toast('安排草稿未保存：' + error.message, true);
+      }),
+    300,
+  );
+}
+function captureIntentDrafts(force = false) {
+  captureIntentEditor(activeIntentEditor, force);
+  for (const editor of itineraryIntentEditors.values())
+    if (editor.profileId === profile()?.id) captureIntentEditor(editor);
+}
+function flushIntentDrafts(onlyId = null) {
+  clearTimeout(intentDraftTimer);
+  const task = intentDraftQueue
+    .catch(() => {})
+    .then(async () => {
+      const failures = [];
+      for (const id of onlyId ? [onlyId] : [...pendingIntentDrafts.keys()]) {
+        try {
+          while (pendingIntentDrafts.has(id)) {
+            const captured = pendingIntentDrafts.get(id);
+            const { signature, capturedAt, expectedTarget, ...command } = captured;
+            command.expectedRevision = intentDraftVersions.get(id) || 0;
+            if (!command.expectedRevision) command.expectedTarget = expectedTarget;
+            const next = await mutation(command);
+            const saved = next.profiles
+              .find((row) => row.id === command.profileId)
+              ?.intentDrafts?.find((row) => row.id === id);
+            if (!saved) throw Error('安排草稿保存结果缺失，编辑仍保留');
+            intentDraftVersions.set(id, saved.revision);
+            intentDraftSaved.set(id, signature);
+            if (pendingIntentDrafts.get(id) === captured) pendingIntentDrafts.delete(id);
+            for (const editor of [activeIntentEditor, ...itineraryIntentEditors.values()])
+              if (editor?.id === id) editor.persisted = true;
+            if (activeIntentEditor?.id === id) {
+              const status = overlay.querySelector('#intent-draft-status');
+              if (status) status.textContent = '这些编辑已暂存在本机，关闭或重启后可继续。';
+            }
+          }
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      if (failures.length) throw failures[0];
+    });
+  intentDraftQueue = task;
+  return task;
+}
+async function commitIntentEditor(editor) {
+  if (!editor || editor.profileId !== profile().id) throw Error('请重新打开当前周目的安排');
+  captureIntentEditor(editor, true);
+  await flushIntentDrafts(editor.id);
+  const current = state.profiles
+    .find((p) => p.id === editor.profileId)
+    ?.intentDrafts?.find((row) => row.id === editor.id);
+  if (!current) throw Error('请先找回当前编辑的安排草稿');
+  editor.submitting = true;
+  try {
+    await mutation({
+      type: 'intent-draft-commit',
+      id: editor.id,
+      expectedDraft: structuredClone(current),
+      profileId: editor.profileId,
+    });
+    editor.committed = true;
+    pendingIntentDrafts.delete(editor.id);
+  } catch (error) {
+    editor.submitting = false;
+    throw error;
+  }
+}
+let journalDraftQueue = Promise.resolve();
+let journalDraftTimer;
+const journalDraftVersions = new Map();
+const journalDraftSaved = new Map();
+function captureJournalDraft(force = false) {
+  const form = document.querySelector('#journal-entry-form');
+  if (!form || form.dataset.committed === 'true' || form.dataset.submitting === 'true') return;
+  const value = eventJournalViews.readDraft(form);
+  const signature = JSON.stringify(value);
+  if (!force && signature === form.dataset.initial && !form.dataset.draftPersisted) return;
+  if (
+    signature === journalDraftSaved.get(value.id) ||
+    signature === pendingJournalDrafts.get(value.id)?.signature
+  )
+    return;
+  pendingJournalDrafts.set(value.id, { ...value, signature });
+  const status = document.querySelector('#journal-draft-status');
+  if (status) status.textContent = '正在暂存到本机…';
+  clearTimeout(journalDraftTimer);
+  journalDraftTimer = setTimeout(
+    () => flushJournalDrafts().catch((error) => toast('记录草稿未保存：' + error.message, true)),
+    300,
+  );
+}
+function flushJournalDrafts() {
+  clearTimeout(journalDraftTimer);
+  const task = journalDraftQueue
+    .catch(() => {})
+    .then(async () => {
+      while (pendingJournalDrafts.size) {
+        const id = pendingJournalDrafts.keys().next().value;
+        const value = pendingJournalDrafts.get(id);
+        const { signature, ...intent } = value;
+        const revision = journalDraftVersions.get(id) ?? intent.revision;
+        const next = await mutation({ ...intent, revision });
+        const saved = next.profiles
+          .find((p) => p.id === intent.profileId)
+          ?.journalDrafts?.find((d) => d.id === id);
+        if (!saved) throw Error('草稿保存结果缺失，编辑仍保留');
+        journalDraftVersions.set(id, saved.revision);
+        const form = document.querySelector('#journal-entry-form');
+        if (form?.dataset.draftId === id) {
+          form.dataset.draftRevision = saved.revision;
+          form.dataset.draftPersisted = 'true';
+        }
+        // Only acknowledge this exact captured value. Later keystrokes remain queued.
+        if (pendingJournalDrafts.get(id) === value) pendingJournalDrafts.delete(id);
+        journalDraftSaved.set(id, JSON.stringify({ ...intent, revision: saved.revision }));
+        const status = document.querySelector('#journal-draft-status');
+        if (form?.dataset.draftId === id && status)
+          status.textContent = '草稿已保存在本机；关闭或查资料后可在江湖记录中继续写。';
+      }
+    });
+  journalDraftQueue = task;
+  return task;
+}
+function availableJournalDrafts(p = profile()) {
+  const rows = new Map((p.journalDrafts || []).map((draft) => [draft.id, draft]));
+  for (const [id, pending] of pendingJournalDrafts)
+    if (pending.profileId === p.id)
+      rows.set(id, {
+        ...rows.get(id),
+        ...pending,
+        links: pending.links.map(
+          (link) => rows.get(id)?.links?.find((old) => old.type === link.type && old.id === link.id) || link,
+        ),
+        revision: journalDraftVersions.get(id) ?? pending.revision,
+        pending: true,
+      });
+  return [...rows.values()].sort((a, b) =>
+    String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')),
+  );
+}
+function openJournalEditor(entry = null, draft = null) {
+  const p = profile();
+  showOverlay(
+    eventJournalViews.editDialog(p, entry, journalIndex(), {
+      draft,
+      draftId: draft?.id || crypto.randomUUID(),
+    }),
+    true,
+  );
+  const form = document.querySelector('#journal-entry-form');
+  if (form) {
+    form.dataset.initial = JSON.stringify(eventJournalViews.readDraft(form));
+    if (draft && !draft.pending) journalDraftSaved.set(draft.id, form.dataset.initial);
+    journalDraftVersions.set(form.dataset.draftId, Number(form.dataset.draftRevision));
+  }
+}
 const submittingNodes = new Set();
 let timelineLoadInFlight = false;
 function nodeControlsDisabled(id, disabled) {
@@ -53,6 +365,34 @@ async function flushNodeDrafts() {
   for (const [id, value] of pendingNodeDrafts) {
     environment.activity = await call('nodeDraft', id, value);
     if (pendingNodeDrafts.get(id) === value) pendingNodeDrafts.delete(id);
+  }
+}
+async function prepareQuit() {
+  await captureNodeDraft().catch(() => {});
+  captureJournalDraft();
+  captureIntentDrafts();
+  try {
+    await flushNodeDrafts();
+    await flushJournalDrafts();
+    await flushIntentDrafts();
+    await Promise.all([...drafts.keys()].map(saveNote));
+    return true;
+  } catch (error) {
+    modal(
+      pendingIntentDrafts.size
+        ? '仍有个人安排未暂存'
+        : pendingJournalDrafts.size
+          ? '仍有记录草稿未保存'
+          : pendingNodeDrafts.size
+            ? '仍有节点草稿未保存'
+            : '仍有笔记未保存',
+      esc(error.message),
+      '<p>请先保留并处理未保存的编辑。已有磁盘草稿会保留；只有明确放弃后才会退出。</p>',
+      pendingNodeDrafts.size || pendingJournalDrafts.size || pendingIntentDrafts.size
+        ? `${pendingIntentDrafts.size ? act('intent-drafts', '保留并查看安排草稿', 'btn primary') : ''}${pendingJournalDrafts.size ? act('journal-drafts', '保留并查看记录草稿', 'btn primary') : ''}<button class="btn danger" data-action="window-quit-discard"${quitIntent ? ' disabled' : ''}>放弃未保存的编辑并退出</button>`
+        : '',
+    );
+    return false;
   }
 }
 function captureNodeDraft() {
@@ -83,8 +423,43 @@ function captureNodeDraft() {
 }
 const orderedGoals = () =>
   [...profile().goals].sort(
-    (a, b) => Number(a.done) - Number(b.done) || Number(!!b.pinned) - Number(!!a.pinned),
+    (a, b) => Number(goalDone(a)) - Number(goalDone(b)) || Number(!!b.pinned) - Number(!!a.pinned),
   );
+function goalStatus(g) {
+  const completedPlan =
+    g.source?.type === 'planner' &&
+    profile().craftPlans?.find((plan) => plan.id === g.source.id && plan.done === true);
+  if (completedPlan)
+    return { tracked: false, done: true, planDone: true, label: '制作计划已完成（个人记录）' };
+  const data = compact
+    ? companionData?.goalProgress
+    : environment?.goalProfileId === profile().id
+      ? environment.goalProgress
+      : null;
+  const tracked = g.source?.type === 'quest' && g.progressMode !== 'manual';
+  const progress = data?.[g.id];
+  return tracked
+    ? {
+        ...progress,
+        tracked,
+        done: g.done || progress?.status === 'complete',
+        automaticDone: !g.done && progress?.status === 'complete',
+        label: progress?.label || '任务进度待核对',
+      }
+    : { tracked: false, done: g.done, label: '手动管理' };
+}
+const goalDone = (g) => goalStatus(g).done;
+function planningTotals(ref) {
+  if (ref?.planning?.profileId === profile().id) return ref.planning.totals;
+  const totals = { ...(profile().reservations || {}) };
+  const records = new Map((ref?.metadata?.quests || []).map((q) => [q.id, q]));
+  for (const owner of profile().allocations || []) {
+    const quest = gameIndex.world.quests.find((q) => q.id === owner.questId);
+    if (records.get(quest?.gameId)?.step === 4) continue;
+    for (const [id, count] of Object.entries(owner.items)) totals[id] = (totals[id] || 0) + count;
+  }
+  return totals;
+}
 const latestReference = () => readableSaves()[0]?.name || '';
 const defaultFollow = () => profile().referenceMode !== 'none' && !profile().saveSlot;
 let timelineView = { query: '', kind: 'all', page: 0 };
@@ -105,9 +480,193 @@ let worldView = {
   reference: null,
 };
 let materialView = { query: '', referenceName: undefined, result: null, onlyMissing: false };
+let craftPlanDraft = null;
+let journalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
+let journalRemoveDraft = null;
+let journalTrashConfirmation = null;
+let historyJournalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
+function historyJournalProfile() {
+  return protectionView.history?.journal.profiles.find((p) => p.id === protectionView.journalProfileId);
+}
+const backupView = { query: '', kind: 'all', from: '', to: '', page: 0, selected: [] };
+const historyBackupView = { query: '', kind: 'all', from: '', to: '', page: 0 };
+const protectionView = {
+  archives: [],
+  retainedUnverifiedArchives: [],
+  omittedArchives: [],
+  loaded: false,
+  history: null,
+  archivePage: 0,
+  nodePage: 0,
+  backupId: '',
+  busy: false,
+  label: '',
+  error: '',
+};
+let protectionRequest = 0;
+let journeyView = { query: '', place: '', completed: false };
+let journeyTrashView = { open: false, query: '', page: 1 },
+  journeyTrashConfirmation = null;
+const historicalJourneyTrashViews = new Map();
+const itineraryFormDrafts = new Map();
+function itineraryDraftKey(id) {
+  return profile().id + '\u0000' + id;
+}
+function itineraryDraftValue(id, fallback) {
+  const draft = availableIntentDrafts().find((row) => intentFieldId(row) === id);
+  return (
+    itineraryFormDrafts.get(itineraryDraftKey(id)) ??
+    (draft ? (draft.values.name ?? draft.values.placeId) : fallback)
+  );
+}
+function clearItineraryDraft(id) {
+  itineraryFormDrafts.delete(itineraryDraftKey(id));
+  itineraryIntentEditors.delete(intentEditorKey(id));
+}
+function intentFieldId(row) {
+  if (row.kind === 'itinerary-name') return 'journey-itinerary-name';
+  if (row.kind !== 'itinerary-choice') return '';
+  const context = row.context;
+  return (
+    'itinerary-' +
+    (context.mode === 'place' ? 'change' : context.mode) +
+    '-' +
+    (context.mode === 'continue' ? context.ownerId + '-' : '') +
+    context.actionId
+  );
+}
+function syncItineraryIntentEditors() {
+  for (const field of root.querySelectorAll('[data-itinerary-draft]')) {
+    const key = intentEditorKey(field.id),
+      old = itineraryIntentEditors.get(key);
+    const scope =
+      field.id === 'journey-itinerary-name'
+        ? field.closest('details')
+        : field.closest('[data-itinerary-choice]');
+    if (old && !old.committed) {
+      const untouched =
+        !old.persisted &&
+        !old.submitting &&
+        !pendingIntentDrafts.has(old.id) &&
+        old.scope &&
+        JSON.stringify(readIntentValues(old.kind, old.scope)) === old.initial;
+      old.scope = scope;
+      if (untouched) {
+        old.expectedTarget = structuredClone(intentTarget(profile(), old.kind, old.targetId, old.context));
+        old.initial = JSON.stringify(readIntentValues(old.kind, scope));
+      }
+      continue;
+    }
+    const row = availableIntentDrafts().find((draft) => intentFieldId(draft) === field.id);
+    if (row) {
+      itineraryIntentEditors.set(key, intentEditor(row.kind, row.targetId, row.context, row, scope));
+      continue;
+    }
+    if (field.id === 'journey-itinerary-name')
+      itineraryIntentEditors.set(key, intentEditor('itinerary-name', '', {}, null, scope));
+    else {
+      const button = scope?.querySelector('[data-action^="journey-itinerary-"]');
+      if (!button) continue;
+      const mode = button.dataset.action.slice('journey-itinerary-'.length),
+        ownerId = button.dataset.id;
+      const actionId = mode === 'continue' ? button.dataset.targetId : ownerId;
+      const plan = compact ? companionData : environment.journey;
+      const label =
+        plan?.actions?.find((action) => action.id === actionId)?.title ||
+        scope.querySelector('strong')?.textContent ||
+        scope.closest('article')?.querySelector('h3,strong')?.textContent ||
+        '行程场景选择';
+      const context = { mode, actionId, ...(mode !== 'add' ? { ownerId } : {}), label: label.slice(0, 360) };
+      itineraryIntentEditors.set(
+        key,
+        intentEditor('itinerary-choice', mode === 'add' ? actionId : ownerId, context, null, scope),
+      );
+    }
+  }
+}
+async function openIntentDraft(row) {
+  if (row.kind === 'journey-place' && !gameIndex.world.maps.some((place) => place.id === row.targetId)) {
+    modal(
+      '原地点未在当前资料中收录',
+      '完整草稿仍保留，待核对资料后再安排。',
+      intentDraftViews.detail(row, gameIndex),
+      act('intent-draft-discard', '放弃这份草稿…', 'text-btn', row.id),
+    );
+    return;
+  }
+  if (row.kind.startsWith('journey-')) {
+    journeyDialog(row.kind.slice(8), row.targetId, row);
+    return;
+  }
+  if (row.kind === 'goal') {
+    goalModal(row.targetId, row);
+    return;
+  }
+  if (row.kind === 'craft-plan') {
+    craftPlanModal(
+      row.targetId,
+      row.context.list,
+      row.values.addGoal,
+      row.values.name,
+      row.context.choices,
+      row,
+    );
+    return;
+  }
+  closeOverlay();
+  route = 'journey';
+  journeyView = { query: '', place: '', completed: true };
+  const fieldId = intentFieldId(row);
+  itineraryFormDrafts.set(intentEditorKey(fieldId), row.values.name ?? row.values.placeId);
+  itineraryIntentEditors.delete(intentEditorKey(fieldId));
+  render();
+  const field = document.getElementById(fieldId);
+  if (!field) {
+    modal(
+      '原行动需要重新核对',
+      '这份选择仍保留。当前行动清单已变化，请核对来源后再安排。',
+      intentDraftViews.detail(row, gameIndex),
+      act('intent-draft-discard', '放弃这份草稿…', 'text-btn', row.id),
+    );
+    return;
+  }
+  const scope =
+    row.kind === 'itinerary-name' ? field.closest('details') : field.closest('[data-itinerary-choice]');
+  writeIntentValues(row.kind, row.values, scope);
+  itineraryIntentEditors.set(
+    intentEditorKey(fieldId),
+    intentEditor(row.kind, row.targetId, row.context, row, scope),
+  );
+  for (const details of root.querySelectorAll('details')) if (details.contains(field)) details.open = true;
+  field.scrollIntoView({ block: 'center' });
+  field.focus();
+}
+let journeyDraft = null;
+let resourcePriorityDraft = null,
+  resourcePriorityRequest = 0;
+let craftCompletionDraft = null;
+let recipeDiscoveryView = {
+  options: {
+    query: '',
+    craft: '',
+    learned: 'learned',
+    view: 'supported',
+    page: 1,
+    pageSize: 8,
+    quantities: {},
+  },
+  result: null,
+  busy: false,
+  error: '',
+  targetPlanId: '',
+};
+let recipeDiscoveryRequest = 0,
+  recipeDiscoveryTimer,
+  recipeDiscoveryNeedsRefresh = false;
 let worldRequest = 0,
   materialRequest = 0;
 const drawerHistory = [];
+let lastSearchQuery = '';
 function rememberDrawer(view, replace = false) {
   captureNodeDraft();
   if (currentDrawer && !replace) {
@@ -116,6 +675,10 @@ function rememberDrawer(view, replace = false) {
       currentDrawer.quantity = field && Number(field.value) > 0 ? Number(field.value) : 1;
       currentDrawer.referenceName = referenceSaveName;
       currentDrawer.follow = referenceFollow;
+    }
+    if (currentDrawer.type === 'search') {
+      currentDrawer.query = document.querySelector('#global-search')?.value || '';
+      currentDrawer.scroll = document.querySelector('#global-results')?.scrollTop || 0;
     }
     drawerHistory.push(currentDrawer);
     if (drawerHistory.length > 30) drawerHistory.shift();
@@ -196,6 +759,8 @@ const kindIcon = (k) =>
 const gameImages = createGameImages({ index: () => gameIndex, icon, esc });
 const picture = gameImages.picture;
 const qualityText = createQualityText({ index: () => gameIndex, esc });
+const giftPicker = createGiftPicker({ esc, act: (...args) => act(...args), picture, qualityText });
+const placePicker = createPlacePicker({ esc, act: (...args) => act(...args) });
 const companionViews = createCompanionViews({
   esc,
   icon,
@@ -223,7 +788,7 @@ document.addEventListener(
   true,
 );
 const act = (action, label, cls = 'btn', id = '', glyph = '') =>
-  `<button class="${cls}${action === 'database-detail' && id ? ' pictured-link' : ''}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''}>${action === 'database-detail' && id ? picture(id) + '<span>' + qualityText.html(id, label) + '</span>' : (glyph ? icon(glyph) : '') + label}</button>`;
+  `<button type="button" class="${cls}${action === 'database-detail' && id ? ' pictured-link' : ''}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''}>${action === 'database-detail' && id ? picture(id) + '<span>' + qualityText.html(id, label) + '</span>' : (glyph ? icon(glyph) : '') + label}</button>`;
 const iconButton = (action, glyph, title, id = '', cls = '') =>
   `<button class="icon-btn ${cls}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''} aria-label="${esc(title)}" title="${esc(title)}">${icon(glyph)}</button>`;
 const pill = (label, style = '') => `<span class="pill ${style}">${esc(label)}</span>`;
@@ -241,6 +806,10 @@ const headings = {
   goals: '行囊目标',
   saves: '存档匣',
   settings: '手札设置',
+  archives: '离线档案',
+  journey: '这一程做什么',
+  journal: '江湖记录',
+  'recipe-discovery': '用现有材料找配方',
 };
 const gameViews = createGameViews({
   esc,
@@ -269,6 +838,73 @@ const comparisonViews = createComparisonViews({
 });
 const worldViews = createWorldViews({ esc, act, pill, notice, icon, iconButton, when, empty, picture });
 const materialViews = createMaterialViews({ esc, act, pill, notice, icon, iconButton, when, empty });
+const searchHelpViews = createSearchHelpViews({ esc, fields: searchFilterFields });
+const backupViews = createBackupViews({ esc, act, pill, icon, iconButton, empty, when, bytes });
+const protectionViews = createProtectionViews({
+  backupViews,
+  historyBackupView,
+  draftHistory: (p) => intentDraftViews.panel(p.intentDrafts || [], gameIndex, true, p.id),
+  journeyTrashHistory: (p) =>
+    p.journeyTrash?.length
+      ? journeyTrashViews.panel(p, journalIndex(), historicalJourneyTrashViews.get(p.id) || {}, true)
+      : '',
+  journalPage: (p, v) =>
+    historyJournalView.trash
+      ? eventJournalViews.trash(p, { ...historyJournalView, readOnly: true }, journalIndex())
+      : eventJournalViews.drafts(p.journalDrafts || [], true) +
+        eventJournalViews.page(p, { ...historyJournalView, readOnly: true }, journalIndex()),
+  esc,
+  act,
+  pill,
+  iconButton,
+  notice,
+  empty,
+  when,
+  bytes,
+  hours,
+  name: (id) => {
+    const entry = gameIndex?.entries.find((e) => e.id === id);
+    if (entry?.kind === '物品' && entry.quality) return `${entry.name}（${entry.quality}色品质）`;
+    return (
+      entry?.name ||
+      gameIndex?.world.maps.find((p) => p.id === id)?.name ||
+      catalog?.entries.find((e) => e.id === id)?.title
+    );
+  },
+});
+const journeyViews = createJourneyViews({
+  esc,
+  act,
+  pill,
+  icon,
+  notice,
+  empty,
+  when,
+  draftValue: itineraryDraftValue,
+});
+const resourcePriorityViews = createResourcePriorityViews({ esc, act, notice, when });
+const recipeDiscoveryViews = createRecipeDiscoveryViews({ esc, act, pill, notice, empty, when });
+const eventJournalViews = createEventJournalViews({
+  esc,
+  act,
+  pill,
+  icon,
+  notice,
+  empty,
+  when,
+  getIndex: () => journalIndex(),
+});
+const intentDraftViews = createIntentDraftViews({ esc, act, when });
+const journeyTrashViews = createJourneyTrashViews({ esc, act, when });
+const itemUsageViews = createItemUsageViews({ esc, act, when });
+const journalIndex = () => ({ entries: gameIndex.entries, world: gameIndex.world, guides: catalog.entries });
+function journalPage() {
+  if (journalView.trash) return eventJournalViews.trash(profile(), journalView, journalIndex());
+  return (
+    eventJournalViews.drafts(availableJournalDrafts()) +
+    eventJournalViews.page(profile(), journalView, journalIndex())
+  );
+}
 const timelineViews = createTimelineViews({
   esc,
   icon,
@@ -305,7 +941,7 @@ function shortcutSettings() {
     )
     .join(
       '',
-    )}${act('shortcuts-save', '应用快捷键', 'btn', '', 'check')}</div><div class="setting-row"><div><h3>系统通知反馈</h3><p>手动保存完成或保存故障时给出静音系统通知；自动保存成功始终不提示。默认关闭。</p></div><button class="switch ${state.settings.saveFeedback ? 'on' : ''}" role="switch" aria-label="系统通知反馈" aria-checked="${!!state.settings.saveFeedback}" data-action="save-feedback"></button></div><p class="small muted">桌面「逸剑风云决 · 存档守护」同时打开游戏和手札。托盘角标：绿色就绪，黄色关闭或暂停，红色故障。</p><p class="small muted">支持 Ctrl+Alt+字母或 F1–F12，可加 Shift；留空停用。快捷键被占用时保留原设置。</p></section>`;
+    )}${act('shortcuts-save', '应用快捷键', 'btn', '', 'check')}</div><div class="setting-row"><div><h3>系统通知反馈</h3><p>手动保存完成或保存故障时给出静音系统通知；自动保存成功始终不提示。默认关闭。</p></div><button class="switch ${state.settings.saveFeedback ? 'on' : ''}" role="switch" aria-label="系统通知反馈" aria-checked="${!!state.settings.saveFeedback}" data-action="save-feedback"></button></div><p class="small muted">桌面「逸剑风云决 · 存档守护」同时打开游戏和手札。托盘角标：绿色表示存档保护就绪，黄色表示等待或暂停，红色表示故障；悬停可查看具体状态。</p><p class="small muted">支持 Ctrl+Alt+字母或 F1–F12，可加 Shift；留空停用。快捷键被占用时保留原设置。</p></section>`;
 }
 function updateHealth(h) {
   environment.health = h;
@@ -337,6 +973,24 @@ const readableSaves = () => environment.saves.files.filter((f) => f.metadata);
 const defaultReference = () =>
   profile().referenceMode === 'none' ? '' : profile().saveSlot || latestReference();
 function resetPlanningViews() {
+  recipeDiscoveryRequest++;
+  clearTimeout(recipeDiscoveryTimer);
+  recipeDiscoveryNeedsRefresh = true;
+  recipeDiscoveryView = {
+    options: {
+      query: '',
+      craft: '',
+      learned: 'learned',
+      view: 'supported',
+      page: 1,
+      pageSize: 8,
+      quantities: {},
+    },
+    result: null,
+    busy: false,
+    error: '',
+    targetPlanId: '',
+  };
   worldRequest++;
   materialRequest++;
   worldView = {
@@ -355,7 +1009,228 @@ function worldPage() {
   return worldViews.page(gameIndex, worldView, readableSaves());
 }
 function materialPage() {
-  return materialViews.page(gameIndex, profile(), materialView, readableSaves());
+  const p = profile(),
+    selected = p.craftPlans?.find((x) => x.id === p.activeCraftPlanId);
+  const draftReservation = selected?.done
+    ? `<p class="save-note">正在查看已完成计划，编辑清单不再预留材料。重新打开该计划后，按原先的预留规则核对。</p>${act('craft-plan-complete', '重新打开这份计划', 'btn soft', selected.id, 'refresh')}`
+    : act(
+        'craft-draft-reserve',
+        p.reserveCraftDraft === false ? '为编辑清单保留材料' : '编辑清单已保留材料 · 点击释放',
+        'text-btn',
+        '',
+        'shield',
+      );
+  const rows = (p.craftPlans || [])
+    .map(
+      (plan) =>
+        `<div class="backup-row" data-craft-plan-id="${esc(plan.id)}"><div class="spacer"><h3>${esc(plan.name)}</h3><p>${plan.list.length} 种配方 · ${plan.done ? '个人已制作完成 · 用料已释放' : plan.reserved === false ? '尚未预留材料' : '按本周目规则预留'} · ${when(plan.updatedAt)}</p></div>${act('craft-plan-open', '打开', 'btn', plan.id, 'book')}${act('craft-plan-complete', plan.done ? '重新打开计划' : '完成整份计划…', 'btn soft', plan.id, plan.done ? 'refresh' : 'check')}${act('craft-plan-copy', '另存一份', 'text-btn', plan.id, 'plus')}${!plan.done ? act('craft-plan-reserve', plan.reserved === false ? '保留材料' : '释放计划用量', 'text-btn', plan.id, 'shield') : ''}${iconButton('craft-plan-remove', 'trash', '移除制作计划 ' + plan.name, plan.id)}</div>`,
+    )
+    .join('');
+  const plans = `<section class="card mb"><div class="card-header"><h2>我的制作计划</h2>${(p.craftList || []).length ? act('craft-plan-dialog', selected ? '保存为新计划' : '保存当前清单', 'btn soft', '', 'plus') + (selected ? act('craft-plan-dialog', '更新「' + selected.name + '」', 'btn', selected.id, 'edit') : '') : ''}</div><p class="save-note">每份计划独立保存配方和次数；核对库存时使用所选存档。完成整份计划后释放它的用料，可重新打开；不会修改游戏库存或独立勾选的目标。</p>${draftReservation}${rows || '<p class="small muted">先添加配方，再保存第一份计划。</p>'}${p.previousCraftList ? act('craft-draft-restore', '找回上一次编辑清单 · ' + p.previousCraftList.length + ' 种配方', 'text-btn', '', 'refresh') : ''}</section>`;
+  return (
+    journeyTrashViews.entry(p) +
+    recipeDiscoveryViews.entry() +
+    materialViews.page(gameIndex, p, materialView, readableSaves(), plans) +
+    allocationLedger()
+  );
+}
+function recipeDiscoveryPage() {
+  const view = recipeDiscoveryView;
+  return recipeDiscoveryViews.page(
+    view.result && { ...view.result, filters: view.options },
+    view,
+    gameIndex,
+    profile(),
+  );
+}
+function planningIntentSignature() {
+  const p = profile();
+  return JSON.stringify([
+    p.craftList || [],
+    p.reservations || {},
+    p.allocations || [],
+    p.craftPlans || [],
+    p.activeCraftPlanId,
+    p.reserveCraftDraft,
+    p.craftChoices || {},
+    p.journey,
+    p.goals,
+    p.resourcePriority || [],
+  ]);
+}
+function recipeDiscoverySourceSignature(snapshot) {
+  return JSON.stringify([
+    snapshot.goalProfileId,
+    snapshot.allocations?.referenceIdentity || null,
+    snapshot.allocations?.inventoryAvailable,
+  ]);
+}
+function invalidateRecipeDiscovery() {
+  ++recipeDiscoveryRequest;
+  clearTimeout(recipeDiscoveryTimer);
+  recipeDiscoveryNeedsRefresh = true;
+  const view = recipeDiscoveryView;
+  view.reading = false;
+  view.busy = !!view.adding;
+  if (view.result) view.result = { ...view.result, scopeToken: null };
+  view.error = '来源或计划已变化，正在重新核对；旧结果暂不能加入。';
+}
+async function refreshRecipeDiscovery(changes = {}) {
+  clearTimeout(recipeDiscoveryTimer);
+  const view = recipeDiscoveryView,
+    profileId = profile().id,
+    request = ++recipeDiscoveryRequest;
+  view.options = { ...view.options, ...changes };
+  recipeDiscoveryNeedsRefresh = false;
+  view.reading = true;
+  view.busy = true;
+  view.error = '';
+  if (route === 'recipe-discovery') render(true);
+  try {
+    const result = await call('recipeDiscovery', view.options);
+    if (
+      request !== recipeDiscoveryRequest ||
+      view !== recipeDiscoveryView ||
+      profile().id !== profileId ||
+      result.profileId !== profileId
+    )
+      return;
+    view.result = result;
+    view.options.page = result.pagination.page;
+  } catch (e) {
+    if (request === recipeDiscoveryRequest && view === recipeDiscoveryView) view.error = e.message;
+  } finally {
+    if (request === recipeDiscoveryRequest && view === recipeDiscoveryView) {
+      view.reading = false;
+      view.busy = !!view.adding;
+      if (route === 'recipe-discovery') render(true);
+    }
+  }
+}
+function craftPlanModal(
+  id = '',
+  list = profile().craftList || [],
+  addGoal = false,
+  name = '',
+  choices = profile().craftChoices || {},
+  savedDraft = null,
+) {
+  const plan = profile().craftPlans?.find((x) => x.id === id);
+  craftPlanDraft = {
+    id,
+    profileId: profile().id,
+    list: list.map((line) => ({ ...line })),
+    choices: { ...choices },
+  };
+  modal(
+    plan ? '更新制作计划' : '保存制作计划',
+    '配方和制作次数会独立保存，修改编辑清单不会改变其他计划。',
+    `<div class="field"><label for="craft-plan-name">计划名称</label><input id="craft-plan-name" maxlength="80" value="${esc(name || plan?.name || '出发前的制作计划')}" placeholder="例如：武当山出发前的装备"></div><p>${list.length} 种配方</p><label><input id="craft-plan-goal" type="checkbox" ${addGoal ? 'checked' : ''}> 同时加入行囊目标</label><label><input id="craft-plan-reserved" type="checkbox" ${(plan ? plan.reserved !== false : profile().reserveCraftDraft !== false) ? 'checked' : ''}> 为计划保留材料，赠礼时扣除</label>`,
+    act('craft-plan-save', '保存计划', 'btn primary', '', 'check'),
+  );
+  document.querySelector('#craft-plan-name')?.focus();
+  if (savedDraft) writeIntentValues('craft-plan', savedDraft.values, overlay);
+  activateIntentEditor(
+    'craft-plan',
+    id,
+    { list: craftPlanDraft.list, choices: craftPlanDraft.choices },
+    savedDraft,
+  );
+}
+function allocationLedger() {
+  const summary =
+    materialView.result?.sharedBudget ||
+    (environment.goalProfileId === profile().id ? environment.allocations : null);
+  return `<section class="card mt"><h2>物资用途</h2><p class="save-note">手动保留与各项任务用量分别记录并合计扣除，赠礼和制作使用同一份可用库存。先满足手动留用，再按任务记录顺序展示已分配量。已完成任务的预留仍保留记录，切换到较早存档会重新核对。</p>${
+    (profile().allocations || [])
+      .map((owner) => {
+        const progress = summary?.owners?.find((a) => a.questId === owner.questId);
+        const name = gameIndex.world.quests.find((q) => q.id === owner.questId)?.name || owner.questId;
+        return `<details class="detail-block"><summary>${esc(name)} · ${esc(progress?.status || '进度待核对 · 继续保留')}</summary>${act('world-quest', '查看任务', 'text-btn', owner.questId, 'book')}${Object.entries(
+          owner.items,
+        )
+          .map(([id, count]) => {
+            const assigned = progress?.itemAllocations?.find((a) => a.id === Number(id));
+            return `<div class="row wrap"><span class="spacer">${esc(gameViews.byId(gameIndex, 'item-' + id)?.name || id)}</span><span class="small muted">${progress?.complete ? '本参照已完成 · 不占用' : assigned?.allocated === null || !assigned ? '分配量待核对' : '已分配 ' + assigned.allocated + ' · 预留还缺 ' + assigned.missing}</span><label class="quantity-label">保留 <input id="allocation-${owner.questId}-${id}" type="number" min="0" max="999999" step="1" value="${count}" aria-label="${esc(name)}保留数量"></label>${act('allocation-edit', '保存', 'btn', owner.questId + ':' + id, 'check')}</div>`;
+          })
+          .join(
+            '',
+          )}${act('allocation-remove', '释放这项任务的预留', 'text-btn', owner.questId, 'trash')}</details>`;
+      })
+      .join('') || '<p class="small muted">在任务所需物品旁点击预留，即可按任务记录用途。</p>'
+  }</section>${resourcePriorityViews.entry(environment.goalProfileId === profile().id ? environment.allocations : null)}${craftBudgetLedger(summary)}`;
+}
+function renderResourcePriorityDialog() {
+  const draft = resourcePriorityDraft;
+  if (!draft) return;
+  modal(
+    '先支持哪项打算',
+    '',
+    resourcePriorityViews.editor(draft, gameIndex),
+    draft.loading || !draft.preview
+      ? '<button class="btn primary" disabled>确认这份顺序</button>'
+      : act('resource-priority-save', '确认这份顺序', 'btn primary', '', 'check'),
+  );
+  overlay.querySelector('.modal')?.classList.add('resource-priority-modal');
+}
+async function previewResourcePriority(order, initial = false) {
+  if (initial) {
+    closeOverlay();
+    resourcePriorityDraft = {
+      profileId: profile().id,
+      order: [...order],
+      labels: Object.fromEntries(
+        (environment.allocations?.priorityOwners || []).map((row) => [row.id, row.name]),
+      ),
+      preview: null,
+      loading: true,
+      error: '',
+    };
+  }
+  const draft = resourcePriorityDraft;
+  if (!draft) return;
+  const token = ++resourcePriorityRequest;
+  draft.order = [...order];
+  draft.loading = true;
+  draft.error = '';
+  renderResourcePriorityDialog();
+  try {
+    const result = await call('resourcePriorityPreview', draft.profileId, order);
+    if (
+      token !== resourcePriorityRequest ||
+      resourcePriorityDraft !== draft ||
+      profile().id !== draft.profileId
+    )
+      return;
+    draft.order = [...order];
+    draft.preview = result;
+    draft.labels = {
+      ...draft.labels,
+      ...Object.fromEntries(result.changes.map((row) => [row.id, row.name])),
+    };
+  } catch (e) {
+    if (token !== resourcePriorityRequest || resourcePriorityDraft !== draft) return;
+    draft.preview = null;
+    draft.error = e.message;
+  } finally {
+    if (token === resourcePriorityRequest && resourcePriorityDraft === draft) {
+      draft.loading = false;
+      renderResourcePriorityDialog();
+    }
+  }
+}
+function craftBudgetLedger(summary) {
+  if (!summary?.crafts?.length) return '';
+  return `<section class="card mt"><h2>制作计划已占用的库存</h2><p class="save-note">${esc(summary.processingNotice || '制作与赠礼共用有限库存。')}</p><p class="small">全部用途：直接材料还差 ${summary.directMissingTotal ?? '待核对'} 件 · 按加工安排的原料还差 ${summary.baseMaterialMissingTotal ?? '待核对'} 件。两个数量分别表示直接材料与展开原料，不能相加。</p>${summary.crafts
+    .map(
+      (
+        plan,
+        i,
+      ) => `<details class="detail-block"><summary>${i + 1}. ${esc(plan.name)}</summary>${plan.materials.map((m) => `<div class="world-rule"><span>${esc(m.name)}</span><span>直接需 ${m.count} · ${m.missing === null ? '库存待核对' : '已分配 ' + m.allocation.reduce((sum, a) => sum + a.count, 0) + ' · 还缺 ' + m.missing}</span></div>`).join('')}
+    ${plan.processing ? `<h3>加工另占用的真实库存</h3>${plan.processingAllocation.map((a) => `<div class="world-rule"><span>${act('database-detail', esc(gameViews.byId(gameIndex, 'item-' + a.id)?.name || a.id), 'text-btn', 'item-' + a.id)}</span><span>${a.count} 件</span></div>`).join('') || '<p class="small muted">没有另外分配加工原料</p>'}<p class="small">原料端点还缺 ${plan.processing.rawMissingTotal ?? '待核对'} 件 · 先加工 ${plan.processing.workRemaining.processing} 次 · 再制作 ${plan.processing.workRemaining.final} 次</p><p class="save-note">预计产物尚须完成制作，不算当前库存，不会供其他计划或赠礼使用。</p>` : ''}
+    ${plan.id === '@draft' ? act('craft-draft-reserve', '释放编辑清单用量', 'text-btn', '', 'shield') : plan.id === '@recipe-goals' ? act('nav', '管理制作目标', 'text-btn', 'goals', 'target') : act('craft-plan-reserve', '释放这份计划用量', 'text-btn', plan.id, 'shield')}</details>`,
+    )
+    .join('')}</section>`;
 }
 function invalidateMaterials() {
   materialRequest++;
@@ -394,7 +1269,13 @@ async function loadWorldReference(name) {
         currentDrawer.follow = view.follow;
         const html =
           currentDrawer.type === 'world-quest'
-            ? worldViews.questDetail(gameIndex, currentDrawer.id, view, state.settings.spoiler === 'details')
+            ? worldViews.questDetail(
+                gameIndex,
+                currentDrawer.id,
+                view,
+                state.settings.spoiler === 'details',
+                profile().allocations?.find((a) => a.questId === currentDrawer.id)?.items,
+              )
             : worldViews.placeDetail(gameIndex, currentDrawer.id, view);
         if (html) showOverlay(html, true, true);
       }
@@ -419,7 +1300,13 @@ async function showWorldDetail(id, type = 'quest', replace = false) {
   const canonical = type === 'quest' && !String(id).startsWith('quest-') ? `quest-${id}` : id;
   const html =
     type === 'quest'
-      ? worldViews.questDetail(gameIndex, canonical, worldView, state.settings.spoiler === 'details')
+      ? worldViews.questDetail(
+          gameIndex,
+          canonical,
+          worldView,
+          state.settings.spoiler === 'details',
+          profile().allocations?.find((a) => a.questId === canonical)?.items,
+        )
       : worldViews.placeDetail(gameIndex, canonical, worldView);
   if (!html) throw Error('这条任务或地点资料不可用');
   referenceSaveName = worldView.referenceName;
@@ -445,6 +1332,7 @@ async function calculateMaterials() {
     token = ++materialRequest,
     profileId = profile().id;
   const list = (profile().craftList || []).map((line) => ({ ...line }));
+  const choices = JSON.stringify(profile().craftChoices || {});
   view.follow ??= defaultFollow();
   if (view.follow) view.referenceName = latestReference();
   view.referenceName ??= defaultReference();
@@ -459,11 +1347,13 @@ async function calculateMaterials() {
       token !== materialRequest ||
       materialView !== view ||
       profile().id !== profileId ||
-      JSON.stringify(list) !== JSON.stringify(profile().craftList || [])
+      JSON.stringify(list) !== JSON.stringify(profile().craftList || []) ||
+      choices !== JSON.stringify(profile().craftChoices || {})
     )
       return;
     view.result = result;
     view.resultList = list;
+    view.resultChoices = choices;
     view.profileId = profileId;
   } catch (e) {
     if (token === materialRequest && materialView === view) view.error = e.message;
@@ -536,21 +1426,27 @@ async function showDatabaseDetail(id, quantity = 1, giftPage) {
   const sameDrawer = currentDrawer?.type === 'database' && currentDrawer.id === id;
   databaseId = id;
   const e = gameViews.byId(gameIndex, id),
-    token = ++detailRequest;
+    token = ++detailRequest,
+    profileId = profile().id,
+    planningSignature = planningIntentSignature();
+  let referenceError = '';
   if (!e) return;
-  if (e.kind === '配方' || e.kind === '人物') {
+  if (['配方', '人物', '物品'].includes(e.kind)) {
     referenceFollow ??= defaultFollow();
     if (referenceFollow) referenceSaveName = latestReference();
     if (referenceSaveName === undefined) referenceSaveName = defaultReference();
     referenceSave = null;
     if (referenceSaveName)
       try {
-        referenceSave = await call('saveDetails', referenceSaveName);
+        referenceSave = await call('saveDetails', referenceSaveName, e.kind === '配方' ? id : undefined);
       } catch (error) {
+        referenceError = error.message;
         toast(`未能读取对照存档：${error.message}`, true);
       }
   }
-  if (token !== detailRequest) return;
+  if (token !== detailRequest || profileId !== profile().id) return;
+  if (e.kind === '物品' && planningSignature !== planningIntentSignature())
+    return showDatabaseDetail(id, quantity, giftPage);
   const quantityField = sameDrawer && e.kind === '配方' ? document.querySelector('#recipe-quantity') : null;
   const rawQuantity = quantityField?.value;
   const validQuantity = quantityField && quantityField.checkValidity() && Number(rawQuantity) >= 1;
@@ -565,6 +1461,17 @@ async function showDatabaseDetail(id, quantity = 1, giftPage) {
     referenceFollow,
     profile().reservations || {},
     giftPage ?? (currentDrawer?.id === id ? currentDrawer.giftPage || 0 : 0),
+    planningTotals(referenceSave),
+    e.kind === '物品'
+      ? itemUsageViews.detail(
+          projectItemUsage(id, {
+            profile: profile(),
+            reference: referenceSave,
+            gameIndex,
+            error: referenceError,
+          }),
+        )
+      : '',
   );
   if (html) {
     rememberDrawer(
@@ -575,6 +1482,7 @@ async function showDatabaseDetail(id, quantity = 1, giftPage) {
         referenceName: referenceSaveName,
         follow: referenceFollow,
         giftPage: giftPage ?? (currentDrawer?.id === id ? currentDrawer.giftPage || 0 : 0),
+        planningSignature,
       },
       currentDrawer?.type === 'database' && currentDrawer.id === id,
     );
@@ -593,7 +1501,7 @@ function recipeQuantity() {
 }
 function reservableReference(ref) {
   if (!Array.isArray(ref?.metadata.inventory)) return ref;
-  const remaining = { ...(profile().reservations || {}) };
+  const remaining = planningTotals(ref);
   return {
     ...ref,
     metadata: {
@@ -617,7 +1525,14 @@ function showBackupPreview(b) {
 }
 async function call(method, ...args) {
   const result = await api[method](...args);
-  if (!result.ok) throw new Error(result.error);
+  if (!result.ok) {
+    const error = new Error(result.error);
+    for (const key of ['code', 'reasonCode', 'backupId', 'directory', 'diagnostic'])
+      if (typeof result[key] === 'string') error[key] = result[key];
+    if (typeof result.published === 'boolean') error.published = result.published;
+    if (method === 'exportProtection' && result.exportResult) error.exportResult = result.exportResult;
+    throw error;
+  }
   if (method === 'timelineInspect' && pendingNodeDrafts.has(args[0]))
     result.data.draft = pendingNodeDrafts.get(args[0]);
   return result.data;
@@ -634,17 +1549,29 @@ function toast(text, error = false) {
 function mutation(command) {
   const profileId = profile().id;
   const task = mutationQueue.then(async () => {
+    const previousIntents = planningIntentSignature();
     const previousBasket = JSON.stringify(profile().craftList || []);
     const next = await call('mutate', { ...command, profileId: command.profileId || profileId });
     state = next;
-    if (previousBasket !== JSON.stringify(profile().craftList || []) || command.type === 'reserve-set')
+    const intentsChanged = previousIntents !== planningIntentSignature();
+    if (intentsChanged) invalidateRecipeDiscovery();
+    if (
+      previousBasket !== JSON.stringify(profile().craftList || []) ||
+      command.type === 'reserve-set' ||
+      command.type.startsWith('task-reserve') ||
+      command.type.startsWith('craft-plan-') ||
+      (command.type === 'journey-trash-restore' && command.expectedTrash?.kind === 'craft-plan') ||
+      command.type === 'resource-priority-set' ||
+      command.type === 'craft-draft-reserve'
+    )
       invalidateMaterials();
     if (['profile-add', 'profile-switch', 'save-slot'].includes(command.type)) {
+      journalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
       resetPlanningViews();
       referenceSaveName = undefined;
       referenceSave = null;
       await refresh();
-    }
+    } else if (intentsChanged && route === 'recipe-discovery') await refresh();
     render(true);
     return next;
   });
@@ -669,7 +1596,7 @@ function saveNote(id = profile().id) {
     });
 }
 function noteBlock() {
-  return `<div class="note-paper"><div class="row between"><h3>江湖随手记</h3>${icon('feather')}</div><textarea id="note" data-persist="note" maxlength="20000" aria-label="江湖随手记" placeholder="上次停在何处？下次想做什么？\n给未来的自己留句话。">${esc(drafts.get(profile().id) ?? profile().notes)}</textarea><div id="note-status" class="note-footer">${drafts.has(profile().id) ? '正在保存…' : '只存在这台电脑 · 自动保存'}</div></div>`;
+  return `<div class="note-paper"><div class="row between"><h3>江湖随手记</h3>${act('navigate', '逐条记录与回顾', 'text-btn', 'journal', 'feather')}</div><textarea id="note" data-persist="note" maxlength="20000" aria-label="江湖随手记" placeholder="上次停在何处？下次想做什么？\n给未来的自己留句话。">${esc(drafts.get(profile().id) ?? profile().notes)}</textarea><div id="note-status" class="note-footer">${drafts.has(profile().id) ? '正在保存…' : '只存在这台电脑 · 自动保存'}</div></div>`;
 }
 function pending() {
   if (profile().stageConfirmed === false) return [];
@@ -690,21 +1617,87 @@ function landscape() {
 }
 function homeHero() {
   const r = environment.recent;
-  return `<section class="hero ${r ? 'has-save' : ''}"><div class="hero-copy"><div class="eyebrow">${r ? (environment.preferredSave ? '这一程的存档 · ' : '最近留下的江湖 · ') + esc(r.name) : '此去江湖 · 心中有数'}</div><h1>${r ? '上次，停在' + esc(r.mapName) + '。' : '走自己的路，<br>不错过在意的人。'}</h1><p>${r ? esc(r.mainQuest || '继续这一程的探索') + '<br>' + when(r.modifiedAt) + ' · ' + hours(r.playSeconds) : '记下此刻的进度，留意沿途的相遇。<br>每一件小事，都可以慢慢完成。'}</p><div class="row">${r ? act('save-detail', '回顾这份存档', 'btn primary', r.name, 'book') : act('stage', esc(stageTitle()) + ' ' + icon('chevron'), 'btn primary')}${act('navigate', '查看流程清单', 'text-btn', 'checklist', 'arrow')}</div></div>${landscape()}${r?.thumbnail ? `<div class="hero-memory"><img src="${r.thumbnail}" alt="最近存档的游戏场景"><span>这一程的片刻</span></div>` : '<div class="hero-seal">一剑一程<br>一页江湖</div>'}</section>`;
+  return `<section class="hero ${r ? 'has-save' : ''}"><div class="hero-copy"><div class="eyebrow">${r ? (environment.preferredSave ? '这一程的存档 · ' : '最近留下的江湖 · ') + esc(r.name) : '此去江湖 · 心中有数'}</div><h1>${r ? '上次，停在' + esc(r.mapName) + '。' : '走自己的路，<br>不错过在意的人。'}</h1><p>${r ? esc(r.mainQuest || '继续这一程的探索') + '<br>' + when(r.modifiedAt) + ' · ' + hours(r.playSeconds) : '记下此刻的进度，留意沿途的相遇。<br>每一件小事，都可以慢慢完成。'}</p><div class="row">${r ? act('save-detail', '回顾这份存档', 'btn primary', r.name, 'book') : act('navigate', '先查人物与物品', 'btn primary', 'database', 'book')}${act('navigate', '查看流程清单', 'text-btn', 'checklist', 'arrow')}</div></div>${landscape()}${r?.thumbnail ? `<div class="hero-memory"><img src="${r.thumbnail}" alt="最近存档的游戏场景"><span>这一程的片刻</span></div>` : '<div class="hero-seal">一剑一程<br>一页江湖</div>'}</section>`;
+}
+function startPanel() {
+  const connected = !!state.settings.savePath && environment.saves.files.length > 0;
+  const readable = environment.saves.files.some((f) => f.metadata);
+  const enabled = environment.timeline?.enabled;
+  const warning = environment.health?.protection?.warning;
+  const sourceUnavailable =
+    !!state.settings.savePath &&
+    !!environment.saves.error &&
+    !enabled &&
+    !environment.timeline?.error &&
+    !environment.timeline?.pending &&
+    !environment.timeline?.busy &&
+    !environment.timeline?.quiescing &&
+    !environment.recovery &&
+    !environment.health?.quitting;
+  const detectedSource =
+    sourceUnavailable && environment.detected.length === 1 ? environment.detected[0] : '';
+  const pathIssue = environment.timeline?.pathIssue || '';
+  const preparationFailed = !!assistanceError && !enabled && !warning;
+  const supported = environment.game.installed && environment.game.build === gameIndex.build && !pathIssue;
+  const offered = state.settings.offerAutoSaveOnStart !== false;
+  const action = sourceUnavailable
+    ? detectedSource
+      ? 'reconnect-detected'
+      : 'choose-saves'
+    : warning
+      ? 'navigate'
+      : !pathIssue && (preparationFailed || (connected && supported && !enabled && offered))
+        ? 'start-assistance'
+        : 'launch';
+  const title = sourceUnavailable
+    ? '先前的存档目录暂不可用'
+    : warning
+      ? '有一项存档保护需要核对'
+      : preparationFailed
+        ? '自动存档暂未准备好'
+        : enabled
+          ? '自动存档已开启，继续出发吧'
+          : connected
+            ? environment.recent
+              ? '已读到你的进度，可以直接用了'
+              : '查询与备份已准备好，可以直接用了'
+            : '先逛江湖，手札会帮你留意进度';
+  const message = sourceUnavailable
+    ? `图鉴、攻略和已有备份仍可使用。${detectedSource ? '已找到本机存档，点击即可重新连接。' : environment.detected.length > 1 ? '检测到了多个账户，可在下面选一次；也可重新选择目录。' : '可以直接重新选择本机存档目录。'}`
+    : warning
+      ? environment.health.protection.reason
+      : preparationFailed
+        ? assistanceError + '。查询与已有备份仍然可用。'
+        : enabled
+          ? '进入游戏存档后自动留住进度；查询、备料和历史都已准备好。'
+          : connected
+            ? `${readable ? '存档回顾、任务查询和备料现在就能使用。' : '已找到存档文件，但暂时无法读取进度和库存。图鉴、任务资料与完整备份仍可使用；可在游戏里重新保存后刷新，或核对存档目录与游戏版本。'}${state.settings.autoBackup ? '完整备份已自动开启。' : '沿用你之前的备份设置。'}${supported ? (offered ? '点击开始游戏，可一次开启自动存档。' : '开始游戏会直接启动；自动存档可稍后开启。') : ''}`
+            : environment.detected.length > 1
+              ? '检测到多个账户，登录 Steam 后会自动识别；也可以在这里选一次账户。'
+              : environment.journalRecovery?.needsSaveConfirmation
+                ? '手札已经恢复，图鉴、记录和规划可直接使用。请先明确选择本机存档目录，再接入已保存进度。'
+                : '图鉴和攻略可以直接查。游戏里保存一次后，手札会自动寻找本机存档。';
+  return `<section class="card mb start-panel" aria-label="直接开始"><div class="row between wrap"><div class="spacer"><h2>${icon('shield')} ${title}</h2><p class="small muted">${esc(message)}</p></div><button class="btn primary" data-action="${action}" ${sourceUnavailable ? (detectedSource ? `data-id="${esc(detectedSource)}"` : '') : warning ? 'data-id="saves"' : ''} ${startingAssistance ? 'disabled' : ''}>${icon(sourceUnavailable ? 'folder' : warning ? 'shield' : 'game')}${startingAssistance ? '正在准备…' : sourceUnavailable ? (detectedSource ? '重新连接存档' : '重新选择存档目录') : warning ? '查看存档匣' : preparationFailed && !pathIssue ? '重新准备' : '开始游戏'}</button>${sourceUnavailable || warning || (preparationFailed && !pathIssue) ? act('launch', '开始游戏', 'btn', '', 'game') : ''}${act('navigate', '查询图鉴', 'btn', 'database', 'book')}</div>${!connected && environment.detected.length > 1 ? `<label class="small">这次使用的账户 <select id="detected-save" class="input" aria-label="选择游戏账户"><option value="">自动识别 Steam 账户</option>${environment.detected.map((p) => `<option value="${esc(p)}">账户 ${esc(p.split(/[\\/]/).at(-2))}</option>`).join('')}</select></label>` : ''}<details data-persist-detail="home-start"><summary>想慢慢探索时，再看看这些</summary><p class="small muted">默认跟随最近保存的进度，开启游戏内轻提示并保持静音。备料、收藏、笔记和显示位置都可以以后再调整。${pathIssue ? esc(pathIssue) : connected && !supported ? '当前游戏的自动存档尚未适配，存档回顾和完整备份仍可使用。' : '自动存档首次开启只需确认一次，之后沿用；更换账户或游戏版本时会重新核对。'}</p><div class="row wrap">${connected && supported && !enabled ? act('start-assistance', '开启自动存档', 'text-btn', '', 'shield') : ''}${act('navigate', '查看存档与历史', 'text-btn', 'saves', 'clock')}${act('navigate', '调整偏好', 'text-btn', 'settings', 'settings')}${!connected ? act('choose-saves', '手动找存档', 'text-btn', '', 'folder') : ''}</div></details></section>`;
+}
+function recoveryConnectionNotice() {
+  if (!environment.journalRecovery?.needsSaveConfirmation) return '';
+  return `<section class="card mb" aria-label="恢复后的本机连接"><h2>手札已恢复，请重新确认本机连接</h2><p>原来的资料和连接记录已保留。旧机器的存档目录与自动存读档授权没有沿用；离线查询、记录和规划现在就能用。</p><div class="row wrap">${act('choose-saves', '选择本机存档目录', 'btn primary', '', 'folder')}${act('folder', '查看保留的原始资料', 'btn', 'data', 'folder')}</div><p class="save-note">选择目录后可核对本机已保存进度。原生自动存读档仍需要你另行启用与确认。</p></section>`;
 }
 function homePage() {
   const p = profile(),
     done = Object.values(p.checks).filter((v) => v === 'done').length,
     list = pending().slice(0, 4),
-    recent = environment.saves.files.find((f) => f.metadata);
-  return `${pageHeader('A PERSONAL JIANGHU JOURNAL', '少侠，别来无恙。', '把琐事交给手札，把心思留给江湖。', act('launch', '启动游戏并守护存档', 'btn', '', 'game'))}
+    recent = environment.saves.files.find((f) => f.metadata),
+    chosenItinerary = environment.journey?.profileId === p.id && environment.journey.itinerary?.steps.length;
+  return `${recoveryConnectionNotice()}${pageHeader('A PERSONAL JIANGHU JOURNAL', '少侠，别来无恙。', '把琐事交给手札，把心思留给江湖。')}
+    ${chosenItinerary ? homeJourney() + startPanel() : startPanel() + homeJourney()}${recipeDiscoveryViews.entry()}${intentDraftViews.panel(availableIntentDrafts(), gameIndex)}
     ${environment.preferredSaveMissing ? notice(`当前周目指定的 ${environment.preferredSave} 暂时不可读。请重新选择默认回顾存档；不会自动改用其他槽位。`, true) : ''}
     ${homeHero()}
     <div class="home-save-choice"><span class="small muted">${profile().referenceMode === 'none' ? '本周目仅查资料，尚未绑定游戏存档' : profile().saveSlot ? '本周目默认回顾：' + esc(profile().saveSlot) : '默认回顾：最近修改的可读存档'}</span><div class="row">${act('save-slot', '选择回顾存档', 'text-btn', '', 'edit')}${act('refresh', '刷新存档', 'text-btn', '', 'refresh')}</div></div>
-    <div class="stat-grid"><div class="stat"><div><div class="stat-label">已完成的精选清单</div><div class="stat-value">${done}<span>/ ${catalog.entries.filter((e) => e.checklist).length} 项</span></div></div><div class="stat-icon">${icon('scroll')}</div></div><div class="stat"><div><div class="stat-label">行囊里的收藏</div><div class="stat-value">${p.favorites.length}<span>条线索</span></div></div><div class="stat-icon">${icon('star')}</div></div><div class="stat"><div><div class="stat-label">已留存的存档副本</div><div class="stat-value">${environment.timeline?.count || 0}<span>个时间线节点 · ${environment.backups.length} 份完整备份</span></div></div><div class="stat-icon">${icon('archive')}</div></div></div>
-    <div class="dashboard-grid"><div class="stack">${environment.recent?.activeQuests?.length ? `<section class="card"><div class="card-header"><h2>存档里的进行中任务</h2>${pill(environment.recent.pendingTasks + ' 项', 'green')}</div>${environment.recent.activeQuests.map((q) => `<div class="check-row"><div class="check-body"><button class="check-title" data-action="save-quest-jump" data-id="${q.id}">${esc(q.name)}</button><p class="check-description">${q.activeSteps?.length ? '当前步骤：' + q.activeSteps.map((s) => esc(s.name)).join('、') + '<br>主任务记录：' + esc(q.status) + ' · ' : ''}来自 ${esc(environment.recent.name)} · 点开查看记录</p></div>${iconButton('save-quest-jump', 'chevron', '查看这项任务的存档记录', String(q.id))}</div>`).join('')}<p class="save-note">只反映已经保存的任务状态；游戏内的新变化请先保存后刷新。</p></section>` : ''}<section class="card"><div class="card-header"><h2>继续前，留意这些</h2><span class="small muted">按手动阶段整理</span></div>${profile().stageConfirmed === false ? empty('先标记你的主线阶段', '选择阶段后再整理精选提醒。', act('stage', '选择阶段', 'btn soft', '', 'edit')) : list.length ? list.map(checkRow).join('') : empty('这一阶段的精选条目已处理', '可切换阶段，或添加你自己的目标。')}${act('navigate', '查看全部清单', 'text-btn', 'checklist', 'arrow')}</section><section class="card"><div class="card-header"><h2>下一步想做</h2>${act('goal-add', '记一件事', 'text-btn', '', 'plus')}</div>${
+    <div class="stat-grid"><div class="stat"><div><div class="stat-label">已完成的精选清单</div><div class="stat-value">${done}<span>/ ${catalog.entries.filter((e) => e.checklist).length} 项</span></div></div><div class="stat-icon">${icon('scroll')}</div></div><div class="stat"><div><div class="stat-label">行囊里的收藏</div><div class="stat-value">${p.favorites.length}<span>条线索</span></div></div><div class="stat-icon">${icon('star')}</div></div><div class="stat"><div><div class="stat-label">已留存的存档副本</div><div class="stat-value">${environment.timeline?.indexError ? '—' : environment.timeline?.count || 0}<span>${environment.timeline?.indexError ? '时间线历史数量待核对' : '个时间线节点'} · ${environment.backups.length} 份完整备份</span></div></div><div class="stat-icon">${icon('archive')}</div></div></div>
+    <div class="dashboard-grid"><div class="stack">${environment.recent?.activeQuests?.length ? `<section class="card"><div class="card-header"><h2>存档里的进行中任务</h2>${pill(environment.recent.pendingTasks + ' 项', 'green')}</div>${environment.recent.activeQuests.map((q) => `<div class="check-row"><div class="check-body"><button class="check-title" data-action="save-quest-jump" data-id="${q.id}">${esc(q.name)}</button><p class="check-description">${q.activeSteps?.length ? '当前步骤：' + q.activeSteps.map((s) => esc(s.name)).join('、') + '<br>主任务记录：' + esc(q.status) + ' · ' : ''}来自 ${esc(environment.recent.name)} · 点开查看记录</p></div>${iconButton('save-quest-jump', 'chevron', '查看这项任务的存档记录', String(q.id))}</div>`).join('')}<p class="save-note">只反映已经保存的任务状态；游戏内的新变化请先保存后刷新。</p></section>` : ''}${profile().stageConfirmed === false ? `<details class="home-optional" data-persist-detail="home-stage"><summary>以后再整理精选提醒</summary><p class="small muted">想查看按阶段整理的精选清单时，可以标记主线阶段。图鉴、任务资料现在就能查询，完整备份可在存档匣管理。</p><div class="row">${act('stage', '标记主线阶段', 'btn soft', '', 'edit')}${act('navigate', '先看全部清单', 'text-btn', 'checklist', 'arrow')}</div></details>` : `<section class="card"><div class="card-header"><h2>继续前，留意这些</h2><span class="small muted">按手动阶段整理</span></div>${list.length ? list.map(checkRow).join('') : empty('这一阶段的精选条目已处理', '可切换阶段，或添加你自己的目标。')}${act('navigate', '查看全部清单', 'text-btn', 'checklist', 'arrow')}</section>`}<section class="card"><div class="card-header"><h2>下一步想做</h2>${act('goal-add', '记一件事', 'text-btn', '', 'plus')}</div>${
       orderedGoals()
-        .filter((g) => !g.done)
+        .filter((g) => !goalDone(g))
         .slice(0, 2)
         .map(goalRow)
         .join('') ||
@@ -713,24 +1706,25 @@ function homePage() {
         '找一本武学、见一位故人，或只是去一个没去过的地方。',
         act('goal-add', '添加我的第一个目标', 'btn soft', '', 'plus'),
       )
-    }</section></div><div class="stack">${noteBlock()}<section class="card"><div class="card-header"><h2>存档守护</h2>${icon('shield')}</div><div class="home-protection"><span data-save-health>${timelineViews.chip(environment.health)}</span><p class="small muted">${environment.timeline?.count || 0} 个时间线节点 · ${bytes(environment.timeline?.bytes || 0)}<br>${environment.backups.length} 份完整保护副本 · ${bytes(environment.backups.reduce((sum, b) => sum + b.bytes, 0))}</p><div class="row wrap">${environment.timeline?.latest ? act('timeline-preview', '查看最近可靠记录', 'btn soft', environment.timeline.latest.id, 'eye') : ''}${act('navigate', '管理自动存读档', 'text-btn', 'saves', 'arrow')}</div></div><div class="save-summary"><div class="save-icon">${icon('archive')}</div><div><h3>${environment.saves.files.length ? `找到 ${environment.saves.files.filter((f) => f.name.endsWith('.sav')).length} 个存档文件` : '等待连接本机存档'}</h3><p>${recent ? `最近存档 · ${when(recent.modifiedAt)}` : '在设置中选择 SaveGames 文件夹'}</p></div></div>${act(environment.saves.files.length ? 'backup' : 'choose-saves', environment.saves.files.length ? '备份当前存档' : '连接存档目录', 'btn wide', '', 'download')}<div class="backup-auto-status"><div class="row">${icon('shield')}<strong>完整自动备份${backupStatus()}</strong>${act('navigate', '管理', 'text-btn', 'saves', 'arrow')}</div><p>这里管理已保存文件的完整备份。游戏内自动保存，请到存档匣的时间线中管理。</p></div><p class="save-note">重要选择前，可以在时间线中点击「立即保存」。</p></section></div></div>
+    }</section></div><div class="stack">${noteBlock()}<section class="card"><div class="card-header"><h2>存档守护</h2>${icon('shield')}</div><div class="home-protection"><span data-save-health>${timelineViews.chip(environment.health)}</span><p class="small muted">${environment.timeline?.indexError ? '时间线历史数量待核对' : `${environment.timeline?.count || 0} 个时间线节点 · ${bytes(environment.timeline?.bytes || 0)}`}<br>${environment.backups.length} 份完整保护副本 · ${bytes(environment.backups.reduce((sum, b) => sum + b.bytes, 0))}</p><div class="row wrap">${environment.timeline?.latest ? act('timeline-preview', '查看最近可靠记录', 'btn soft', environment.timeline.latest.id, 'eye') : ''}${act('navigate', '管理自动存读档', 'text-btn', 'saves', 'arrow')}</div></div><div class="save-summary"><div class="save-icon">${icon('archive')}</div><div><h3>${environment.saves.files.length ? `找到 ${environment.saves.files.filter((f) => f.name.endsWith('.sav')).length} 个存档文件` : '等待连接本机存档'}</h3><p>${recent ? `最近存档 · ${when(recent.modifiedAt)}` : environment.saves.files.some((f) => f.metadata) ? '尚未选用可读进度，可在存档回顾中选择参照' : environment.saves.files.length ? '已找到文件，进度暂时无法读取；原文件仍可备份' : '在设置中选择 SaveGames 文件夹'}</p></div></div>${act(environment.saves.files.length ? 'backup' : 'choose-saves', environment.saves.files.length ? '备份当前存档' : '连接存档目录', 'btn wide', '', 'download')}<div class="backup-auto-status"><div class="row">${icon('shield')}<strong>完整自动备份${backupStatus()}</strong>${act('navigate', '管理', 'text-btn', 'saves', 'arrow')}</div><p>这里管理已保存文件的完整备份。游戏内自动保存，请到存档匣的时间线中管理。</p></div><p class="save-note">重要选择前，可以在时间线中点击「立即保存」。</p></section></div></div>
     <div class="status-line"><span class="dot"></span>本地保存 · 无需登录 · ${esc(profile().name)}</div>`;
 }
 function stageStrip() {
   return `<div class="stage-strip">${catalog.stages.map((s) => `<button class="stage-step ${s.id === profile().stage && profile().stageConfirmed !== false ? 'active' : s.id < profile().stage ? 'past' : ''}" data-action="stage-change" data-id="${s.id}" title="${esc(s.sub)}"><span class="stage-dot">${s.id + 1}</span><span>${s.short}</span></button>`).join('')}</div>`;
 }
 function checklistPage() {
+  const selectedFilter = filter === 'current' && profile().stageConfirmed === false ? 'all' : filter;
   let list = catalog.entries.filter((e) => e.checklist);
-  if (filter === 'current')
+  if (selectedFilter === 'current')
     list = list.filter(
       (e) =>
         e.stage === profile().stage || (e.stage < profile().stage && e.checkpoint && !profile().checks[e.id]),
     );
-  if (filter === 'pending') list = list.filter((e) => !profile().checks[e.id]);
-  if (filter === 'done') list = list.filter((e) => profile().checks[e.id] === 'done');
-  if (filter === 'skip') list = list.filter((e) => profile().checks[e.id] === 'skip');
+  if (selectedFilter === 'pending') list = list.filter((e) => !profile().checks[e.id]);
+  if (selectedFilter === 'done') list = list.filter((e) => profile().checks[e.id] === 'done');
+  if (selectedFilter === 'skip') list = list.filter((e) => profile().checks[e.id] === 'skip');
   if (query) list = list.filter(matchesQuery);
-  return `${pageHeader('THE JOURNEY', '流程防漏', '在主线向前之前，回头看看值得记住的小事。', act('stage', '调整当前进度', 'btn', '', 'edit'))}${stageStrip()}${notice('阶段由你手动选择。这里只列精选提醒；较早阶段的未处理条目会保留供核对，不代表已经错过。', true)}<div class="toolbar">${[
+  return `${pageHeader('THE JOURNEY', '流程防漏', '在主线向前之前，回头看看值得记住的小事。', act('stage', '调整当前进度', 'btn', '', 'edit'))}${stageStrip()}${notice(profile().stageConfirmed === false ? '尚未标记主线阶段；可先浏览精选提醒并勾选。需要按阶段筛选时，再点「调整当前进度」。' : '阶段由你手动选择。这里只列精选提醒；较早阶段的未处理条目会保留供核对，不代表已经错过。', true)}<div class="toolbar">${[
     ['current', '当前阶段'],
     ['pending', '全部待办'],
     ['done', '已完成'],
@@ -739,7 +1733,7 @@ function checklistPage() {
   ]
     .map(
       ([id, label]) =>
-        `<button class="chip ${filter === id ? 'active' : ''}" data-action="filter" data-id="${id}">${label}</button>`,
+        `<button class="chip ${selectedFilter === id ? 'active' : ''}" data-action="filter" data-id="${id}">${label}</button>`,
     )
     .join(
       '',
@@ -750,10 +1744,11 @@ function entryRow(e) {
   return `<article class="entry-row ${status === 'done' ? 'done' : ''}"><button class="check ${status === 'done' ? 'checked' : ''}" data-action="check" data-id="${e.id}" aria-label="${status === 'done' ? '取消完成' : '标记完成'} ${esc(e.title)}">${status === 'done' ? icon('check') : ''}</button><div class="entry-main"><div class="row"><button class="check-title" data-action="detail" data-id="${e.id}"><h3>${esc(e.title)}</h3></button>${e.checkpoint ? pill('时机提醒', 'orange') : ''}${status === 'skip' ? pill('暂不做') : ''}</div><div class="entry-meta"><span>${esc(e.location)}</span><span>·</span><span>${catalog.stages[e.stage].title}</span></div><p class="entry-hint">${esc(e.hint)}</p></div><div class="entry-actions">${iconButton('favorite', 'star', profile().favorites.includes(e.id) ? '取消收藏' : '收藏线索', e.id, `favorite ${profile().favorites.includes(e.id) ? 'on' : ''}`)}${iconButton('detail', 'chevron', '查看线索', e.id)}</div></article>`;
 }
 function matchesQuery(e) {
-  return [e.title, e.location, e.hint, e.kind, ...e.tags]
-    .join(' ')
-    .toLowerCase()
-    .includes(query.trim().toLowerCase());
+  try {
+    return compileSearch(query)(e);
+  } catch {
+    return false;
+  }
 }
 function searchInput(placeholder) {
   return `<label class="search-input">${icon('search')}<input id="list-search" data-persist="list-search" placeholder="${placeholder}" value="${esc(query)}" aria-label="${placeholder}" maxlength="100"></label>`;
@@ -768,11 +1763,24 @@ function entryCard(e) {
   return `<article class="entry-card" tabindex="0" role="button" aria-label="查看 ${esc(e.title)}" data-action="detail" data-id="${e.id}"><div class="entry-card-top"><div class="entry-avatar ${e.kind === '装备' || e.kind === '武学' ? 'equipment' : ''}">${e.kind === '队友' ? gameImages.person(e.title.split(' · ')[0]) || icon('person') : icon(kindIcon(e.kind))}</div>${iconButton('favorite', 'star', profile().favorites.includes(e.id) ? '取消收藏' : '收藏线索', e.id, `favorite ${profile().favorites.includes(e.id) ? 'on' : ''}`)}</div><h3>${esc(e.title)}</h3><p>${esc(e.hint)}</p><div class="entry-card-bottom"><span>${esc(e.location)}</span>${pill(e.kind)}</div></article>`;
 }
 function goalRow(g) {
-  return `<div class="goal-row ${g.done ? 'done' : ''}"><button class="check ${g.done ? 'checked' : ''}" data-action="goal-toggle" data-id="${g.id}" aria-label="${g.done ? '取消完成' : '完成目标'} ${esc(g.title)}">${g.done ? icon('check') : ''}</button><div class="spacer"><h3>${g.pinned ? '<span class="small muted">置顶 · </span>' : ''}${esc(g.title)}</h3>${g.detail ? `<p>${esc(g.detail)}</p>` : ''}${g.source ? act('goal-source', g.source.type === 'planner' ? '重新核对备料清单' : g.source.type === 'quest' ? '查看任务资料与记录' : g.source.quantity ? '打开配方，重新核对材料' : '查看原资料', 'text-btn', g.id, 'arrow') : ''}</div>${iconButton('goal-pin', 'pin', g.pinned ? '取消置顶目标' : '置顶目标', g.id, g.pinned ? 'on' : '')}${iconButton('goal-edit', 'edit', '编辑目标', g.id)}${iconButton('goal-remove', 'trash', '删除目标', g.id)}</div>`;
+  const progress = goalStatus(g),
+    done = progress.done;
+  const tracking =
+    g.source?.type === 'quest'
+      ? `<p class="small muted">${esc(progress.label)}${progress.source ? ' · ' + esc(progress.source.name) + ' · ' + when(progress.source.modifiedAt) : ''}${progress.reason ? ' · ' + esc(progress.reason) : ''}</p>${act('goal-tracking', progress.tracked ? '改为手动管理' : '按存档自动跟踪', 'text-btn', g.id, 'refresh')}`
+      : progress.planDone
+        ? `<p class="small muted">${esc(progress.label)} · 用料已释放；你独立勾选的目标状态仍保留。</p>${act('craft-plan-complete', '重新打开制作计划', 'text-btn', g.source.id, 'refresh')}`
+        : '';
+  const detail = !g.detail
+    ? ''
+    : g.source?.type === 'quest' && state.settings.spoiler === 'hints'
+      ? `<details data-persist-detail="goal-note-${esc(profile().id)}-${esc(g.id)}"><summary>任务备忘 · 可能涉及剧情</summary><p>${esc(g.detail)}</p></details>`
+      : `<p>${esc(g.detail)}</p>`;
+  return `<div class="goal-row ${done ? 'done' : ''}"><button class="check ${done ? 'checked' : ''}" data-action="goal-toggle" data-id="${g.id}" ${progress.planDone ? 'disabled' : ''} aria-label="${progress.planDone ? '关联制作计划已完成，请先重新打开计划' : progress.automaticDone ? '保留为手动待办' : done ? '取消完成' : '完成目标'} ${esc(g.title)}">${done ? icon('check') : ''}</button><div class="spacer"><h3>${g.pinned ? '<span class="small muted">置顶 · </span>' : ''}${esc(g.title)}</h3>${tracking}${detail}${g.source ? act('goal-source', g.source.type === 'planner' ? '重新核对备料清单' : g.source.type === 'quest' ? '查看任务资料与记录' : g.source.quantity ? '打开配方，重新核对材料' : '查看原资料', 'text-btn', g.id, 'arrow') : ''}</div>${iconButton('goal-pin', 'pin', g.pinned ? '取消置顶目标' : '置顶目标', g.id, g.pinned ? 'on' : '')}${iconButton('goal-edit', 'edit', '编辑目标', g.id)}${iconButton('goal-remove', 'trash', '删除目标', g.id)}</div>`;
 }
 function goalsPage() {
   const p = profile();
-  return `${pageHeader('PACK LIGHT, GO FAR', '行囊目标', '想学的武功、想见的人，还有下一次出发的理由。', act('goal-add', '添加目标', 'btn primary', '', 'plus'))}<div class="saved-goals"><div class="stack"><section class="card"><div class="card-header"><h2>我的待办</h2>${pill(`${p.goals.filter((g) => !g.done).length} 件未完成`)}</div>${
+  return `${pageHeader('PACK LIGHT, GO FAR', '行囊目标', '想学的武功、想见的人，还有下一次出发的理由。', act('goal-add', '添加目标', 'btn primary', '', 'plus'))}${journeyTrashViews.entry(p)}<div class="saved-goals"><div class="stack"><section class="card"><div class="card-header"><h2>我的待办</h2>${pill(`${p.goals.filter((g) => !goalDone(g)).length} 件未完成`)}</div>${
     p.goals.length
       ? orderedGoals().map(goalRow).join('')
       : empty(
@@ -837,13 +1845,44 @@ function activityPanel() {
       : '')
   );
 }
+function timelinePanel() {
+  const t = environment.timeline;
+  const passive =
+    !t.enabled &&
+    !t.count &&
+    !t.busy &&
+    !t.pending &&
+    !t.quiescing &&
+    !t.error &&
+    !environment.health?.timeline?.error;
+  const content = timelineViews.page(t, { ...timelineView, recoveryBlocked: !!environment.recovery });
+  return passive
+    ? `<details class="mb" data-persist-detail="unused-timeline"><summary>游戏内自动存档 · 尚未开启，展开了解</summary><div class="mt">${content}</div></details>`
+    : content;
+}
+function restoreRecoveryBanner() {
+  const recovery = environment.recovery;
+  if (!recovery) return '';
+  const guidance = recovery.error
+    ? `<p class="save-note">请先退出游戏，保留当前存档和全部保护副本。手札无法确认上次覆盖到了哪一步，因此会阻止继续恢复或更换存档目录；资料查询和查看副本仍可使用。</p><p class="save-note">需要核对时，请保留备份目录中的恢复记录及副本，并提供下方诊断文字；无需发送存档文件。不要删除恢复记录来绕过核对。</p><details><summary>查看恢复诊断</summary><p class="small mono preserve-text">${esc(recovery.recordPath || '备份目录中的恢复记录')}${recovery.diagnostic ? '\n' + esc(recovery.diagnostic) : ''}</p></details>`
+    : '';
+  return `<section class="recovery-banner mb" aria-label="存档恢复待核对">${notice(recovery.error || '发现上次未完成的存档恢复。请先退出游戏，再核对并回退到恢复前的安全副本。')}${guidance}<div class="row mt">${recovery.error ? '' : act('recover-restore', '核对并处理恢复中断', 'btn danger', '', 'shield')}${act('folder', '打开备份目录', 'btn', 'backups', 'folder')}${state.settings.savePath ? act('folder', '查看当前存档目录', 'btn', 'saves', 'folder') : ''}</div></section>`;
+}
+function backupCareBanner() {
+  return (environment.backupCare || [])
+    .map(
+      (pending) =>
+        `<section class="recovery-banner mb" aria-label="副本清理待处理">${notice(pending.error || (pending.blocking === false ? '上次清理计划尚未提交，原副本仍保留。' : '上次副本清理尚未完成，导出留底仍可用于恢复。'), pending.blocking !== false)}<p class="save-note">${pending.blocking === false ? '临时记录保留在管理目录，无需执行恢复。可以重新选择副本、导出留底并确认清理。' : pending.canRollback ? '尚未开始删除，可以将全部暂存副本放回列表。' : pending.error ? '管理记录无法核对，请保留全部残留内容。' : '已经开始删除，剩余副本暂存保留；选择原保护包重新校验后才能继续。'}</p><details><summary>查看这批副本 · ${pending.ids?.length || 0} 份</summary>${(pending.backups || []).map((b) => '<p>' + esc(b.label) + ' · ' + when(b.createdAt) + '</p>').join('')}</details><div class="row wrap mt">${pending.canRollback ? act('backup-cleanup-rollback', '放回全部暂存副本', 'btn', pending.id, 'refresh') : ''}${!pending.error && pending.blocking !== false && pending.canFinish !== false ? act('backup-cleanup-finish', '选择原保护包并继续…', 'btn danger', pending.id, 'archive') : ''}${act('folder', '查看管理目录', 'text-btn', 'backups', 'folder')}</div></section>`,
+    )
+    .join('');
+}
 function savesPage() {
   const save = environment.saves,
     files = save.files,
     backups = environment.backups;
-  return `${pageHeader('A PLACE TO RETURN TO', '存档匣', '重要选择之前，为这一程留一份退路。', `${act('refresh', '刷新', 'btn', '', 'refresh')}${act('backup', '备份当前存档', 'btn primary', '', 'download')}`)}${timelineViews.page(environment.timeline, timelineView)}${activityPanel()}${environment.game.build && environment.game.build !== gameIndex.build ? notice(`游戏已更新到 Build ${environment.game.build}，手札图鉴资料为 Build ${gameIndex.build}；名称与配方请以游戏内为准。`, true) : ''}${environment.recovery ? `<div class="recovery-banner">${notice(environment.recovery.error || '发现上次未完成的存档恢复。请先退出游戏，再核对并回退到恢复前的安全副本。')}<div class="row">${environment.recovery.error ? '' : act('recover-restore', '核对并处理恢复中断', 'btn danger', '', 'shield')}${act('folder', '打开备份目录', 'btn', 'backups', 'folder')}</div></div>` : ''}${save.error ? notice(save.error) : ''}${environment.autoError ? notice(environment.autoError) : ''}<div class="card mb"><div class="row between"><div class="row"><div class="save-icon">${icon('folder')}</div><div><h3>${files.length ? '已连接本机存档' : '尚未连接存档'}</h3><p class="small muted">${files.length ? '文件会被只读扫描，备份保存在手札的数据目录。' : '选择游戏的 SaveGames 文件夹即可开始。'}</p></div></div><div class="save-stats"><div><strong>${files.filter((f) => /\.sav$/i.test(f.name)).length}</strong><small>存档文件</small></div><div>${act('choose-saves', '更换目录', 'btn')}</div></div></div><div class="separator"></div><div class="row between"><span class="mono muted">${esc(save.path || '等待选择目录')}</span>${save.path ? act('folder', '打开目录', 'text-btn', 'saves', 'external') : ''}</div></div>
+  return `${pageHeader('A PLACE TO RETURN TO', '存档匣', '重要选择之前，为这一程留一份退路。', `${act('refresh', '刷新', 'btn', '', 'refresh')}${act('backup', '备份当前存档', 'btn primary', '', 'download')}`)}${restoreRecoveryBanner()}${backupCareBanner()}${timelinePanel()}${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${protectionViews.controls(protectionView)}${activityPanel()}${environment.game.build && environment.game.build !== gameIndex.build ? notice(`游戏已更新到 Build ${environment.game.build}，手札图鉴资料为 Build ${gameIndex.build}；名称与配方请以游戏内为准。`, true) : ''}${save.error ? notice(save.error) : ''}${files.some((f) => /^\d+\.sav$/i.test(f.name) && !f.metadata) ? notice('部分存档暂时无法读取进度，仍可完整备份原文件。请在游戏里重新保存后刷新，或核对存档目录与游戏版本；没有可读进度时，库存与任务状态不会自动填入。', true) : ''}${environment.autoError ? notice(environment.autoError) : ''}<div class="card mb"><div class="row between"><div class="row"><div class="save-icon">${icon('folder')}</div><div><h3>${files.length ? '已连接本机存档' : '尚未连接存档'}</h3><p class="small muted">${files.length ? '文件会被只读扫描，备份保存在手札的数据目录。' : '选择游戏的 SaveGames 文件夹即可开始。'}</p></div></div><div class="save-stats"><div><strong>${files.filter((f) => /\.sav$/i.test(f.name)).length}</strong><small>存档文件</small></div><div>${environment.recovery ? '<button class="btn" disabled title="请先核对完整存档恢复">更换目录 · 先核对恢复</button>' : act('choose-saves', '更换目录', 'btn')}</div></div></div><div class="separator"></div><div class="row between"><span class="mono muted">${esc(save.path || '等待选择目录')}</span>${save.path ? act('folder', '打开目录', 'text-btn', 'saves', 'external') : ''}</div></div>
  <div class="row between mb"><h2>留存的副本 <span class="small muted">${backups.length ? `· ${backups.length} 份` : ''}</span></h2><div class="row"><span class="small muted">存档变化时自动备份</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></div>
- <div class="card">${backups.length ? backups.map((b) => `<div class="backup-row"><div class="backup-symbol">${icon(b.kind === 'safety' ? 'shield' : 'archive')}</div><div class="spacer"><h3>${esc(b.label)} ${b.kind === 'auto' ? pill('自动') : b.kind === 'safety' ? pill('恢复前副本', 'green') : ''}</h3><p>${when(b.createdAt)} · ${b.count} 个文件 · ${bytes(b.bytes)}</p></div>${iconButton('verify', 'shield', '校验完整性', b.id)}${act('backup-preview', '查看副本', 'btn', b.id, 'eye')}</div>`).join('') : empty('还没有备份', '先在游戏内保存，再创建第一份副本。每份备份都会保留原始文件并校验完整性。', act('backup', '创建第一份备份', 'btn soft', '', 'download'))}</div><p class="save-note">时间线开启时暂停完整自动备份，避免反复复制其他槽位。关闭时间线后，自动备份在手札运行时每分钟检查一次文件变化；稳定后复制已保存的文件，不会替游戏执行保存。副本不会自动删除；可在备份目录中自行管理空间。</p>
+ ${backupViews.anomalies(environment.backupAnomalies || [])}${backups.length ? backupViews.page(backups, backupView) : `<div class="card">${empty('还没有备份', '先在游戏内保存，再创建第一份副本。每份备份都会保留原始文件并校验完整性。', act('backup', '创建第一份备份', 'btn soft', '', 'download'))}</div>`}<p class="save-note">原生游戏连接工作时暂停完整自动备份，避免重复复制其他槽位；等待连接或关闭时间线时仍保护文件。关闭时间线后立即检查，之后每分钟核对文件变化；稳定后复制已保存的文件，不会替游戏执行保存。副本不会自动删除。可按名称、类型和日期整理或分批导出；上方完整换机会自动分卷，请一并带走分卷目录。</p>
  <div class="section-heading"><h2>当前存档文件</h2><div class="row"><span class="small muted">共 ${files.length} 个文件 · ${bytes(save.total)}</span>${files.some((f) => f.metadata) ? act('save-compare', '比较两份存档', 'btn', '', 'search') : ''}</div></div>${
    files.length
      ? `<div class="table-wrap"><table class="save-table"><thead><tr><th>文件</th><th>保存时间</th><th>游玩时长</th><th>场景 / 队伍</th><th>大小</th></tr></thead><tbody>${files
@@ -857,7 +1896,9 @@ function savesPage() {
                        .slice(0, 3)
                        .join('、') || '',
                    )} ${f.metadata.teamIds?.length > 3 ? `等 ${f.metadata.teamIds.length} 人` : ''}</small>`
-                 : '—'
+                 : /^\d+\.sav$/i.test(f.name)
+                   ? '进度暂无法读取'
+                   : '—'
              }</td><td><small>${bytes(f.bytes)}</small></td></tr>`,
          )
          .join('')}</tbody></table></div>`
@@ -866,6 +1907,9 @@ function savesPage() {
  <p class="save-note">场景、时长和队伍来自存档本身。点击「查看存档回顾」可看缩略图、追踪任务与已学配方。无法解析的版本仍可备份；保存时间取自文件时间。</p>`;
 }
 function companionSettings() {
+  const opacity = state.settings.compactOpacity ?? 0.96;
+  const presets = [1, 0.96, 0.85, 0.75, 0.65];
+  const options = presets.includes(opacity) ? presets : [...presets, opacity].sort((a, b) => b - a);
   return `<section class="card"><h2 class="mb">游戏内轻提示</h2><div class="setting-row"><div><h3>平时显示一至两条</h3><p>优先显示置顶目标与备料缺口；鼠标穿透，不抢游戏焦点。Alt Tab 离开游戏后隐藏。接入组件连接时，在不可保存的场景及存读档过程中暂停轻提示。</p></div><button class="switch ${state.settings.companionEnabled !== false ? 'on' : ''}" role="switch" aria-checked="${state.settings.companionEnabled !== false}" aria-label="游戏内轻提示" data-action="companion-enabled"></button></div><div class="setting-row"><label for="companion-position">显示位置</label><select id="companion-position" class="input">${[
     ['top-right', '右上角'],
     ['bottom-right', '右下角'],
@@ -878,42 +1922,222 @@ function companionSettings() {
     )
     .join(
       '',
-    )}</select><label for="companion-opacity">提示透明度</label><select id="companion-opacity" class="input">${[1, 0.96, 0.85, 0.75, 0.65].map((n) => `<option value="${n}" ${n === (state.settings.compactOpacity ?? 0.96) ? 'selected' : ''}>${Math.round(n * 100)}%</option>`).join('')}</select></div><p class="small muted">Ctrl Alt J 展开或收起；Esc 先关闭详情，再收起面板。窗口化与无边框窗口可叠加；独占全屏的可见性取决于系统与游戏。材料来自标明时间的存档，不是实时背包。未连接游戏组件时无法自动识别战斗和对话。</p></section>`;
+    )}</select><label for="companion-opacity">提示透明度</label><select id="companion-opacity" class="input">${options.map((n) => `<option value="${n}" ${n === opacity ? 'selected' : ''}>${Number((n * 100).toFixed(2))}%${presets.includes(n) ? '' : '（当前）'}</option>`).join('')}</select></div><p class="small muted">Ctrl Alt J 展开或收起；Esc 先关闭详情，再收起面板。窗口化与无边框窗口可叠加；独占全屏的可见性取决于系统与游戏。材料来自标明时间的存档，不是实时背包。未连接游戏组件时无法自动识别战斗和对话。</p></section>`;
 }
 function settingsPage() {
   return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">阅读与陪伴</h2><div class="setting-row"><div><h3>第一次使用这本手札</h3><p>看看存档回顾、备料、小窗和备份怎么用。</p></div>${act('help', '打开使用说明', 'btn', '', 'book')}</div><div class="setting-row"><div><h3>少剧透提示</h3><p>显示人物名、地点和提醒，详细步骤需要主动展开；不保证完全无剧透。</p></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3>随行小窗</h3><p>游戏中显示两条轻提示，按键展开查询与追踪。${environment.shortcutReady ? 'Ctrl + Alt + J 可展开或收起。' : '可使用右侧按钮开关。'}可在下方选择提示位置和透明度。</p></div>${act('compact', '打开随行小窗', 'btn', '', 'pin')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3><p>每个周目有独立的进度、收藏、目标和笔记。</p></div>${act('profiles', '管理周目', 'btn', '', 'person')}</div></section>
- ${companionSettings()}${shortcutSettings()}<section class="card"><h2 class="mb">本机连接</h2><div class="setting-row"><div><h3>逸剑风云决 ${environment.game.installed ? '· 已找到' : '· 由 Steam 启动'}</h3><p>${esc(environment.game.path || '使用 Steam 游戏入口启动')}${environment.game.build ? ` · Build ${esc(environment.game.build)}` : ''}</p></div>${act('launch', '启动游戏', 'btn', '', 'game')}</div><div class="setting-row"><div><h3>游戏存档目录</h3><p class="mono">${esc(state.settings.savePath || '尚未选择')}</p></div>${act('choose-saves', '选择目录', 'btn', '', 'folder')}</div>${environment.detected.length > 1 ? `<div class="setting-row"><div><h3>检测到多个存档目录</h3><p>请选择你本次游玩的账户目录。</p></div><select id="detected-save" class="input">${environment.detected.map((p) => `<option value="${esc(p)}" ${p === state.settings.savePath ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>` : ''}<div class="setting-row"><div><h3>完整自动备份 · ${backupStatus()}</h3><p>时间线开启或正在存读档时暂停，避免重复复制全部存档。复制已保存的存档，不会替游戏执行保存。开启后每分钟检查变化，稳定后留存副本；文件没有变化时不重复备份，不会自动删除旧副本。</p></div><button class="switch ${state.settings.autoBackup ? 'on' : ''}" role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" data-action="auto-backup"></button></div></section>
- <section class="card"><h2 class="mb">记录与数据</h2><div class="setting-row"><div><h3>手札备份</h3><p>导出全部周目的记录。导入前会保留当前手札副本；此功能不包含游戏存档。</p></div><div class="row">${act('import', '导入', 'btn', '', 'upload')}${act('export', '导出手札', 'btn', '', 'download')}</div></div><div class="setting-row"><div><h3>本地数据目录</h3><p class="mono">${esc(environment.userData)}</p></div>${act('folder', '打开', 'btn', 'data', 'folder')}</div><div class="setting-row"><div><h3>游戏存档备份目录</h3><p class="mono">${esc(environment.backupRoot)}</p></div>${act('folder', '打开', 'btn', 'backups', 'folder')}</div></section>
+ ${companionSettings()}${shortcutSettings()}<section class="card"><h2 class="mb">本机连接</h2><div class="setting-row"><div><h3>逸剑风云决 ${environment.game.installed ? '· 已找到' : '· 由 Steam 启动'}</h3><p>${esc(environment.game.path || '使用 Steam 游戏入口启动')}${environment.game.build ? ` · Build ${esc(environment.game.build)}` : ''}</p></div>${act('launch', '启动游戏', 'btn', '', 'game')}</div><div class="setting-row"><div><h3>游戏存档目录</h3><p class="mono">${esc(state.settings.savePath || '尚未选择')}</p></div>${act('choose-saves', '选择目录', 'btn', '', 'folder')}</div>${environment.detected.length > 1 ? `<div class="setting-row"><div><h3>检测到多个存档目录</h3><p>请选择你本次游玩的账户目录。</p></div><select id="detected-save" class="input">${environment.detected.map((p) => `<option value="${esc(p)}" ${p === state.settings.savePath ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>` : ''}<div class="setting-row"><div><h3>完整自动备份 · ${backupStatus()}</h3><p>原生游戏连接工作或正在存读档时暂停，避免重复复制全部存档；等待连接时仍保护已保存的文件。复制已保存的存档，不会替游戏执行保存。开启后每分钟检查变化，稳定后留存副本；文件没有变化时不重复备份，不会自动删除旧副本。</p></div><button class="switch ${state.settings.autoBackup ? 'on' : ''}" role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" data-action="auto-backup"></button></div></section>
+ ${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${protectionViews.controls(protectionView)}<section class="card"><h2 class="mb">记录与数据</h2><div class="setting-row"><div><h3>手札备份</h3><p>导出全部周目的记录。导入前会保留当前手札副本；此功能不包含游戏存档。</p></div><div class="row">${act('import', '导入', 'btn', '', 'upload')}${act('export', '导出手札', 'btn', '', 'download')}</div></div><div class="setting-row"><div><h3>本地数据目录</h3><p class="mono">${esc(environment.userData)}</p></div>${act('folder', '打开', 'btn', 'data', 'folder')}</div><div class="setting-row"><div><h3>游戏存档备份目录</h3><p class="mono">${esc(environment.backupRoot)}</p></div>${act('folder', '打开', 'btn', 'backups', 'folder')}</div></section>
  <section class="card"><div class="card-header"><h2>资料与版本</h2>${pill(`v${version}`)}</div><p class="small muted mb">${esc(catalog.notice)} 本地卡片可离线阅读，原文链接会在默认浏览器打开。本工具是个人非官方助手。</p><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></section></div>`;
+}
+function homeJourney() {
+  const plan = environment.journey;
+  if (!plan || plan.profileId !== profile().id) return '';
+  return journeyViews.home(plan);
+}
+function archivesPage() {
+  return (
+    protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult) +
+    protectionViews.page(protectionView)
+  );
+}
+function journeyPage() {
+  if (journeyTrashView.open) return journeyTrashViews.panel(profile(), journalIndex(), journeyTrashView);
+  return (
+    journeyTrashViews.entry(profile()) +
+    intentDraftViews.panel(availableIntentDrafts(), gameIndex) +
+    journeyViews.page(
+      environment.journey?.profileId === profile().id ? environment.journey : null,
+      journeyView,
+      gameIndex,
+    )
+  );
+}
+function refreshPlacePicker(page) {
+  const view = journeyDraft?.placePicker;
+  if (!view) return;
+  const field = document.querySelector('#journey-place');
+  if (field) view.selectedId = field.value;
+  view.query = document.querySelector('#journey-place-search')?.value || '';
+  view.page = page || 1;
+  const focused = document.activeElement?.id;
+  document.querySelector('#journey-place-options').innerHTML = placePicker.options(gameIndex, view);
+  writeIntentValues('journey-' + journeyDraft.kind, { placeId: view.selectedId }, overlay);
+  if (focused === 'journey-place') document.querySelector('#journey-place').focus();
+}
+function refreshGiftPicker(kind, page) {
+  const view = journeyDraft?.giftPicker?.[kind];
+  if (!view) return;
+  const target = kind === 'person' ? 'journey-person' : 'journey-item';
+  const selectedField = document.querySelector('#' + target);
+  if (selectedField) view.selectedId = selectedField.value;
+  view.query = document.querySelector('#' + target + '-search')?.value || '';
+  if (kind === 'item') {
+    view.quality = document.querySelector('#journey-item-quality')?.value || 'all';
+    view.personId = journeyDraft.giftPicker.person.selectedId;
+    view.preferredOnly = !!document.querySelector('#journey-item-preferred')?.checked;
+    view.stockOnly = !!document.querySelector('#journey-item-stock')?.checked;
+  }
+  view.page = page || 1;
+  const focusedId = document.activeElement?.id;
+  document.querySelector('#' + target + '-options').innerHTML = giftPicker.options(gameIndex, kind, view);
+  writeIntentValues('journey-gift', { [kind === 'person' ? 'npcId' : 'itemId']: view.selectedId }, overlay);
+  if (focusedId === target) document.querySelector('#' + target).focus();
+}
+async function loadGiftStock(draft) {
+  if (!document.querySelector('#journey-item-options')) return;
+  const request = Symbol('stock');
+  draft.stockRequest = request;
+  draft.giftPicker.item.stock = null;
+  document.querySelector('#journey-item-stock').disabled = true;
+  refreshGiftPicker('item', draft.giftPicker.item.page);
+  const reference = environment.journey?.profileId === draft.profileId ? environment.journey.reference : null;
+  if (!reference || !reference.name) return;
+  try {
+    const file = await call('saveDetails', reference.name);
+    if (
+      journeyDraft !== draft ||
+      draft.stockRequest !== request ||
+      profile().id !== draft.profileId ||
+      !document.querySelector('#journey-item-options')
+    )
+      return;
+    if (file.hash !== reference.hash || file.modifiedAt !== reference.modifiedAt) return;
+    draft.giftPicker.item.stock = giftStock(file, draft.profileId, draft.id);
+    const toggle = document.querySelector('#journey-item-stock');
+    if (toggle) toggle.disabled = !draft.giftPicker.item.stock;
+    refreshGiftPicker('item', draft.giftPicker.item.page);
+  } catch {
+    /* A missing or changed reference is shown as unknown, never as empty stock. */
+  }
+}
+function journeyDialog(kind, id = '', savedDraft = null) {
+  const p = profile(),
+    state = p.journey || { places: [], todos: [], gifts: [] };
+  const record =
+    kind === 'place'
+      ? state.places.find((r) => r.placeId === id)
+      : kind === 'todo'
+        ? state.todos.find((r) => r.id === id)
+        : state.gifts.find((r) => r.id === id);
+  journeyDraft = {
+    kind,
+    profileId: p.id,
+    id: savedDraft?.targetId || record?.id,
+    record,
+    placePicker: {
+      selectedId: savedDraft?.values.placeId || record?.placeId || '',
+      query: savedDraft?.values.placeQuery || '',
+      page: 1,
+    },
+  };
+  let body, title;
+  if (kind === 'place') {
+    const place = gameIndex.world.maps.find((m) => m.id === id);
+    if (!place) throw Error('请选择资料中的地点');
+    journeyDraft.placeId = id;
+    title = '记下地点：' + place.name;
+    body = `<div class="field"><label for="journey-note">在这里想做什么</label><textarea id="journey-note" maxlength="1000">${esc(record?.note || '')}</textarea></div><label><input id="journey-favorite" type="checkbox" ${record?.favorite !== false ? 'checked' : ''}> 优先显示这个地点</label><label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 这项地点目标已完成</label>`;
+  } else if (kind === 'todo') {
+    title = record ? '编辑个人待办' : '添加个人待办';
+    body = `<div class="field"><label for="journey-title">待办标题</label><input id="journey-title" maxlength="120" required value="${esc(record?.title || '')}" placeholder="例如：去药铺前先核对炼丹材料"></div><div class="field"><label for="journey-note">补充说明</label><textarea id="journey-note" maxlength="2000">${esc(record?.detail || '')}</textarea></div>${placePicker.field(gameIndex, journeyDraft.placePicker)}<label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 这项个人待办已完成</label>`;
+  } else {
+    const pair = savedDraft
+      ? [savedDraft.values.npcId, savedDraft.values.itemId]
+      : record
+        ? [record.npcId, record.itemId]
+        : id.split(':');
+    journeyDraft.giftPicker = {
+      person: { selectedId: pair[0] || '', query: savedDraft?.values.personQuery || '', page: 1 },
+      item: {
+        selectedId: pair[1] || '',
+        personId: pair[0] || '',
+        query: savedDraft?.values.itemQuery || '',
+        quality: savedDraft?.values.itemQuality || 'all',
+        preferredOnly: savedDraft?.values.preferredOnly || false,
+        stockOnly: savedDraft?.values.stockOnly || false,
+        page: 1,
+      },
+    };
+    title = record ? '编辑赠礼意图' : '规划一份赠礼';
+    body = `${giftPicker.field(gameIndex, 'person', journeyDraft.giftPicker.person)}${giftPicker.field(gameIndex, 'item', journeyDraft.giftPicker.item)}<div class="field"><label for="journey-quantity">件数</label><input id="journey-quantity" type="number" min="1" max="999" step="1" required value="${record?.quantity || 1}"></div>${placePicker.field(gameIndex, journeyDraft.placePicker, '想在什么地点办理')}<div class="field"><label for="journey-note">备注</label><textarea id="journey-note" maxlength="1000">${esc(record?.note || '')}</textarea></div><label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 我已经完成这份赠礼</label><p class="save-note">保存后会与任务、制作计划共同分配已有库存。这里只规划赠礼，人物当前可否接受与好感变化须在游戏内确认。</p>`;
+  }
+  modal(
+    title,
+    '保存在当前周目，游戏文件和物品不会改变。',
+    '<div class="journey-intent-body">' + body + '</div>',
+    (record ? act('journey-intent-remove', '移除这项个人记录', 'btn danger') : '') +
+      act('journey-intent-save', '保存', 'btn primary', '', 'check'),
+  );
+  overlay.querySelector('.modal').classList.add('journey-intent-modal');
+  if (savedDraft) writeIntentValues('journey-' + kind, savedDraft.values, overlay);
+  activateIntentEditor(
+    'journey-' + kind,
+    kind === 'place' ? id : savedDraft?.targetId || record?.id || '',
+    {},
+    savedDraft,
+  );
+  document.querySelector('#journey-title, #journey-note, #journey-person')?.focus();
+  if (kind === 'gift') loadGiftStock(journeyDraft);
+}
+async function loadProtectionList() {
+  const token = ++protectionRequest;
+  protectionView.history = null;
+  protectionView.loaded = false;
+  protectionView.error = '';
+  render(true);
+  try {
+    const list = await call('protectionList');
+    if (token !== protectionRequest) return;
+    protectionView.archives = list;
+    protectionView.loaded = true;
+  } catch (e) {
+    if (token === protectionRequest) protectionView.error = e.message;
+  } finally {
+    if (token === protectionRequest) render(true);
+  }
 }
 function compactPage() {
   document.body.classList.add('companion');
   document.body.classList.toggle('passive', companionMode === 'hint');
   if (companionMode === 'hint') return companionViews.passive(companionData);
   const ref = companionData?.reference;
-  const sourceLine = `<p class="companion-reference">${esc(companionData?.referenceLabel || '正在核对参照')}<br>${ref ? `${esc(ref.mapName)} · ${esc(ref.name)} · ${when(ref.modifiedAt)}（存档时背包）` : '背包未核对，不能据此判断当前持有数量'}</p>${companionData?.error ? notice(companionData.error) : ''}${companionData?.windowError ? notice('窗口跟随暂不可用：' + companionData.windowError) : ''}`;
+  const sourceLine = `<p class="companion-reference">${esc(companionData?.referenceLabel || '正在核对参照')}<br>${ref ? `${esc(ref.mapName)} · ${esc(ref.name)} · ${when(ref.modifiedAt)}（已保存的进度）` : '尚无可读存档，资料查询仍然可用'}</p>${companionData?.error ? notice(companionData.error) : ''}${companionData?.windowError ? notice('窗口跟随暂不可用：' + companionData.windowError) : ''}`;
   if (route === 'materials')
     return companionViews.frame(materialPage(), timelineViews.chip(environment.health));
+  if (route === 'recipe-discovery')
+    return companionViews.frame(recipeDiscoveryPage(), timelineViews.chip(environment.health));
   if (route === 'saves')
     return companionViews.frame(
       timelineViews.page(environment.timeline, timelineView),
       timelineViews.chip(environment.health),
     );
+  if (route === 'journey') return companionViews.frame(journeyPage(), timelineViews.chip(environment.health));
+  if (route === 'journal') return companionViews.frame(journalPage(), timelineViews.chip(environment.health));
   if (route === 'world') return companionViews.frame(worldPage(), timelineViews.chip(environment.health));
   const list = pending().slice(0, 5);
   const undo =
     compactUndo?.profileId === profile().id
       ? `<div class="notice"><span>已完成：${esc(compactUndo.title)}</span>${act('compact-undo', '撤销这次完成', 'text-btn')}</div>`
       : '';
-  const body = `<div class="eyebrow">${esc(profile().name)} · 我的追踪</div>${sourceLine}${undo}<h3 class="companion-section">我的目标</h3>${
+  const questList = companionData?.quests?.length
+    ? `<h3 class="companion-section">存档里的进行中任务</h3>${companionData.quests
+        .slice(0, 4)
+        .map(
+          (q) =>
+            `<div class="compact-goal"><strong>${esc(q.name)}</strong>${q.steps.length ? `<p class="small muted">${q.steps.map(esc).join('、')}</p>` : ''}${act('save-quest-jump', '查看已保存记录', 'text-btn', q.id, 'book')}</div>`,
+        )
+        .join('')}`
+    : '';
+  const body = `<div class="eyebrow">${esc(profile().name)} · 我的追踪</div>${sourceLine}${companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${undo}${questList}<h3 class="companion-section">我的目标</h3>${
     orderedGoals()
-      .filter((g) => !g.done)
+      .filter((g) => !goalDone(g))
       .map(
         (g) =>
           `<div class="compact-goal"><div class="row"><button class="check" data-action="goal-toggle" data-id="${g.id}" aria-label="完成目标 ${esc(g.title)}"></button><strong>${esc(g.title)}</strong>${iconButton('goal-pin', 'pin', g.pinned ? '取消优先提示' : '优先提示', g.id)}</div>${g.source ? act('goal-source', '查看当前详情', 'text-btn', g.id, 'book') : ''}${g.detail ? `<details data-compact-detail="${esc(g.id)}"><summary>添加时的备忘（不自动更新）</summary><p class="preserve-text">${esc(g.detail)}</p></details>` : ''}</div>`,
       )
       .join('') || '<p class="small muted">在图鉴或完整手札中添加目标，游玩时会优先提示置顶目标。</p>'
-  }${companionViews.materials(companionData)}<h3 class="companion-section">${esc(stageTitle())}</h3><p class="small muted">手动阶段的精选清单</p>${list.map(checkRow).join('')}${profile().notes ? `<details class="compact-note" data-compact-detail="note"><summary>江湖随手记</summary><p class="preserve-text">${esc(profile().notes)}</p></details>` : ''}`;
+  }${!companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${companionViews.materials(companionData)}<h3 class="companion-section">${esc(stageTitle())}</h3><p class="small muted">手动阶段的精选清单</p>${list.map(checkRow).join('')}${profile().notes ? `<details class="compact-note" data-compact-detail="note"><summary>江湖随手记</summary><p class="preserve-text">${esc(profile().notes)}</p></details>` : ''}`;
   return companionViews.frame(
     body,
     `<span data-save-health>${timelineViews.chip(environment.health)}</span>`,
@@ -921,19 +2145,53 @@ function compactPage() {
 }
 function render(preserve = false) {
   if (!catalog || !state || composing) return;
+  captureIntentDrafts();
+  const hadIntentPanel = !!root.querySelector('.intent-draft-panel');
   const active = document.activeElement,
     focusId = preserve ? active?.id : null,
     selection = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null,
     fieldValue = active && active.dataset?.persist ? active.value : null;
+  const itineraryFocus =
+    preserve && root.contains(active) && active?.dataset?.action?.startsWith('journey-itinerary-')
+      ? {
+          action: active.dataset.action,
+          id: active.dataset.id || '',
+          targetId: active.dataset.targetId || '',
+          direction: active.dataset.direction || '',
+          step: active.closest('[data-itinerary-step]')?.dataset.itineraryStep || '',
+        }
+      : null;
+  const restoreItineraryFocus = () => {
+    if (!itineraryFocus) return;
+    const next = [...root.querySelectorAll('[data-action]')].find(
+      (el) =>
+        el.dataset.action === itineraryFocus.action &&
+        (el.dataset.id || '') === itineraryFocus.id &&
+        (el.dataset.targetId || '') === itineraryFocus.targetId &&
+        (el.dataset.direction || '') === itineraryFocus.direction &&
+        (el.closest('[data-itinerary-step]')?.dataset.itineraryStep || '') === itineraryFocus.step,
+    );
+    next?.focus({ preventScroll: true });
+  };
   const scroll = root.querySelector('.content')?.scrollTop || 0;
   if (compact) {
     const opened = new Set(
       [...root.querySelectorAll('[data-compact-detail][open]')].map((e) => e.dataset.compactDetail),
     );
+    const itineraryDetails = new Set(
+      [...root.querySelectorAll('details[data-persist-detail][open]')].map((el) => el.dataset.persistDetail),
+    );
     const compactScroll = root.querySelector('.compact-body')?.scrollTop || 0;
     root.innerHTML = compactPage();
+    if (companionMode === 'expanded' && availableIntentDrafts().length && route !== 'journey')
+      root.querySelector('.compact-body')?.insertAdjacentHTML('afterbegin', intentDraftBanner());
+    syncItineraryIntentEditors();
     for (const el of root.querySelectorAll('[data-compact-detail]'))
       el.open = opened.has(el.dataset.compactDetail);
+    if (preserve)
+      for (const el of root.querySelectorAll('details[data-persist-detail]'))
+        if (el.dataset.persistDetail !== 'intent-drafts' || hadIntentPanel)
+          el.open = itineraryDetails.has(el.dataset.persistDetail);
     const body = root.querySelector('.compact-body');
     if (body) body.scrollTop = compactScroll;
     if (focusId && companionMode === 'expanded') {
@@ -945,20 +2203,29 @@ function render(preserve = false) {
           field.setSelectionRange(...selection);
       }
     }
+    restoreItineraryFocus();
     return;
   }
-  root.innerHTML = `<div class="layout"><aside class="sidebar"><div class="brand"><span class="seal">逸</span><div><div class="brand-name">逸剑手札</div><div class="brand-sub">WANDERING JOURNAL</div></div></div><div class="nav-section">我的江湖</div>${[
+  const sidebarScroll = root.querySelector('.sidebar-nav')?.scrollTop || 0;
+  const openedDetails = new Set(
+    preserve
+      ? [...root.querySelectorAll('details[data-persist-detail][open]')].map((el) => el.dataset.persistDetail)
+      : [],
+  );
+  root.innerHTML = `<div class="layout"><aside class="sidebar"><div class="brand"><span class="seal">逸</span><div><div class="brand-name">逸剑手札</div><div class="brand-sub">WANDERING JOURNAL</div></div></div><nav class="sidebar-nav" aria-label="手札页面"><div class="nav-section">我的江湖</div>${[
     ['home', 'home'],
     ['checklist', 'scroll'],
     ['library', 'book'],
     ['database', 'sword'],
     ['world', 'scroll'],
     ['materials', 'leaf'],
+    ['journey', 'map'],
     ['goals', 'bag'],
+    ['journal', 'feather'],
   ]
     .map(
       ([id, glyph]) =>
-        `<button class="nav-btn ${route === id ? 'active' : ''}" data-action="navigate" data-id="${id}">${icon(glyph)}${headings[id]}${id === 'goals' && profile().goals.filter((g) => !g.done).length ? `<span class="nav-count">${profile().goals.filter((g) => !g.done).length}</span>` : ''}</button>`,
+        `<button class="nav-btn ${route === id ? 'active' : ''}" data-action="navigate" data-id="${id}">${icon(glyph)}${headings[id]}${id === 'goals' && profile().goals.filter((g) => !goalDone(g)).length ? `<span class="nav-count">${profile().goals.filter((g) => !goalDone(g)).length}</span>` : ''}</button>`,
     )
     .join('')}<div class="nav-section mt">一路相伴</div>${[
     ['saves', 'archive'],
@@ -970,8 +2237,18 @@ function render(preserve = false) {
     )
     .join(
       '',
-    )}<div class="sidebar-art"><div class="sidebar-line"></div><p>山水有相逢<br>江湖不相忘</p><small>ONE JOURNEY AT A TIME</small></div><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong><small>记录只保存在本机</small></div>${iconButton('profiles', 'settings', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑风云决 · 个人助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="breadcrumb">我的江湖 ${icon('chevron')}<b>${headings[route]}</b></div><div class="row"><span data-save-health>${timelineViews.chip(environment.health)}</span><button class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${iconButton('compact', 'pin', '打开随行小窗 · Ctrl+Alt+J')}</div></header><main class="content">${({ home: homePage, checklist: checklistPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, goals: goalsPage, saves: savesPage, settings: settingsPage }[route] || homePage)()}</main></div></div>`;
-  if (preserve) root.querySelector('.content').scrollTop = scroll;
+    )}</nav><div class="sidebar-art"><div class="sidebar-line"></div><p>山水有相逢<br>江湖不相忘</p><small>ONE JOURNEY AT A TIME</small></div><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong><small>记录只保存在本机</small></div>${iconButton('profiles', 'settings', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑风云决 · 个人助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="breadcrumb">我的江湖 ${icon('chevron')}<b>${headings[route]}</b></div><div class="row"><span data-save-health>${timelineViews.chip(environment.health)}</span><button class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${iconButton('compact', 'pin', '打开随行小窗 · Ctrl+Alt+J')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`;
+  root.querySelector('.sidebar-nav').scrollTop = sidebarScroll;
+  if (availableIntentDrafts().length && !['home', 'journey'].includes(route))
+    root.querySelector('.content')?.insertAdjacentHTML('afterbegin', intentDraftBanner());
+  syncItineraryIntentEditors();
+  root.querySelector('.sidebar-nav .nav-btn.active')?.scrollIntoView({ block: 'nearest' });
+  if (preserve) {
+    root.querySelector('.content').scrollTop = scroll;
+    for (const el of root.querySelectorAll('details[data-persist-detail]'))
+      if (el.dataset.persistDetail !== 'intent-drafts' || hadIntentPanel)
+        el.open = openedDetails.has(el.dataset.persistDetail);
+  }
   if (focusId) {
     const next = document.getElementById(focusId);
     if (next) {
@@ -983,8 +2260,19 @@ function render(preserve = false) {
         } catch {}
     }
   }
+  restoreItineraryFocus();
+}
+function intentDraftBanner() {
+  return `<div class="notice mb">${act('intent-drafts', `继续未完成安排 · ${availableIntentDrafts().length} 份草稿`, 'text-btn')}</div>`;
 }
 function showOverlay(html, drawer = false, preserve = false) {
+  if (resourcePriorityDraft && !html.includes('class="resource-priority-editor"')) {
+    resourcePriorityRequest++;
+    resourcePriorityDraft = null;
+  }
+  captureJournalDraft();
+  captureIntentDrafts();
+  activeIntentEditor = null;
   const oldScroll = preserve ? overlay.querySelector('.drawer-body')?.scrollTop || 0 : 0;
   const focusedId = preserve && overlay.contains(document.activeElement) ? document.activeElement.id : null;
   const opened = preserve
@@ -1002,7 +2290,16 @@ function showOverlay(html, drawer = false, preserve = false) {
   if (drawer && drawerHistory.length)
     overlay
       .querySelector('.drawer-head')
-      ?.insertAdjacentHTML('afterbegin', iconButton('drawer-back', 'arrow', '返回上一页', '', 'drawer-back'));
+      ?.insertAdjacentHTML(
+        'afterbegin',
+        iconButton(
+          'drawer-back',
+          'arrow',
+          drawerHistory.at(-1).type === 'search' ? '返回搜索结果' : '返回上一页',
+          '',
+          'drawer-back',
+        ),
+      );
   const focusable = overlay.querySelector('input,textarea,select,button');
   ((focusedId && overlay.querySelector('#' + CSS.escape(focusedId))) || focusable)?.focus();
   if (preserve)
@@ -1015,7 +2312,14 @@ function showOverlay(html, drawer = false, preserve = false) {
   if (currentDrawer?.type === 'timeline') updateHealth(environment.health);
 }
 function closeOverlay() {
+  journeyTrashConfirmation = null;
+  craftCompletionDraft = null;
+  resourcePriorityRequest++;
+  resourcePriorityDraft = null;
   captureNodeDraft();
+  captureJournalDraft();
+  captureIntentDrafts();
+  activeIntentEditor = null;
   window.journal.timelineRelease().catch(() => {});
   detailRequest++;
   comparisonState = null;
@@ -1026,7 +2330,17 @@ function closeOverlay() {
   drawerId = null;
   databaseId = null;
   revealed = false;
-  lastFocus?.isConnected && lastFocus.focus();
+  let returnFocus = lastFocus?.isConnected ? lastFocus : null;
+  if (!returnFocus && lastFocus?.id) returnFocus = root.querySelector('#' + CSS.escape(lastFocus.id));
+  if (!returnFocus && lastFocus?.dataset.action) {
+    const matches = [...root.querySelectorAll('[data-action]')].filter((element) =>
+      ['action', 'id', 'direction', 'targetId'].every(
+        (key) => element.dataset[key] === lastFocus.dataset[key],
+      ),
+    );
+    if (matches.length === 1) returnFocus = matches[0];
+  }
+  (returnFocus || root.querySelector('.nav-btn.active, .compact-tab.active'))?.focus();
 }
 function showDetail(id, keep = false) {
   const e = entry(id);
@@ -1052,12 +2366,12 @@ function modal(title, description, body, footer) {
     `<section class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="row between"><h2>${title}</h2>${iconButton('close-overlay', 'close', '关闭')}</div>${description ? `<p>${description}</p>` : ''}${body}<div class="modal-footer">${act('close-overlay', '取消', 'btn')}${footer}</div></section>`,
   );
 }
-function stageModal() {
+function stageModal(selectCurrent = false) {
   modal(
     '这一程，走到哪里了？',
     '选择最接近你当前主线的阶段。只会调整手札的提醒范围。',
     `<div class="field"><label for="stage-select">当前阶段</label><select id="stage-select">${catalog.stages.map((s) => `<option value="${s.id}" ${s.id === profile().stage ? 'selected' : ''}>${s.id + 1}. ${s.title} · ${s.sub}</option>`).join('')}</select></div>${notice('已勾选的记录会保留。切换阶段不会替你完成或跳过任何条目。', true)}`,
-    act('stage-save', '保存进度', 'btn primary'),
+    act('stage-save', '保存进度', 'btn primary', selectCurrent ? 'current' : ''),
   );
 }
 async function changeStage(id) {
@@ -1083,7 +2397,7 @@ async function changeStage(id) {
     toast('当前阶段已更新');
   }
 }
-function goalModal(id) {
+function goalModal(id, savedDraft = null) {
   const g = id ? profile().goals.find((x) => x.id === id) : null;
   modal(
     g ? '编辑行囊目标' : '下一步，想做什么？',
@@ -1092,6 +2406,8 @@ function goalModal(id) {
     act('goal-save', g ? '保存修改' : '放进行囊', 'btn primary', g?.id || ''),
   );
   document.querySelector('#goal-title')?.focus();
+  if (savedDraft) writeIntentValues('goal', savedDraft.values, overlay);
+  activateIntentEditor('goal', id || '', {}, savedDraft);
 }
 function profilesModal() {
   modal(
@@ -1118,104 +2434,280 @@ function saveSlotModal() {
     act('save-slot-save', '保存选择', 'btn primary'),
   );
 }
-function searchModal() {
+function searchModal(context) {
+  captureNodeDraft();
+  detailRequest++;
+  const value = context?.query ?? lastSearchQuery;
   showOverlay(
-    `<section class="modal search-modal" role="dialog" aria-modal="true" aria-label="搜索江湖索引"><label class="search-input">${icon('search')}<input id="global-search" autofocus placeholder="找一位侠客，一本武学，一个地方……" maxlength="100" aria-label="全局搜索">${iconButton('close-overlay', 'close', '关闭搜索')}</label><div id="global-results" class="search-results"></div><div class="search-foot">搜索线索、图鉴、任务与地点 · Esc 关闭</div></section>`,
+    `<section class="modal search-modal" role="dialog" aria-modal="true" aria-label="搜索江湖索引"><label class="search-input">${icon('search')}<input id="global-search" role="combobox" aria-autocomplete="list" aria-controls="search-filter-options" aria-expanded="false" autofocus placeholder="找一位侠客，一本武学，一个地方……" maxlength="200" aria-label="全局搜索">${iconButton('close-overlay', 'close', '关闭搜索')}</label><details class="search-tools"><summary>全部 7 种筛选与语法 · 保存搜索</summary><div class="row wrap">${act('search-save', '保存当前搜索', 'text-btn', '', 'star')}${act('search-run', '绿色物品', 'chip', '种类:物品 品质:绿')}${act('search-run', '未完成目标', 'chip', '种类:目标 状态:未完成')}</div><div id="global-filter-help"></div></details><div id="global-filter-suggestions" class="search-filter-suggestions"></div><div id="global-results" class="search-results"></div><div class="search-foot">搜索效果、任务、地点与本周目记录 · Esc 关闭</div></section>`,
   );
-  showSearchResults('');
-  document.querySelector('#global-search').focus();
+  rememberDrawer({ type: 'search', query: value, selection: context?.selection });
+  const input = document.querySelector('#global-search');
+  input.value = value;
+  showSearchResults(value);
+  if (context) {
+    document.querySelector('#global-results').scrollTop = context.scroll || 0;
+    const selected = [...overlay.querySelectorAll('.search-result')].find(
+      (result) =>
+        result.dataset.action === context.selection?.action && result.dataset.id === context.selection?.id,
+    );
+    (selected || input).focus();
+  } else {
+    input.focus();
+    input.select();
+  }
 }
 function showSearchResults(value) {
-  const q = value.trim().toLowerCase();
-  const guideMatches = catalog.entries.filter(
-    (e) => !q || [e.title, e.location, e.kind, ...e.tags].join(' ').toLowerCase().includes(q),
-  );
-  const localMatches = q
-    ? gameIndex.entries.filter((e) =>
-        [e.name, e.type, ...(e.hobbies || [])].join(' ').toLowerCase().includes(q),
-      )
-    : [];
-  const taskMatches = q ? gameIndex.world.quests.filter((e) => e.name.toLowerCase().includes(q)) : [];
-  const placeMatches = q ? gameIndex.world.maps.filter((e) => e.name.toLowerCase().includes(q)) : [];
-  const guides = catalog.entries
-    .filter((e) => !q || [e.title, e.location, e.kind, ...e.tags].join(' ').toLowerCase().includes(q))
-    .slice(0, q ? 7 : 12)
-    .map((e) => ({
-      id: e.id,
+  lastSearchQuery = value;
+  if (currentDrawer?.type === 'search') currentDrawer.query = value;
+  const q = value.trim();
+  const savedTasks =
+    environment.saves.files.find((f) => f.name === environment.recent?.name)?.metadata?.quests || [];
+  const statuses = new Map(savedTasks.map((task) => [task.id, task.status]));
+  const docs = [
+    ...catalog.entries.map((e) => ({
+      ...e,
+      name: e.title,
+      searchKind: e.kind,
       title: e.title,
-      sub: `${e.location} · 精选线索`,
+      sub: e.location + ' · 精选线索',
       action: 'detail',
       glyph: kindIcon(e.kind),
-    }));
-  const local = q
-    ? gameIndex.entries
-        .filter((e) => [e.name, e.type, ...(e.hobbies || [])].join(' ').toLowerCase().includes(q))
-        .sort((a, b) => Number(b.name === q) - Number(a.name === q))
-        .slice(0, 12)
-        .map((e) => ({
-          id: e.id,
-          title: e.name,
-          sub: `${e.kind} · ${e.type}${e.quality ? ` · ${e.quality}色` : ''}${e.kind === '人物' ? ' · ' + (e.description ? e.description.slice(0, 80) : '地点未核实') + ` · #${e.gameId}` : ''} · 本机图鉴`,
-          action: 'database-detail',
-          glyph: { 物品: 'bag', 武学: 'sword', 人物: 'person', 配方: 'scroll' }[e.kind],
-        }))
-    : [];
-  const tasks = q
-    ? gameIndex.world.quests
-        .filter((e) => e.name.toLowerCase().includes(q))
-        .slice(0, 5)
-        .map((e) => ({
-          id: e.id,
-          title: e.name,
-          sub: `任务资料 · #${e.gameId}`,
-          action: 'world-quest',
-          glyph: 'scroll',
-        }))
-    : [];
-  const places = q
-    ? gameIndex.world.maps
-        .filter((e) => e.name.toLowerCase().includes(q))
-        .slice(0, 4)
-        .map((e) => ({
-          id: e.id,
-          title: e.name,
-          sub: `地点线索 · #${e.gameId}`,
-          action: 'world-place',
-          glyph: 'map',
-        }))
-    : [];
-  const list = [...guides, ...local, ...tasks, ...places];
+      group: 'guides',
+    })),
+    ...gameIndex.entries.map((e) => ({
+      ...e,
+      quality: qualityText.quality(e),
+      title: e.name,
+      sub: e.kind + ' · ' + e.type + ' · 本机图鉴',
+      action: 'database-detail',
+      glyph: { 物品: 'bag', 武学: 'sword', 人物: 'person', 配方: 'scroll' }[e.kind],
+      group: 'database',
+    })),
+    ...gameIndex.world.quests.map((e) => ({
+      ...e,
+      kind: '任务',
+      title: e.name,
+      status: statuses.get(e.gameId) || '待核对',
+      sub: '任务资料 · #' + e.gameId,
+      action: 'world-quest',
+      glyph: 'scroll',
+      group: 'quests',
+    })),
+    ...gameIndex.world.maps.map((e) => ({
+      ...e,
+      kind: '地点',
+      title: e.name,
+      sub: '地点线索 · #' + e.gameId,
+      action: 'world-place',
+      glyph: 'map',
+      group: 'places',
+    })),
+    ...profile().goals.map((g) => ({
+      ...g,
+      kind: '目标',
+      name: g.title,
+      status: goalDone(g) ? '已完成' : '未完成',
+      sub: '我的目标 · ' + (goalDone(g) ? '已完成' : '未完成'),
+      action: 'search-goal',
+      glyph: 'bag',
+      group: 'personal',
+    })),
+    ...(profile().craftPlans || []).map((p) => ({
+      ...p,
+      kind: '计划',
+      title: p.name,
+      description: p.list.map((line) => gameViews.byId(gameIndex, line.id)?.name).join(' '),
+      sub: '制作计划 · ' + p.list.length + ' 种配方',
+      action: 'craft-plan-open',
+      glyph: 'leaf',
+      group: 'personal',
+    })),
+    ...(environment.journey?.profileId === profile().id
+      ? environment.journey.actions
+          .filter((a) => !a.gameComplete && !a.userDone && !a.handled)
+          .map((a) => ({
+            id: a.id,
+            kind: '行动',
+            title: a.title,
+            detail: a.detail,
+            location: a.places.map((p) => p.name).join(' '),
+            sub: '这一程做什么 · ' + (a.progress?.label || '待处理'),
+            action: 'journey-focus',
+            glyph: 'map',
+            group: 'personal',
+          }))
+      : []),
+    ...(profile().journalEntries || [])
+      .slice()
+      .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
+      .map((e) => ({
+        ...e,
+        kind: '记录',
+        title: e.title,
+        detail: [e.body, ...e.tags, ...e.links.map((link) => link.label)].join(' '),
+        location: e.links
+          .filter((link) => link.type === 'place')
+          .map((link) => link.label)
+          .join(' '),
+        sub: when(e.occurredAt) + ' · ' + e.body.slice(0, 80),
+        action: 'journal-entry-open',
+        glyph: 'feather',
+        group: 'records',
+      })),
+    ...(profile().notes
+      ? [
+          {
+            id: profile().id,
+            kind: '笔记',
+            title: '江湖随手记',
+            detail: profile().notes,
+            sub: '本周目的随手记',
+            action: 'search-note',
+            glyph: 'edit',
+            group: 'personal',
+          },
+        ]
+      : []),
+  ];
+  const values = Object.fromEntries(
+    searchFilterFields.map((field) => [
+      field.key,
+      [
+        ...new Set(
+          [
+            ...(field.key === 'quality' || field.key === 'status' || field.key === 'kind'
+              ? field.examples
+              : []),
+            ...docs.flatMap((doc) =>
+              field.key === 'kind'
+                ? doc.searchKind || doc.kind || []
+                : field.key === 'name'
+                  ? doc.name || doc.title || []
+                  : doc[field.key] || [],
+            ),
+          ].filter((value) => typeof value === 'string' && value.trim()),
+        ),
+      ],
+    ]),
+  );
+  const input = overlay.querySelector('#global-search');
+  searchSuggestions = searchFilterSuggestions(value, input?.selectionStart ?? value.length, values);
+  searchSuggestionIndex = searchSuggestions.length ? 0 : -1;
+  renderSearchSuggestions();
+  const help = overlay.querySelector('#global-filter-help');
+  if (help && !help.innerHTML) help.innerHTML = searchHelpViews.help(values);
+  let matches;
+  try {
+    matches = compileSearch(q);
+  } catch (e) {
+    document.querySelector('#global-results').innerHTML = notice(e.message, true);
+    return;
+  }
+  const all = q
+    ? docs.filter(matches)
+    : docs.filter((d) => d.group === 'personal' || d.group === 'guides' || d.group === 'records');
+  const quotas = { personal: 8, records: 8, database: 12, guides: 7, quests: 5, places: 4 };
+  const matchedRecords = all.filter((d) => d.group === 'records').map((d) => d.id);
+  if (q) journalView.globalMatchedIds = matchedRecords;
+  const list = [];
+  for (const group of ['personal', 'records', 'database', 'guides', 'quests', 'places'])
+    list.push(
+      ...all
+        .filter((d) => d.group === group)
+        .sort((a, b) => Number(b.title === q) - Number(a.title === q))
+        .slice(0, quotas[group]),
+    );
   const more = q
-    ? `<div class="search-all-groups">${[
-        ['guides', '精选线索', guideMatches.length],
-        ['database', '百物图鉴', localMatches.length],
-        ['quests', '任务', taskMatches.length],
-        ['places', '地点', placeMatches.length],
+    ? '<div class="search-all-groups">' +
+      [
+        ['records', '江湖记录'],
+        ['guides', '精选线索'],
+        ['database', '百物图鉴'],
+        ['quests', '任务'],
+        ['places', '地点'],
       ]
-        .filter((g) => g[2])
-        .map(
-          ([id, label, count]) =>
-            `<button class="text-btn" data-action="search-all" data-id="${id}" data-query="${esc(value.trim())}">${label} ${count} 项 · 查看全部</button>`,
-        )
-        .join('')}</div>`
-    : '';
+        .map(([id, label]) => {
+          const count = all.filter((d) => d.group === id).length;
+          return count
+            ? '<button class="text-btn" data-action="search-all" data-id="' +
+                id +
+                '" data-query="' +
+                esc(q) +
+                '">' +
+                label +
+                ' ' +
+                count +
+                ' 项 · 查看全部</button>'
+            : '';
+        })
+        .join('') +
+      '</div>'
+    : searchHistory();
   document.querySelector('#global-results').innerHTML =
     more +
     (list.length
       ? list
           .map(
             (e) =>
-              `<button class="search-result" data-action="${e.action}" data-id="${e.id}"><span class="result-icon">${e.action === 'database-detail' ? picture(e.id, 'search') : e.action === 'detail' ? gameImages.person(e.title.split(' · ')[0], 'search') || icon(e.glyph) : icon(e.glyph)}</span><span class="spacer"><strong>${e.action === 'database-detail' ? qualityText.name(e.id, e.title) : esc(e.title)}</strong><small>${esc(e.sub)}</small></span>${icon('chevron')}</button>`,
+              '<button class="search-result" data-action="' +
+              e.action +
+              '" data-id="' +
+              esc(e.id) +
+              '"><span class="result-icon">' +
+              (e.action === 'database-detail' ? picture(e.id, 'search') : icon(e.glyph || 'book')) +
+              '</span><span class="spacer"><strong>' +
+              (e.action === 'database-detail' ? qualityText.name(e.id, e.title) : esc(e.title)) +
+              '</strong><small>' +
+              esc(e.sub) +
+              '</small></span>' +
+              icon('chevron') +
+              '</button>',
           )
           .join('')
-      : empty('暂时没有这条线索', '试试人物名、物品名，或到行囊目标中自行记录。'));
+      : empty('暂时没有匹配内容', '可以搜索效果、材料、任务说明、个人目标，或使用下方筛选示例。'));
+}
+function searchHistory() {
+  return [
+    ['savedSearches', '保存的搜索'],
+    ['recentSearches', '最近使用'],
+  ]
+    .map(([key, title]) =>
+      profile()[key]?.length
+        ? '<div class="search-history"><h3>' +
+          title +
+          '</h3>' +
+          profile()
+            [key].map(
+              (q) =>
+                '<div class="row"><button class="chip" data-action="search-run" data-id="' +
+                esc(q) +
+                '">' +
+                esc(q) +
+                '</button>' +
+                (key === 'savedSearches' ? iconButton('search-forget', 'trash', '移除保存的搜索', q) : '') +
+                '</div>',
+            )
+            .join('') +
+          (key === 'recentSearches' ? act('search-history-clear', '清空最近使用', 'text-btn') : '') +
+          '</div>'
+        : '',
+    )
+    .join('');
 }
 async function refresh() {
   const token = ++refreshRequest;
   const next = await call('refresh');
   if (token !== refreshRequest) return;
+  const discoverySourceChanged =
+    recipeDiscoverySourceSignature(environment) !== recipeDiscoverySourceSignature(next);
   environment = next;
+  if (discoverySourceChanged) invalidateRecipeDiscovery();
   render(true);
+  if (route === 'recipe-discovery' && recipeDiscoveryNeedsRefresh) await refreshRecipeDiscovery();
+  if (token !== refreshRequest) return;
+  if (journeyDraft?.kind === 'gift' && document.querySelector('#journey-item-options'))
+    loadGiftStock(journeyDraft);
   if (route === 'world' && worldView.referenceName === undefined) await loadWorldReference();
   const signature = (name) => next.saves.files.find((f) => f.name === name)?.hash;
   if (worldView.referenceName !== undefined) {
@@ -1244,20 +2736,666 @@ async function refresh() {
       if (currentDrawer?.type === 'database') {
         const e = gameViews.byId(gameIndex, currentDrawer.id);
         if (e?.kind === '配方') await showDatabaseDetail(e.id, currentDrawer.quantity || 1);
-        if (e?.kind === '人物') await showDatabaseDetail(e.id);
+        if (e?.kind === '人物' || e?.kind === '物品') await showDatabaseDetail(e.id);
         const freshness = overlay.querySelector('.reference-freshness');
         if (freshness)
           freshness.textContent = name ? '已同步新的已保存进度 · ' + name : '参照存档不可读，请重新选择。';
       }
     }
   }
+  if (
+    currentDrawer?.type === 'database' &&
+    gameViews.byId(gameIndex, currentDrawer.id)?.kind === '物品' &&
+    currentDrawer.planningSignature !== planningIntentSignature()
+  )
+    await showDatabaseDetail(currentDrawer.id);
 }
 async function handle(action, id, target) {
+  if (
+    currentDrawer?.type === 'search' &&
+    target?.classList.contains('search-result') &&
+    lastSearchQuery.trim()
+  ) {
+    compileSearch(lastSearchQuery);
+    await mutation({ type: 'search-remember', query: lastSearchQuery.trim() });
+  }
   switch (action) {
+    case 'journey-trash-open':
+    case 'journey-trash-close':
+      journeyTrashView.open = action.endsWith('-open');
+      journeyTrashView.page = 1;
+      closeOverlay();
+      route = 'journey';
+      render();
+      break;
+    case 'journey-trash-page':
+      journeyTrashView.page = Math.max(1, Number(id) || 1);
+      render(true);
+      break;
+    case 'historical-journey-trash-page': {
+      const [profileId, page] = id.split('|'),
+        view = historicalJourneyTrashViews.get(profileId) || {};
+      historicalJourneyTrashViews.set(profileId, { ...view, page: Math.max(1, Number(page) || 1) });
+      render(true);
+      break;
+    }
+    case 'journey-trash-detail':
+    case 'historical-journey-trash-detail': {
+      const [profileId, trashId] = action.startsWith('historical-') ? id.split('|') : [profile().id, id];
+      const p = action.startsWith('historical-')
+        ? protectionView.history?.journal.profiles.find((p) => p.id === profileId)
+        : profile();
+      const row = p?.journeyTrash?.find((row) => row.id === trashId);
+      if (!row) throw Error('这项已移除安排已变化，请重新核对');
+      modal(
+        action.startsWith('historical-') ? '历史已移除安排 · 只读' : '已移除安排的完整内容',
+        p.name,
+        journeyTrashViews.detail(row, journalIndex()),
+        '',
+      );
+      break;
+    }
+    case 'journey-trash-restore-preview':
+    case 'journey-trash-copy-goal-preview':
+    case 'journey-trash-purge-preview': {
+      const row = profile().journeyTrash?.find((row) => row.id === id);
+      if (!row) throw Error('这项已移除安排已变化，请重新核对');
+      const purge = action === 'journey-trash-purge-preview';
+      const copyGoal = action === 'journey-trash-copy-goal-preview';
+      if (copyGoal && row.kind !== 'goal') throw Error('请选择要另存的已移除行囊目标');
+      journeyTrashConfirmation = {
+        profileId: profile().id,
+        row: structuredClone(row),
+        type: purge ? 'journey-trash-purge' : copyGoal ? 'journey-trash-copy-goal' : 'journey-trash-restore',
+      };
+      modal(
+        purge ? '永久清除这项个人安排？' : copyGoal ? '按原文字另存为独立目标？' : '找回这项个人安排？',
+        purge
+          ? '清除后无法从这里找回。已有导出副本仍保留；其他安排和后续内容保持。'
+          : copyGoal
+            ? '另存全文、原完成状态与置顶设置，作为新的手动目标；不再关联原资料或自动跟踪。原完整副本仍保留，当前其他目标保持。'
+            : '只找回原完整内容。当前库存用途会重新核对，后来的记录与游戏存档保留。',
+        journeyTrashViews.detail(row, journalIndex()),
+        act(
+          'journey-trash-confirm',
+          purge ? '永久清除这项安排' : copyGoal ? '另存为独立目标并保留原副本' : '找回这项安排',
+          purge ? 'btn danger' : 'btn primary',
+          id,
+        ),
+      );
+      break;
+    }
+    case 'journey-trash-confirm': {
+      const preview = journeyTrashConfirmation;
+      if (
+        !preview ||
+        preview.profileId !== profile().id ||
+        !['journey-trash-restore', 'journey-trash-purge', 'journey-trash-copy-goal'].includes(preview.type) ||
+        preview.row.id !== id
+      )
+        throw Error('安排或周目已变化，请重新核对');
+      await mutation({ type: preview.type, profileId: preview.profileId, id, expectedTrash: preview.row });
+      journeyTrashConfirmation = null;
+      closeOverlay();
+      await refresh();
+      toast(
+        preview.type === 'journey-trash-restore'
+          ? '所选安排已找回，后续内容保留；请核对当前物资用途'
+          : preview.type === 'journey-trash-copy-goal'
+            ? '已另存为独立目标，原完整副本与其他目标保留'
+            : '所选安排已永久清除',
+      );
+      break;
+    }
+    case 'intent-drafts':
+      captureIntentDrafts();
+      modal(
+        '继续未完成的安排',
+        '这里的编辑还没有加入正式安排。',
+        intentDraftViews.panel(availableIntentDrafts(), gameIndex) || '<p>当前周目没有未完成安排。</p>',
+        '',
+      );
+      break;
+    case 'intent-draft-resume': {
+      const row = availableIntentDrafts().find((draft) => draft.id === id);
+      if (!row) throw Error('草稿已变化，请重新核对');
+      await openIntentDraft(row);
+      break;
+    }
+    case 'historical-intent-draft-open': {
+      const [profileId, draftId] = id.split('|');
+      const selected = protectionView.history?.journal.profiles.find((p) => p.id === profileId);
+      const row = selected?.intentDrafts?.find((draft) => draft.id === draftId);
+      if (!row) throw Error('历史草稿已变化，请重新打开档案');
+      modal('历史未完成安排 · 只读', selected.name, intentDraftViews.detail(row, gameIndex), '');
+      break;
+    }
+    case 'intent-draft-copy': {
+      const editor = activeIntentEditor;
+      if (
+        !editor ||
+        editor.id !== id ||
+        editor.profileId !== profile().id ||
+        !['goal', 'journey-todo', 'journey-gift', 'craft-plan'].includes(editor.kind)
+      )
+        throw Error('请打开能另存的个人草稿');
+      captureIntentEditor(editor, true);
+      const pending = pendingIntentDrafts.get(id),
+        values = readIntentValues(editor.kind, editor.scope),
+        newId = crypto.randomUUID();
+      pendingIntentDrafts.set(newId, {
+        type: 'intent-draft-put',
+        id: newId,
+        kind: editor.kind,
+        targetId: '',
+        context: structuredClone(editor.context),
+        values,
+        expectedRevision: 0,
+        expectedTarget: null,
+        profileId: editor.profileId,
+        signature: JSON.stringify(values),
+        capturedAt: new Date().toISOString(),
+      });
+      await flushIntentDrafts(newId);
+      editor.committed = true;
+      if (pendingIntentDrafts.get(id) === pending) pendingIntentDrafts.delete(id);
+      const row = profile().intentDrafts.find((draft) => draft.id === newId);
+      await openIntentDraft(row);
+      toast('这些编辑已另存为新草稿，原正式安排与磁盘草稿保留');
+      break;
+    }
+    case 'intent-draft-discard': {
+      captureIntentDrafts();
+      await intentDraftQueue.catch(() => {});
+      const pending = pendingIntentDrafts.get(id),
+        stored = profile().intentDrafts?.find((row) => row.id === id);
+      if (!pending && !stored) {
+        closeOverlay();
+        break;
+      }
+      const localOnly = !!pending && (!stored || stored.revision !== (intentDraftVersions.get(id) || 0));
+      intentDraftConfirmation = {
+        type: 'discard',
+        id,
+        profileId: profile().id,
+        pending,
+        row: stored && structuredClone(stored),
+        localOnly,
+      };
+      modal(
+        '放弃这份未完成编辑？',
+        localOnly
+          ? '仅放弃当前窗口未成功暂存的编辑，已有磁盘草稿与正式安排保留。'
+          : '只移除这份草稿，原正式安排仍保留。',
+        intentDraftViews.detail(
+          availableIntentDrafts().find((row) => row.id === id),
+          gameIndex,
+        ),
+        act('intent-draft-discard-confirm', localOnly ? '放弃本窗口编辑' : '放弃这份草稿', 'btn danger', id),
+      );
+      break;
+    }
+    case 'intent-draft-discard-confirm': {
+      const preview = intentDraftConfirmation;
+      if (!preview || preview.type !== 'discard' || preview.id !== id || preview.profileId !== profile().id)
+        throw Error('草稿或周目已变化，请重新核对');
+      await intentDraftQueue.catch(() => {});
+      if (preview.row && !preview.localOnly)
+        await mutation({
+          type: 'intent-draft-remove',
+          id,
+          expectedDraft: preview.row,
+          profileId: preview.profileId,
+        });
+      if (pendingIntentDrafts.get(id) === preview.pending) pendingIntentDrafts.delete(id);
+      for (const [key, editor] of itineraryIntentEditors)
+        if (editor.id === id) {
+          editor.committed = true;
+          itineraryFormDrafts.delete(key);
+          itineraryIntentEditors.delete(key);
+        }
+      intentDraftConfirmation = null;
+      closeOverlay();
+      render(true);
+      toast(preview.localOnly ? '本窗口编辑已放弃，磁盘草稿保留' : '所选草稿已放弃');
+      break;
+    }
+    case 'intent-draft-recheck': {
+      captureIntentDrafts();
+      await flushIntentDrafts(id);
+      const row = profile().intentDrafts?.find((draft) => draft.id === id);
+      if (!row) throw Error('请先保留这份草稿');
+      const current = structuredClone(intentTarget(profile(), row.kind, row.targetId, row.context));
+      intentDraftConfirmation = {
+        type: 'rebase',
+        id,
+        profileId: profile().id,
+        row: structuredClone(row),
+        current,
+      };
+      const currentName =
+        current?.title ||
+        current?.name ||
+        current?.note ||
+        current?.step?.title ||
+        (current?.npcId ? '当前赠礼意图' : current ? '当前安排' : '原安排已不存在或尚未新建');
+      modal(
+        '重新核对原安排',
+        '确认后以现在的原安排为参照，保留草稿文字；仍需点击正式保存。原安排已删除时，个人待办、赠礼、目标和制作计划可另存为新草稿。',
+        `<h3>${esc(currentName)}</h3><p class="preserve-text">${esc(current?.detail || current?.note || '')}</p>${intentDraftViews.detail(row, gameIndex)}`,
+        act('intent-draft-recheck-confirm', '以当前安排重新核对', 'btn primary', id),
+      );
+      break;
+    }
+    case 'intent-draft-recheck-confirm': {
+      const preview = intentDraftConfirmation;
+      if (!preview || preview.type !== 'rebase' || preview.id !== id || preview.profileId !== profile().id)
+        throw Error('核对内容已变化，请重新打开');
+      await mutation({
+        type: 'intent-draft-rebase',
+        id,
+        expectedDraft: preview.row,
+        expectedTarget: preview.current,
+        profileId: preview.profileId,
+      });
+      intentDraftConfirmation = null;
+      const row = profile().intentDrafts.find((draft) => draft.id === id);
+      if (intentFieldId(row)) itineraryIntentEditors.delete(intentEditorKey(intentFieldId(row)));
+      await openIntentDraft(row);
+      toast('已重新核对，草稿仍未正式提交');
+      break;
+    }
+    case 'journal-trash-open':
+    case 'historical-journal-trash-open':
+    case 'journal-trash-close':
+    case 'historical-journal-trash-close': {
+      const historical = action.startsWith('historical-'),
+        view = historical ? historyJournalView : journalView;
+      if (historical && !historyJournalProfile()) throw Error('历史周目已变化，请重新打开');
+      view.trash = action.endsWith('-open');
+      view.trashPage = 1;
+      closeOverlay();
+      render();
+      break;
+    }
+    case 'journal-trash-page':
+    case 'historical-journal-trash-page': {
+      const view = action.startsWith('historical-') ? historyJournalView : journalView;
+      view.trashPage = Math.max(1, Number(id) || 1);
+      render(true);
+      break;
+    }
+    case 'journal-trash-detail':
+    case 'historical-journal-trash-detail': {
+      const historical = action.startsWith('historical-'),
+        selected = historical ? historyJournalProfile() : profile();
+      if (!selected?.journalTrash?.some((row) => row.entry.id === id))
+        throw Error('这条已删除记录已变化，请重新核对');
+      showOverlay(eventJournalViews.detail(selected, id, { readOnly: true, trash: true }), true);
+      break;
+    }
+    case 'journal-trash-restore-preview':
+    case 'journal-trash-purge-preview': {
+      const row = profile().journalTrash?.find((row) => row.entry.id === id);
+      if (!row) throw Error('这条已删除记录已变化，请重新核对');
+      const purge = action === 'journal-trash-purge-preview';
+      journalTrashConfirmation = {
+        profileId: profile().id,
+        row: structuredClone(row),
+        type: purge ? 'journal-trash-purge' : 'journal-trash-restore',
+      };
+      modal(
+        purge ? '永久清除这条记录？' : '恢复这条记录？',
+        purge
+          ? '清除后无法从已删除记录中恢复。已导出的备份仍保留；其他记录、草稿和目标保持。'
+          : '找回这一条记录，保留后来写的内容；目标完成、行程与游戏存档保持。',
+        `<p>${esc(row.entry.title)}</p><p class="preserve-text">${esc(row.entry.body)}</p>`,
+        act(
+          'journal-trash-confirm',
+          purge ? '永久清除这条记录' : '恢复这条记录',
+          purge ? 'btn danger' : 'btn primary',
+          id,
+        ),
+      );
+      break;
+    }
+    case 'journal-trash-confirm': {
+      const draft = journalTrashConfirmation;
+      if (!draft || draft.profileId !== profile().id || draft.row.entry.id !== id)
+        throw Error('记录或周目已变化，请重新核对');
+      await mutation({
+        type: draft.type,
+        profileId: draft.profileId,
+        ids: [id],
+        expectedEntries: [draft.row],
+      });
+      journalTrashConfirmation = null;
+      closeOverlay();
+      render(true);
+      toast(
+        draft.type === 'journal-trash-restore' ? '这条记录已恢复，后来写的内容保留' : '这条记录已永久清除',
+      );
+      break;
+    }
+    case 'search-filter-suggestion':
+      applySearchSuggestion(searchSuggestions[Number(id)]);
+      break;
+    case 'search-filter-insert': {
+      const input = overlay.querySelector('#global-search');
+      if (input)
+        applySearchSuggestion(
+          insertSearchFilter(input.value, input.selectionStart ?? input.value.length, id),
+        );
+      break;
+    }
+    case 'journal-drafts':
+      closeOverlay();
+      route = 'journal';
+      render();
+      break;
+    case 'journal-draft-resume': {
+      const draft = availableJournalDrafts().find((row) => row.id === id);
+      if (!draft) throw Error('草稿已不存在，请刷新后核对');
+      const entry = profile().journalEntries?.find((row) => row.id === draft.entryId);
+      openJournalEditor(entry || null, draft);
+      break;
+    }
+    case 'journal-draft-discard': {
+      captureJournalDraft();
+      const draftId = id || document.querySelector('#journal-entry-form')?.dataset.draftId;
+      const draft = availableJournalDrafts().find((row) => row.id === draftId);
+      if (!draft) {
+        closeOverlay();
+        break;
+      }
+      modal(
+        '放弃这份记录草稿？',
+        '只移除这份未完成的编辑，原来的正式记录仍保留。',
+        '<p>' + esc(draft.title || '未命名草稿') + '</p>',
+        act('journal-draft-discard-confirm', '放弃这份草稿', 'btn danger', draftId),
+      );
+      break;
+    }
+    case 'journal-draft-discard-confirm': {
+      await journalDraftQueue.catch(() => {});
+      const pending = pendingJournalDrafts.get(id);
+      const existing = profile().journalDrafts?.find((draft) => draft.id === id);
+      if (existing)
+        await mutation({
+          type: 'journal-draft-remove',
+          id,
+          revision: journalDraftVersions.get(id) ?? existing.revision,
+        });
+      if (pendingJournalDrafts.get(id) === pending) pendingJournalDrafts.delete(id);
+      journalDraftVersions.delete(id);
+      journalDraftSaved.delete(id);
+      closeOverlay();
+      render();
+      toast('所选草稿已放弃');
+      break;
+    }
+    case 'journal-draft-copy': {
+      captureJournalDraft();
+      await journalDraftQueue.catch(() => {});
+      const form = document.querySelector('#journal-entry-form');
+      if (!form) throw Error('请先打开要另存的草稿');
+      const original = eventJournalViews.readDraft(form),
+        newId = crypto.randomUUID();
+      const copy = {
+        ...original,
+        id: newId,
+        revision: 0,
+        snapshotMode: original.snapshotMode === 'keep' ? 'none' : original.snapshotMode,
+      };
+      delete copy.entryId;
+      delete copy.entryUpdatedAt;
+      if (profile().journalDrafts?.some((draft) => draft.id === original.id)) copy.sourceId = original.id;
+      await mutation(copy);
+      pendingJournalDrafts.delete(original.id);
+      form.dataset.committed = 'true';
+      const draft = profile().journalDrafts.find((row) => row.id === newId);
+      openJournalEditor(null, draft);
+      toast('已另存新草稿，原记录和原草稿保留');
+      break;
+    }
+    case 'journal-entry-new':
+      await saveNote();
+      openJournalEditor();
+      break;
+    case 'journal-entry-open':
+      closeOverlay();
+      route = 'journal';
+      render();
+      showOverlay(eventJournalViews.detail(profile(), id), true);
+      break;
+    case 'journal-entry-edit': {
+      const entry = profile().journalEntries?.find((e) => e.id === id);
+      if (!entry || entry.kind !== 'manual') throw Error('这条手写记录已不存在');
+      openJournalEditor(entry);
+      break;
+    }
+    case 'journal-entry-save': {
+      const form = document.querySelector('#journal-entry-form');
+      if (!form) throw Error('请重新打开记录编辑');
+      if (!form.reportValidity()) break;
+      const intent = eventJournalViews.readForm(form);
+      captureJournalDraft(true);
+      form.dataset.submitting = 'true';
+      const controls = [...overlay.querySelectorAll('input,select,textarea,button')].map((control) => [
+        control,
+        control.disabled,
+      ]);
+      for (const [control] of controls) control.disabled = true;
+      try {
+        await flushJournalDrafts();
+        await mutation({
+          type: 'journal-draft-commit',
+          id: form.dataset.draftId,
+          revision: journalDraftVersions.get(form.dataset.draftId) ?? Number(form.dataset.draftRevision),
+          occurredAt: intent.occurredAt,
+          profileId: form.dataset.profileId,
+        });
+        form.dataset.committed = 'true';
+      } finally {
+        delete form.dataset.submitting;
+        for (const [control, disabled] of controls) control.disabled = disabled;
+      }
+      journalDraftSaved.delete(form.dataset.draftId);
+      journalDraftVersions.delete(form.dataset.draftId);
+      closeOverlay();
+      route = 'journal';
+      render();
+      toast('江湖记录已保存');
+      break;
+    }
+    case 'journal-entry-remove': {
+      const entry = profile().journalEntries?.find((e) => e.id === id);
+      if (!entry) throw Error('这条记录已不存在');
+      journalRemoveDraft = { mode: 'single', profileId: profile().id, id, entry: structuredClone(entry) };
+      modal(
+        '删除这条记录？',
+        '移入已删除记录，可逐条恢复；目标、行程和游戏存档保持。',
+        '<p>' + esc(entry.title) + '</p>',
+        act('journal-entry-remove-confirm', '删除这条记录', 'btn danger', id),
+      );
+      break;
+    }
+    case 'journal-entry-remove-confirm': {
+      const draft = journalRemoveDraft;
+      if (!draft || draft.mode !== 'single' || draft.id !== id || draft.profileId !== profile().id)
+        throw Error('记录或周目已变化，请关闭确认并重新核对');
+      await mutation({
+        type: 'journal-entry-remove',
+        id: draft.id,
+        expectedEntry: draft.entry,
+        profileId: draft.profileId,
+      });
+      journalRemoveDraft = null;
+      closeOverlay();
+      render();
+      break;
+    }
+    case 'journal-export':
+      await handle('export');
+      break;
+    case 'journal-remove-filtered': {
+      const ids = eventJournalViews.query(profile(), journalView, journalIndex()).matchedIds;
+      if (!ids.length) break;
+      const entries = profile().journalEntries.filter((e) => ids.includes(e.id));
+      journalRemoveDraft = {
+        mode: 'batch',
+        profileId: profile().id,
+        ids,
+        entries: structuredClone(entries),
+        updated: entries.map((e) => [e.id, e.updatedAt]),
+      };
+      modal(
+        '删除筛选出的 ' + ids.length + ' 条记录？',
+        '下面所选记录会移入已删除记录，可逐条恢复；目标和行程状态保持。',
+        '<ul>' +
+          entries
+            .slice(0, 20)
+            .map((e) => '<li>' + esc(e.title) + ' · ' + when(e.occurredAt) + '</li>')
+            .join('') +
+          '</ul>' +
+          (entries.length > 20 ? '<p>另有 ' + (entries.length - 20) + ' 条，范围为当前筛选结果。</p>' : ''),
+        act('journal-remove-filtered-confirm', '删除这 ' + ids.length + ' 条记录', 'btn danger'),
+      );
+      break;
+    }
+    case 'journal-remove-filtered-confirm': {
+      const draft = journalRemoveDraft;
+      if (
+        !draft ||
+        draft.mode !== 'batch' ||
+        draft.profileId !== profile().id ||
+        draft.updated.some(
+          ([id, time]) => profile().journalEntries?.find((e) => e.id === id)?.updatedAt !== time,
+        )
+      )
+        throw Error('所选记录或周目已变化，请重新核对筛选结果');
+      await mutation({
+        type: 'journal-entries-remove',
+        ids: draft.ids,
+        expectedEntries: draft.entries,
+        profileId: draft.profileId,
+      });
+      journalRemoveDraft = null;
+      closeOverlay();
+      render();
+      toast('所选记录已移入已删除记录，可以逐条恢复');
+      break;
+    }
+    case 'journal-reference-remove':
+    case 'journal-reference-add': {
+      const input = document.querySelector('#journal-links');
+      if (!input) break;
+      const links = input.value
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (action === 'journal-reference-add' && !links.includes(id)) links.push(id);
+      else if (action === 'journal-reference-remove' && links.includes(id))
+        links.splice(links.indexOf(id), 1);
+      if (links.length > 8) throw Error('每条记录最多关联 8 项');
+      input.value = links.join('\n');
+      const form = document.querySelector('#journal-entry-form'),
+        entry = profile().journalEntries?.find((e) => e.id === form?.dataset.entryId);
+      document.querySelector('#journal-selected-references').innerHTML = eventJournalViews.selectedReferences(
+        profile(),
+        journalIndex(),
+        links,
+        entry,
+      );
+      captureJournalDraft();
+      break;
+    }
+    case 'historical-journal-filter':
+    case 'journal-filter': {
+      const historical = action.startsWith('historical-'),
+        view = historical ? historyJournalView : journalView;
+      if (historical && !historyJournalProfile()) throw Error('历史周目已变化，请重新打开');
+      const form = document.querySelector(
+        historical ? '#historical-journal-filter-form' : '#journal-filter-form',
+      );
+      if (!form) break;
+      const values = new FormData(form);
+      for (const key of ['query', 'from', 'to', 'kind', 'tag'])
+        view[key] = String(values.get('journal-' + key) || '');
+      view.page = 1;
+      render(true);
+      break;
+    }
+    case 'historical-journal-filter-clear':
+      historyJournalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
+      render();
+      break;
+    case 'historical-journal-tag-filter':
+      historyJournalView = { query: '', from: '', to: '', kind: '', tag: id, page: 1 };
+      render();
+      break;
+    case 'historical-journal-page':
+      historyJournalView.page = Math.max(1, Number(id) || 1);
+      render(true);
+      break;
+    case 'protection-journal-profile':
+      if (!protectionView.history?.journal.profiles.some((p) => p.id === id)) throw Error('历史周目已不存在');
+      protectionView.journalProfileId = id;
+      historyJournalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
+      render();
+      break;
+    case 'historical-journal-entry-open': {
+      const p = historyJournalProfile();
+      if (!p) throw Error('请重新选择历史周目');
+      showOverlay(eventJournalViews.detail(p, id, { readOnly: true }), true);
+      break;
+    }
+    case 'journal-filter-clear':
+      journalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
+      render();
+      break;
+    case 'journal-tag-filter':
+      journalView = { query: '', from: '', to: '', kind: '', tag: id, page: 1 };
+      render();
+      break;
+    case 'journal-page':
+      journalView.page = Math.max(1, Number(id) || 1);
+      render(true);
+      break;
+    case 'journal-link': {
+      const at = id.indexOf(':'),
+        type = id.slice(0, at),
+        entity = id.slice(at + 1);
+      const entry = profile()
+        .journalEntries?.flatMap((e) => e.links)
+        .find((link) => link.type === type && link.id === entity && !link.detached);
+      if (!entry) throw Error('原关联已移除或不属于当前周目');
+      if (type === 'database') await showDatabaseDetail(entity);
+      else if (type === 'quest' || type === 'place') await showWorldDetail(entity, type);
+      else if (type === 'guide') await handle('detail', entity);
+      else {
+        closeOverlay();
+        route = type === 'goal' ? 'goals' : type === 'craft-plan' ? 'materials' : 'journey';
+        render();
+      }
+      break;
+    }
     case 'search-all': {
       const value = target.dataset.query || query;
       closeOverlay();
-      if (id === 'guides') {
+      if (id === 'records') {
+        route = 'journal';
+        journalView = {
+          query: '',
+          from: '',
+          to: '',
+          kind: '',
+          tag: '',
+          page: 1,
+          globalQuery: value,
+          ids: journalView.globalMatchedIds || [],
+        };
+      } else if (id === 'guides') {
         route = 'library';
         kind = '全部';
         query = value;
@@ -1316,7 +3454,8 @@ async function handle(action, id, target) {
         referenceSaveName = view.referenceName;
         referenceFollow = view.follow;
         await showDatabaseDetail(view.id, view.quantity || 1, view.giftPage);
-      } else if (view.type === 'guide') showDetail(view.id);
+      } else if (view.type === 'search') searchModal(view);
+      else if (view.type === 'guide') showDetail(view.id);
       else if (view.type === 'backup') showBackupPreview(view.data);
       else if (view.type === 'timeline') {
         rememberDrawer(view);
@@ -1336,6 +3475,7 @@ async function handle(action, id, target) {
       break;
     }
     case 'navigate':
+      if (id !== 'archives') ++protectionRequest;
       await saveNote();
       route = id;
       query = '';
@@ -1347,7 +3487,330 @@ async function handle(action, id, target) {
         render();
         if ((profile().craftList || []).length && !materialView.result) await calculateMaterials();
       }
+      if (id === 'journey') await refresh();
       break;
+    case 'journey-refresh':
+      await refresh();
+      break;
+    case 'recipe-discovery-open':
+      closeOverlay();
+      route = 'recipe-discovery';
+      render();
+      await refreshRecipeDiscovery();
+      break;
+    case 'recipe-discovery-refresh':
+      await refreshRecipeDiscovery();
+      break;
+    case 'recipe-discovery-view':
+      await refreshRecipeDiscovery({ view: id, page: 1 });
+      break;
+    case 'recipe-discovery-page':
+      await refreshRecipeDiscovery({ page: Number(id) });
+      break;
+    case 'recipe-discovery-add': {
+      const view = recipeDiscoveryView;
+      if (view.busy) break;
+      const input = target
+        .closest('[data-recipe-discovery-id]')
+        ?.querySelector('[data-recipe-discovery-quantity]');
+      if (!input?.checkValidity()) {
+        input?.reportValidity();
+        throw Error('加入次数须为 1 至 999 的整数');
+      }
+      const quantity = Number(input.value);
+      const discovery = { scopeToken: target.dataset.discoveryScope, recipeId: id, quantity };
+      view.adding = true;
+      view.busy = true;
+      render(true);
+      try {
+        if (view.targetPlanId) {
+          const plan = profile().craftPlans?.find((p) => p.id === view.targetPlanId);
+          if (!plan) throw Error('所选制作计划已不存在，请重新选择');
+          const editing = plan.id === profile().activeCraftPlanId;
+          const list = structuredClone(editing ? profile().craftList || [] : plan.list);
+          const old = list.find((line) => line.id === id);
+          if (old) old.quantity += quantity;
+          else list.push({ id, quantity });
+          await mutation({
+            type: 'craft-plan-save',
+            id: plan.id,
+            name: plan.name,
+            list,
+            choices: editing ? profile().craftChoices || {} : plan.choices || {},
+            reserved: plan.reserved !== false,
+            discovery,
+          });
+        } else {
+          const old = profile().craftList?.find((line) => line.id === id)?.quantity || 0;
+          await mutation({ type: 'craft-set', id, quantity: old + quantity, discovery });
+        }
+        await refresh();
+        await refreshRecipeDiscovery();
+        toast('配方已加入计划，余料与全部用途已重新核对');
+      } catch (e) {
+        view.error = e.message;
+        view.busy = false;
+        // The old source remains labelled for inspection; a new successful
+        // query is required before another addition can use its scope.
+        if (view.result) view.result = { ...view.result, scopeToken: null };
+        render(true);
+      } finally {
+        view.adding = false;
+        view.busy = !!view.reading;
+        if (view === recipeDiscoveryView) render(true);
+      }
+      break;
+    }
+    case 'journey-place-filter':
+      journeyView.place = id || '';
+      render();
+      break;
+    case 'journey-show-completed':
+      journeyView.completed = !journeyView.completed;
+      render(true);
+      break;
+    case 'journey-handle': {
+      const action = environment.journey?.actions.find((a) => a.id === id);
+      if (!action || environment.journey.profileId !== profile().id) throw Error('行动已变化，请重新核对');
+      await mutation({ type: 'journey-action-handle', id, handled: !action.handled });
+      await refresh();
+      break;
+    }
+    case 'journey-itinerary-add':
+    case 'journey-itinerary-place': {
+      syncItineraryIntentEditors();
+      const fieldId = 'itinerary-' + (action === 'journey-itinerary-add' ? 'add' : 'change') + '-' + id;
+      let editor = itineraryIntentEditors.get(intentEditorKey(fieldId));
+      if (!editor) {
+        const mode = action === 'journey-itinerary-add' ? 'add' : 'place';
+        const scope = target.closest('[data-itinerary-choice]');
+        editor = intentEditor(
+          'itinerary-choice',
+          id,
+          { mode, actionId: id, ...(mode === 'place' ? { ownerId: id } : {}) },
+          null,
+          scope,
+        );
+      }
+      await commitIntentEditor(editor);
+      clearItineraryDraft('itinerary-' + (action === 'journey-itinerary-add' ? 'add' : 'change') + '-' + id);
+      await refresh();
+      toast(action === 'journey-itinerary-add' ? '已加入本次行程' : '本次场景已保存');
+      break;
+    }
+    case 'journey-itinerary-remove':
+      await mutation({ type: action, id });
+      await refresh();
+      break;
+    case 'journey-itinerary-move':
+      await mutation({ type: action, id, direction: target.dataset.direction });
+      await refresh();
+      break;
+    case 'journey-itinerary-name':
+      syncItineraryIntentEditors();
+      await commitIntentEditor(itineraryIntentEditors.get(intentEditorKey('journey-itinerary-name')));
+      clearItineraryDraft('journey-itinerary-name');
+      await refresh();
+      break;
+    case 'journey-itinerary-status':
+      await mutation({ type: action, status: id });
+      await refresh();
+      break;
+    case 'journey-itinerary-skip': {
+      const trip = compact ? companionData?.itinerary : environment.journey?.itinerary;
+      const step = trip?.steps.find((s) => s.actionId === id);
+      if (!step) throw Error('本次选择已变化，请重新核对');
+      await mutation({ type: action, id, skipped: !step.skipped });
+      await refresh();
+      break;
+    }
+    case 'journey-itinerary-handle': {
+      const trip = compact ? companionData?.itinerary : environment.journey?.itinerary;
+      const step = trip?.steps.find((s) => s.actionId === id);
+      if (!step) throw Error('本次选择已变化，请重新核对');
+      const currentId = step.handledActionId || step.action?.id || id;
+      await mutation({ type: 'journey-action-handle', id: currentId, handled: !step.handled });
+      await refresh();
+      break;
+    }
+    case 'journey-itinerary-continue': {
+      syncItineraryIntentEditors();
+      const fieldId = 'itinerary-continue-' + id + '-' + target.dataset.targetId;
+      const editor =
+        itineraryIntentEditors.get(intentEditorKey(fieldId)) ||
+        intentEditor(
+          'itinerary-choice',
+          id,
+          { mode: 'continue', actionId: target.dataset.targetId, ownerId: id },
+          null,
+          target.closest('[data-itinerary-continuation]'),
+        );
+      await commitIntentEditor(editor);
+      clearItineraryDraft('itinerary-continue-' + id + '-' + target.dataset.targetId);
+      await refresh();
+      toast('已接续当前任务步骤，原行程顺序与事项仍保留');
+      break;
+    }
+    case 'journey-itinerary-clear':
+      modal(
+        '清空本次行程选择？',
+        '个人待办、目标和已处理记录会继续保留。',
+        '',
+        act('journey-itinerary-clear-confirm', '清空本次选择', 'btn danger'),
+      );
+      break;
+    case 'journey-itinerary-clear-confirm':
+      await mutation({ type: 'journey-itinerary-clear' });
+      for (const key of itineraryFormDrafts.keys())
+        if (key.startsWith(profile().id + '\u0000')) itineraryFormDrafts.delete(key);
+      closeOverlay();
+      await refresh();
+      break;
+    case 'journey-itinerary-journal': {
+      const trip = compact ? companionData?.itinerary : environment.journey?.itinerary;
+      if (!trip?.steps.length) throw Error('本次行程尚无选择');
+      const labels = {
+        pending: '待处理',
+        unavailable: '需要核对',
+        skipped: '仅本次跳过',
+        'game-complete': '当前参照记录游戏已完成',
+        'user-done': '个人已完成',
+        handled: '个人已处理',
+        prepared: '当前参照材料已齐',
+      };
+      const body =
+        `本次选择 ${trip.summary.total} 项，个人已处理 ${trip.summary.handled} 项，个人已完成 ${trip.summary['user-done']} 项，本次跳过 ${trip.summary.skipped} 项，仍待处理或核对 ${trip.summary.remaining} 项。\n\n` +
+        trip.steps
+          .slice(0, 20)
+          .map(
+            (step, i) =>
+              `${i + 1}. ${step.title.slice(0, 100)}${step.selectedPlace ? ' · ' + step.selectedPlace.name.slice(0, 40) + ' · ' + step.selectedPlace.id : ''} · ${labels[step.status]}`,
+          )
+          .join('\n') +
+        (trip.steps.length > 20
+          ? '\n另有 ' + (trip.steps.length - 20) + ' 项；完整选择仍在「这一程做什么」中保留。'
+          : '') +
+        (trip.reference
+          ? `\n\n对照 ${trip.reference.name} · ${when(trip.reference.modifiedAt)} · SHA ${trip.reference.hash.slice(0, 12)}`
+          : '') +
+        '\n游戏任务与材料状态来自当前已保存参照，不代表这一程新增的游戏进度。';
+      openJournalEditor();
+      document.querySelector('#journal-title').value = (trip.name + ' · 行程回顾').slice(0, 160);
+      document.querySelector('#journal-body').value = body;
+      captureJournalDraft();
+      break;
+    }
+    case 'journey-place-dialog':
+      journeyDialog('place', id);
+      break;
+    case 'journey-open': {
+      if (!/^journey:[a-z-]+:[a-f0-9]{32}$/.test(id)) throw Error('行动编号无效');
+      journeyView = { query: '', place: '', completed: false };
+      route = 'journey';
+      closeOverlay();
+      const resolvedId =
+        (compact ? companionData?.itinerary : environment.journey?.itinerary)?.steps.find(
+          (s) => s.actionId === id,
+        )?.action?.id || id;
+      render();
+      (
+        document.querySelector(`[data-journey-id="${CSS.escape(resolvedId)}"]`) ||
+        document.querySelector(`[data-itinerary-step="${CSS.escape(id)}"]`)
+      )?.scrollIntoView({ block: 'center' });
+      break;
+    }
+    case 'journey-todo-dialog':
+    case 'journey-todo':
+      journeyDialog('todo', id);
+      break;
+    case 'journey-gift-dialog':
+    case 'journey-gift-edit':
+      journeyDialog('gift', id);
+      break;
+    case 'journey-place-page':
+      if (!Number.isSafeInteger(Number(id)) || Number(id) < 1) throw Error('请选择有效的地点查询页');
+      refreshPlacePicker(Number(id));
+      break;
+    case 'journey-gift-page': {
+      const [kind, page] = id.split(':');
+      if (!['person', 'item'].includes(kind) || !Number.isSafeInteger(Number(page)) || Number(page) < 1)
+        throw Error('请选择有效的赠礼查询页');
+      refreshGiftPicker(kind, Number(page));
+      break;
+    }
+    case 'journey-goal':
+      closeOverlay();
+      route = 'goals';
+      render();
+      document
+        .querySelector(`[data-action="goal-toggle"][data-id="${CSS.escape(id)}"]`)
+        ?.scrollIntoView({ block: 'center' });
+      break;
+    case 'journey-focus': {
+      closeOverlay();
+      route = 'journey';
+      journeyView = { query: '', place: '', completed: true };
+      const resolvedId =
+        (compact ? companionData?.itinerary : environment.journey?.itinerary)?.steps.find(
+          (s) => s.actionId === id,
+        )?.action?.id || id;
+      render();
+      (
+        document.querySelector(`[data-journey-id="${CSS.escape(resolvedId)}"]`) ||
+        document.querySelector(`[data-itinerary-step="${CSS.escape(id)}"]`)
+      )?.scrollIntoView({ block: 'center' });
+      break;
+    }
+    case 'journey-intent-save': {
+      const draft = journeyDraft;
+      if (!draft || draft.profileId !== profile().id) throw Error('周目已变化，请重新打开个人记录');
+      if ([...overlay.querySelectorAll('input,select,textarea')].some((n) => !n.checkValidity()))
+        throw Error('请填写完整名称、人物、物品与有效数量');
+      await commitIntentEditor(activeIntentEditor);
+      journeyDraft = null;
+      closeOverlay();
+      route = 'journey';
+      await refresh();
+      toast('个人打算已加入当前周目的行程');
+      break;
+    }
+    case 'journey-intent-remove': {
+      const draft = journeyDraft;
+      if (!draft || !draft.record || draft.profileId !== profile().id)
+        throw Error('请重新打开要移除的个人记录');
+      journeyTrashConfirmation = {
+        type: 'remove',
+        kind: draft.kind,
+        profileId: draft.profileId,
+        record: structuredClone(draft.record),
+      };
+      modal(
+        '移除这项个人安排？',
+        '完整内容会保留在「已移除的个人安排」，以后可单条找回。当前未提交的编辑仍保留为草稿。',
+        journeyTrashViews.detail({ kind: draft.kind, record: draft.record }, journalIndex(), {
+          preview: true,
+        }),
+        act('journey-intent-remove-confirm', '移除并保留可找回内容', 'btn danger'),
+      );
+      break;
+    }
+    case 'journey-intent-remove-confirm': {
+      const preview = journeyTrashConfirmation;
+      if (!preview || preview.type !== 'remove' || preview.profileId !== profile().id)
+        throw Error('安排或周目已变化，请重新核对');
+      await mutation({
+        type: 'journey-' + preview.kind + '-remove',
+        profileId: preview.profileId,
+        ...(preview.kind === 'place' ? { placeId: preview.record.placeId } : { id: preview.record.id }),
+        expectedRecord: preview.record,
+      });
+      journeyTrashConfirmation = null;
+      closeOverlay();
+      journeyDraft = null;
+      await refresh();
+      toast('所选安排已移除，可从行程中的已移除安排找回');
+      break;
+    }
     case 'world-quest':
       await showWorldDetail(id, 'quest');
       break;
@@ -1406,6 +3869,73 @@ async function handle(action, id, target) {
       toast('任务已记入待办');
       break;
     }
+    case 'world-reserve-material': {
+      const [questId, itemId] = id.split(':');
+      const q = gameIndex.world.quests.find((q) => q.id === questId);
+      const material = q?.materials?.find((m) => String(m.id) === itemId);
+      if (!material) throw Error('任务用料资料不存在');
+      await mutation({
+        type: 'task-reserve',
+        questId,
+        itemId,
+      });
+      await showWorldDetail(questId, 'quest', true);
+      toast('已按任务分别预留；可在备料清单查看用途和调整数量');
+      break;
+    }
+    case 'craft-search-page':
+      materialView.searchPage = Math.max(0, Number(id) || 0);
+      render(true);
+      break;
+    case 'resource-priority-open': {
+      await refresh();
+      const summary = environment.goalProfileId === profile().id ? environment.allocations : null;
+      if (!summary?.priorityOwners?.length) throw Error('物资用途正在变化，请重新核对');
+      const ids = summary.priorityOwners.map((row) => row.id);
+      await previewResourcePriority(ids, true);
+      break;
+    }
+    case 'resource-priority-move': {
+      const draft = resourcePriorityDraft;
+      if (!draft?.preview || draft.loading) break;
+      const order = [...draft.preview.afterOrder],
+        from = order.indexOf(id);
+      const to = from + (target.dataset.direction === 'up' ? -1 : 1);
+      if (from < 0 || to < 0 || to >= order.length) break;
+      [order[from], order[to]] = [order[to], order[from]];
+      await previewResourcePriority(order);
+      break;
+    }
+    case 'resource-priority-reset':
+      await previewResourcePriority([]);
+      break;
+    case 'resource-priority-refresh':
+      if (resourcePriorityDraft) await previewResourcePriority(resourcePriorityDraft.order);
+      break;
+    case 'resource-priority-save': {
+      const draft = resourcePriorityDraft;
+      if (!draft?.preview || draft.loading || draft.profileId !== profile().id)
+        throw Error('请重新核对物资顺序');
+      draft.loading = true;
+      renderResourcePriorityDialog();
+      try {
+        await mutation({
+          type: 'resource-priority-set',
+          profileId: draft.profileId,
+          order: draft.preview.order,
+          fingerprint: draft.preview.fingerprint,
+        });
+        closeOverlay();
+        await refresh();
+        toast('物资用途顺序已保存');
+      } catch (e) {
+        draft.loading = false;
+        draft.preview = null;
+        draft.error = e.message;
+        renderResourcePriorityDialog();
+      }
+      break;
+    }
     case 'craft-add': {
       const recipe = gameViews.byId(gameIndex, id);
       if (recipe?.kind !== '配方') throw Error('请选择一份配方');
@@ -1441,29 +3971,153 @@ async function handle(action, id, target) {
       render(true);
       break;
     case 'craft-goal': {
-      const plan = materialView.result;
-      if (!plan || JSON.stringify(materialView.resultList) !== JSON.stringify(profile().craftList || []))
+      if (
+        !materialView.result ||
+        JSON.stringify(materialView.resultList) !== JSON.stringify(profile().craftList || [])
+      )
         throw Error('请先重新核对备料清单');
-      const lines = [
-        `对照：${plan.reference?.name || '仅合并资料'} · ${plan.reference ? when(plan.reference.modifiedAt) : '未核对库存'}`,
-        `基础制作费：${plan.money} 文`,
-        ...plan.recipes.map((r) => `${r.name} ×${r.quantity} 次`),
-        '材料摘要：',
-        ...plan.materials.map(
-          (m) =>
-            `${m.name} 需${m.count}${m.missing === null ? '' : `，已分配${m.allocated}，缺${m.missing}`}`,
-        ),
-      ];
-      const detail =
-        lines.join('\n').slice(0, 1800) +
-        '\n这是当次核对摘要；完整清单保存在当前周目的备料清单中，可重新打开核对。';
+      craftPlanModal('', profile().craftList, true);
+      break;
+    }
+    case 'craft-plan-dialog':
+      craftPlanModal(id);
+      break;
+    case 'craft-plan-complete': {
+      const plan = profile().craftPlans?.find((entry) => entry.id === id);
+      if (!plan) throw Error('这份制作计划已不存在，请重新核对');
+      if (plan.done) {
+        await mutation({
+          type: 'craft-plan-complete',
+          id,
+          value: false,
+          profileId: profile().id,
+          expectedPlan: plan,
+        });
+        await refresh();
+        toast('计划已重新打开，按原先的预留与目标状态重新核对用料');
+        break;
+      }
+      const list = plan.list
+        .map((line) => {
+          const recipe = gameIndex.entries.find((entry) => entry.id === line.id);
+          return `<p>${esc(recipe?.name || line.id)} × ${line.quantity} 次</p>`;
+        })
+        .join('');
+      modal(
+        '整份计划都已制作完成？',
+        `将「${esc(plan.name)}」记为个人制作完成`,
+        `<div class="journey-intent-body"><p class="save-note">确认后释放这整份计划的用料，关联行程会推进。配方、原预留偏好及独立勾选的目标会保留，可以重新打开。不会修改游戏库存，也不会把预计产物算成持有量。</p>${list}</div>`,
+        act('craft-plan-complete-confirm', '整份已制作，释放用料', 'btn primary', plan.id, 'check'),
+      );
+      overlay.querySelector('.modal')?.classList.add('journey-intent-modal');
+      craftCompletionDraft = { profileId: profile().id, plan: structuredClone(plan) };
+      break;
+    }
+    case 'craft-plan-complete-confirm': {
+      const draft = craftCompletionDraft;
+      if (!draft || draft.profileId !== profile().id || draft.plan.id !== id)
+        throw Error('计划预览或周目已变化，请重新查看后确认');
       await mutation({
-        type: 'goal-add',
-        title: `备料清单 · ${plan.recipes.length} 种配方`,
-        detail,
-        source: { type: 'planner', id: 'current' },
+        type: 'craft-plan-complete',
+        id,
+        value: true,
+        profileId: draft.profileId,
+        expectedPlan: draft.plan,
       });
-      toast('备料摘要已加入待办');
+      closeOverlay();
+      await refresh();
+      toast('计划已记为制作完成，用料已释放；可在备料页重新打开');
+      break;
+    }
+    case 'craft-plan-reserve': {
+      const plan = profile().craftPlans?.find((x) => x.id === id);
+      if (plan) await mutation({ type: 'craft-plan-reserve', id, value: plan.reserved === false });
+      break;
+    }
+    case 'craft-draft-reserve':
+      await mutation({ type: 'craft-draft-reserve', value: profile().reserveCraftDraft === false });
+      break;
+    case 'allocation-edit': {
+      const [questId, itemId] = id.split(':');
+      const input = document.getElementById('allocation-' + questId + '-' + itemId);
+      if (!input?.checkValidity()) throw Error('请填写 0 至 999999 的整数');
+      await mutation({ type: 'task-reserve-edit', questId, itemId, count: Number(input.value) });
+      break;
+    }
+    case 'allocation-remove':
+      await mutation({ type: 'task-reserve-remove', questId: id });
+      break;
+    case 'craft-plan-copy': {
+      const plan = profile().craftPlans?.find((x) => x.id === id);
+      if (plan) craftPlanModal('', plan.list, false, plan.name + ' · 副本', plan.choices || {});
+      break;
+    }
+    case 'craft-plan-save': {
+      const draft = craftPlanDraft;
+      if (!draft || draft.profileId !== profile().id) throw Error('周目已变化，请重新打开计划');
+      await commitIntentEditor(activeIntentEditor);
+      craftPlanDraft = null;
+      closeOverlay();
+      toast('制作计划已独立保存');
+      break;
+    }
+    case 'craft-plan-open':
+      await mutation({ type: 'craft-plan-open', id });
+      materialView.planId = id;
+      route = 'materials';
+      closeOverlay();
+      await calculateMaterials();
+      break;
+    case 'craft-goals-merge':
+      await mutation({ type: 'craft-goals-merge' });
+      await calculateMaterials();
+      toast('已合并未完成的制作目标；相同配方不会与编辑清单重复累加');
+      break;
+    case 'craft-choice': {
+      const [itemId, recipeId = ''] = id.split(':');
+      await mutation({ type: 'craft-choice', itemId, recipeId });
+      await calculateMaterials();
+      break;
+    }
+    case 'craft-draft-restore':
+      await mutation({ type: 'craft-draft-restore' });
+      materialView.planId = null;
+      await calculateMaterials();
+      break;
+    case 'craft-plan-remove': {
+      const record = profile().craftPlans?.find((plan) => plan.id === id);
+      if (!record) throw Error('制作计划已变化，请重新核对');
+      journeyTrashConfirmation = {
+        type: 'remove-craft-plan',
+        profileId: profile().id,
+        record: structuredClone(record),
+      };
+      modal(
+        '移除这份制作计划？',
+        '完整计划会保留在「已移除的个人安排」，可单条找回；当前编辑清单保持。仍被行囊目标引用时会先阻止移除，请先处理对应目标。',
+        journeyTrashViews.detail({ kind: 'craft-plan', record }, journalIndex(), { preview: true }),
+        act('craft-plan-remove-confirm', '移除并保留可找回内容', 'btn danger', id),
+      );
+      break;
+    }
+    case 'craft-plan-remove-confirm': {
+      const preview = journeyTrashConfirmation;
+      if (
+        !preview ||
+        preview.type !== 'remove-craft-plan' ||
+        preview.profileId !== profile().id ||
+        preview.record.id !== id
+      )
+        throw Error('制作计划或周目已变化，请重新核对');
+      await mutation({
+        type: 'craft-plan-remove',
+        profileId: preview.profileId,
+        id,
+        expectedRecord: preview.record,
+      });
+      if (materialView.planId === id) materialView.planId = null;
+      closeOverlay();
+      toast('制作计划已移除，可单条找回；当前编辑清单保留');
       break;
     }
     case 'detail':
@@ -1479,9 +4133,26 @@ async function handle(action, id, target) {
       databasePage = Number(id);
       render();
       break;
-    case 'database-detail':
-      await showDatabaseDetail(id);
+    case 'database-reset':
+      query = '';
+      databaseType = '全部';
+      databasePage = 0;
+      render(true);
+      document.querySelector('#list-search')?.focus();
       break;
+    case 'database-detail': {
+      let quantity = 1;
+      if (!currentDrawer && route === 'materials') {
+        await mutationQueue;
+        referenceSaveName = materialView.referenceName ?? defaultReference();
+        referenceFollow = materialView.follow ?? defaultFollow();
+        referenceSave = null;
+        if (target.closest('.craft-line'))
+          quantity = profile().craftList?.find((line) => line.id === id)?.quantity || 1;
+      }
+      await showDatabaseDetail(id, quantity);
+      break;
+    }
     case 'database-uses': {
       const e = gameViews.byId(gameIndex, id);
       if (!e) break;
@@ -1635,7 +4306,47 @@ async function handle(action, id, target) {
     case 'search':
       searchModal();
       break;
+    case 'search-save': {
+      const value = document.querySelector('#global-search')?.value.trim();
+      compileSearch(value);
+      await mutation({ type: 'search-save', query: value });
+      toast('搜索已保存，在空白搜索页可再次使用');
+      break;
+    }
+    case 'search-run':
+      compileSearch(id);
+      await mutation({ type: 'search-remember', query: id });
+      searchModal({ query: id });
+      break;
+    case 'search-forget':
+      await mutation({ type: 'search-forget', query: id });
+      showSearchResults('');
+      break;
+    case 'search-history-clear':
+      await mutation({ type: 'search-history-clear' });
+      showSearchResults('');
+      break;
+    case 'search-goal':
+      closeOverlay();
+      route = 'goals';
+      render();
+      document.querySelector('[data-action="goal-toggle"][data-id="' + id + '"]')?.focus();
+      document
+        .querySelector('[data-action="goal-toggle"][data-id="' + id + '"]')
+        ?.scrollIntoView({ block: 'center' });
+      break;
+    case 'search-note':
+      closeOverlay();
+      route = 'goals';
+      render();
+      document.querySelector('#note')?.scrollIntoView({ block: 'center' });
+      document.querySelector('#note')?.focus();
+      break;
     case 'filter':
+      if (id === 'current' && profile().stageConfirmed === false) {
+        stageModal(true);
+        break;
+      }
       filter = id;
       render(true);
       break;
@@ -1647,6 +4358,7 @@ async function handle(action, id, target) {
       stageModal();
       break;
     case 'stage-save':
+      if (id === 'current') filter = 'current';
       await changeStage(Number(document.querySelector('#stage-select').value));
       break;
     case 'stage-change':
@@ -1698,6 +4410,10 @@ async function handle(action, id, target) {
       } else if (source.type === 'quest') {
         await showWorldDetail(source.id, 'quest');
       } else if (source.type === 'planner') {
+        if (source.id !== 'current') {
+          await mutation({ type: 'craft-plan-open', id: source.id });
+          materialView.planId = source.id;
+        } else toast('这是早期目标，跟随当前编辑清单；可以保存为独立计划');
         closeOverlay();
         route = 'materials';
         materialView.referenceName ??= defaultReference();
@@ -1715,12 +4431,7 @@ async function handle(action, id, target) {
       goalModal(id);
       break;
     case 'goal-save':
-      await mutation({
-        type: id ? 'goal-edit' : 'goal-add',
-        id,
-        title: document.querySelector('#goal-title').value,
-        detail: document.querySelector('#goal-detail').value,
-      });
+      await commitIntentEditor(activeIntentEditor);
       closeOverlay();
       toast('目标已保存');
       break;
@@ -1729,6 +4440,11 @@ async function handle(action, id, target) {
       break;
     case 'goal-toggle': {
       const goal = profile().goals.find((g) => g.id === id);
+      if (goal && goalStatus(goal).automaticDone) {
+        await mutation({ type: 'goal-tracking', id, mode: 'manual', reopen: true });
+        toast('已保留为手动待办，游戏任务记录未改变');
+        break;
+      }
       const undo = {
         profileId: profile().id,
         type: 'goal',
@@ -1743,6 +4459,16 @@ async function handle(action, id, target) {
       }
       break;
     }
+    case 'goal-tracking': {
+      const goal = profile().goals.find((g) => g.id === id);
+      if (goal)
+        await mutation({
+          type: 'goal-tracking',
+          id,
+          mode: goal.progressMode === 'manual' ? 'auto' : 'manual',
+        });
+      break;
+    }
     case 'compact-undo': {
       const undo = compactUndo;
       if (!undo || undo.profileId !== profile().id) break;
@@ -1755,19 +4481,42 @@ async function handle(action, id, target) {
       toast('已恢复为待办');
       break;
     }
-    case 'goal-remove':
+    case 'goal-remove': {
+      const record = profile().goals.find((g) => g.id === id);
+      if (!record) throw Error('目标已变化，请重新核对');
+      journeyTrashConfirmation = {
+        type: 'remove-goal',
+        profileId: profile().id,
+        record: structuredClone(record),
+      };
       modal(
         '从行囊中移除这件事？',
-        '这只会删除手札里的目标，不影响游戏。',
-        '',
-        act('goal-remove-confirm', '移除目标', 'btn danger', id),
+        '完整内容会保留在「已移除的个人安排」，以后可单条找回。游戏存档保持。',
+        journeyTrashViews.detail({ kind: 'goal', record }, journalIndex(), { preview: true }),
+        act('goal-remove-confirm', '移除并保留可找回内容', 'btn danger', id),
       );
       break;
-    case 'goal-remove-confirm':
-      await mutation({ type: 'goal-remove', id });
+    }
+    case 'goal-remove-confirm': {
+      const preview = journeyTrashConfirmation;
+      if (
+        !preview ||
+        preview.type !== 'remove-goal' ||
+        preview.profileId !== profile().id ||
+        preview.record.id !== id
+      )
+        throw Error('目标或周目已变化，请重新核对');
+      await mutation({
+        type: 'goal-remove',
+        profileId: preview.profileId,
+        id,
+        expectedRecord: preview.record,
+      });
+      journeyTrashConfirmation = null;
       closeOverlay();
-      toast('目标已移除');
+      toast('目标已移除，可在已移除的个人安排中找回');
       break;
+    }
     case 'entry-goal': {
       const e = entry(id);
       await mutation({
@@ -1799,6 +4548,8 @@ async function handle(action, id, target) {
       toast('新的一程，出发吧');
       break;
     case 'profile-switch':
+      captureJournalDraft();
+      await flushJournalDrafts();
       await saveNote();
       await mutation({ type: 'profile-switch', id: document.querySelector('#profile-select').value });
       closeOverlay();
@@ -1818,6 +4569,31 @@ async function handle(action, id, target) {
       closeOverlay();
       toast('周目名称已更新');
       break;
+    case 'start-assistance': {
+      if (startingAssistance) break;
+      startingAssistance = true;
+      assistanceError = '';
+      render(true);
+      try {
+        const result = await call('startAssistance');
+        if (!result.cancelled) {
+          state = result.state;
+          environment = result.environment;
+          toast(
+            result.launchOnly
+              ? '已开始游戏，以后将直接启动；自动存档可稍后开启'
+              : '已准备好，进入游戏后会自动留住进度',
+          );
+        }
+      } catch (error) {
+        assistanceError = error.message;
+        toast(error.message, true);
+      } finally {
+        startingAssistance = false;
+        await refresh();
+      }
+      break;
+    }
     case 'bridge-install':
     case 'bridge-disable': {
       const result = await call(action === 'bridge-install' ? 'bridgeInstall' : 'bridgeDisable');
@@ -2018,23 +4794,18 @@ async function handle(action, id, target) {
       break;
     }
     case 'window-quit':
-      await captureNodeDraft().catch(() => {});
-      try {
-        await flushNodeDrafts();
-      } catch (e) {
-        modal(
-          '仍有节点草稿未保存',
-          e.message,
-          '<p>可以先关闭此提示，放弃当前草稿或在存档匣删除旧草稿腾出空间，再退出。已有磁盘草稿会保留。</p>',
-          act('window-quit-discard', '放弃未保存的节点编辑并退出', 'btn danger'),
-        );
-        break;
-      }
-      await Promise.all([...drafts.keys()].map(saveNote));
-      await call('window', 'quit');
+      if (await prepareQuit()) await call('window', 'quit');
       break;
     case 'window-quit-discard':
       await nodeDraftQueue.catch(() => {});
+      await journalDraftQueue.catch(() => {});
+      await intentDraftQueue.catch(() => {});
+      clearTimeout(journalDraftTimer);
+      clearTimeout(intentDraftTimer);
+      if (activeIntentEditor) activeIntentEditor.committed = true;
+      for (const editor of itineraryIntentEditors.values()) editor.committed = true;
+      pendingIntentDrafts.clear();
+      pendingJournalDrafts.clear();
       pendingNodeDrafts.clear();
       await Promise.all([...drafts.keys()].map(saveNote));
       await call('window', 'quit');
@@ -2046,21 +4817,19 @@ async function handle(action, id, target) {
       toast('中断记录已核对，自动保存保持关闭');
       break;
     }
-    case 'backup':
-      if (!state.settings.savePath) {
-        toast('请先在设置中连接存档目录', true);
-        route = 'settings';
-        render();
-        break;
-      }
+    case 'backup': {
+      if (!state.settings.savePath && !(await handle('choose-saves'))) break;
+      const place =
+        profile().stageConfirmed === false ? environment.recent?.mapName || '江湖进度' : stage().title;
       modal(
         '给这一刻留个名字',
         '先确认游戏内保存已经完成。将备份当前目录中的所有文件，并逐个校验。',
-        `<div class="field"><label for="backup-label">备份名称</label><input id="backup-label" maxlength="100" placeholder="例如：品剑大会前 / 北山村选择前" value="${esc(stage().title)} · ${new Date().toLocaleDateString('zh-CN')}"></div>`,
+        `<div class="field"><label for="backup-label">备份名称</label><input id="backup-label" maxlength="100" placeholder="例如：品剑大会前 / 北山村选择前" value="${esc(place.slice(0, 80))} · ${new Date().toLocaleDateString('zh-CN')}"></div>`,
         act('backup-confirm', '创建备份', 'btn primary', '', 'download'),
       );
       document.querySelector('#backup-label').select();
       break;
+    }
     case 'backup-confirm': {
       const label = document.querySelector('#backup-label').value;
       const result = await call('backup', label);
@@ -2118,6 +4887,16 @@ async function handle(action, id, target) {
       }
       break;
     }
+    case 'reconnect-detected': {
+      const result = await call('useDetectedSaves', id);
+      state = result.state;
+      environment = result.environment;
+      referenceSaveName = undefined;
+      referenceSave = null;
+      render(true);
+      toast('已重新连接存档');
+      return true;
+    }
     case 'choose-saves': {
       const result = await call('chooseSaves');
       if (!result.cancelled) {
@@ -2128,15 +4907,104 @@ async function handle(action, id, target) {
         render(true);
         toast('已连接存档目录');
       }
-      break;
+      return !result.cancelled;
     }
     case 'refresh':
       await refresh();
       toast('已刷新本机存档');
       break;
+    case 'backup-page':
+      backupView.page = Math.max(0, Number(id) || 0);
+      render(true);
+      break;
+    case 'historical-backup-page':
+      historyBackupView.page = Math.max(0, Number(id) || 0);
+      render(true);
+      break;
+    case 'backup-selection': {
+      const selected = new Set(backupView.selected);
+      if (selected.has(id)) selected.delete(id);
+      else {
+        if (selected.size >= 1000) throw Error('每批最多选择 1000 份，请先导出这一批');
+        selected.add(id);
+      }
+      backupView.selected = [...selected];
+      render(true);
+      break;
+    }
+    case 'backup-select-page': {
+      const filtered = backupViews.filtered(environment.backups, backupView);
+      const page = Math.min(backupView.page, Math.max(0, Math.ceil(filtered.length / 20) - 1));
+      const selected = new Set(backupView.selected);
+      for (const backup of filtered.slice(page * 20, page * 20 + 20)) selected.add(backup.id);
+      if (selected.size > 1000) throw Error('每批最多选择 1000 份，请先导出这一批');
+      backupView.selected = [...selected];
+      render(true);
+      break;
+    }
+    case 'backup-selection-clear':
+      backupView.selected = [];
+      render(true);
+      break;
+    case 'backup-lock':
+    case 'backup-unlock': {
+      const result = await call('lockBackup', id, action === 'backup-lock');
+      if (!result.cancelled) {
+        environment = result.environment;
+        render(true);
+        toast(result.locked ? '这份副本已锁定' : '这份副本已解锁，原件继续保留');
+      }
+      break;
+    }
+    case 'backup-cleanup-selected': {
+      await saveNote();
+      const ids = [...backupView.selected];
+      try {
+        const result = await call('cleanupBackups', ids);
+        if (result.environment) environment = result.environment;
+        if (!result.cancelled) {
+          backupView.selected = backupView.selected.filter((id) => !ids.includes(id));
+          toast('所选 ' + result.count + ' 份副本已导出留底并清理');
+        } else if (result.exported) toast('保护包已导出，所选本机副本继续保留');
+      } finally {
+        await refresh();
+      }
+      break;
+    }
+    case 'backup-cleanup-rollback':
+    case 'backup-cleanup-finish': {
+      try {
+        const result = await call(
+          'recoverBackupCleanup',
+          id,
+          action === 'backup-cleanup-rollback' ? 'rollback' : 'finish',
+        );
+        if (!result.cancelled) {
+          environment = result.environment;
+          toast(
+            result.phase === 'rolled-back'
+              ? '全部暂存副本已放回列表'
+              : '这批副本清理已完成，导出留底继续保留',
+          );
+        }
+      } finally {
+        await refresh();
+      }
+      break;
+    }
+    case 'backup-export-selected': {
+      await saveNote();
+      const ids = backupView.selected.filter((id) => environment.backups.some((b) => b.id === id));
+      const result = await call('exportSelectedBackups', ids);
+      if (!result.cancelled)
+        toast('所选 ' + result.backups.length + ' 份完整备份及手札已校验并导出，原件保留');
+      break;
+    }
     case 'auto-backup':
       await mutation({ type: 'settings', value: { autoBackup: !state.settings.autoBackup } });
-      toast(state.settings.autoBackup ? '自动备份已开启，运行期间每分钟检查' : '自动备份已关闭');
+      toast(
+        state.settings.autoBackup ? '完整自动备份已开启，立即检查存档，之后每分钟核对' : '自动备份已关闭',
+      );
       break;
     case 'spoiler':
       await mutation({
@@ -2151,18 +5019,215 @@ async function handle(action, id, target) {
       await call('openSource', id);
       break;
     case 'export': {
+      captureJournalDraft();
+      await flushJournalDrafts();
       await saveNote();
       const r = await call('exportJournal');
       if (!r.cancelled) toast('全部周目已导出');
       break;
     }
+    case 'protection-open':
+      await saveNote();
+      route = 'archives';
+      closeOverlay();
+      await loadProtectionList();
+      break;
+    case 'protection-history': {
+      const token = ++protectionRequest;
+      protectionView.error = '';
+      const history = await call('protectionHistory', id);
+      if (token !== protectionRequest) break;
+      protectionView.history = history;
+      protectionView.backupId = '';
+      protectionView.journalProfileId = '';
+      historyJournalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
+      protectionView.nodePage = 0;
+      route = 'archives';
+      render();
+      break;
+    }
+    case 'protection-backup-select':
+      protectionView.backupId = id;
+      render(true);
+      break;
+    case 'protection-archive-page':
+      protectionView.archivePage = Math.max(0, Number(id) || 0);
+      render(true);
+      break;
+    case 'protection-node-page':
+      protectionView.nodePage = Math.max(0, Number(id) || 0);
+      render(true);
+      break;
+    case 'protection-backup-inspect':
+    case 'protection-node-inspect': {
+      const history = protectionView.history;
+      if (!history) throw Error('请先打开离线档案');
+      const file = await call(
+        'protectionInspect',
+        history.id,
+        action === 'protection-backup-inspect' ? 'backup' : 'timeline',
+        action === 'protection-backup-inspect' ? protectionView.backupId : id,
+        action === 'protection-backup-inspect' ? id : undefined,
+      );
+      if (protectionView.history !== history || route !== 'archives') break;
+      showOverlay(protectionViews.preview(file), true);
+      break;
+    }
+    case 'protection-history-export': {
+      const result = await call('exportHistoricalProtection', id);
+      if (!result.cancelled)
+        toast(`历史保护包已校验 · ${result.backups.length} 份备份 · ${result.nodes} 个节点`);
+      break;
+    }
+    case 'protection-export': {
+      if (protectionView.exportResultOverride?.status === 'running') {
+        toast('正在导出全部保护资料，请等待本次操作完成。', true);
+        break;
+      }
+      const request = ++protectionExportRequest;
+      const previousResult = protectionView.exportResultOverride;
+      captureJournalDraft();
+      await flushJournalDrafts();
+      await saveNote();
+      if (request !== protectionExportRequest) break;
+      const attemptAt = Date.now();
+      protectionView.exportResultOverride = {
+        schema: 1,
+        status: 'running',
+        at: attemptAt,
+        file: '',
+        message: '本次完整导出正在选择、校验或生成中，尚未确认完成。',
+      };
+      render(true);
+      let result;
+      try {
+        result = await call('exportProtection');
+      } catch (error) {
+        if (request !== protectionExportRequest) break;
+        protectionView.exportResultOverride = error.exportResult || {
+          schema: 1,
+          status: 'failed',
+          at: Date.now(),
+          file: '',
+          code: error.code,
+          message: error.message,
+          backupId: error.backupId,
+          diagnostic: error.message,
+          published: !!error.published,
+          recordNotSaved: true,
+        };
+        render();
+        await refresh().catch(() => {});
+        if (request !== protectionExportRequest) break;
+        toast(
+          error.published
+            ? '保护包已生成，但结果记录未保存。请核对目标文件并查看诊断。'
+            : '完整导出未完成，请查看页面中的具体原因；原件仍保留。',
+          true,
+        );
+        break;
+      }
+      if (request !== protectionExportRequest) break;
+      protectionView.exportResultOverride = result.exportResult || (result.cancelled ? previousResult : null);
+      if (!result.cancelled) {
+        protectionView.omittedArchives = result.omittedArchives || [];
+        render(true);
+        await refresh();
+        if (request !== protectionExportRequest) break;
+        render(true);
+        toast(
+          `保护包已校验${result.volumes > 1 ? ' · ' + result.volumes + ' 卷，请完整带走分卷目录' : ''} · 本机 ${result.backups.length} 份完整备份 · ${result.nodes} 个节点${result.historicalArchives ? ` · ${result.historicalArchives} 份已校验历史档案` : ''}${result.omittedArchives?.length ? ` · 未包含 ${result.omittedArchives.length} 份异常历史档案，原件仍在本机` : ''}`,
+        );
+      } else render(true);
+      break;
+    }
+    case 'protection-import-volumes':
+    case 'protection-import': {
+      await saveNote();
+      const mode = action === 'protection-import-volumes' ? 'directory' : 'files';
+      let result;
+      try {
+        result = await call('importProtection', mode);
+      } catch (error) {
+        const checksum = error.code === 'PROTECTION_CHECKSUM_MISMATCH';
+        protectionView.importFailure = {
+          message: checksum
+            ? '保护包校验失败，文件可能损坏或没有复制完整。'
+            : error.code === 'PROTECTION_FORMAT_UNSUPPORTED'
+              ? '这不是逸剑手札保护包。请选择由“导出全部保护资料”生成的文件；若是分卷目录，请使用“导入分卷目录”。'
+              : error.code === 'PROTECTION_PACKAGE_TRUNCATED'
+                ? '保护包没有复制完整或已损坏，请重新复制完整原包；分卷需要带齐整个目录。'
+                : error.code === 'PROTECTION_METADATA_INVALID'
+                  ? '保护包里的资料清单损坏或不完整，请重新复制完整保护包。'
+                  : /[\u3400-\u9fff]/.test(error.message)
+                    ? error.message
+                    : '未能导入这份保护资料，请查看详情并核对文件。',
+          diagnostic: error.message,
+          mode,
+        };
+        route = 'archives';
+        render();
+        toast(protectionView.importFailure.message, true);
+        break;
+      }
+      if (!result.cancelled) {
+        protectionView.importFailure = null;
+        protectionView.archives = result.archives;
+        protectionView.retainedUnverifiedArchives = result.retainedUnverifiedArchives || [];
+        protectionView.loaded = true;
+        protectionView.history = await call('protectionHistory', result.id);
+        protectionView.backupId = '';
+        protectionView.journalProfileId = '';
+        historyJournalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
+        protectionView.nodePage = 0;
+        route = 'archives';
+        render();
+        toast(
+          `离线档案已保存${result.historicalArchives ? `，含 ${result.historicalArchives} 份以前的档案` : ''}${result.reusedArchives ? `；${result.reusedArchives} 份已存档案校验后沿用` : ''}${result.retainedUnverifiedArchives?.length ? `；${result.retainedUnverifiedArchives.length} 份未通过校验的旧档案原样保留，已另存可用档案` : ''}。当前手札与游戏进度未改动`,
+        );
+      }
+      break;
+    }
+    case 'protection-import-error-dismiss':
+      protectionView.importFailure = null;
+      render();
+      break;
+    case 'protection-use-journal': {
+      captureJournalDraft();
+      await flushJournalDrafts();
+      await saveNote();
+      const result = await call('useHistoricalJournal', id);
+      if (!result.cancelled) {
+        state = result.state;
+        await refresh();
+        toast('历史手札已使用，替换前的本机手札副本已保留');
+      }
+      break;
+    }
+    case 'protection-restore': {
+      const history = protectionView.history;
+      if (!history) throw Error('请先打开离线档案');
+      const result = await call('restoreHistoricalBackup', history.id, id);
+      if (!result.cancelled) {
+        environment = result.environment;
+        render(true);
+        toast('完整备份已恢复，恢复前的完整进度已保留');
+      }
+      break;
+    }
     case 'import': {
+      captureJournalDraft();
+      await flushJournalDrafts();
       await saveNote();
       const r = await call('importJournal');
       if (!r.cancelled) {
         state = r.state;
         render();
-        toast('手札已导入，原记录副本已保留');
+        toast(
+          r.resetReferences
+            ? `手札已导入，原记录副本已保留；${r.resetReferences} 个周目已改为跟随最新存档，可在周目管理重新选择参照`
+            : '手札已导入，原记录副本已保留',
+        );
       }
       break;
     }
@@ -2195,11 +5260,31 @@ async function handle(action, id, target) {
       await call('window', 'maximize');
       break;
     case 'window-close':
+      captureJournalDraft();
+      await flushJournalDrafts();
       await saveNote();
       await call('window', 'close');
       break;
   }
 }
+document.addEventListener('submit', async (event) => {
+  if (
+    !['journal-entry-form', 'journal-filter-form', 'historical-journal-filter-form'].includes(event.target.id)
+  )
+    return;
+  event.preventDefault();
+  try {
+    await handle(
+      event.target.id === 'journal-entry-form'
+        ? 'journal-entry-save'
+        : event.target.id === 'historical-journal-filter-form'
+          ? 'historical-journal-filter'
+          : 'journal-filter',
+    );
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
 document.addEventListener('click', async (event) => {
   const target = event.target.closest('[data-action]');
   if (!target) {
@@ -2209,6 +5294,8 @@ document.addEventListener('click', async (event) => {
   if (target.disabled) return;
   const action = target.dataset.action,
     id = target.dataset.id;
+  if (currentDrawer?.type === 'search' && target.classList.contains('search-result'))
+    currentDrawer.selection = { action, id };
   const lock = ![
     'detail',
     'search',
@@ -2221,7 +5308,6 @@ document.addEventListener('click', async (event) => {
     'goal-add',
     'goal-edit',
     'profiles',
-    'backup',
   ].includes(action);
   if (lock) target.disabled = true;
   try {
@@ -2233,6 +5319,64 @@ document.addEventListener('click', async (event) => {
   }
 });
 document.addEventListener('input', (event) => {
+  if (event.target.hasAttribute('data-journey-trash-query') && !event.isComposing && !composing) {
+    if (event.target.dataset.journeyTrashQuery === 'history')
+      historicalJourneyTrashViews.set(event.target.dataset.profileId, { query: event.target.value, page: 1 });
+    else Object.assign(journeyTrashView, { query: event.target.value, page: 1 });
+    render(true);
+    return;
+  }
+  if (event.target.closest('.personal-intent-editor')) captureIntentEditor(activeIntentEditor);
+  if (
+    ['journal-trash-query', 'historical-journal-trash-query'].includes(event.target.id) &&
+    !event.isComposing &&
+    !composing
+  ) {
+    const view = event.target.id.startsWith('historical-') ? historyJournalView : journalView;
+    view.trashQuery = event.target.value;
+    view.trashPage = 1;
+    render(true);
+    return;
+  }
+  if (event.target.hasAttribute('data-itinerary-draft')) {
+    itineraryFormDrafts.set(itineraryDraftKey(event.target.id), event.target.value);
+    captureIntentEditor(itineraryIntentEditors.get(intentEditorKey(event.target.id)));
+    return;
+  }
+  if (event.target.id === 'recipe-discovery-search' && !event.isComposing && !composing) {
+    recipeDiscoveryView.options.query = event.target.value;
+    recipeDiscoveryView.options.page = 1;
+    clearTimeout(recipeDiscoveryTimer);
+    recipeDiscoveryTimer = setTimeout(() => refreshRecipeDiscovery(), 250);
+    return;
+  }
+  if (event.target.matches('[data-recipe-discovery-quantity]')) {
+    if (event.target.checkValidity()) {
+      recipeDiscoveryView.options.quantities[event.target.dataset.recipeDiscoveryQuantity] = Number(
+        event.target.value,
+      );
+      clearTimeout(recipeDiscoveryTimer);
+      recipeDiscoveryTimer = setTimeout(() => refreshRecipeDiscovery(), 250);
+    }
+    return;
+  }
+  if (event.target.id === 'journey-place-search') {
+    refreshPlacePicker();
+    return;
+  }
+  if (['journey-person-search', 'journey-item-search'].includes(event.target.id)) {
+    refreshGiftPicker(event.target.id === 'journey-person-search' ? 'person' : 'item');
+    return;
+  }
+  if (event.target.closest('#journal-entry-form') && event.target.id !== 'journal-reference-query') {
+    captureJournalDraft();
+    return;
+  }
+  if (event.target.id === 'journey-search' && !event.isComposing && !composing) {
+    journeyView.query = event.target.value;
+    render(true);
+    return;
+  }
   if (['timeline-label', 'timeline-note'].includes(event.target.id)) {
     captureNodeDraft();
     return;
@@ -2243,8 +5387,26 @@ document.addEventListener('input', (event) => {
     render(true);
     return;
   }
+  if (event.target.id === 'journal-reference-query' && !event.isComposing && !composing) {
+    const results = document.querySelector('#journal-reference-results');
+    if (results)
+      results.innerHTML = eventJournalViews.referenceResults(profile(), journalIndex(), event.target.value);
+    return;
+  }
+  if (
+    ['backup-search', 'historical-backup-search'].includes(event.target.id) &&
+    !event.isComposing &&
+    !composing
+  ) {
+    const view = event.target.id === 'backup-search' ? backupView : historyBackupView;
+    view.query = event.target.value;
+    view.page = 0;
+    render(true);
+    return;
+  }
   if (event.target.id === 'craft-search' && !event.isComposing && !composing) {
     materialView.query = event.target.value;
+    materialView.searchPage = 0;
     render(true);
     return;
   }
@@ -2301,7 +5463,8 @@ document.addEventListener('input', (event) => {
     databasePage = 0;
     render(true);
   }
-  if (event.target.id === 'global-search') showSearchResults(event.target.value);
+  if (event.target.id === 'global-search' && !event.isComposing && !composing)
+    showSearchResults(event.target.value);
   if (['shortcut-save', 'shortcut-history'].includes(event.target.id))
     shortcutDrafts[event.target.id.slice(9)] = event.target.value;
   if (event.target.id === 'timeline-search' && !event.isComposing && !composing) {
@@ -2315,6 +5478,18 @@ document.addEventListener('compositionstart', () => {
 });
 document.addEventListener('compositionend', (event) => {
   composing = false;
+  captureIntentDrafts();
+  if (event.target.hasAttribute('data-journey-trash-query')) {
+    if (event.target.dataset.journeyTrashQuery === 'history')
+      historicalJourneyTrashViews.set(event.target.dataset.profileId, { query: event.target.value, page: 1 });
+    else Object.assign(journeyTrashView, { query: event.target.value, page: 1 });
+  }
+  if (['journal-trash-query', 'historical-journal-trash-query'].includes(event.target.id)) {
+    const view = event.target.id.startsWith('historical-') ? historyJournalView : journalView;
+    view.trashQuery = event.target.value;
+    view.trashPage = 1;
+  }
+  if (event.target.id === 'global-search') showSearchResults(event.target.value);
   if (event.target.id === 'world-search') {
     worldView.query = event.target.value;
     worldView.page = 0;
@@ -2328,6 +5503,54 @@ document.addEventListener('compositionend', (event) => {
   render(true);
 });
 document.addEventListener('change', async (event) => {
+  if (event.target.closest('.personal-intent-editor')) captureIntentEditor(activeIntentEditor);
+  if (event.target.hasAttribute('data-itinerary-draft')) {
+    itineraryFormDrafts.set(itineraryDraftKey(event.target.id), event.target.value);
+    captureIntentEditor(itineraryIntentEditors.get(intentEditorKey(event.target.id)));
+    return;
+  }
+  if (event.target.id === 'recipe-discovery-craft') {
+    await refreshRecipeDiscovery({ craft: event.target.value, page: 1 });
+    return;
+  }
+  if (event.target.id === 'recipe-discovery-learned') {
+    await refreshRecipeDiscovery({ learned: event.target.value, page: 1 });
+    return;
+  }
+  if (event.target.id === 'recipe-discovery-target-plan') {
+    recipeDiscoveryView.targetPlanId = event.target.value;
+    render(true);
+    return;
+  }
+  if (event.target.id === 'journey-place' && journeyDraft?.placePicker) {
+    journeyDraft.placePicker.selectedId = event.target.value;
+    refreshPlacePicker(journeyDraft.placePicker.page);
+    return;
+  }
+  if (
+    [
+      'journey-person',
+      'journey-item',
+      'journey-item-quality',
+      'journey-item-preferred',
+      'journey-item-stock',
+    ].includes(event.target.id)
+  ) {
+    const kind = event.target.id === 'journey-person' ? 'person' : 'item';
+    if (journeyDraft?.giftPicker?.[kind] && ['journey-person', 'journey-item'].includes(event.target.id))
+      journeyDraft.giftPicker[kind].selectedId = event.target.value;
+    refreshGiftPicker(kind, journeyDraft?.giftPicker?.[kind]?.page);
+    if (kind === 'person') refreshGiftPicker('item');
+    return;
+  }
+  const backupFilter = /^(historical-backup|backup)-(kind|from|to|lock)$/.exec(event.target.id);
+  if (backupFilter) {
+    const view = backupFilter[1] === 'backup' ? backupView : historyBackupView;
+    view[backupFilter[2]] = event.target.value;
+    view.page = 0;
+    render(true);
+    return;
+  }
   if (['companion-position', 'companion-opacity'].includes(event.target.id)) {
     const value =
       event.target.id === 'companion-position'
@@ -2361,7 +5584,7 @@ document.addEventListener('change', async (event) => {
     }
     return;
   }
-  if (event.target.id === 'person-save') {
+  if (['person-save', 'item-save'].includes(event.target.id)) {
     referenceFollow = event.target.value === '@latest';
     referenceSaveName = referenceFollow ? latestReference() : event.target.value;
     referenceSave = null;
@@ -2460,6 +5683,21 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (overlay.querySelector('#global-search')) {
+    if (event.target.id === 'global-search' && searchSuggestions.length) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        searchSuggestionIndex =
+          (searchSuggestionIndex + (event.key === 'ArrowDown' ? 1 : -1) + searchSuggestions.length) %
+          searchSuggestions.length;
+        renderSearchSuggestions();
+        return;
+      }
+      if (event.key === 'Enter' || (event.key === 'Tab' && !event.shiftKey)) {
+        event.preventDefault();
+        applySearchSuggestion(searchSuggestions[Math.max(0, searchSuggestionIndex)]);
+        return;
+      }
+    }
     const results = [...overlay.querySelectorAll('.search-result')];
     const index = results.indexOf(document.activeElement);
     if (event.key === 'ArrowDown' && results.length) {
@@ -2510,6 +5748,13 @@ document.addEventListener('keydown', (event) => {
 });
 let escapeCollapse = false;
 document.addEventListener('keyup', (event) => {
+  if (
+    event.target.id === 'global-search' &&
+    ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key) &&
+    !event.isComposing &&
+    !composing
+  )
+    showSearchResults(event.target.value);
   if (compact && event.key === 'Escape') {
     event.preventDefault();
     if (escapeCollapse) {
@@ -2519,11 +5764,18 @@ document.addEventListener('keyup', (event) => {
   }
 });
 window.addEventListener('beforeunload', (event) => {
-  if (drafts.size || pendingNodeDrafts.size) {
-    const quitting = environment?.health?.quitting;
+  captureJournalDraft();
+  captureIntentDrafts();
+  if (drafts.size || pendingNodeDrafts.size || pendingJournalDrafts.size || pendingIntentDrafts.size) {
+    const quitting = quitIntent;
     event.preventDefault();
     event.returnValue = false;
-    Promise.all([flushNodeDrafts(), ...[...drafts.keys()].map((id) => saveNote(id))])
+    Promise.all([
+      flushNodeDrafts(),
+      flushJournalDrafts(),
+      flushIntentDrafts(),
+      ...[...drafts.keys()].map((id) => saveNote(id)),
+    ])
       .then(() => call('window', quitting ? 'quit' : 'close'))
       .catch((e) => {
         toast('退出前草稿未保存：' + e.message, true);
@@ -2552,16 +5804,19 @@ try {
     const currentId = state.activeProfileId;
     const currentSlot = profile().saveSlot || '';
     const currentPath = state.settings.savePath;
-    const currentBasket = JSON.stringify([profile().craftList || [], profile().reservations || {}]);
+    const currentBasket = planningIntentSignature();
     const currentMode = profile().referenceMode;
     state = next;
+    const intentsChanged = currentBasket !== planningIntentSignature();
     if (compact) {
       companionData = null;
       ++companionRequest;
       refreshCompanion().catch(() => {});
     }
-    if (currentBasket !== JSON.stringify([profile().craftList || [], profile().reservations || {}]))
+    if (intentsChanged) {
       invalidateMaterials();
+      invalidateRecipeDiscovery();
+    }
     if (
       currentId !== state.activeProfileId ||
       currentSlot !== (profile().saveSlot || '') ||
@@ -2569,27 +5824,55 @@ try {
       currentPath !== state.settings.savePath
     ) {
       resetPlanningViews();
-      if (currentId !== state.activeProfileId) closeOverlay();
+      if (currentId !== state.activeProfileId) {
+        closeOverlay();
+        journeyDraft = null;
+        journeyView = { query: '', place: '', completed: false };
+        journeyTrashView = { open: false, query: '', page: 1 };
+        journeyTrashConfirmation = null;
+      }
       referenceSaveName = undefined;
       referenceSave = null;
       environment.recent = null;
       refresh().catch((e) => toast(e.message, true));
-    }
+    } else if (intentsChanged) refresh().catch((e) => toast(e.message, true));
     render(true);
   });
   api.onEvent((event) => {
+    if (event.type === 'protection') {
+      protectionView.busy = event.busy;
+      protectionView.label = event.label;
+      render(true);
+    }
     if (event.type === 'health') updateHealth(event.health);
     if (event.type === 'error') toast(event.text, true);
     if (document.hidden && event.type !== 'error') return;
     if (['backup', 'error', 'auto-status', 'timeline', 'operation'].includes(event.type))
       refresh().catch((e) => toast(e.message, true));
   });
+  api.onQuitRequested(({ cancelled }) => {
+    quitIntent = !cancelled;
+    if (cancelled) {
+      const discard = document.querySelector('[data-action="window-quit-discard"]');
+      if (discard) discard.disabled = false;
+    }
+    return cancelled ? false : prepareQuit();
+  });
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) refresh().catch((e) => toast(e.message, true));
   });
   api.onAction(async ({ action }) => {
     if (action === 'hide') {
-      closeOverlay();
+      captureJournalDraft();
+      captureIntentDrafts();
+      try {
+        await flushJournalDrafts();
+        await flushIntentDrafts();
+        closeOverlay();
+      } catch (error) {
+        await call('window', 'main');
+        toast('草稿未保存，编辑窗口已保留：' + error.message, true);
+      }
       return;
     }
     closeOverlay();
@@ -2617,7 +5900,7 @@ try {
         .then(updateHealth)
         .catch(() => {});
     if (
-      ['home', 'saves', 'world', 'materials', 'database'].includes(route) &&
+      ['home', 'saves', 'world', 'materials', 'database', 'journey', 'recipe-discovery'].includes(route) &&
       (!compact || route !== 'home') &&
       !document.hidden &&
       (currentDrawer || !document.activeElement?.matches('select,input,textarea'))

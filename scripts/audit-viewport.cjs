@@ -2,9 +2,7 @@
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
-const {
-  _electron,
-} = require('playwright');
+const { _electron } = require('playwright');
 const base = path.resolve(__dirname, '..');
 const data = fs.mkdtempSync(path.join(base, '.test-data', 'viewport-'));
 const report = { startedAt: new Date().toISOString(), layouts: [], errors: [] };
@@ -32,6 +30,8 @@ let app;
         'database',
         'world',
         'materials',
+        'journey',
+        'journal',
         'goals',
         'saves',
         'settings',

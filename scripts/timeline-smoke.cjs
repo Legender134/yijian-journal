@@ -7,7 +7,7 @@ const {
 } = require('playwright');
 const { Store } = require('../src/core/store.cjs'),
   { Timeline } = require('../src/core/timeline.cjs'),
-  { sha } = require('../src/core/saves.cjs');
+  { Saves, sha } = require('../src/core/saves.cjs');
 const { syntheticSave } = require('../tests/fixtures.cjs'),
   catalog = require('../src/data/catalog.cjs');
 const index = require('../src/data/game-index.json');
@@ -118,13 +118,15 @@ let app;
     await win.locator('#list-search').fill('卫霍');
     assert.equal(await win.locator('.database-card h3 .quality-text').count(), 0);
     assert.equal(sha(fs.readFileSync(path.join(source, '29.sav'))), before);
-    assert.equal(
-      fs.readdirSync(path.join(data, 'save-backups')).length,
-      0,
-      'native timeline suppresses full automatic copies',
-    );
+    const backups = new Saves(path.join(data, 'save-backups'));
+    assert.equal(backups.list().length, 1, 'native waiting retains one full automatic copy');
+    assert.equal(sha(backups.verify(backups.list()[0].id).buffers.get('29.sav')), before);
+    const health = (await win.evaluate(() => window.journal.health())).data;
+    assert.equal(health.timeline.enabled, true);
+    assert.equal(health.timeline.connected, false);
+    assert.equal(health.backupStatus, 'watching');
     report.checks.push(
-      'preview lease releases on close; complete automatic backups paused while native timeline is enabled',
+      'preview lease releases on close; disconnected native timeline retains a verified full backup without changing slot 29',
     );
     assert.deepEqual(report.errors, []);
     assert.deepEqual(report.externalRequests, []);

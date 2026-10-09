@@ -7,7 +7,7 @@ const {
 } = require('playwright');
 const { Store } = require('../src/core/store.cjs'),
   { Timeline } = require('../src/core/timeline.cjs'),
-  { sha } = require('../src/core/saves.cjs');
+  { Saves, sha } = require('../src/core/saves.cjs');
 const { syntheticSave } = require('../tests/fixtures.cjs'),
   catalog = require('../src/data/catalog.cjs');
 const base = path.resolve(__dirname, '..'),
@@ -69,7 +69,15 @@ let app, child;
       if (/^https?:/.test(r.url())) report.externalRequests.push(r.url());
     });
     await win.locator('.layout').waitFor();
-    assert.ok((await win.locator('.save-health').first().innerText()).includes('等待游戏连接'));
+    await win.locator('.save-health').first().filter({ hasText: '完整备份守护中' }).waitFor();
+    const backups = new Saves(path.join(data, 'save-backups'));
+    assert.equal(backups.list().length, 1);
+    assert.equal(sha(backups.verify(backups.list()[0].id).buffers.get('29.sav')), before);
+    const health = (await win.evaluate(() => window.journal.health())).data;
+    assert.equal(health.timeline.enabled, true);
+    assert.equal(health.timeline.connected, false);
+    assert.equal(health.backupStatus, 'watching');
+    assert.match(health.protection.reason, /等待连接.*仍会自动备份/);
     await win.locator('.nav-btn[data-id="saves"]').click();
     assert.equal(await win.locator('[data-action="timeline-target"]').count(), 11);
     assert.ok(
@@ -113,7 +121,7 @@ let app, child;
       '27 retained nodes, paging past 12, search, rename escaping, bookmark toggle, saved-progress differences, pre-load return',
     );
     await win.locator('.nav-btn[data-id="settings"]').click();
-    assert.ok((await win.locator('.content').innerText()).includes('已暂停 · 时间线正在接管'));
+    assert.ok((await win.locator('.content').innerText()).includes('正在检查变化'));
     await win.locator('#shortcut-save').fill('Ctrl+Alt+J');
     await win.locator('[data-action="shortcuts-save"]').click();
     await win.locator('.toast').filter({ hasText: '已用于随行小窗' }).waitFor();

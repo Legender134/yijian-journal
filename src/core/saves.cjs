@@ -6,12 +6,19 @@ const { readMetadata } = require('./save-reader.cjs');
 const { enrich } = require('./game-data.cjs');
 const { compareRecords } = require('./save-comparison.cjs');
 const { atomicWrite } = require('./store.cjs');
+const {
+  validBackupId,
+  backupDirectory,
+  backupDirectories,
+  readBackupManifest,
+  anomaly,
+} = require('./backup-anomalies.cjs');
 const MAX_TOTAL = 256 * 1024 * 1024;
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const normalize = (p) => path.resolve(p).toLowerCase();
 const isWithin = (child, parent) =>
   normalize(child) === normalize(parent) || normalize(child).startsWith(normalize(parent) + path.sep);
-const validId = (id) => typeof id === 'string' && /^[0-9T-]+_[a-f0-9-]{36}$/.test(id);
+const validId = validBackupId;
 const validName = (name) =>
   typeof name === 'string' &&
   name.length > 0 &&
@@ -166,30 +173,10 @@ class Saves {
     return compareRecords(records[0], records[1]);
   }
   list() {
-    return fs
-      .readdirSync(this.root, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && /^[0-9T-]+_[a-f0-9-]{36}$/.test(d.name))
-      .map((d) => {
+    return backupDirectories(this.root)
+      .map((id) => {
         try {
-          const dir = realDirectory(path.join(this.root, d.name)),
-            file = path.join(dir, 'manifest.json'),
-            stat = fs.lstatSync(file);
-          if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) return null;
-          const m = JSON.parse(fs.readFileSync(file, 'utf8'));
-          if (
-            m.schema !== 1 ||
-            m.id !== d.name ||
-            !Array.isArray(m.files) ||
-            m.files.length < 1 ||
-            m.files.length > 1000 ||
-            typeof m.label !== 'string' ||
-            m.label.length > 100 ||
-            typeof m.createdAt !== 'string' ||
-            Number.isNaN(Date.parse(m.createdAt)) ||
-            typeof m.source !== 'string' ||
-            m.files.some((f) => !Number.isSafeInteger(f.bytes) || f.bytes < 0)
-          )
-            return null;
+          const m = readBackupManifest(this.root, id);
           return {
             id: m.id,
             label: m.label,
@@ -198,6 +185,8 @@ class Saves {
             bytes: m.files.reduce((s, f) => s + f.bytes, 0),
             source: m.source,
             kind: m.kind,
+            locked: m.locked === true || (m.kind === 'safety' && m.locked !== false),
+            verificationError: this.checkResult(m.id)?.error || '',
           };
         } catch {
           return null;
@@ -205,6 +194,54 @@ class Saves {
       })
       .filter(Boolean)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+  anomalies() {
+    return backupDirectories(this.root).flatMap((id) => {
+      try {
+        readBackupManifest(this.root, id);
+        return [];
+      } catch (error) {
+        return [anomaly(this.root, id, error)];
+      }
+    });
+  }
+  directory(id) {
+    return backupDirectory(this.root, id);
+  }
+  checkResult(id) {
+    if (!validId(id)) throw Error('备份编号无效');
+    const dir = realDirectory(path.join(this.root, id)),
+      file = path.join(dir, 'verification.json');
+    if (!fs.existsSync(file)) return null;
+    try {
+      const stat = fs.lstatSync(file);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) throw Error('invalid verification');
+      const result = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (
+        result.schema !== 1 ||
+        !Number.isSafeInteger(result.at) ||
+        typeof result.error !== 'string' ||
+        result.error.length > 600
+      )
+        throw Error('invalid verification');
+      return result;
+    } catch {
+      return { error: '上次的校验结果无法读取，请重新校验副本。' };
+    }
+  }
+  recordCheck(id, error = '') {
+    if (!validId(id)) throw Error('备份编号无效');
+    const dir = realDirectory(path.join(this.root, id));
+    const file = path.join(dir, 'verification.json');
+    for (const target of [file, file + '.previous']) {
+      try {
+        const stat = fs.lstatSync(target);
+        if (!stat.isFile() || stat.isSymbolicLink()) throw Error('校验记录不支持链接文件');
+      } catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+      }
+    }
+    atomicWrite(file, { schema: 1, at: Date.now(), error: String(error).slice(0, 600) });
   }
   capture(source, label = '手动备份', kind = 'manual') {
     if (this.busy) throw new Error('存档操作进行中，请稍后重试');
@@ -264,22 +301,9 @@ class Saves {
   }
   verify(id) {
     if (!validId(id)) throw new Error('备份编号无效');
-    const dir = realDirectory(path.join(this.root, id));
+    const dir = this.directory(id);
     if (!isWithin(dir, fs.realpathSync(this.root))) throw new Error('备份路径无效');
-    const manifestFile = path.join(dir, 'manifest.json'),
-      manifestStat = fs.lstatSync(manifestFile);
-    if (!manifestStat.isFile() || manifestStat.isSymbolicLink() || manifestStat.size > 1024 * 1024)
-      throw new Error('备份清单异常');
-    const m = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
-    if (
-      m.schema !== 1 ||
-      m.id !== id ||
-      !Array.isArray(m.files) ||
-      !m.files.length ||
-      m.files.length > 1000 ||
-      typeof m.source !== 'string'
-    )
-      throw new Error('备份清单损坏');
+    const m = readBackupManifest(this.root, id);
     const seen = new Set();
     let total = 0;
     const buffers = new Map();
@@ -512,7 +536,12 @@ class Saves {
           }
         : null;
     } catch (e) {
-      return { pending: true, error: e.message };
+      return {
+        pending: true,
+        error: '上次的存档恢复记录无法读取，已暂停存档写入。',
+        diagnostic: e.message,
+        recordPath: this.operationFile,
+      };
     }
   }
   _rollback(op, checkGameStopped) {

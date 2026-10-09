@@ -25,6 +25,7 @@ fs.writeFileSync(
     quests: [
       { id: 5200, step: 1 },
       { id: 5201, step: 1 },
+      { id: 11077, step: 1 },
       { id: 5176, step: 4, finished: 1781822869 },
     ],
   }),
@@ -33,6 +34,7 @@ fs.writeFileSync(path.join(fakeSaves, 'JHSaveConfig.sav'), 'fake config');
 fs.writeFileSync(path.join(fakeSaves, '2.sav'), syntheticSave({ full: true, seconds: 7200 }));
 fs.utimesSync(path.join(fakeSaves, '2.sav'), new Date('2025-01-01'), new Date('2025-01-01'));
 new Store(data, catalog).setPath('savePath', fakeSaves);
+const originalSave = fs.readFileSync(path.join(fakeSaves, '1.sav'));
 const errors = [];
 let app;
 async function launch() {
@@ -55,6 +57,36 @@ async function attach() {
   try {
     app = await launch();
     let win = await attach();
+    assert.equal(await win.locator('.start-panel').count(), 1);
+    assert.equal(await win.locator('.start-panel details').evaluate((el) => el.open), false);
+    assert.equal(await win.locator('[data-persist-detail="home-stage"]').evaluate((el) => el.open), false);
+    await win.locator('.start-panel summary').click();
+    await win.locator('[data-action="refresh"]').click();
+    assert.equal(await win.locator('.start-panel details').evaluate((el) => el.open), true);
+    await win.locator('.start-panel summary').click();
+    const firstUse = await win.evaluate(async () => (await window.journal.bootstrap()).data);
+    assert.equal(firstUse.state.settings.autoBackup, true);
+    assert.equal(firstUse.state.profiles[0].referenceMode, 'latest');
+    assert.equal(firstUse.environment.timeline.enabled, false);
+    const deniedStart = await win.evaluate(() => window.journal.startAssistance());
+    assert.equal(deniedStart.ok, false);
+    assert.match(deniedStart.error, /测试环境/);
+    await win.waitForFunction(() =>
+      document.querySelector('.home-protection')?.textContent.includes('1 份完整保护副本'),
+    );
+    const automatic = (await win.evaluate(async () => (await window.journal.refresh()).data.backups)).find(
+      (b) => b.kind === 'auto',
+    );
+    assert.ok(automatic);
+    await win.waitForFunction(() =>
+      document.querySelector('.save-health')?.textContent.includes('完整备份守护中'),
+    );
+    assert.match(await win.locator('.save-health').first().getAttribute('title'), /游戏内自动存档尚未开启/);
+    assert.deepEqual(fs.readFileSync(path.join(fakeSaves, '1.sav')), originalSave);
+    assert.deepEqual(
+      fs.readFileSync(path.join(data, 'save-backups', automatic.id, 'files', '1.sav')),
+      originalSave,
+    );
     await win.screenshot({ animations: 'disabled', path: path.join(results, '01-home.png') });
     await win.locator('[data-action="save-slot"]').click();
     await win.locator('#save-slot-select').selectOption('2.sav');
@@ -81,6 +113,12 @@ async function attach() {
     await win.locator('#goal-detail').fill('目标说明 & 特殊字符');
     await win.locator('[data-action="goal-save"]').click();
     await win.locator('.nav-btn[data-id="checklist"]').click();
+    assert.equal(await win.locator('.entry-row').count(), catalog.entries.filter((e) => e.checklist).length);
+    assert.equal(await win.locator('[data-action="filter"].active').getAttribute('data-id'), 'all');
+    assert.equal(await win.locator('.stage-step.active').count(), 0);
+    await win.locator('[data-action="filter"][data-id="current"]').click();
+    await win.locator('#stage-select').waitFor();
+    await win.keyboard.press('Escape');
     await win.locator('[data-action="check"]').first().click();
     await win.locator('.nav-btn[data-id="library"]').click();
     await win.locator('#list-search').fill('上官虹');
@@ -95,6 +133,15 @@ async function attach() {
     await win.locator('.nav-btn[data-id="goals"]').click();
     await win.locator('[data-action="entry-goal"]').first().click();
     await win.locator('.nav-btn[data-id="database"]').click();
+    await win.locator('[data-action="database-kind"][data-id="配方"]').click();
+    await win.locator('#list-search').fill('清灵丹');
+    await win.locator('[data-action="database-kind"][data-id="武学"]').click();
+    assert.equal(await win.locator('.database-card').count(), 0);
+    await win.locator('[data-action="database-reset"]').click();
+    assert.equal(await win.locator('#list-search').inputValue(), '');
+    assert.equal(await win.locator('#list-search').evaluate((e) => e === document.activeElement), true);
+    assert.ok(await win.locator('.database-card').count());
+    await win.locator('[data-action="database-kind"][data-id="物品"]').click();
     await win.locator('#list-search').fill('铁矿石');
     await win.locator('.database-card[data-id="item-10201"]').click();
     assert.ok((await win.locator('.drawer').innerText()).includes('梧桐村'));
@@ -158,6 +205,11 @@ async function attach() {
     assert.ok((await win.locator('.drawer').innerText()).includes('茶具'));
     await win.locator('[data-action="close-overlay"]').click();
     await win.locator('.nav-btn[data-id="saves"]').click();
+    assert.equal(await win.locator('[data-persist-detail="unused-timeline"]').evaluate((e) => e.open), false);
+    await win.locator('[data-persist-detail="unused-timeline"] > summary').click();
+    await win.locator('[data-action="refresh"]').click();
+    assert.equal(await win.locator('[data-persist-detail="unused-timeline"]').evaluate((e) => e.open), true);
+    await win.locator('[data-persist-detail="unused-timeline"] > summary').click();
     await win.locator('[data-action="backup"]').first().click();
     await win.locator('#backup-label').fill('测试备份');
     await win.locator('[data-action="backup-confirm"]').click();
@@ -170,7 +222,7 @@ async function attach() {
     await win.locator('[data-action="backup-rename"]').click();
     await win.locator('#rename-backup').fill('改名后的测试副本');
     await win.locator('[data-action="backup-rename-save"]').click();
-    assert.ok((await win.locator('.backup-row').innerText()).includes('改名后的测试副本'));
+    assert.equal(await win.locator('.backup-row').filter({ hasText: '改名后的测试副本' }).count(), 1);
     await win.locator('[data-action="save-detail"]').first().click();
     await win.locator('.save-drawer').waitFor();
     assert.ok((await win.locator('.save-drawer').innerText()).includes('卫霍'));
@@ -211,6 +263,18 @@ async function attach() {
     await quick.locator('.timeline-card').first().waitFor();
     await quick.screenshot({ animations: 'disabled', path: path.join(results, '05-compact-history.png') });
     await quick.locator('[data-action="navigate"][data-id="home"]').click();
+    const automaticTasks = await quick.evaluate(
+      async () => (await window.journal.companionSnapshot()).data.quests,
+    );
+    assert.ok(automaticTasks.length);
+    assert.equal(automaticTasks[0].id, 11077);
+    assert.equal(
+      await quick.locator('.compact-goal [data-action="save-quest-jump"]').first().getAttribute('data-id'),
+      '11077',
+    );
+    await quick.locator('.compact-goal [data-action="save-quest-jump"]').first().click();
+    await quick.locator('.save-recorded-quests').waitFor();
+    await quick.locator('[data-action="close-overlay"]').click();
     // Renderer presentation under a synthetic passive-mode event; controller focus/input
     // and native identity boundaries are separately tested without any game access.
     await app.evaluate(({ BrowserWindow }) => {
@@ -293,6 +357,8 @@ async function attach() {
       path.join(fakeSaves, '1.sav'),
       syntheticSave({ full: true, inventory: [{ id: 10226, count: 99 }] }),
     );
+    const stableInventoryAt = new Date(Date.now() - 5000);
+    fs.utimesSync(path.join(fakeSaves, '1.sav'), stableInventoryAt, stableInventoryAt);
     await recipeGoal.locator('[data-action="goal-source"]').click();
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
     assert.equal(await win.locator('#recipe-save').inputValue(), '@latest');
@@ -330,12 +396,141 @@ async function attach() {
     await win.keyboard.press('Enter');
     await win.locator('.drawer').waitFor();
     assert.ok((await win.locator('.drawer h1').innerText()).includes('司马铃'));
+    await win.locator('[data-action="drawer-back"]').click();
+    assert.equal(await win.locator('#global-search').inputValue(), '司马铃');
+    assert.equal(
+      await win
+        .locator('.search-result')
+        .first()
+        .evaluate((e) => e === document.activeElement),
+      true,
+    );
+    await win.keyboard.press('Enter');
+    await win.locator('.drawer').waitFor();
+    await win.keyboard.press('Escape');
+    await win.keyboard.press('Control+k');
+    assert.equal(await win.locator('#global-search').inputValue(), '司马铃');
     await win.keyboard.press('Escape');
     // Compact-width and minimum-window layout checks.
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 700));
     await win.screenshot({ animations: 'disabled', path: path.join(results, '06-small-window.png') });
     const overflow = await win.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     assert.equal(overflow, false);
+    await win.locator('.nav-btn[data-id="home"]').click();
+    // Supply a supported-game display fixture; native IPC remains blocked by the isolated test mode.
+    const launchDisplay = (await win.evaluate(() => window.journal.bootstrap())).data;
+    launchDisplay.environment.game = { installed: true, build: launchDisplay.gameIndex.build };
+    launchDisplay.environment.timeline.pathIssue =
+      '存档目录包含原生组件不支持的路径格式，查询和完整自动备份可继续使用';
+    await app.evaluate(({ ipcMain }, fixture) => {
+      ipcMain.removeHandler('journal:bootstrap');
+      ipcMain.handle('journal:bootstrap', () => ({ ok: true, data: fixture }));
+    }, launchDisplay);
+    await win.reload();
+    await win.waitForSelector('.start-panel');
+    assert.equal(await win.locator('.start-panel .btn.primary').getAttribute('data-action'), 'launch');
+    assert.equal(await win.locator('.start-panel [data-action="start-assistance"]').count(), 0);
+    await win.locator('.start-panel summary').click();
+    assert.match(
+      await win.locator('.start-panel details').innerText(),
+      /不支持的路径格式.*查询和完整自动备份可继续使用/,
+    );
+    launchDisplay.environment.timeline.pathIssue = '';
+    await app.evaluate(({ ipcMain }, fixture) => {
+      ipcMain.removeHandler('journal:bootstrap');
+      ipcMain.handle('journal:bootstrap', () => ({ ok: true, data: fixture }));
+    }, launchDisplay);
+    await win.reload();
+    await win.waitForSelector('.start-panel');
+    assert.equal(
+      await win.locator('.start-panel .btn.primary').getAttribute('data-action'),
+      'start-assistance',
+    );
+    launchDisplay.state = (
+      await win.evaluate(() =>
+        window.journal.mutate({
+          type: 'settings',
+          value: { offerAutoSaveOnStart: false },
+        }),
+      )
+    ).data;
+    await app.evaluate(({ ipcMain }, fixture) => {
+      ipcMain.removeHandler('journal:bootstrap');
+      ipcMain.handle('journal:bootstrap', () => ({ ok: true, data: fixture }));
+    }, launchDisplay);
+    await win.reload();
+    await win.waitForSelector('.start-panel');
+    assert.equal(await win.locator('.start-panel .btn.primary').getAttribute('data-action'), 'launch');
+    assert.match(await win.locator('.start-panel').innerText(), /开始游戏会直接启动/);
+    await win.locator('.start-panel summary').click();
+    assert.equal(await win.locator('.start-panel details [data-action="start-assistance"]').count(), 1);
+    // Exercise the one-click setup's failure presentation without allowing game access.
+    await win.locator('.start-panel .btn.primary').evaluate((el) => {
+      el.dataset.action = 'start-assistance';
+    });
+    await win.locator('.start-panel .btn.primary').click();
+    await win.waitForFunction(() =>
+      document.querySelector('.start-panel h2')?.textContent.includes('自动存档暂未准备好'),
+    );
+    assert.match(await win.locator('.start-panel').innerText(), /测试环境/);
+    await win.locator('[data-action="refresh"]').click();
+    assert.match(await win.locator('.start-panel h2').innerText(), /自动存档暂未准备好/);
+    assert.equal(await win.locator('.start-panel [data-action="launch"]').count(), 1);
+    // A stale machine-specific path must offer reconnection without hiding queries.
+    launchDisplay.state.settings.savePath = path.join(data, 'previous-computer', 'SaveGames');
+    launchDisplay.environment.saves = {
+      path: launchDisplay.state.settings.savePath,
+      files: [],
+      total: 0,
+      error: '模拟旧目录不可用',
+    };
+    launchDisplay.environment.timeline.error = '';
+    launchDisplay.environment.timeline.pending = false;
+    launchDisplay.environment.timeline.busy = false;
+    launchDisplay.environment.recovery = null;
+    launchDisplay.environment.detected = [];
+    await app.evaluate(({ ipcMain, dialog }, fixture) => {
+      dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] });
+      ipcMain.removeHandler('journal:bootstrap');
+      ipcMain.handle('journal:bootstrap', () => ({ ok: true, data: fixture }));
+    }, launchDisplay);
+    await win.reload();
+    await win.locator('.start-panel').waitFor();
+    assert.match(await win.locator('.start-panel h2').innerText(), /先前的存档目录暂不可用/);
+    assert.equal(await win.locator('.start-panel .btn.primary').getAttribute('data-action'), 'choose-saves');
+    assert.equal(await win.locator('.start-panel details').evaluate((el) => el.open), false);
+    const storedBeforeCancel = fs.readFileSync(path.join(data, 'journal.json'));
+    await win.locator('.start-panel .btn.primary').click();
+    assert.deepEqual(fs.readFileSync(path.join(data, 'journal.json')), storedBeforeCancel);
+    const candidate = path.join(data, '76561190000000000', 'SaveGames');
+    launchDisplay.environment.detected = [candidate];
+    await app.evaluate(({ ipcMain }, fixture) => {
+      ipcMain.removeHandler('journal:bootstrap');
+      ipcMain.handle('journal:bootstrap', () => ({ ok: true, data: fixture }));
+      ipcMain.removeHandler('journal:use-detected-saves');
+      ipcMain.handle('journal:use-detected-saves', (_event, value) => {
+        globalThis.syntheticReconnectSelection = value;
+        return { ok: true, data: { state: fixture.state, environment: fixture.environment } };
+      });
+    }, launchDisplay);
+    await win.reload();
+    await win.locator('.start-panel').waitFor();
+    assert.equal(
+      await win.locator('.start-panel .btn.primary').getAttribute('data-action'),
+      'reconnect-detected',
+    );
+    await win.locator('.start-panel .btn.primary').click();
+    assert.equal(await app.evaluate(() => globalThis.syntheticReconnectSelection), candidate);
+    launchDisplay.environment.timeline.pending = true;
+    launchDisplay.environment.health.protection = { warning: true, reason: '模拟中断记录' };
+    await app.evaluate(({ ipcMain }, fixture) => {
+      ipcMain.removeHandler('journal:bootstrap');
+      ipcMain.handle('journal:bootstrap', () => ({ ok: true, data: fixture }));
+    }, launchDisplay);
+    await win.reload();
+    await win.locator('.start-panel').waitFor();
+    assert.equal(await win.locator('.start-panel .btn.primary').getAttribute('data-action'), 'navigate');
+    assert.equal(await win.locator('.start-panel .btn.primary').getAttribute('data-id'), 'saves');
     assert.deepEqual(errors, []);
     fs.writeFileSync(
       path.join(results, 'smoke-report.json'),

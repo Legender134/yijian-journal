@@ -1,3 +1,4 @@
+import { compileSearch } from './search-query.js';
 // Rendering helpers for the local game index. All game strings remain plain text.
 export function createGameViews({
   esc,
@@ -20,28 +21,26 @@ export function createGameViews({
     const categories = ['全部', '物品', '武学', '人物', '配方'];
     const all = index.entries.filter((e) => kind === '全部' || e.kind === kind);
     const types = [...new Set(all.map((e) => e.type))];
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
+    let match,
+      searchError = '';
+    try {
+      match = compileSearch(query);
+    } catch (e) {
+      searchError = e.message;
+      match = () => false;
+    }
     const filtered = all.filter(
       (e) =>
         (type === '全部' || e.type === type) &&
-        (!q ||
-          [
-            e.name,
-            e.description,
-            e.type,
-            ...(e.hobbies || []),
-            ...(e.materials || []).map((m) => m.name + ' ' + (m.description || '')),
-          ]
-            .join(' ')
-            .toLowerCase()
-            .includes(q)),
+        match({ ...e, quality: qualityText?.quality(e) || e.quality }),
     );
     const pages = Math.max(1, Math.ceil(filtered.length / 24)),
       current = Math.min(pageNumber, pages - 1);
     const list = filtered.slice(current * 24, current * 24 + 24);
-    return `<div class="page-header"><div><div class="eyebrow">THE THINGS WE SEEK</div><h1 class="serif">百物图鉴</h1><p>查一件物品，备一份材料，了解一位侠客的喜好。</p></div>${pill('离线资料 · 本机游戏提取', 'green')}</div>
+    return `<div class="page-header"><div><div class="eyebrow">THE THINGS WE SEEK</div><h1 class="serif">百物图鉴</h1><p>查一件物品，备一份材料，了解一位侠客的喜好。</p></div>${pill('离线资料 · 本机游戏提取', 'green')}</div>${searchError ? notice(searchError, true) : ''}
       <div class="database-tabs">${categories.map((k) => `<button class="database-tab ${kind === k ? 'active' : ''}" data-action="database-kind" data-id="${k}">${icon(glyph(k))}<strong>${k}</strong><span>${k === '全部' ? index.entries.length : index.entries.filter((e) => e.kind === k).length}</span></button>`).join('')}</div>
-      <div class="toolbar"><label class="search-input database-search">${icon('search')}<input id="list-search" data-persist="list-search" value="${esc(query)}" placeholder="${kind === '人物' ? '输入名字或赠礼类别，如：字画' : '输入名称、材料或效果，如：铁矿石'}" aria-label="搜索百物图鉴" maxlength="100"></label><select id="database-type" aria-label="图鉴分类"><option value="全部">全部分类</option>${types.map((t) => `<option value="${esc(t)}" ${t === type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select><span class="spacer"></span>${pill(`${filtered.length} 项结果`)}</div>
+      <div class="toolbar"><label class="search-input database-search">${icon('search')}<input id="list-search" data-persist="list-search" value="${esc(query)}" placeholder="${kind === '人物' ? '输入名字或赠礼类别，如：字画' : '输入名称、材料或效果，如：铁矿石'}" aria-label="搜索百物图鉴" maxlength="100"></label><select id="database-type" aria-label="图鉴分类"><option value="全部">全部分类</option>${types.map((t) => `<option value="${esc(t)}" ${t === type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>${q || type !== '全部' ? act('database-reset', '清除筛选', 'btn', '', 'refresh') : ''}<span class="spacer"></span>${pill(`${filtered.length} 项结果`)}</div>
       ${list.length ? `<div class="database-grid">${list.map((e) => `<button class="database-card" data-action="database-detail" data-id="${e.id}"><div class="row between">${picture(e.id, 'card')}${qualityText.label(e) || pill(e.kind)}</div><h3>${qualityText.name(e, e.name)}</h3><p>${esc(e.kind === '人物' ? (e.hobbies.length ? `偏好：${e.hobbies.join('、')}` : '查看相关任务、武学或售卖线索') : e.kind === '配方' ? e.materials.map((m) => `${m.name} ×${m.count}`).join('、') : e.description || '查看本机资料详情')}</p><div class="database-card-foot">${esc(typeName(e))}${e.kind === '人物' ? ` · #${e.gameId}` : ''}${icon('chevron')}</div></button>`).join('')}</div><div class="pagination">${act('database-page', '上一页', 'btn', String(Math.max(0, current - 1)))}<span>第 ${current + 1} / ${pages} 页</span>${act('database-page', '下一页', 'btn', String(Math.min(pages - 1, current + 1)))}</div>` : empty('没有找到匹配的资料', '换个名称、效果词，或切换上方分类。')}
       <p class="save-note">资料来自本机游戏 Build ${esc(index.build)}。名称可能包含尚未遇到的内容；数据表中的条目不代表当前周目一定可获得。当前已收录锻造、制衣、炼丹与烹饪配方。</p>`;
   }
@@ -55,6 +54,8 @@ export function createGameViews({
     follow = false,
     reservations = {},
     giftPage = 0,
+    allocationTotals = reservations,
+    itemUsage = '',
   ) {
     const e = byId(index, id);
     if (!e) return '';
@@ -64,7 +65,7 @@ export function createGameViews({
     let extra = '';
     const fresh =
       '<p class="small muted reference-freshness">参照内容会随新存档同步；游戏中未保存的变化不会计入。</p>';
-    const reserved = Object.values(reservations).reduce((a, b) => a + b, 0);
+    const reserved = Object.values(allocationTotals).reduce((a, b) => a + b, 0);
     if (e.kind === '物品')
       extra = `<div class="detail-stat-grid"><div><small>买入参考价</small><strong>${e.buyPrice.toLocaleString()} 文</strong></div><div><small>卖出参考价</small><strong>${e.sellPrice.toLocaleString()} 文</strong></div><div><small>赠礼</small><strong>${e.giftable ? '可以赠送' : '不可赠送'}</strong></div>${e.useLimit ? `<div><small>使用次数上限</small><strong>${e.useLimit} 次</strong></div>` : ''}</div><p class="save-note">价格为资料表基础值，实际商店结算可能受游戏状态影响。</p>`;
     if (e.kind === '武学')
@@ -84,18 +85,19 @@ export function createGameViews({
           ? `<div class="detail-block"><h3>赠礼偏好</h3><div class="tag-row">${e.hobbies.map((h) => pill(h, 'green')).join('')}</div><p class="save-note">具体好感增量与可否赠送，以游戏内当前状态为准。</p></div><div class="recipe-reference"><label for="person-save">用哪份存档找礼物</label><select id="person-save" aria-label="人物礼物对照存档"><option value="">只看偏好物品示例</option>${saveChoices}</select><p>${reference ? `对照 ${esc(reference.name)} · ${when(reference.modifiedAt)}${inventory ? ' · 已读取背包' : ' · 背包未能读取，以下仅为物品示例'}` : '选择存档后显示背包里符合偏好的物品。'}</p></div><div class="detail-block person-gifts"><h3>${inventory ? '背包中符合偏好的礼物' : '符合偏好的物品示例'}</h3><div class="related-items">${
               gifts
                 .slice(giftPage * 24, giftPage * 24 + 24)
-                .map((g) =>
-                  act(
-                    'database-detail',
-                    esc(g.name) +
-                      (g.quality ? ` · ${esc(g.quality)}色` : '') +
-                      (inventory ? ` · ${inventory.get(g.gameId)} 件` : ''),
-                    'btn',
-                    g.id,
-                  ),
+                .map(
+                  (g) =>
+                    act(
+                      'database-detail',
+                      esc(g.name) +
+                        (g.quality ? ` · ${esc(g.quality)}色` : '') +
+                        (inventory ? ` · ${inventory.get(g.gameId)} 件` : ''),
+                      'btn',
+                      g.id,
+                    ) + act('journey-gift-dialog', '规划赠礼', 'text-btn', e.id + ':' + g.id, 'plus'),
                 )
                 .join('') || '<p class="small muted">这份存档没有记录符合偏好的可赠送物品。</p>'
-            }</div>${gifts.length > 24 ? `<div class="history-pagination"><button class="btn" data-action="gift-page" data-id="${giftPage - 1}" ${giftPage === 0 ? 'disabled' : ''}>上一页</button><span>共 ${gifts.length} 种 · 第 ${giftPage + 1} / ${pages} 页</span><button class="btn" data-action="gift-page" data-id="${giftPage + 1}" ${giftPage + 1 >= pages ? 'disabled' : ''}>下一页</button></div>` : `<p class="small muted">共 ${gifts.length} 种</p>`}${reserved ? '<p class="save-note">已扣除本周目预留数量，仅列可用库存。</p>' : ''}${fresh}<p class="save-note">礼物也可能用于任务或制作；请按需要留足用量。这里只核对已保存库存，不估算未验证的好感增量。</p></div>`
+            }</div>${gifts.length > 24 ? `<div class="history-pagination"><button class="btn" data-action="gift-page" data-id="${giftPage - 1}" ${giftPage === 0 ? 'disabled' : ''}>上一页</button><span>共 ${gifts.length} 种 · 第 ${giftPage + 1} / ${pages} 页</span><button class="btn" data-action="gift-page" data-id="${giftPage + 1}" ${giftPage + 1 >= pages ? 'disabled' : ''}>下一页</button></div>` : `<p class="small muted">共 ${gifts.length} 种</p>`}${reserved ? `<p class="save-note">${inventory ? '已扣除本周目预留数量，仅列可用库存。' : '本周目已设置预留；当前未读取库存，以下仅为物品示例，尚未核对可用数量。'}</p>` : ''}${fresh}<p class="save-note">礼物也可能用于任务或制作；请按需要留足用量。这里只核对已保存库存，不估算未验证的好感增量。</p></div>`
           : ''
       }${e.lifeSkills?.length ? `<details class="detail-block"><summary>资料中的生活技能</summary><div class="tag-row mt">${e.lifeSkills.map((s) => pill(`${s.name} ${s.level} 级`)).join('')}</div><p class="save-note">这是人物初始资料，并非当前培养后的等级。能否请教以游戏内观察界面为准。</p></details>` : ''}${e.skills?.length ? `<details class="detail-block"><summary>资料中的武学</summary><div class="related-items mt">${e.skills.map((s) => act('database-detail', esc(byId(index, s.id)?.name || s.id) + ` · 资料等级 ${s.level}`, 'btn', s.id)).join('')}</div></details>` : ''}${e.friendshipLocks?.length && index.renderRequirements ? `<details class="detail-block"><summary>好感解锁的任务线索</summary>${e.friendshipLocks.map((l) => `<h3 class="mt">资料中的 ${l.at} 好感节点</h3>${index.renderRequirements(l.requirements, index, { reference })}`).join('')}<p class="save-note">这是资料中的解锁条件，不是对当前好感度或已解锁状态的判断。</p></details>` : ''}${e.joinRequirements?.length && index.renderRequirements ? `<details class="detail-block"><summary>资料中的入队条件</summary>${index.renderRequirements(e.joinRequirements, index, { reference })}</details>` : ''}${act('world-person', '查这个人物的相关任务', 'btn', e.id, 'scroll')}`;
       const shop = index.merchants?.find((m) => m.id === e.gameId);
@@ -123,6 +125,7 @@ export function createGameViews({
     if (e.kind === '配方' && e.learningItems?.length)
       extra += `<div class="detail-block recipe-learning"><h3>学习这份配方的图纸</h3><div class="related-items">${e.learningItems.map((id) => itemLink(id, byId(index, `item-${id}`)?.name || `物品 #${id}`)).join('')}</div><p class="save-note">这些物品在游戏资料中可用于学习此配方。点击查看物品与售卖线索。</p></div>`;
     if (e.kind === '物品') {
+      extra += `<div class="recipe-reference"><label for="item-save">用哪份已保存进度核对用途</label><select id="item-save" aria-label="物品用途参照存档"><option value="" ${!referenceName && !follow ? 'selected' : ''}>仅查资料 · 库存待核对</option>${saveChoices}</select>${fresh}</div>${itemUsage}`;
       extra += `<section class="detail-block reservation-editor"><h3>${icon('shield')} 为任务或其他用途留一些</h3><p class="small muted">此周目预留的数量会从赠礼与备料可用库存中扣除。由你设定用途，手札不会猜测任务还需要多少。</p><div class="row"><label class="quantity-label">保留<input id="reserve-count" type="number" min="0" max="999999" step="1" value="${reservations[e.gameId] || 0}" aria-label="保留物品数量"></label>${act('reserve-save', '保存预留数量', 'btn', e.id, 'shield')}</div><p class="save-note">0 表示不预留；修改手札规划，不修改游戏物品。</p></section>`;
       const produced = index.entries.filter(
         (r) => r.kind === '配方' && r.results.some((x) => x.id === e.gameId),
@@ -155,7 +158,7 @@ export function createGameViews({
     }
     const guides =
       index.guideEntries?.filter((g) => g.title.includes(e.name) || e.name.includes(g.title)) || [];
-    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(e.name)}资料"><div class="drawer-head"><span class="small muted">百物图鉴 / ${e.kind}</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${pill(e.kind, 'green')}${pill(typeName(e))}${qualityText.label(e)}</div><div class="game-detail-title">${picture(e.id, 'detail')}<div><h1>${qualityText.name(e, e.name)}</h1>${e.kind === '配方' ? '<p class="small muted">产物图标 · 制作次数与材料见下方</p>' : ''}</div></div>${e.description ? `<p class="intro preserve-text">${esc(e.description)}</p>` : ''}${extra}${guides.length ? `<div class="detail-block"><h3>手札里的相关线索</h3>${guides.map((g) => act('detail', esc(g.title), 'btn mb', g.id, 'arrow')).join(' ')}</div>` : ''}<div class="detail-block"><p class="small muted">来源：${esc(index.source)} · Build ${esc(index.build)}<br>条目编号 ${e.gameId} · 非官方个人查询工具</p></div></div><div class="drawer-actions">${act(e.kind === '配方' ? 'recipe-goal' : 'database-goal', e.kind === '配方' ? '把备料单加入待办' : '记为我的目标', 'btn primary', e.id, 'plus')}${e.kind === '人物' ? act('database-gifts', '查符合偏好的物品', 'btn', e.id, 'search') : ''}</div></section>`;
+    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(e.name)}资料"><div class="drawer-head"><span class="small muted">百物图鉴 / ${e.kind}</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${pill(e.kind, 'green')}${pill(typeName(e))}${qualityText.label(e)}</div><div class="game-detail-title">${picture(e.id, 'detail')}<div><h1>${qualityText.name(e, e.name)}</h1>${e.kind === '配方' ? '<p class="small muted">产物图标 · 制作次数与材料见下方</p>' : ''}</div></div>${e.description ? `<p class="intro preserve-text">${esc(e.description)}</p>` : ''}${extra}${guides.length ? `<div class="detail-block"><h3>手札里的相关线索</h3>${guides.map((g) => act('detail', esc(g.title), 'btn mb', g.id, 'arrow')).join(' ')}</div>` : ''}<div class="detail-block"><p class="small muted">来源：${esc(index.source)} · Build ${esc(index.build)}<br>条目编号 ${e.gameId} · 非官方个人查询工具</p></div></div><div class="drawer-actions">${act(e.kind === '配方' ? 'recipe-goal' : 'database-goal', e.kind === '配方' ? '把备料单加入待办' : '记为我的目标', 'btn primary', e.id, 'plus')}${e.kind === '人物' ? act('database-gifts', '查符合偏好的物品', 'btn', e.id, 'search') + act('journey-gift-dialog', '规划赠礼', 'btn', e.id, 'plus') : e.kind === '物品' && e.giftable ? act('journey-gift-dialog', '规划赠礼', 'btn', ':' + e.id, 'plus') : ''}</div></section>`;
   }
   function recipeMaterials(e, quantity, index, reference = null) {
     const inventory = reference?.metadata.inventory,

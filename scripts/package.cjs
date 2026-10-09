@@ -30,17 +30,13 @@ const cachedElectron = path.join(base, '.downloads', `electron-v${electronVersio
       ProductName: '逸剑手札',
       InternalName: 'YijianJournal',
     },
-    ignore: [
-      /^\/(dist|test-results|tests|scripts|\.test-data|\.downloads|\.build|node_modules)(\/|$)/,
-      /^\/(docs|\.github|\.git)(\/|$)/,
-      /pnpm-lock\.yaml$/,
-      /\.gitignore$/,
-      /\.gitattributes$/,
-      /CONTRIBUTING\.md$/,
-      /AGENTS\.md$/,
-      /WORKLOG\.md$/,
-      /\.prettierrc\.json$/,
-    ],
+    // Keep the packaging boundary aligned with release-audit, including unknown local caches.
+    ignore: (file) =>
+      file !== '' &&
+      !['/src', '/README.md', '/package.json', '/使用说明.txt', '/LICENSE', '/THIRD_PARTY_NOTICES.md'].includes(
+        file,
+      ) &&
+      !file.startsWith('/src/'),
     prune: false,
   });
   for (const folder of output) {

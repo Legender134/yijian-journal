@@ -38,6 +38,82 @@ function setup(t) {
   };
   return { base, source, settings, store, saves, events, jobs, options, auto, settle };
 }
+test('known damage cancels latest protection until a fresh stable backup succeeds, retaining bad history', (t) => {
+  const { auto, saves, source, settle } = setup(t);
+  auto.check();
+  settle();
+  const bad = saves.list()[0];
+  fs.writeFileSync(path.join(saves.root, bad.id, 'files', '1.sav'), 'damaged');
+  auto.invalidate(bad.id, Error('备份文件异常：1.sav'));
+  assert.equal(auto.lastBackup, null);
+  assert.match(auto.error, /重新备份/);
+  auto.check();
+  assert.equal(auto.lastBackup, null, 'protection stays unavailable during the stable-copy wait');
+  settle();
+  const fresh = saves.list()[0];
+  assert.notEqual(fresh.id, bad.id);
+  assert.equal(auto.lastBackup.id, fresh.id);
+  assert.equal(auto.error, '');
+  assert.equal(saves.verify(fresh.id).buffers.get('1.sav').toString(), 'initial');
+  assert.equal(fs.readFileSync(path.join(saves.root, bad.id, 'files', '1.sav'), 'utf8'), 'damaged');
+  assert.equal(fs.readFileSync(path.join(source, '1.sav'), 'utf8'), 'initial');
+  auto.invalidate(bad.id, Error('old bad history'));
+  assert.equal(auto.lastBackup.id, fresh.id, 'old failures do not cancel a different valid protection copy');
+});
+test('a new manual capture clears damage only for the currently connected source', (t) => {
+  const { auto, saves, source, base, settle } = setup(t);
+  auto.check();
+  settle();
+  auto.invalidate(auto.lastBackup.id, Error('bad latest'));
+  const other = path.join(base, 'Other');
+  fs.mkdirSync(other);
+  fs.writeFileSync(path.join(other, '1.sav'), 'other');
+  auto.accept(saves.capture(other));
+  assert.equal(auto.lastBackup, null);
+  const manual = saves.capture(source, 'new manual protection');
+  auto.accept(manual);
+  assert.equal(auto.lastBackup.id, manual.id);
+  assert.equal(auto.error, '');
+  auto.check();
+  settle();
+  assert.equal(
+    saves.list().length,
+    3,
+    'the accepted verified copy also prevents duplicate automatic captures',
+  );
+});
+test('startup begins a stable backup immediately and repeated starts do not create duplicates', (t) => {
+  const { auto, saves, settle, source } = setup(t);
+  const original = fs.readFileSync(path.join(source, '1.sav'));
+  auto.start();
+  auto.start();
+  assert.equal(saves.list().length, 0);
+  settle();
+  assert.equal(saves.list().length, 1);
+  assert.equal(auto.lastBackup.at, Date.parse(saves.list()[0].createdAt));
+  assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), original);
+  auto.check();
+  settle();
+  assert.equal(saves.list().length, 1);
+});
+test('manual protection during the startup settle wait cancels only the matching duplicate capture', (t) => {
+  const { auto, saves, source, settle } = setup(t);
+  auto.check();
+  const manual = saves.capture(source, 'manual while automatic copy waits');
+  auto.accept(manual);
+  settle();
+  assert.equal(saves.list().length, 1);
+  assert.equal(auto.lastBackup.id, manual.id);
+  auto.check();
+  settle();
+  assert.equal(saves.list().length, 1);
+  fs.writeFileSync(path.join(source, '1.sav'), 'new progress');
+  auto.check();
+  settle();
+  assert.equal(saves.list().length, 2, 'newly saved progress is still captured');
+  assert.equal(saves.verify(auto.lastBackup.id).buffers.get('1.sav').toString(), 'new progress');
+});
+
 test('automatic backup waits for a stable file set and captures only the settled version', (t) => {
   const { auto, source, saves, settle, jobs } = setup(t);
   auto.check();
@@ -66,6 +142,7 @@ test('restarting with a verified identical backup does not create duplicates', (
   restarted.check();
   settle();
   assert.equal(saves.list().length, 1);
+  assert.equal(restarted.lastBackup.at, Date.parse(saves.list()[0].createdAt));
   assert.equal(events.filter((e) => e.type === 'backup').length, 1);
 });
 
@@ -154,11 +231,15 @@ test('repeated failures are reported once and retried after the problem is fixed
   settle();
   assert.equal(events.filter((e) => e.type === 'error').length, 1);
   assert.match(auto.error, /Disk/);
+  assert.equal(auto.lastBackup, null);
   saves.capture = capture;
   auto.check();
   settle();
   assert.equal(auto.error, '');
   assert.equal(saves.list().length, 1);
+  assert.ok(auto.lastBackup.at > 0);
+  auto.reset();
+  assert.equal(auto.lastBackup, null);
 });
 test('unresolved restore and disposal prevent pending automatic writes', (t) => {
   const { auto, saves, settle } = setup(t);
@@ -171,4 +252,20 @@ test('unresolved restore and disposal prevent pending automatic writes', (t) => 
   auto.dispose();
   settle();
   assert.equal(saves.list().length, 0);
+});
+
+test('intentional cleanup invalidates a remembered copy without reporting corruption', (t) => {
+  const { auto, saves, settle } = setup(t);
+  auto.check();
+  settle();
+  const backup = saves.list()[0];
+  auto.forget('a-different-copy');
+  assert.equal(auto.lastBackup.id, backup.id);
+  auto.forget(backup.id);
+  assert.equal(auto.lastBackup, null);
+  assert.equal(auto.error, '');
+  auto.check();
+  settle();
+  assert.equal(auto.lastBackup.id, backup.id);
+  assert.equal(saves.list().length, 1, 'verified remaining protection is reused');
 });

@@ -8,8 +8,8 @@ const add = (a, b) => {
   if (!Number.isSafeInteger(value) || value < 0) throw Error('备料数量超出可计算范围');
   return value;
 };
-function validateCraftList(list) {
-  if (!Array.isArray(list) || list.length > MAX_CRAFTS) throw Error(`备料清单最多 ${MAX_CRAFTS} 种配方`);
+function validateCraftList(list, { maxRecipes = MAX_CRAFTS, maxQuantity = 999 } = {}) {
+  if (!Array.isArray(list) || list.length > maxRecipes) throw Error(`备料清单最多 ${maxRecipes} 种配方`);
   const seen = new Set();
   for (const line of list) {
     if (
@@ -20,13 +20,20 @@ function validateCraftList(list) {
     )
       throw Error('备料清单格式无效');
     if (entries.get(line.id)?.kind !== '配方' || seen.has(line.id)) throw Error('备料清单含未知或重复配方');
-    if (!Number.isSafeInteger(line.quantity) || line.quantity < 1 || line.quantity > 999)
-      throw Error('制作次数须为 1 至 999');
+    if (!Number.isSafeInteger(line.quantity) || line.quantity < 1 || line.quantity > maxQuantity)
+      throw Error(`制作次数须为 1 至 ${maxQuantity}`);
     seen.add(line.id);
   }
   return list;
 }
-function allocate(groups, inventory) {
+function allocate(groups, inventory, { priorities } = {}) {
+  if (
+    priorities !== undefined &&
+    (!Array.isArray(priorities) ||
+      priorities.length !== groups.length ||
+      priorities.some((rank) => !Number.isSafeInteger(rank) || rank < 0 || rank > 200))
+  )
+    throw Error('物资分配顺序无效');
   const ids = [...new Set(groups.flatMap((g) => g.ids))]
     .filter((id) => inventory.get(id) > 0)
     .sort((a, b) => a - b);
@@ -54,28 +61,43 @@ function allocate(groups, inventory) {
         });
     });
   });
-  groups.forEach((g, j) => edge(groupStart + j, sink, g.count));
+  const sinks = groups.map((g, j) => edge(groupStart + j, sink, priorities ? 0 : g.count));
   // Residual paths can move a flexible ingredient away from a fixed demand.
   // Greedy recipe-by-recipe subtraction would incorrectly report shortages.
-  while (true) {
-    const previous = Array(graph.length).fill(null),
-      queue = [source];
-    previous[source] = { from: -1 };
-    for (let i = 0; i < queue.length && !previous[sink]; i++)
-      for (const e of graph[queue[i]])
-        if (e.capacity > 0 && !previous[e.to]) {
-          previous[e.to] = { from: queue[i], edge: e };
-          queue.push(e.to);
-        }
-    if (!previous[sink]) break;
-    let amount = Number.MAX_SAFE_INTEGER;
-    for (let at = sink; at !== source; at = previous[at].from)
-      amount = Math.min(amount, previous[at].edge.capacity);
-    for (let at = sink; at !== source; at = previous[at].from) {
-      const e = previous[at].edge;
-      e.capacity -= amount;
-      graph[e.to][e.reverse].capacity = add(graph[e.to][e.reverse].capacity, amount);
+  const phases = priorities ? [...new Set(priorities)].sort((a, b) => a - b) : [null];
+  for (const phase of phases) {
+    if (priorities)
+      groups.forEach((g, j) => {
+        if (priorities[j] === phase) sinks[j].capacity = g.count;
+      });
+    while (true) {
+      const previous = Array(graph.length).fill(null),
+        queue = [source];
+      previous[source] = { from: -1 };
+      for (let i = 0; i < queue.length && !previous[sink]; i++)
+        for (const e of graph[queue[i]])
+          if (e.capacity > 0 && !previous[e.to]) {
+            previous[e.to] = { from: queue[i], edge: e };
+            queue.push(e.to);
+          }
+      if (!previous[sink]) break;
+      let amount = Number.MAX_SAFE_INTEGER;
+      for (let at = sink; at !== source; at = previous[at].from)
+        amount = Math.min(amount, previous[at].edge.capacity);
+      for (let at = sink; at !== source; at = previous[at].from) {
+        const e = previous[at].edge;
+        e.capacity -= amount;
+        graph[e.to][e.reverse].capacity = add(graph[e.to][e.reverse].capacity, amount);
+      }
     }
+    // Keep each earlier owner's granted demand fixed, including any deficit.
+    // Item-to-group residual edges remain available: later owners can move a
+    // flexible earlier ingredient to another physical item without taking
+    // away its grant. This preserves substitution instead of greedy subtraction.
+    if (priorities)
+      groups.forEach((_g, j) => {
+        if (priorities[j] === phase) sinks[j].capacity = 0;
+      });
   }
   const allocations = groups.map(() => []);
   for (const link of links) {
@@ -92,8 +114,8 @@ function allocate(groups, inventory) {
   }
   return allocations;
 }
-function materialPlan(list, metadata = null, reservations = {}) {
-  validateCraftList(list);
+function materialPlan(list, metadata = null, reservations = {}, { aggregate = false } = {}) {
+  validateCraftList(list, aggregate ? { maxRecipes: 340, maxQuantity: 300000 } : undefined);
   const owned = new Map(),
     inventoryAvailable = Array.isArray(metadata?.inventory);
   if (inventoryAvailable) {
