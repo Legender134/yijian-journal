@@ -76,6 +76,10 @@
   gap: 5px;
   font-size: 12px;
 }
+.companion-tabs [aria-current='page'] {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
 .companion .compact-body {
   padding: 14px;
   min-height: 0;

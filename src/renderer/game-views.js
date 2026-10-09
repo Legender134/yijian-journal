@@ -17,6 +17,10 @@ export function createGameViews({
   const byId = (index, id) => index.entries.find((e) => e.id === id);
   const glyph = (kind) => ({ 物品: 'bag', 武学: 'sword', 人物: 'person', 配方: 'scroll' })[kind] || 'book';
   const typeName = (e) => (e.kind === '配方' ? `${e.type} · ${e.level} 级` : e.type);
+  function recordedQuestRoots(quests) {
+    const ids = new Set(quests.map((q) => q.id));
+    return quests.filter((q) => !q.parentId || !ids.has(q.parentId));
+  }
   function page(index, query, kind, type, pageNumber) {
     const categories = ['全部', '物品', '武学', '人物', '配方'];
     const all = index.entries.filter((e) => kind === '全部' || e.kind === kind);
@@ -200,7 +204,7 @@ export function createGameViews({
             )
             .join('')}</details>`
         : ''
-    }${Array.isArray(m.quests) ? `<details class="save-quests save-recorded-quests"><summary>这份存档的任务记录 · ${m.quests.filter((q) => !q.parentId).length} 项</summary><div id="save-quest-results">${questList(m.quests, 'active', m.inventory, index)}</div><p class="save-note">只展示游戏资料中可见的任务及其存档状态。未出现在列表中，不等于错过或未完成；失败原因与后续分支需在游戏内确认。</p></details>` : ''}<details class="save-quests"><summary>已记录的制作配方 · ${recipes.length} 条</summary><div class="learned-recipes">${recipes.map((r) => `<button data-action="database-detail" data-id="${r.id}">${picture(r.id)}<span class="spacer">${qualityText.name(r.id, r.name)}</span>${icon('chevron')}</button>`).join('') || '<p class="small muted">这份存档暂未识别到可展示的配方。</p>'}</div></details>${Array.isArray(m.inventory) ? `<details class="save-quests"><summary>物品记录 · ${m.inventory.length} 种</summary><label class="search-input inventory-search">${icon('search')}<input id="save-inventory-search" placeholder="查找这份存档里的物品" aria-label="搜索存档物品" maxlength="100"></label><div id="save-inventory-results">${inventoryList(m.inventory, '', index)}</div></details>` : ''}<p class="save-note">来自磁盘上这份存档，不代表当前游戏内尚未保存的状态。读取与浏览不会改变游戏存档。名称映射资料 Build ${esc(index.build)}。</p></div><div class="drawer-actions">${act('backup', '备份当前整个存档目录', 'btn primary', '', 'archive')}${act('save-recap-goal', '记下这次出发', 'btn', file.name, 'feather')}</div></section>`;
+    }${Array.isArray(m.quests) ? `<details class="save-quests save-recorded-quests"><summary>这份存档的任务记录 · ${recordedQuestRoots(m.quests).length} 项</summary><div id="save-quest-results">${questList(m.quests, 'active', m.inventory, index)}</div><p class="save-note">只展示游戏资料中可见的任务及其存档状态。未出现在列表中，不等于错过或未完成；失败原因与后续分支需在游戏内确认。</p></details>` : ''}<details class="save-quests"><summary>已记录的制作配方 · ${recipes.length} 条</summary><div class="learned-recipes">${recipes.map((r) => `<button data-action="database-detail" data-id="${r.id}">${picture(r.id)}<span class="spacer">${qualityText.name(r.id, r.name)}</span>${icon('chevron')}</button>`).join('') || '<p class="small muted">这份存档暂未识别到可展示的配方。</p>'}</div></details>${Array.isArray(m.inventory) ? `<details class="save-quests"><summary>物品记录 · ${m.inventory.length} 种</summary><label class="search-input inventory-search">${icon('search')}<input id="save-inventory-search" placeholder="查找这份存档里的物品" aria-label="搜索存档物品" maxlength="100"></label><div id="save-inventory-results">${inventoryList(m.inventory, '', index)}</div></details>` : ''}<p class="save-note">来自磁盘上这份存档，不代表当前游戏内尚未保存的状态。读取与浏览不会改变游戏存档。名称映射资料 Build ${esc(index.build)}。</p></div><div class="drawer-actions">${act('backup', '备份当前整个存档目录', 'btn primary', '', 'archive')}${act('save-recap-goal', '记下这次出发', 'btn', file.name, 'feather')}</div></section>`;
   }
   function questList(quests, filter, inventory = null, index = null) {
     const byQuestId = new Map(quests.map((q) => [q.id, q])),
@@ -214,7 +218,7 @@ export function createGameViews({
         at = byQuestId.get(at.parentId);
       }
     }
-    const roots = quests.filter((q) => !q.parentId),
+    const roots = recordedQuestRoots(quests),
       active = roots.filter((q) => activeFamilyIds.has(q.id)),
       done = roots.filter((q) => q.step === 4),
       other = roots.filter((q) => q.step !== 1 && q.step !== 4),
@@ -233,7 +237,7 @@ export function createGameViews({
         ? list
             .map(
               (q) =>
-                `<article class="saved-quest" data-quest-id="${q.id}"><div class="row between"><h3>${esc(q.name)}</h3>${pill(q.status, q.step === 1 ? 'green' : q.step === 2 ? 'orange' : '')}</div><details><summary>查看任务文字与步骤</summary><p>${esc(q.description)}</p>${questMaterials(q, inventory, index)}${quests
+                `<article class="saved-quest" data-quest-id="${q.id}"><div class="row between"><h3>${esc(q.name)}</h3>${pill(q.status, q.step === 1 ? 'green' : q.step === 2 ? 'orange' : '')}</div>${q.parentId && !byQuestId.has(q.parentId) ? '<p class="save-note">这份存档未记录上级任务，仅按当前已记录的步骤核对。</p>' : ''}<details><summary>查看任务文字与步骤</summary><p>${esc(q.description)}</p>${questMaterials(q, inventory, index)}${quests
                   .filter((child) => child.parentId === q.id)
                   .map(
                     (c) =>

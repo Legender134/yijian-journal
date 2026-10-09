@@ -2196,7 +2196,7 @@ function compactPage() {
     `<span data-save-health>${timelineViews.chip(environment.health)}</span>`,
   );
 }
-function render(preserve = false) {
+function render(preserve = false, navigationId = null) {
   if (!catalog || !state || composing) return;
   captureIntentDrafts();
   const hadIntentPanel = !!root.querySelector('.intent-draft-panel');
@@ -2204,6 +2204,18 @@ function render(preserve = false) {
     focusId = preserve ? active?.id : null,
     selection = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null,
     fieldValue = active && active.dataset?.persist ? active.value : null;
+  navigationId ||=
+    root.contains(active) && active.matches('.sidebar-nav .nav-btn, .companion-tabs [data-action="navigate"]')
+      ? active.dataset.id
+      : null;
+  const restoreNavigationFocus = () => {
+    if (!navigationId || root.inert) return;
+    root
+      .querySelector(
+        `.sidebar-nav [data-action="navigate"][data-id="${CSS.escape(navigationId)}"], .companion-tabs [data-action="navigate"][data-id="${CSS.escape(navigationId)}"]`,
+      )
+      ?.focus({ preventScroll: true });
+  };
   const itineraryFocus =
     preserve && root.contains(active) && active?.dataset?.action?.startsWith('journey-itinerary-')
       ? {
@@ -2236,6 +2248,16 @@ function render(preserve = false) {
     );
     const compactScroll = root.querySelector('.compact-body')?.scrollTop || 0;
     root.innerHTML = compactPage();
+    const navigation = root.querySelector('.companion-tabs');
+    if (navigation) {
+      navigation.setAttribute('role', 'navigation');
+      navigation.setAttribute('aria-label', '随行页面');
+      for (const button of navigation.querySelectorAll('[data-action="navigate"]')) {
+        button.classList.add('compact-tab');
+        button.classList.toggle('active', button.dataset.id === route);
+        if (button.dataset.id === route) button.setAttribute('aria-current', 'page');
+      }
+    }
     if (companionMode === 'expanded' && availableIntentDrafts().length && route !== 'journey')
       root.querySelector('.compact-body')?.insertAdjacentHTML('afterbegin', intentDraftBanner());
     syncItineraryIntentEditors();
@@ -2257,6 +2279,7 @@ function render(preserve = false) {
       }
     }
     restoreItineraryFocus();
+    restoreNavigationFocus();
     return;
   }
   const sidebarScroll = root.querySelector('.sidebar-nav')?.scrollTop || 0;
@@ -2278,7 +2301,7 @@ function render(preserve = false) {
   ]
     .map(
       ([id, glyph]) =>
-        `<button class="nav-btn ${route === id ? 'active' : ''}" data-action="navigate" data-id="${id}">${icon(glyph)}${headings[id]}${id === 'goals' && profile().goals.filter((g) => !goalDone(g)).length ? `<span class="nav-count">${profile().goals.filter((g) => !goalDone(g)).length}</span>` : ''}</button>`,
+        `<button class="nav-btn ${route === id ? 'active' : ''}"${route === id ? ' aria-current="page"' : ''} data-action="navigate" data-id="${id}">${icon(glyph)}${headings[id]}${id === 'goals' && profile().goals.filter((g) => !goalDone(g)).length ? `<span class="nav-count">${profile().goals.filter((g) => !goalDone(g)).length}</span>` : ''}</button>`,
     )
     .join('')}<div class="nav-section mt">一路相伴</div>${[
     ['saves', 'archive'],
@@ -2286,7 +2309,7 @@ function render(preserve = false) {
   ]
     .map(
       ([id, glyph]) =>
-        `<button class="nav-btn ${route === id ? 'active' : ''}" data-action="navigate" data-id="${id}">${icon(glyph)}${headings[id]}</button>`,
+        `<button class="nav-btn ${route === id ? 'active' : ''}"${route === id ? ' aria-current="page"' : ''} data-action="navigate" data-id="${id}">${icon(glyph)}${headings[id]}</button>`,
     )
     .join(
       '',
@@ -2314,6 +2337,7 @@ function render(preserve = false) {
     }
   }
   restoreItineraryFocus();
+  restoreNavigationFocus();
 }
 function intentDraftBanner() {
   return `<div class="notice mb">${act('intent-drafts', `继续未完成安排 · ${availableIntentDrafts().length} 份草稿`, 'text-btn')}</div>`;
@@ -2855,7 +2879,7 @@ async function refresh() {
   )
     await showDatabaseDetail(currentDrawer.id);
 }
-async function handle(action, id, target) {
+async function handle(action, id, target, navigationFocused = false) {
   if (
     currentDrawer?.type === 'search' &&
     target?.classList.contains('search-result') &&
@@ -3747,13 +3771,17 @@ async function handle(action, id, target) {
       }
       break;
     }
-    case 'navigate':
+    case 'navigate': {
       if (id !== 'archives') ++protectionRequest;
       await saveNote();
+      const returnToNavigation =
+        navigationFocused &&
+        (document.activeElement === target || document.activeElement === document.body) &&
+        !root.inert;
       route = id;
       query = '';
       filter = 'current';
-      render();
+      render(false, returnToNavigation ? id : null);
       if (id === 'world' && worldView.referenceName === undefined) await loadWorldReference();
       if (id === 'materials') {
         materialView.referenceName ??= defaultReference();
@@ -3762,6 +3790,7 @@ async function handle(action, id, target) {
       }
       if (id === 'journey') await refresh();
       break;
+    }
     case 'journey-refresh':
       await refresh();
       break;
@@ -5597,6 +5626,9 @@ document.addEventListener('click', async (event) => {
     return;
   }
   if (target.disabled) return;
+  const navigationFocused =
+    document.activeElement === target &&
+    target.matches('.sidebar-nav .nav-btn, .companion-tabs [data-action="navigate"]');
   const action = target.dataset.action,
     id = target.dataset.id;
   if (currentDrawer?.type === 'search' && target.classList.contains('search-result'))
@@ -5616,7 +5648,7 @@ document.addEventListener('click', async (event) => {
   ].includes(action);
   if (lock) target.disabled = true;
   try {
-    await handle(action, id, target);
+    await handle(action, id, target, navigationFocused);
   } catch (e) {
     toast(e.message, true);
   } finally {
