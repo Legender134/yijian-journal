@@ -168,6 +168,7 @@ test('old names survive editing and rendering while known IDs supply current ide
     command([{ type: 'database', id: 'item-1006' }], {
       type: 'journal-entry-update',
       id: entries[0].id,
+      expectedEntry: entries[0],
       body: '继续写正文',
     }),
     context(p),
@@ -252,7 +253,11 @@ test('gift selection, stored user events and legacy display reuse exact gift qua
   );
   const updated = applyEntryCommand(
     legacy,
-    command([{ type: 'gift', id: 'synthetic-gift' }], { type: 'journal-entry-update', id: legacy[0].id }),
+    command([{ type: 'gift', id: 'synthetic-gift' }], {
+      type: 'journal-entry-update',
+      id: legacy[0].id,
+      expectedEntry: legacy[0],
+    }),
     context(p),
     { now: time },
   );

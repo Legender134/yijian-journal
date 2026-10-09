@@ -49,6 +49,9 @@ function unique(list, key, label) {
 // Portable intent validation deliberately permits historical source pointers.
 // Existence is checked against current main-process actions when adding a step.
 function validateItinerary(value, { placeExists = (v) => /^place-\d{1,9}$/.test(v) } = {}) {
+  // Lazy import avoids the intent-drafts -> journey-state module dependency.
+  // Reject non-JSON descriptors before reading any itinerary or source field.
+  require('./intent-drafts.cjs').intentFingerprint(value);
   exact(value, ['name', 'status', 'steps'], '本次行程');
   text(value.name, 80, '行程名称', false);
   if (!['draft', 'active', 'ended'].includes(value.status)) throw Error('行程状态无效');
@@ -164,6 +167,7 @@ function createJourneyStateTools({ world: worldIndex, game: gameIndex }) {
   // Returns a new state. The caller must validate the whole profile and use the
   // existing atomic store; no write, clock, random ID, or game API lives here.
   function applyJourneyCommand(state, command, { actionIds = [], actions = [], itinerarySteps = [] } = {}) {
+    require('./intent-drafts.cjs').intentFingerprint(command);
     validateJourneyState(state);
     const schemas = {
       'journey-place-put': ['type', 'placeId', 'note', 'favorite', 'done'],
