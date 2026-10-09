@@ -50,6 +50,17 @@ test('real fusion-1000 separates learning, direct material support, fees and unk
   assert.equal(actual.currentLevel, null);
   assert.equal(actual.requirementLevel, 0);
   assert.deepEqual(actual.learningItemIds, [100000]);
+  assert.deepEqual(
+    actual.outputs.map((item) => [
+      item.id,
+      item.name,
+      item.quality,
+      item.minimumCount,
+      item.maximumCount,
+      item.guaranteedItem,
+    ]),
+    [[1002, '纯钢剑', '蓝', 1, 1, true]],
+  );
   assert.deepEqual(result.referenceIdentity, { name: ref.name, hash: ref.hash, modifiedAt: ref.modifiedAt });
   assert.match(result.scopeToken, /^[a-f0-9]{64}$/);
   assert.match(result.notices.join(' '), /不表示.*同时/);
@@ -230,6 +241,8 @@ test('quantity, enum and pagination inputs are bounded; large pages clamp to the
   assert.doesNotThrow(() => validateDiscoveryOptions({ quantities: { 'fusion-1000': 999 } }));
   const actual = row(profile(), reference(), { ...options, quantities: { 'fusion-1000': 999 } });
   assert.equal(actual.requestedQuantity, 999);
+  assert.equal(actual.outputs[0].minimumCount, 999);
+  assert.equal(actual.outputs[0].maximumCount, 999);
   assert.equal(actual.money, 572 * 999);
   assert.equal(actual.missingTotal, 5 * 998);
   assert.equal(actual.supportsOne, true);
@@ -237,6 +250,63 @@ test('quantity, enum and pagination inputs are bounded; large pages clamp to the
   assert.equal(result.pagination.page, result.pagination.pageCount);
   assert.equal(result.rows.length, 3);
   assert.equal(new Set(result.rows.map((r) => r.recipeId)).size, result.rows.length);
+});
+
+test('discovery distinguishes the actual product, variable yield and alternative qualities without crediting future stock', () => {
+  const p = profile(),
+    ref = reference(),
+    before = JSON.stringify({ p, ref });
+  const iron = discover(p, ref, {
+    craft: 'fusion',
+    query: '铁锭',
+    learned: 'all',
+    view: 'all',
+    quantities: { 'fusion-9500': 2 },
+  }).rows.find((r) => r.recipeId === 'fusion-9500');
+  assert.deepEqual(
+    iron.outputs.map((o) => [o.id, o.minimumCount, o.maximumCount, o.guaranteedItem]),
+    [[10216, 2, 6, true]],
+  );
+  const variants = discover(p, ref, { ...options, quantities: { 'fusion-1100': 2 } }).rows.find(
+    (r) => r.recipeId === 'fusion-1100',
+  );
+  assert.deepEqual(
+    variants.outputs.map((o) => [o.id, o.quality, o.maximumCount, o.guaranteedItem]),
+    [
+      [1000, '白', 2, false],
+      [1001, '绿', 2, false],
+      [1002, '蓝', 2, false],
+    ],
+  );
+  assert.deepEqual(variants.learningItemIds, [100091]);
+  assert.equal(JSON.stringify({ p, ref }), before);
+  assert.deepEqual(resourceBudget(p, ref).totals, {});
+});
+
+test('discovery cards show conditional totals and exact product links separately from learning blueprints', async () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/recipe-discovery-views.js'), 'utf8');
+  const { createRecipeDiscoveryViews } = await import(
+    'data:text/javascript;base64,' + Buffer.from(source).toString('base64')
+  );
+  const views = createRecipeDiscoveryViews({
+    esc: String,
+    act: (action, label, cls, id) => `<button data-action="${action}" data-id="${id}">${label}</button>`,
+    pill: String,
+    notice: String,
+    empty: String,
+    when: String,
+  });
+  const result = discover(profile(), reference(), {
+    ...options,
+    quantities: { 'fusion-1000': 2, 'fusion-1100': 2 },
+  });
+  const html = views.page(result, {}, game, profile());
+  assert.match(html, /制作 2 次的产物/);
+  assert.match(html, /data-id="item-1002">纯钢剑<\/button> · 蓝色 × 2/);
+  assert.match(html, /data-id="item-1000">纯钢剑<\/button> · 白色 × 0–2/);
+  assert.match(html, /可能未得到其中某项/);
+  assert.match(html, /data-id="item-100091"/);
+  assert.match(html, /尚未计入背包/);
 });
 test('near-material ranking is explicitly limited to one or two missing units for one copy', () => {
   const p = profile(),

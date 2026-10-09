@@ -40,7 +40,7 @@ function showPreview(value) {
   list.replaceChildren();
   for (const profile of value.profiles) {
     const item = document.createElement('li');
-    item.textContent = `${profile.name} · ${profile.goals} 项目标 · ${profile.entries} 条江湖记录 · ${profile.drafts} 份草稿（记录） · ${profile.arrangementDrafts} 份安排草稿 · ${profile.deletedEntries} 条已删除记录 · ${profile.removedArrangements} 项已移除安排`;
+    item.textContent = `${profile.name} · ${profile.goals} 项目标 · ${profile.entries} 条江湖记录 · ${profile.recordVersions ?? 0} 份记录旧版本 · ${profile.drafts} 份草稿（记录） · ${profile.arrangementDrafts} 份安排草稿 · ${profile.deletedEntries} 条已删除记录 · ${profile.removedArrangements} 项已移除安排`;
     list.append(item);
   }
   document.getElementById('ignored').textContent =
@@ -49,7 +49,7 @@ function showPreview(value) {
       : '';
   document.getElementById('scope').textContent = newJournal
     ? '本次会开始一份空手札，旧周目、笔记、记录、草稿和计划尚未恢复，不会出现在新手札里。两个损坏原件会先另存并校验，现有完整备份、旧时间线和游戏存档全部原样保留，不会删除或覆盖。'
-    : '仅恢复手札里的周目、笔记、待办、记录、草稿和计划，包括已删除记录、已移除安排和物资用途顺序。游戏存档、完整备份和原时间线仍保留在原处；本次不恢复它们。旧机器路径、账户和固定槽位不会绑定，自动存读档权限不会启用。';
+    : '仅恢复手札里的周目、笔记、待办、记录、草稿和计划，包括记录旧版本、已删除记录、已移除安排和物资用途顺序。游戏存档、完整备份和原时间线仍保留在原处；本次不恢复它们。旧机器路径、账户和固定槽位不会绑定，自动存读档权限不会启用。';
   document.getElementById('consequence').textContent = newJournal
     ? '新手札可直接用于离线查询和记录。确认后才会原子建立手札；旧路径、账户、固定槽位和原生存读档权限不会沿用。重新进入后，可以在设置中明确选择本机存档目录，原生时间线须另外明确开启。'
     : '确认后会先另存并校验两个损坏原件，随后原子替换本机手札。重新进入后，请在设置中重新确认本机存档目录；原生时间线须另外明确开启。';

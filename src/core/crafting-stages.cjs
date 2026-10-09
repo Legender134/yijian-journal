@@ -2,6 +2,7 @@
 const { validateCraftList, allocate } = require('./material-plan.cjs');
 const { availableInventory } = require('./reservations.cjs');
 const data = require('../data/game-index.json');
+const { recipeOutputs } = require('./recipe-outputs.cjs');
 const keyOf = (ids) => [...new Set(ids)].sort((a, b) => a - b).join(',');
 const add = (a, b) => {
   const result = a + b;
@@ -248,23 +249,7 @@ function craftingStages(
       // Recipe / learning item identity is distinct from the result item.
       // These are display facts only; conservative budget quantities below
       // still use the same minimum yield and never add physical inventory.
-      outputs: [...new Set(recipe.results.map((r) => r.id))].map((id) => {
-        const results = recipe.results.filter((r) => r.id === id);
-        const item = recipeData.find((e) => e.id === `item-${id}` && e.kind === '物品');
-        const counts = results.map((r) => r.count);
-        const valid = counts.every((count) => Number.isSafeInteger(count) && count > 0);
-        return {
-          id,
-          name: item?.name || results[0].name || `物品 #${id}`,
-          quality: item?.quality || '',
-          minimumCount: valid ? add(0, Math.min(...counts) * quantity) : null,
-          maximumCount: valid ? add(0, Math.max(...counts) * quantity) : null,
-          weights: results
-            .map((r) => r.weight)
-            .filter((weight) => typeof weight === 'number' && Number.isFinite(weight)),
-          guaranteedItem: !!stable,
-        };
-      }),
+      outputs: recipeOutputs(recipe, quantity, recipeData),
       learningItems: [...(recipe.learningItems || [])],
       quantity,
       final,

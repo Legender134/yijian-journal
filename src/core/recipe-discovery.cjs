@@ -2,6 +2,7 @@
 const { createHash } = require('node:crypto');
 const data = require('../data/game-index.json');
 const { materialPlan, validateCraftList } = require('./material-plan.cjs');
+const { recipeOutputs } = require('./recipe-outputs.cjs');
 const { subtractBudget } = require('./resource-budget.cjs');
 const { selectedReference } = require('./goal-progress.cjs');
 const recipes = data.entries.filter((entry) => entry.kind === '配方');
@@ -224,6 +225,7 @@ function candidate(recipe, quantity, ctx, one) {
     requirementLevel: recipe.level,
     currentLevel: null,
     learningItemIds: [...(recipe.learningItems || [])],
+    outputs: recipeOutputs(recipe, quantity, data.entries),
     blockingUnknowns: unknowns,
   };
 }
