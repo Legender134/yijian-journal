@@ -36,7 +36,9 @@ function requestExportConfirmation(failedArchives, snapshot) {
 // detects changes while a confirmation is pending; it never proves equivalence.
 async function historyState(archives, id) {
   check(/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id), '离线档案编号无效');
-  const root = archives.root(),
+  // Use the same native canonical form as async realpath below. On Windows,
+  // realpathSync can retain an 8.3 alias that realpath expands to its long name.
+  const root = await fs.realpath(archives.root()),
     digest = crypto.createHash('sha256');
   let count = 0;
   async function visit(relative) {

@@ -433,12 +433,13 @@ test('imported history reexports byte-identical packages without changing machin
 test('source corrupted backups, missing timeline blobs and invalid metadata fail before publication', async (t) => {
   const f = await fixture(t),
     savePath = path.join(f.dataRoot, 'save-backups', backupId, 'files', '29.sav');
+  const expectedDirectory = await fsp.realpath(path.dirname(path.dirname(savePath)));
   await fsp.writeFile(savePath, Buffer.alloc(f.save.length));
   await assert.rejects(migration.exportProtection(f), (error) => {
     assert.match(error.message, /完整备份「全量保护」.*29\.sav.*校验/);
     assert.equal(error.code, 'BACKUP_PAYLOAD_INVALID');
     assert.equal(error.backupId, backupId);
-    assert.equal(error.directory, path.dirname(path.dirname(savePath)));
+    assert.equal(error.directory, expectedDirectory);
     assert.match(error.reason, /文件与原始校验值不一致/);
     return true;
   });

@@ -155,7 +155,11 @@ test('record IO failures block publication; a second IO failure reports the orig
   const original = fsp.open;
   let injected = false;
   fsp.open = async function (file, ...args) {
-    if (path.resolve(String(file)) === path.join(m.dir, 'manifest.json') && !injected) {
+    if (
+      !injected &&
+      path.basename(String(file)) === 'manifest.json' &&
+      fs.realpathSync.native(String(file)) === fs.realpathSync.native(path.join(m.dir, 'manifest.json'))
+    ) {
       injected = true;
       // After the durable running record, make only the new failure record unwritable.
       fs.mkdirSync(resultFile(m) + '.previous');
