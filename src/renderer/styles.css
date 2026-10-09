@@ -1793,7 +1793,14 @@ kbd {
   padding: 18px 28px;
   background: #fffdf6;
   display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
   gap: 8px;
+}
+.drawer-actions .btn {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .drawer-actions .primary {
   flex: 1;

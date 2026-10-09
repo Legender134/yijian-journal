@@ -123,6 +123,33 @@ async function written(file, parse = false) {
   }
   throw Error('导出未完成');
 }
+async function recordActionsFit(target) {
+  await target
+    .locator('.drawer')
+    .evaluate((node) => Promise.all(node.getAnimations().map((animation) => animation.finished)));
+  const layout = await target.locator('.drawer-actions').evaluate((node) => {
+    const footer = node.getBoundingClientRect();
+    return {
+      overflow: node.scrollWidth > node.clientWidth + 1,
+      buttons: [...node.querySelectorAll('button')].map((button) => {
+        const box = button.getBoundingClientRect();
+        return {
+          text: button.textContent,
+          visible:
+            box.left >= footer.left - 1 &&
+            box.right <= Math.min(footer.right, innerWidth) + 1 &&
+            box.bottom <= innerHeight + 1,
+        };
+      }),
+    };
+  });
+  assert.equal(layout.buttons.length, 3);
+  assert.equal(layout.overflow, false, JSON.stringify(layout));
+  assert(
+    layout.buttons.every((button) => button.visible),
+    JSON.stringify(layout),
+  );
+}
 (async () => {
   try {
     await launch();
@@ -131,6 +158,7 @@ async function written(file, parse = false) {
     assert((await current()).journalEntries.some((entry) => entry.id === recordId));
     const reading = page.locator('.drawer-body[data-journal-id="' + recordId + '"]');
     await reading.waitFor();
+    await recordActionsFit(page);
     const beforeCancel = await current();
     for (const cancel of ['button', 'close', 'escape', 'backdrop']) {
       const scroll = await reading.evaluate((node) => {
@@ -237,6 +265,7 @@ async function written(file, parse = false) {
     await companion.locator('[data-action="journal-entry-remove"]').click();
     await companion.keyboard.press('Escape');
     assert.equal(await companion.locator('.drawer-body').getAttribute('data-journal-id'), newer.id);
+    await recordActionsFit(companion);
     assert.equal(
       await companion
         .locator('[data-action="journal-entry-remove"]')
