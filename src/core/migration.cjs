@@ -18,6 +18,7 @@ const { validateTrash } = require('./event-journal-trash.cjs');
 const { validateRevisions } = require('./journal-revisions.cjs');
 const { validateIntentDrafts } = require('./intent-drafts.cjs');
 const { validateJourneyTrash } = require('./journey-trash.cjs');
+const { validateNoteRevisions } = require('./note-revisions.cjs');
 const catalog = require('../data/catalog.cjs');
 const game = require('../data/game-index.json'),
   world = require('../data/world-index.json');
@@ -443,6 +444,11 @@ function portablePersonalFields(input, profile) {
       guideIds: new Set(catalog.entries.map((entry) => entry.id)),
     });
     profile.journalRevisions = rows;
+  }
+  if (input.noteRevisions !== undefined) {
+    const rows = JSON.parse(JSON.stringify(input.noteRevisions));
+    validateNoteRevisions(rows);
+    profile.noteRevisions = rows;
   }
 }
 function portableJournal(input) {
@@ -1101,7 +1107,11 @@ async function writeProtection(collected, file, limits) {
   const output = path.resolve(file);
   await realDirectory(path.dirname(output));
   checked(nameOK(path.basename(output)), 'Invalid output filename');
-  checked(!(await exists(output)), 'Protection file already exists; choose a new filename');
+  if (await exists(output))
+    throw Object.assign(Error('Protection file already exists; choose a new filename'), {
+      code: 'EEXIST',
+      protectionOutput: output,
+    });
   const manifestBytes = collected.manifestBytes || jsonBytes(collected.manifest);
   checked(manifestBytes.length <= limits.manifestBytes, 'Manifest exceeds size limit');
   const temporary = path.join(path.dirname(output), `.migration-export-${crypto.randomUUID()}.tmp`);
@@ -1139,7 +1149,12 @@ async function writeProtection(collected, file, limits) {
     await handle.close();
     const result = await scanPackage(temporary, limits);
     // Exclusive hard-link publication is atomic and cannot replace a racing existing destination.
-    await fsp.link(temporary, output);
+    try {
+      await fsp.link(temporary, output);
+    } catch (error) {
+      if (error.code === 'EEXIST') error.protectionOutput = output;
+      throw error;
+    }
     return { file: output, ...summary(result.view, result.manifest, result.digest) };
   } finally {
     await handle.close().catch(() => {});

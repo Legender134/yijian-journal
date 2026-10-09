@@ -899,6 +899,8 @@ app.whenReady().then(async () => {
         command = { ...command };
         delete command.discovery;
       }
+      if (command?.type === 'note-restore' && command.profileId !== store.get().activeProfileId)
+        throw Error('周目已变化，请重新预览随手记旧内容');
       if (command?.type === 'resource-priority-set') {
         const current = store.get(),
           profile = current.profiles.find((p) => p.id === current.activeProfileId);

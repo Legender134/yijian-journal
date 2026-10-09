@@ -34,6 +34,7 @@ const {
   detachRevisionLinks,
 } = require('./journal-revisions.cjs');
 const { validateJourneyTrash, applyJourneyTrashCommand } = require('./journey-trash.cjs');
+const { validateNoteRevisions, retainNote } = require('./note-revisions.cjs');
 const world = require('../data/world-index.json');
 const questIds = new Set(world.quests.map((q) => q.id));
 
@@ -124,6 +125,7 @@ function validateState(s, ids) {
     if (!Array.isArray(p.favorites) || p.favorites.length > 1000 || p.favorites.some((id) => !ids.has(id)))
       throw new Error('收藏无效');
     text(p.notes, 20000);
+    if (p.noteRevisions !== undefined) validateNoteRevisions(p.noteRevisions);
     if (p.craftList !== undefined) validateCraftList(p.craftList);
     if (p.previousCraftList !== undefined) validateCraftList(p.previousCraftList);
     if (p.previousCraftChoices !== undefined) validateCraftChoices(p.previousCraftChoices);
@@ -443,8 +445,18 @@ class Store {
       }
       case 'note':
         text(command.value, 20000);
+        if (p.notes !== command.value && p.notes.trim())
+          p.noteRevisions = retainNote(p.notes, command.value, p.noteRevisions);
         p.notes = command.value;
         break;
+      case 'note-restore': {
+        const row = p.noteRevisions?.find((row) => row.id === command.id);
+        if (!row || command.expectedValue !== p.notes)
+          throw Error('随手记或旧内容已变化，请重新预览；当前文字与旧内容仍保留');
+        p.noteRevisions = retainNote(p.notes, row.body, p.noteRevisions, { force: true });
+        p.notes = row.body;
+        break;
+      }
       case 'save-slot':
         p.saveSlot = text(command.value, 20);
         p.referenceMode = command.mode || (p.saveSlot ? 'slot' : 'latest');

@@ -486,6 +486,7 @@ let journalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
 let journalRemoveDraft = null;
 let journalTrashConfirmation = null;
 let journalRevisionConfirmation = null;
+let noteRestoreConfirmation = null;
 let historyJournalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
 function historyJournalProfile() {
   return protectionView.history?.journal.profiles.find((p) => p.id === protectionView.journalProfileId);
@@ -1628,7 +1629,26 @@ function saveNote(id = profile().id) {
     });
 }
 function noteBlock() {
-  return `<div class="note-paper"><div class="row between"><h3>江湖随手记</h3>${act('navigate', '逐条记录与回顾', 'text-btn', 'journal', 'feather')}</div><textarea id="note" data-persist="note" maxlength="20000" aria-label="江湖随手记" placeholder="上次停在何处？下次想做什么？\n给未来的自己留句话。">${esc(drafts.get(profile().id) ?? profile().notes)}</textarea><div id="note-status" class="note-footer">${drafts.has(profile().id) ? '正在保存…' : '只存在这台电脑 · 自动保存'}</div></div>`;
+  return `<div class="note-paper"><div class="row between wrap"><h3>江湖随手记</h3>${act('navigate', '逐条记录与回顾', 'text-btn', 'journal', 'feather')}</div><textarea id="note" data-persist="note" maxlength="20000" aria-label="江湖随手记" placeholder="上次停在何处？下次想做什么？\n给未来的自己留句话。">${esc(drafts.get(profile().id) ?? profile().notes)}</textarea><div id="note-status" class="note-footer">${drafts.has(profile().id) ? '正在保存…' : '只存在这台电脑 · 自动保存'}</div>${act('note-history', '找回旧内容 · ' + (profile().noteRevisions?.length || 0), 'text-btn', '', 'archive')}<details class="small"><summary>旧内容保留规则</summary><p class="save-note">自动保留最近 20 份非空旧内容；连续编辑每隔 5 分钟留一份，清空或恢复前立即保留。更早的内容可通过导出手札备份另行保存。</p></details></div>`;
+}
+function showNoteHistory(returnContext = null) {
+  const rows = profile().noteRevisions || [];
+  modal(
+    '随手记旧内容',
+    '清空或改写前保留的文字按周目独立保存；最近 20 份可预览并放回随手记。',
+    `<section data-note-history>${rows.map((row) => `<details class="detail-block" data-note-revision="${esc(row.id)}"><summary>${when(row.replacedAt)} · ${esc(row.body.slice(0, 80))}</summary><p class="preserve-text">${esc(row.body)}</p>${act('note-restore-preview', '把这份旧内容放回随手记…', 'btn', row.id, 'refresh')}</details>`).join('') || empty('尚无旧内容', '编辑已有随手记或清空时，会自动保留之前的非空文字。')}</section>`,
+    '',
+  );
+  if (returnContext) {
+    for (const detail of overlay.querySelectorAll('[data-note-revision]'))
+      detail.open = returnContext.opened.includes(detail.dataset.noteRevision);
+    overlay
+      .querySelector(
+        `[data-note-revision="${CSS.escape(returnContext.id)}"] [data-action="note-restore-preview"]`,
+      )
+      ?.focus({ preventScroll: true });
+    overlay.querySelector('.modal').scrollTop = returnContext.scroll;
+  }
 }
 function pending() {
   if (profile().stageConfirmed === false) return [];
@@ -2344,6 +2364,14 @@ function showOverlay(html, drawer = false, preserve = false) {
   if (currentDrawer?.type === 'timeline') updateHealth(environment.health);
 }
 function dismissOverlay() {
+  const note = noteRestoreConfirmation;
+  if (note && overlay.querySelector('[data-note-restore-preview]')) {
+    noteRestoreConfirmation = null;
+    if (note.profileId === profile().id) {
+      showNoteHistory(note.returnContext);
+      return;
+    }
+  }
   const draft = journalRemoveDraft;
   if (
     draft?.mode === 'single' &&
@@ -2364,6 +2392,7 @@ function dismissOverlay() {
   closeOverlay();
 }
 function closeOverlay() {
+  noteRestoreConfirmation = null;
   journalRemoveDraft = null;
   journeyTrashConfirmation = null;
   itineraryClearConfirmation = null;
@@ -3087,6 +3116,50 @@ async function handle(action, id, target) {
       if (intentFieldId(row)) itineraryIntentEditors.delete(intentEditorKey(intentFieldId(row)));
       await openIntentDraft(row);
       toast('已重新核对，草稿仍未正式提交');
+      break;
+    }
+    case 'note-history':
+      await saveNote();
+      showNoteHistory();
+      break;
+    case 'note-restore-preview': {
+      await saveNote();
+      const row = profile().noteRevisions?.find((row) => row.id === id);
+      if (!row) throw Error('旧内容已变化，请重新打开随手记旧内容');
+      noteRestoreConfirmation = {
+        profileId: profile().id,
+        id,
+        expectedValue: profile().notes,
+        returnContext: {
+          id,
+          scroll: overlay.querySelector('.modal')?.scrollTop || 0,
+          opened: [...overlay.querySelectorAll('[data-note-revision][open]')].map(
+            (row) => row.dataset.noteRevision,
+          ),
+        },
+      };
+      modal(
+        '将旧内容放回随手记？',
+        '确认后替换当前随手记；当前非空文字会先保留为一份旧内容。目标、逐条记录和游戏进度继续沿用。',
+        `<section data-note-restore-preview><h3>将找回的完整文字</h3><p class="preserve-text">${esc(row.body)}</p><details><summary>当前随手记 · ${profile().notes.length} 字</summary><p class="preserve-text">${esc(profile().notes) || '当前为空'}</p></details></section>`,
+        act('note-restore-confirm', '确认放回随手记', 'btn primary', id, 'refresh'),
+      );
+      break;
+    }
+    case 'note-restore-confirm': {
+      const confirmation = noteRestoreConfirmation;
+      if (!confirmation || confirmation.profileId !== profile().id || confirmation.id !== id)
+        throw Error('周目或旧内容已变化，请重新预览');
+      await mutation({
+        type: 'note-restore',
+        profileId: confirmation.profileId,
+        id: confirmation.id,
+        expectedValue: confirmation.expectedValue,
+      });
+      noteRestoreConfirmation = null;
+      closeOverlay();
+      render(true);
+      toast('旧内容已放回随手记；替换前的非空文字仍可找回');
       break;
     }
     case 'journal-revisions-open':
