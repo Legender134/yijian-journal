@@ -11,6 +11,7 @@ const { journeyPlan } = require('../src/core/journey-plan.cjs'),
   { resourceBudget } = require('../src/core/resource-budget.cjs');
 const catalog = require('../src/data/catalog.cjs'),
   game = require('../src/data/game-index.json');
+const originalMemo = '\n\n原正式说明 <literal> & 原文\n  尾部空白  ';
 const base = path.resolve(__dirname, '..'),
   override = process.env.YIJIAN_EXECUTABLE;
 const executable = path.join(
@@ -51,7 +52,7 @@ store.mutate({
   type: 'journey-todo-put',
   id: 'existing-todo',
   title: '原正式待办',
-  detail: '原正式详情',
+  detail: originalMemo,
   placeId: 'place-9',
   done: false,
 });
@@ -63,7 +64,7 @@ store.mutate({
   npcId: npc,
   itemId: item,
   quantity: 2,
-  note: '原赠礼备注',
+  note: originalMemo,
   done: false,
 });
 store.mutate({ type: 'craft-set', id: 'fusion-1000', quantity: 1 });
@@ -136,6 +137,7 @@ async function mutate(target, command) {
     await launch();
     await nav('journey');
     await page.locator('[data-action="journey-todo-dialog"][data-id="existing-todo"]').click();
+    assert.equal(await page.locator('#journey-note').inputValue(), originalMemo);
     await page.locator('#journey-title').fill('还没提交的待办');
     await page.locator('#journey-note').fill('下次接着填写的重要文字\n第二行');
     await page.keyboard.press('Escape');
@@ -148,8 +150,9 @@ async function mutate(target, command) {
     checks.push('关闭安排编辑器后，成功暂存立即清除列表中的未保存提示');
     assert.equal(p.journey.todos[0].title, '原正式待办');
     await page.locator('[data-action="journey-gift-edit"][data-id="existing-gift"]').click();
+    assert.equal(await page.locator('#journey-note').inputValue(), originalMemo);
     await page.locator('#journey-quantity').fill('');
-    await page.locator('#journey-note').fill('赠礼数量还在核对');
+    await page.locator('#journey-note').fill('\n\n赠礼数量还在核对\n  尾部空白  ');
     await page.keyboard.press('Escape');
     p = await until((p) => p.intentDrafts.some((r) => r.kind === 'journey-gift' && r.values.quantity === ''));
     const giftDraft = p.intentDrafts.find((r) => r.kind === 'journey-gift').id;
@@ -181,7 +184,7 @@ async function mutate(target, command) {
     const placeButton = page.locator('[data-action="journey-place-dialog"][data-id="place-9"]').first();
     await reveal(placeButton);
     await placeButton.click();
-    await page.locator('#journey-note').fill('地点还在研究，先留下完整想法');
+    await page.locator('#journey-note').fill('\n\n地点还在研究，先留下完整想法\n  尾部空白  ');
     await page.locator('#journey-favorite').check();
     await page.keyboard.press('Escape');
     p = await until((p) => p.intentDrafts.some((r) => r.kind === 'journey-place'));
@@ -250,6 +253,7 @@ async function mutate(target, command) {
     assert(!p.intentDrafts.some((r) => r.id === todoDraft));
     await resume(giftDraft);
     assert.equal(await page.locator('#journey-quantity').inputValue(), '');
+    assert.equal(await page.locator('#journey-note').inputValue(), '\n\n赠礼数量还在核对\n  尾部空白  ');
     await page.locator('#journey-quantity').fill('3');
     await page.locator('[data-action="journey-intent-save"]').click();
     p = await until((p) => p.journey.gifts[0].quantity === 3);
@@ -269,12 +273,33 @@ async function mutate(target, command) {
     assert.equal(p.craftPlans[0].reserved, false);
     await nav('journey');
     await resume(placeDraft);
-    assert.equal(await page.locator('#journey-note').inputValue(), '地点还在研究，先留下完整想法');
+    assert.equal(
+      await page.locator('#journey-note').inputValue(),
+      '\n\n地点还在研究，先留下完整想法\n  尾部空白  ',
+    );
     assert(await page.locator('#journey-favorite').isChecked());
     await page.locator('[data-action="journey-intent-save"]').click();
     p = await until((p) => p.journey.places.some((r) => r.placeId === 'place-9'));
     assert(!p.intentDrafts.some((r) => r.id === placeDraft));
     checks.push('冷重启逐份续填七种编辑并正式提交，仅消耗相应草稿，原引用/说明/选项保留');
+    for (const [action, id, expected] of [
+      ['journey-place-dialog', 'place-9', '\n\n地点还在研究，先留下完整想法\n  尾部空白  '],
+      ['journey-gift-edit', 'existing-gift', '\n\n赠礼数量还在核对\n  尾部空白  '],
+    ]) {
+      const button = page.locator('[data-action="' + action + '"][data-id="' + id + '"]').first();
+      await reveal(button);
+      await button.click();
+      assert.equal(await page.locator('#journey-note').inputValue(), expected);
+      await page.locator('[data-action="journey-intent-save"]').click();
+      await page.locator('#journey-note').waitFor({ state: 'detached' });
+    }
+    p = await current();
+    assert.equal(
+      p.journey.places.find((r) => r.placeId === 'place-9').note,
+      '\n\n地点还在研究，先留下完整想法\n  尾部空白  ',
+    );
+    assert.equal(p.journey.gifts[0].note, '\n\n赠礼数量还在核对\n  尾部空白  ');
+    checks.push('原待办与赠礼编辑、地点和赠礼草稿续填及重开保存均保留首部空行和尾部空白');
     const created = app.waitForEvent('window');
     await page.locator('.topbar [data-action="compact"]').click();
     companion = await created;

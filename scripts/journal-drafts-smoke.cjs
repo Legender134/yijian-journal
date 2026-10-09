@@ -58,11 +58,11 @@ async function quit() {
   try {
     await launch();
     await journal();
-    await write('搜索途中未完成的记录', '先记录了正文，稍后还要查资料。');
+    await write('搜索途中未完成的记录', '\n\n先记录了正文，稍后还要查资料。\n  原样空白  ');
     await page.locator('#journal-time').fill('');
     await page.locator('#journal-tags').fill('朋友，朋友，，还没写完');
     await page.locator('[data-action="close-overlay"]').click();
-    const closed = await saved('搜索途中未完成的记录', '先记录了正文，稍后还要查资料。');
+    const closed = await saved('搜索途中未完成的记录', '\n\n先记录了正文，稍后还要查资料。\n  原样空白  ');
     await page.waitForFunction((id) => {
       const row = document.querySelector('[data-journal-draft-id="' + id + '"]');
       return row?.textContent.includes('已暂存在本机') && !row.textContent.includes('尚未成功保存');
@@ -72,7 +72,7 @@ async function quit() {
     await page.keyboard.press('Control+k');
     await page.locator('#global-search').waitFor();
     await page.keyboard.press('Escape');
-    const first = await saved('搜索途中未完成的记录', '先记录了正文，稍后还要查资料。');
+    const first = await saved('搜索途中未完成的记录', '\n\n先记录了正文，稍后还要查资料。\n  原样空白  ');
     assert.equal(first.localTime, '');
     assert.equal(first.tags, '朋友，朋友，，还没写完');
     await journal();
@@ -92,12 +92,12 @@ async function quit() {
     await resume(second.id);
     assert.equal(await page.locator('#journal-title').inputValue(), second.title);
     checks.push('系统关闭到托盘先暂存，重开主窗口可继续同一份草稿');
-    await page.locator('#journal-body').fill('退出前刚刚输入，没有等待自动保存。');
+    await page.locator('#journal-body').fill('\n\n退出前刚刚输入，没有等待自动保存。\n  原样空白  ');
     await quit();
     await launch();
     await page.locator('[data-action="journal-drafts"]').first().click();
     const restarted = (await profile()).journalDrafts.find((draft) => draft.id === first.id);
-    assert.equal(restarted.body, '退出前刚刚输入，没有等待自动保存。');
+    assert.equal(restarted.body, '\n\n退出前刚刚输入，没有等待自动保存。\n  原样空白  ');
     await resume(first.id);
     assert.equal(await page.locator('#journal-body').inputValue(), restarted.body);
     await page.locator('#journal-time').fill('2026-10-09T10:30');
