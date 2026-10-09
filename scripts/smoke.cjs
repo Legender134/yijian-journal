@@ -61,7 +61,11 @@ async function attach() {
     assert.equal(await win.locator('.start-panel details').evaluate((el) => el.open), false);
     assert.equal(await win.locator('[data-persist-detail="home-stage"]').evaluate((el) => el.open), false);
     await win.locator('.start-panel summary').click();
+    await win.waitForFunction(() => document.querySelector('.start-panel details')?.open);
     await win.locator('[data-action="refresh"]').click();
+    await win.waitForFunction(() =>
+      document.querySelector('#toasts')?.textContent.includes('已刷新本机存档'),
+    );
     assert.equal(await win.locator('.start-panel details').evaluate((el) => el.open), true);
     await win.locator('.start-panel summary').click();
     const firstUse = await win.evaluate(async () => (await window.journal.bootstrap()).data);

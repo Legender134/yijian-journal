@@ -304,7 +304,12 @@ async function searchHelp(target, size) {
       ),
     );
     await page.keyboard.press('Escape');
-    checks.push('主窗旧删除确认被后台阻断，小窗新标题正文保留');
+    await page.locator('#overlay [data-action="journal-entry-edit"]').waitFor();
+    assert.match(await page.locator('#overlay').innerText(), /小窗刚修改后的记录/);
+    assert.match(await page.locator('#overlay').innerText(), /另一窗口新增的重要正文/);
+    await page.locator('#overlay [data-action="close-overlay"]').click();
+    await page.waitForFunction(() => !document.querySelector('#overlay').children.length);
+    checks.push('主窗旧删除确认被后台阻断；取消返回小窗更新后的完整记录，再明确关闭详情');
     await nav('materials');
     await page.locator('[data-action="resource-priority-open"]').click();
     await page.locator('[data-action="resource-priority-save"]').waitFor();

@@ -141,6 +141,11 @@ async function mutate(target, command) {
     await page.keyboard.press('Escape');
     p = await until((p) => p.intentDrafts?.some((r) => r.kind === 'journey-todo'));
     const todoDraft = p.intentDrafts.find((r) => r.kind === 'journey-todo').id;
+    await page.waitForFunction((id) => {
+      const row = document.querySelector('[data-intent-draft-id="' + id + '"]');
+      return row && !row.textContent.includes('尚未成功暂存');
+    }, todoDraft);
+    checks.push('关闭安排编辑器后，成功暂存立即清除列表中的未保存提示');
     assert.equal(p.journey.todos[0].title, '原正式待办');
     await page.locator('[data-action="journey-gift-edit"][data-id="existing-gift"]').click();
     await page.locator('#journey-quantity').fill('');

@@ -61,6 +61,14 @@ async function quit() {
     await write('搜索途中未完成的记录', '先记录了正文，稍后还要查资料。');
     await page.locator('#journal-time').fill('');
     await page.locator('#journal-tags').fill('朋友，朋友，，还没写完');
+    await page.locator('[data-action="close-overlay"]').click();
+    const closed = await saved('搜索途中未完成的记录', '先记录了正文，稍后还要查资料。');
+    await page.waitForFunction((id) => {
+      const row = document.querySelector('[data-journal-draft-id="' + id + '"]');
+      return row?.textContent.includes('已暂存在本机') && !row.textContent.includes('尚未成功保存');
+    }, closed.id);
+    checks.push('马上暂存并关闭后，保存成功回执直接更新草稿列表，无需切换页面');
+    await resume(closed.id);
     await page.keyboard.press('Control+k');
     await page.locator('#global-search').waitFor();
     await page.keyboard.press('Escape');

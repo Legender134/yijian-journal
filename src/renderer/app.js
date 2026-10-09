@@ -226,9 +226,11 @@ function flushIntentDrafts(onlyId = null) {
             if (pendingIntentDrafts.get(id) === captured) pendingIntentDrafts.delete(id);
             for (const editor of [activeIntentEditor, ...itineraryIntentEditors.values()])
               if (editor?.id === id) editor.persisted = true;
+            render(true);
             if (activeIntentEditor?.id === id) {
               const status = overlay.querySelector('#intent-draft-status');
-              if (status) status.textContent = '这些编辑已暂存在本机，关闭或重启后可继续。';
+              if (status && !pendingIntentDrafts.has(id))
+                status.textContent = '这些编辑已暂存在本机，关闭或重启后可继续。';
             }
           }
         } catch (error) {
@@ -311,8 +313,9 @@ function flushJournalDrafts() {
         // Only acknowledge this exact captured value. Later keystrokes remain queued.
         if (pendingJournalDrafts.get(id) === value) pendingJournalDrafts.delete(id);
         journalDraftSaved.set(id, JSON.stringify({ ...intent, revision: saved.revision }));
+        render(true);
         const status = document.querySelector('#journal-draft-status');
-        if (form?.dataset.draftId === id && status)
+        if (form?.dataset.draftId === id && status && !pendingJournalDrafts.has(id))
           status.textContent = '草稿已保存在本机；关闭或查资料后可在江湖记录中继续写。';
       }
     });
@@ -1618,13 +1621,14 @@ function saveNote(id = profile().id) {
   const value = drafts.get(id);
   return mutation({ type: 'note', value, profileId: id })
     .then(() => {
-      if (drafts.get(id) === value) drafts.delete(id);
-      const el = document.querySelector('#note-status');
-      if (el) el.textContent = '已保存到本机';
+      const current = drafts.get(id) === value;
+      if (current) drafts.delete(id);
+      const el = profile().id === id && document.querySelector('#note-status');
+      if (el && current) el.textContent = '已保存到本机';
     })
     .catch((e) => {
-      const el = document.querySelector('#note-status');
-      if (el) el.textContent = '保存失败，内容仍在编辑区';
+      const el = profile().id === id && document.querySelector('#note-status');
+      if (el && drafts.get(id) === value) el.textContent = '保存失败，内容仍在编辑区';
       toast(e.message, true);
       throw e;
     });
@@ -2199,7 +2203,6 @@ function compactPage() {
 function render(preserve = false, navigationId = null) {
   if (!catalog || !state || composing) return;
   captureIntentDrafts();
-  const hadIntentPanel = !!root.querySelector('.intent-draft-panel');
   const active = document.activeElement,
     focusId = preserve ? active?.id : null,
     selection = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null,
@@ -2243,8 +2246,11 @@ function render(preserve = false, navigationId = null) {
     const opened = new Set(
       [...root.querySelectorAll('[data-compact-detail][open]')].map((e) => e.dataset.compactDetail),
     );
-    const itineraryDetails = new Set(
-      [...root.querySelectorAll('details[data-persist-detail][open]')].map((el) => el.dataset.persistDetail),
+    const itineraryDetails = new Map(
+      [...root.querySelectorAll('details[data-persist-detail]')].map((el) => [
+        el.dataset.persistDetail,
+        el.open,
+      ]),
     );
     const compactScroll = root.querySelector('.compact-body')?.scrollTop || 0;
     root.innerHTML = compactPage();
@@ -2265,8 +2271,8 @@ function render(preserve = false, navigationId = null) {
       el.open = opened.has(el.dataset.compactDetail);
     if (preserve)
       for (const el of root.querySelectorAll('details[data-persist-detail]'))
-        if (el.dataset.persistDetail !== 'intent-drafts' || hadIntentPanel)
-          el.open = itineraryDetails.has(el.dataset.persistDetail);
+        if (itineraryDetails.has(el.dataset.persistDetail))
+          el.open = itineraryDetails.get(el.dataset.persistDetail);
     const body = root.querySelector('.compact-body');
     if (body) body.scrollTop = compactScroll;
     if (focusId && companionMode === 'expanded') {
@@ -2283,9 +2289,12 @@ function render(preserve = false, navigationId = null) {
     return;
   }
   const sidebarScroll = root.querySelector('.sidebar-nav')?.scrollTop || 0;
-  const openedDetails = new Set(
+  const openedDetails = new Map(
     preserve
-      ? [...root.querySelectorAll('details[data-persist-detail][open]')].map((el) => el.dataset.persistDetail)
+      ? [...root.querySelectorAll('details[data-persist-detail]')].map((el) => [
+          el.dataset.persistDetail,
+          el.open,
+        ])
       : [],
   );
   root.innerHTML = `<div class="layout"><aside class="sidebar"><div class="brand"><span class="seal">逸</span><div><div class="brand-name">逸剑手札</div><div class="brand-sub">WANDERING JOURNAL</div></div></div><nav class="sidebar-nav" aria-label="手札页面"><div class="nav-section">我的江湖</div>${[
@@ -2322,8 +2331,7 @@ function render(preserve = false, navigationId = null) {
   if (preserve) {
     root.querySelector('.content').scrollTop = scroll;
     for (const el of root.querySelectorAll('details[data-persist-detail]'))
-      if (el.dataset.persistDetail !== 'intent-drafts' || hadIntentPanel)
-        el.open = openedDetails.has(el.dataset.persistDetail);
+      if (openedDetails.has(el.dataset.persistDetail)) el.open = openedDetails.get(el.dataset.persistDetail);
   }
   if (focusId) {
     const next = document.getElementById(focusId);
@@ -2844,9 +2852,17 @@ async function refresh() {
     if (name !== worldView.referenceName || signature(name) !== worldView.reference?.hash)
       await loadWorldReference();
   }
-  if (materialView.referenceName !== undefined && materialView.result) {
+  if (
+    materialView.referenceName !== undefined &&
+    (materialView.result || route === 'materials') &&
+    !materialView.loading
+  ) {
     const name = materialView.follow ? latestReference() : materialView.referenceName;
-    if (name !== materialView.referenceName || signature(name) !== materialView.result.reference?.hash)
+    if (
+      !materialView.result ||
+      name !== materialView.referenceName ||
+      signature(name) !== materialView.result.reference?.hash
+    )
       await calculateMaterials();
   }
   if (referenceSaveName !== undefined || referenceFollow) {
@@ -3786,7 +3802,7 @@ async function handle(action, id, target, navigationFocused = false) {
       if (id === 'materials') {
         materialView.referenceName ??= defaultReference();
         render();
-        if ((profile().craftList || []).length && !materialView.result) await calculateMaterials();
+        if (!materialView.result) await calculateMaterials();
       }
       if (id === 'journey') await refresh();
       break;
@@ -5484,7 +5500,7 @@ async function handle(action, id, target, navigationFocused = false) {
         result = await call('importProtection', mode);
       } catch (error) {
         const checksum = error.code === 'PROTECTION_CHECKSUM_MISMATCH';
-        protectionView.importFailure = {
+        const failure = {
           message: checksum
             ? '保护包校验失败，文件可能损坏或没有复制完整。'
             : error.code === 'PROTECTION_FORMAT_UNSUPPORTED'
@@ -5499,9 +5515,10 @@ async function handle(action, id, target, navigationFocused = false) {
           diagnostic: error.message,
           mode,
         };
+        protectionView.importFailure = failure;
         route = 'archives';
-        render();
-        toast(protectionView.importFailure.message, true);
+        await loadProtectionList();
+        if (protectionView.importFailure === failure) toast(failure.message, true);
         break;
       }
       if (!result.cancelled) {
