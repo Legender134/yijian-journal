@@ -2109,10 +2109,10 @@ function journeyDialog(kind, id = '', savedDraft = null) {
     if (!place) throw Error('请选择资料中的地点');
     journeyDraft.placeId = id;
     title = '记下地点：' + place.name;
-    body = `<div class="field"><label for="journey-note">在这里想做什么</label><textarea id="journey-note" maxlength="1000">${esc(record?.note || '')}</textarea></div><label><input id="journey-favorite" type="checkbox" ${record?.favorite !== false ? 'checked' : ''}> 优先显示这个地点</label><label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 这项地点目标已完成</label>`;
+    body = `<div class="field"><label for="journey-note">在这里想做什么</label><textarea id="journey-note" maxlength="1000">\n${esc(record?.note || '')}</textarea></div><label><input id="journey-favorite" type="checkbox" ${record?.favorite !== false ? 'checked' : ''}> 优先显示这个地点</label><label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 这项地点目标已完成</label>`;
   } else if (kind === 'todo') {
     title = record ? '编辑个人待办' : '添加个人待办';
-    body = `<div class="field"><label for="journey-title">待办标题</label><input id="journey-title" maxlength="120" required value="${esc(record?.title || '')}" placeholder="例如：去药铺前先核对炼丹材料"></div><div class="field"><label for="journey-note">补充说明</label><textarea id="journey-note" maxlength="2000">${esc(record?.detail || '')}</textarea></div>${placePicker.field(gameIndex, journeyDraft.placePicker)}<label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 这项个人待办已完成</label>`;
+    body = `<div class="field"><label for="journey-title">待办标题</label><input id="journey-title" maxlength="120" required value="${esc(record?.title || '')}" placeholder="例如：去药铺前先核对炼丹材料"></div><div class="field"><label for="journey-note">补充说明</label><textarea id="journey-note" maxlength="2000">\n${esc(record?.detail || '')}</textarea></div>${placePicker.field(gameIndex, journeyDraft.placePicker)}<label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 这项个人待办已完成</label>`;
   } else {
     const pair = savedDraft
       ? [savedDraft.values.npcId, savedDraft.values.itemId]
@@ -2132,7 +2132,7 @@ function journeyDialog(kind, id = '', savedDraft = null) {
       },
     };
     title = record ? '编辑赠礼意图' : '规划一份赠礼';
-    body = `${giftPicker.field(gameIndex, 'person', journeyDraft.giftPicker.person)}${giftPicker.field(gameIndex, 'item', journeyDraft.giftPicker.item)}<div class="field"><label for="journey-quantity">件数</label><input id="journey-quantity" type="number" min="1" max="999" step="1" required value="${record?.quantity || 1}"></div>${placePicker.field(gameIndex, journeyDraft.placePicker, '想在什么地点办理')}<div class="field"><label for="journey-note">备注</label><textarea id="journey-note" maxlength="1000">${esc(record?.note || '')}</textarea></div><label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 我已经完成这份赠礼</label><p class="save-note">保存后会与任务、制作计划共同分配已有库存。这里只规划赠礼，人物当前可否接受与好感变化须在游戏内确认。</p>`;
+    body = `${giftPicker.field(gameIndex, 'person', journeyDraft.giftPicker.person)}${giftPicker.field(gameIndex, 'item', journeyDraft.giftPicker.item)}<div class="field"><label for="journey-quantity">件数</label><input id="journey-quantity" type="number" min="1" max="999" step="1" required value="${record?.quantity || 1}"></div>${placePicker.field(gameIndex, journeyDraft.placePicker, '想在什么地点办理')}<div class="field"><label for="journey-note">备注</label><textarea id="journey-note" maxlength="1000">\n${esc(record?.note || '')}</textarea></div><label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 我已经完成这份赠礼</label><p class="save-note">保存后会与任务、制作计划共同分配已有库存。这里只规划赠礼，人物当前可否接受与好感变化须在游戏内确认。</p>`;
   }
   modal(
     title,

@@ -34,6 +34,7 @@ for (let i = 1; i <= 22; i++)
 const lastReferenceId = store.get().profiles[0].goals.find((g) => g.detail === '关联备忘22').id;
 const saves = new Saves(path.join(userData, 'save-backups'));
 const backup = saves.capture(source, '界面筛选保护点');
+const firstBody = '\n\n清霄道长提到武当，先记下与卫霍的约定。\n  原文 <literal> & 尾部  ';
 const checks = [],
   errors = [];
 let app;
@@ -94,9 +95,7 @@ async function nav(page, id) {
     for (const [i, title] of ['第一天见卫霍', '第二天重新安排'].entries()) {
       await page.locator('[data-action="journal-entry-new"]').click();
       await page.locator('#journal-title').fill(title);
-      await page
-        .locator('#journal-body')
-        .fill(i ? '今天仍未赠送，先去武当。' : '清霄道长提到武当，先记下与卫霍的约定。');
+      await page.locator('#journal-body').fill(i ? '今天仍未赠送，先去武当。' : firstBody);
       await page.locator('#journal-time').fill('2026-10-0' + (8 + i) + 'T10:30');
       await page.locator('#journal-tags').fill('人物，武当');
       await page.locator('#journal-reference-query').fill('卫霍');
@@ -139,10 +138,7 @@ async function nav(page, id) {
         );
         assert((await results.innerText()).includes('关联备忘22'));
         assert.equal(await page.locator('#journal-title').inputValue(), title);
-        assert.equal(
-          await page.locator('#journal-body').inputValue(),
-          '清霄道长提到武当，先记下与卫霍的约定。',
-        );
+        assert.equal(await page.locator('#journal-body').inputValue(), firstBody);
         assert.equal(await page.locator('#journal-tags').inputValue(), '人物，武当');
         checks.push('22 个同名个人目标全部可翻页关联，说明可辨认和检索，键盘翻页保留正文、标签与已选关联');
         await page.locator('#journal-snapshot').selectOption('selected');
@@ -163,8 +159,17 @@ async function nav(page, id) {
     await original.click();
     await page.locator('#overlay [data-journal-id="' + p.journalEntries[0].id + '"]').waitFor();
     assert((await page.locator('#overlay').innerText()).includes('清霄道长'));
-    await page.locator('#overlay [data-action="close-overlay"]').click();
+    await page.locator('#overlay [data-action="journal-entry-edit"]').click();
+    assert.equal(await page.locator('#journal-body').inputValue(), firstBody);
+    await page.locator('#journal-title').fill('第一天见卫霍 · 只改标题');
+    await page.locator('[data-action="journal-entry-save"]').click();
+    p = await until(page, (p) => p.journalEntries.some((e) => e.title === '第一天见卫霍 · 只改标题'));
+    const renamed = p.journalEntries.find((e) => e.title === '第一天见卫霍 · 只改标题');
+    assert.equal(renamed.body, firstBody);
+    assert.equal(renamed.snapshot.name, '1.sav');
+    assert.equal(renamed.links[0].label, '人物 · 卫霍');
     checks.push('逐事件记录有时间、标签、人物关联和只读参照；全局搜索直达原记录');
+    checks.push('记录重新编辑与只改标题保存完整保留首部空行、文字、尾部空白、资料关联和存档参照');
     await nav(page, 'goals');
     await page.locator('[data-action="goal-toggle"][data-id="' + goalId + '"]').click();
     await until(page, (p) => p.journalEntries.some((e) => e.kind === 'goal-completed'));
