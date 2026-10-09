@@ -14,6 +14,59 @@ const { ProtectionArchives } = require('../src/core/protection-archives.cjs');
 const catalog = require('../src/data/catalog.cjs'),
   game = require('../src/data/game-index.json'),
   world = require('../src/data/world-index.json');
+
+function rendererDraftBoundary(action) {
+  const vm = require('node:vm');
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const markers = {
+    export: ['export', 'protection-open'],
+    'protection-export': ['protection-export', 'protection-import-volumes'],
+    import: ['import', 'launch'],
+    'protection-use-journal': ['protection-use-journal', 'protection-restore'],
+  };
+  const [start, end] = markers[action];
+  const body = source.slice(source.indexOf("    case '" + start + "':"), source.indexOf("    case '" + end + "':"));
+  assert(body.includes("case '" + start + "':"));
+  let resolveWrite, rejectWrite, captured = false, persisted = false;
+  const write = new Promise((resolve, reject) => { resolveWrite = resolve; rejectWrite = reject; });
+  // Rejection is consumed by the real boundary when it waits for the draft.
+  // Keep a handler in the old-code red test too, so it cannot become unhandled.
+  write.catch(() => {});
+  const snapshots = [];
+  const context = {
+    action, id: 'synthetic-history', protectionExportRequest: 0,
+    protectionView: { exportResultOverride: null },
+    captureJournalDraft: () => {}, flushJournalDrafts: async () => {},
+    captureIntentDrafts: () => { captured = true; },
+    flushIntentDrafts: async () => { await write; persisted = captured; },
+    saveNote: async () => {}, render: () => {}, toast: () => {}, refresh: async () => {},
+    call: async (method) => { snapshots.push({ method, persisted }); return { cancelled: true }; },
+  };
+  vm.createContext(context);
+  const run = () => vm.runInContext('(async () => { switch (action) { ' + body + ' } })()', context);
+  return { run, snapshots, resolveWrite, rejectWrite };
+}
+
+for (const [action, method] of [
+  ['export', 'exportJournal'], ['protection-export', 'exportProtection'],
+  ['import', 'importJournal'], ['protection-use-journal', 'useHistoricalJournal'],
+]) {
+  test(action + ' waits for pending personal drafts before taking an export or protection snapshot', async () => {
+    const s = rendererDraftBoundary(action), task = s.run();
+    await new Promise(setImmediate);
+    assert.deepEqual(s.snapshots, []);
+    s.resolveWrite();
+    await task;
+    assert.deepEqual(s.snapshots, [{ method, persisted: true }]);
+  });
+  test(action + ' refuses the boundary when draft persistence fails, without starting the native operation', async () => {
+    const s = rendererDraftBoundary(action), task = s.run();
+    const rejected = assert.rejects(task, /synthetic draft disk fault/);
+    s.rejectWrite(Error('synthetic draft disk fault'));
+    await rejected;
+    assert.deepEqual(s.snapshots, []);
+  });
+}
 function setup(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-intent-draft-store-'));
   t.after(() => {
