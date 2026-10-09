@@ -167,6 +167,28 @@ function assertOriginals() {
     checks.push('真实IPC重新导入完好原保护包，坏原目录字节保持不变');
     await app.close();
     app = undefined;
+    const truncatedPackage = path.join(run, 'truncated-original.yijian-protection');
+    fs.writeFileSync(truncatedPackage, fs.readFileSync(goodPackage).subarray(0, -17));
+    await launch();
+    const journalBeforeBadImport = fs.readFileSync(path.join(dataRoot, 'journal.json'));
+    await app.evaluate(({ dialog }, file) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
+    }, truncatedPackage);
+    await page.locator('[data-action="protection-import"]').click();
+    await page.getByRole('heading', { name: '导入未完成' }).waitFor();
+    await page.getByRole('heading', { name: '已保存的离线档案 · 1 份', exact: true }).waitFor();
+    await page.locator('[data-action="protection-history"]').waitFor();
+    assert.ok((await page.locator('.content').innerText()).includes('保护包没有复制完整或已损坏'));
+    assert.equal((await page.locator('.content').innerText()).includes('正在读取档案列表'), false);
+    assert.deepEqual(fs.readFileSync(path.join(dataRoot, 'journal.json')), journalBeforeBadImport);
+    assertOriginals();
+    await page.screenshot({
+      path: path.join(run, '06-cold-bad-import-keeps-archive-list.png'),
+      fullPage: true,
+    });
+    checks.push('冷启动拒绝坏保护包后自动加载已有档案，错误说明保留且手札和存档字节不变');
+    await app.close();
+    app = undefined;
     // A second, healthy synthetic machine isolates IO recovery from the bad
     // original directory. Only this Electron process's real fs module is stubbed.
     const ioRoot = path.join(run, 'result-io-fixture'),

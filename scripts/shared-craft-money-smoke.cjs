@@ -28,6 +28,7 @@ const inventory = [
   { id: 10205, count: 1 },
 ];
 const files = new Map();
+const fixtureTimestamp = Date.now();
 function write(name, multiplier, seconds, recent = false) {
   const bytes = syntheticSave({
     full: true,
@@ -39,7 +40,7 @@ function write(name, multiplier, seconds, recent = false) {
   });
   const file = path.join(saves, name);
   fs.writeFileSync(file, bytes);
-  const stamp = new Date(Date.now() - (recent ? 0 : name === '0.sav' ? 10000 : 5000));
+  const stamp = new Date(recent ? Date.now() : fixtureTimestamp - (name === '0.sav' ? 10000 : 5000));
   fs.utimesSync(file, stamp, stamp);
   files.set(name, bytes);
 }
@@ -64,6 +65,8 @@ profile.craftPlans = ['a', 'b'].map((id) => ({
   createdAt: stamp,
   updatedAt: stamp,
 }));
+profile.craftList = [];
+delete profile.activeCraftPlanId;
 store.commit(state);
 let app, page, companion;
 const checks = [],
@@ -104,6 +107,27 @@ async function openPriority() {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.locator('.layout').waitFor();
     await nav('materials');
+    await page.locator('[data-shared-craft-money]').first().waitFor();
+    assert.match(await page.locator('main.content').innerText(), /共同还差 144 文/);
+    await page.locator('#craft-save').selectOption('0.sav');
+    await page.locator('[data-action="resource-priority-open"]').waitFor();
+    assert.match(await page.locator('main.content').innerText(), /1,294.*共同还差 294 文/s);
+    await api('mutate', { type: 'craft-plan-reserve', id: 'b', value: false });
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-action="resource-priority-open"]').length === 0,
+    );
+    await api('mutate', { type: 'craft-plan-reserve', id: 'b', value: true });
+    await page.locator('[data-action="resource-priority-open"]').waitFor();
+    assert.equal((await current()).craftList.length, 0);
+    assert.equal((await current()).activeCraftPlanId || '', '');
+    await page.screenshot({
+      path: path.join(data, 'empty-editor-shared-budget.png'),
+      animations: 'disabled',
+    });
+    checks.push(
+      '编辑清单为空也自动显示已存计划的共同费用、缺口和排序入口，另一窗口释放/恢复预留后重新核对且不填入编辑清单',
+    );
+    await page.locator('[data-action="craft-plan-open"][data-id="a"]').click();
     await calculate('1.sav');
     const notices = await page.locator('[data-shared-craft-money]').allTextContents();
     assert.equal(notices.length, 2);
