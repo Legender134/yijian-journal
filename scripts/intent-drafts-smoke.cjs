@@ -183,6 +183,7 @@ async function collectionQuantityJourney() {
   const action = journeyPlan(p, null).actions.find((a) => a.goalIds?.includes(goal.id));
   const card = page.locator('[data-journey-id="' + action.id + '"]');
   assert.match(await card.innerText(), /需 10 · 已保存持有 4/);
+  assert.match(await card.locator('h3').innerText(), /采集铁矿石 10 个/);
   await card.locator('[data-action="journey-itinerary-add"]').click();
   p = await until((p) => p.journey.itinerary.steps.some((s) => s.actionId === action.id));
   const selection = p.journey.itinerary.steps.find((s) => s.actionId === action.id);
@@ -196,6 +197,7 @@ async function collectionQuantityJourney() {
   companion.on('pageerror', (e) => errors.push(e.message));
   await companion.locator('.compact-shell').waitFor();
   await companion.waitForFunction(() => document.body.textContent.includes('铁矿石 × 10'));
+  assert.match(await companion.locator('[data-companion-itinerary]').innerText(), /采集铁矿石 10 个/);
   await companion.screenshot({ path: path.join(results, 'item-quantity-compact.png') });
   await page.locator('.topbar [data-action="search"]').click();
   await page.locator('#global-search').fill('铁矿石');
@@ -206,6 +208,7 @@ async function collectionQuantityJourney() {
   await page.keyboard.press('Escape');
   await nav('goals');
   await page.locator('[data-action="goal-edit"][data-id="' + goal.id + '"]').click();
+  await page.locator('#goal-title').fill('给掌柜留用的铁矿石');
   await page.locator('#goal-quantity').fill('12');
   await until((p) => p.intentDrafts.some((r) => r.targetId === goal.id && r.values.quantity === '12'));
   await page.locator('[data-action="intent-draft-copy"]').click();
@@ -218,6 +221,9 @@ async function collectionQuantityJourney() {
     selection,
   );
   await companion.waitForFunction(() => document.body.textContent.includes('铁矿石 × 12'));
+  await companion.waitForFunction(() =>
+    document.querySelector('[data-companion-itinerary]').textContent.includes('给掌柜留用的铁矿石'),
+  );
   const stale = p.intentDrafts.find((r) => r.targetId === goal.id);
   assert(stale, 'the original independent editing draft remains');
   await resume(stale.id);
@@ -280,6 +286,7 @@ async function collectionQuantityJourney() {
     selection,
   );
   assert.match(await page.locator('[data-itinerary]').innerText(), /铁矿石 × 12/);
+  assert.match(await page.locator('[data-itinerary]').innerText(), /给掌柜留用的铁矿石/);
   await page.screenshot({ path: path.join(results, 'item-quantity-restarted.png') });
   await page
     .locator('[data-journey-id="' + todoAction.id + '"] [data-action="journey-itinerary-add"]')

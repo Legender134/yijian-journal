@@ -836,9 +836,13 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
       if (!goal.done && goal.source?.type === 'database' && entries.get(goal.source.id)?.kind === '物品') {
         const item = entries.get(goal.source.id),
           count = goal.source.quantity || 1,
-          hints = itemHints([item.gameId]);
+          hints = itemHints([item.gameId]),
+          collectionTitle = `收集目标：${item.name} × ${count}`;
         addAction('collection', [goal.id, item.id], {
-          title: `收集目标：${item.name} × ${count}`,
+          title:
+            goal.title && goal.title !== `寻找${item.name}`
+              ? `${goal.title} · ${collectionTitle}`
+              : collectionTitle,
           detail: goal.detail || item.description || '',
           goalIds: [goal.id],
           progress: { status: 'manual', label: '用户收集目标', source: null },
