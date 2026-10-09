@@ -286,20 +286,49 @@ export function searchableText(entry) {
     .join(' ')
     .toLowerCase();
 }
+function match(node, entry) {
+  if (!node) return true;
+  if (node.op === 'and') return match(node.left, entry) && match(node.right, entry);
+  if (node.op === 'or') return match(node.left, entry) || match(node.right, entry);
+  if (node.op === 'not') return !match(node.operand, entry);
+  if (!node.field) return searchableText(entry).includes(node.value);
+  const value = flatten(node.field === 'name' ? entry.name || entry.title : entry[node.field]).toLowerCase();
+  return node.field === 'kind' || node.field === 'quality' || node.field === 'status'
+    ? value === node.value
+    : value.includes(node.value);
+}
 export function compileSearch(query) {
   const tree = parseSearchQuery(query);
-  function match(node, entry) {
-    if (!node) return true;
-    if (node.op === 'and') return match(node.left, entry) && match(node.right, entry);
-    if (node.op === 'or') return match(node.left, entry) || match(node.right, entry);
-    if (node.op === 'not') return !match(node.operand, entry);
-    if (!node.field) return searchableText(entry).includes(node.value);
-    const value = flatten(
-      node.field === 'name' ? entry.name || entry.title : entry[node.field],
-    ).toLowerCase();
-    return node.field === 'kind' || node.field === 'quality' || node.field === 'status'
-      ? value === node.value
-      : value.includes(node.value);
-  }
   return (entry) => match(tree, entry);
+}
+
+// Rank the user's positive name intent after parsing filters. Only a matching
+// OR branch may improve relevance; negated words and other facets are not names.
+export function compareSearchTitles(query) {
+  const tree = parseSearchQuery(query);
+  function phrase(node) {
+    if (!node || node.op === 'not') return [];
+    if (node.op === 'or') return null;
+    if (node.op === 'term') return !node.field || node.field === 'name' ? [node.value] : [];
+    const left = phrase(node.left),
+      right = phrase(node.right);
+    return left && right ? [...left, ...right] : null;
+  }
+  const terms = phrase(tree),
+    fullName = terms?.join(' ');
+  function exact(node, entry, title) {
+    if (!node || node.op === 'not') return 0;
+    if (node.op === 'term') return Number((!node.field || node.field === 'name') && title === node.value);
+    return Math.max(
+      node.op !== 'or' || match(node.left, entry) ? exact(node.left, entry, title) : 0,
+      node.op !== 'or' || match(node.right, entry) ? exact(node.right, entry, title) : 0,
+    );
+  }
+  function rank(entry) {
+    const title = String(entry.title || entry.name || '')
+      .trim()
+      .toLowerCase();
+    return fullName && title === fullName ? 2 : exact(tree, entry, title);
+  }
+  return (a, b) => rank(b) - rank(a);
 }
