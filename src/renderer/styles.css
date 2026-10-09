@@ -389,6 +389,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
+.goal-row:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 3px;
@@ -1514,21 +1515,21 @@ kbd {
 .goal-row p {
   white-space: pre-wrap;
   font-size: 11px;
-  color: #8e977f;
+  color: var(--muted);
   margin-top: 5px;
   overflow-wrap: anywhere;
 }
 .goal-row.done h3 {
   text-decoration: line-through;
-  color: #9aa28b;
-}
-.goal-row.done {
-  opacity: 0.65;
+  color: var(--muted);
 }
 .saved-goals {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
   gap: 22px;
+}
+.companion .saved-goals {
+  grid-template-columns: minmax(0, 1fr);
 }
 .save-stats {
   display: flex;

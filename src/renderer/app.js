@@ -1833,7 +1833,7 @@ function goalRow(g) {
     : g.source?.type === 'quest' && state.settings.spoiler === 'hints'
       ? `<details data-persist-detail="goal-note-${esc(profile().id)}-${esc(g.id)}"><summary>任务备忘 · 可能涉及剧情</summary><p>${esc(g.detail)}</p></details>`
       : `<p>${esc(g.detail)}</p>`;
-  return `<div class="goal-row ${done ? 'done' : ''}"><button class="check ${done ? 'checked' : ''}" data-action="goal-toggle" data-id="${g.id}" ${progress.planDone ? 'disabled' : ''} aria-label="${progress.planDone ? '关联制作计划已完成，请先重新打开计划' : progress.automaticDone ? '保留为手动待办' : done ? '取消完成' : '完成目标'} ${esc(g.title)}">${done ? icon('check') : ''}</button><div class="spacer"><h3>${g.pinned ? '<span class="small muted">置顶 · </span>' : ''}${esc(g.title)}</h3>${tracking}${detail}${g.source ? act('goal-source', g.source.type === 'planner' ? '重新核对备料清单' : g.source.type === 'quest' ? '查看任务资料与记录' : g.source.quantity ? '打开配方，重新核对材料' : '查看原资料', 'text-btn', g.id, 'arrow') : ''}</div>${iconButton('goal-pin', 'pin', g.pinned ? '取消置顶目标' : '置顶目标', g.id, g.pinned ? 'on' : '')}${iconButton('goal-edit', 'edit', '编辑目标', g.id)}${iconButton('goal-remove', 'trash', '删除目标', g.id)}</div>`;
+  return `<div id="goal-${esc(g.id)}" class="goal-row ${done ? 'done' : ''}" tabindex="-1"><button id="goal-toggle-${esc(g.id)}" class="check ${done ? 'checked' : ''}" data-action="goal-toggle" data-id="${g.id}" ${progress.planDone ? 'disabled' : ''} aria-label="${progress.planDone ? '关联制作计划已完成，请先重新打开计划' : progress.automaticDone ? '保留为手动待办' : done ? '取消完成' : '完成目标'} ${esc(g.title)}">${done ? icon('check') : ''}</button><div class="spacer"><h3>${g.pinned ? '<span class="small muted">置顶 · </span>' : ''}${esc(g.title)}</h3>${tracking}${detail}${g.source ? act('goal-source', g.source.type === 'planner' ? '重新核对备料清单' : g.source.type === 'quest' ? '查看任务资料与记录' : g.source.quantity ? '打开配方，重新核对材料' : '查看原资料', 'text-btn', g.id, 'arrow') : ''}</div>${iconButton('goal-pin', 'pin', g.pinned ? '取消置顶目标' : '置顶目标', g.id, g.pinned ? 'on' : '')}${iconButton('goal-edit', 'edit', '编辑目标', g.id)}${iconButton('goal-remove', 'trash', '删除目标', g.id)}</div>`;
 }
 function goalsPage() {
   const p = profile();
@@ -2172,6 +2172,7 @@ function compactPage() {
   if (route === 'journey') return companionViews.frame(journeyPage(), timelineViews.chip(environment.health));
   if (route === 'journal') return companionViews.frame(journalPage(), timelineViews.chip(environment.health));
   if (route === 'world') return companionViews.frame(worldPage(), timelineViews.chip(environment.health));
+  if (route === 'goals') return companionViews.frame(goalsPage(), timelineViews.chip(environment.health));
   const list = pending().slice(0, 5);
   const undo =
     compactUndo?.profileId === profile().id
@@ -2577,7 +2578,12 @@ function searchModal(context) {
   showOverlay(
     `<section class="modal search-modal" role="dialog" aria-modal="true" aria-label="搜索江湖索引"><label class="search-input">${icon('search')}<input id="global-search" role="combobox" aria-autocomplete="list" aria-controls="search-filter-options" aria-expanded="false" autofocus placeholder="找一位侠客，一本武学，一个地方……" maxlength="200" aria-label="全局搜索">${iconButton('close-overlay', 'close', '关闭搜索')}</label><details class="search-tools"><summary>全部 7 种筛选与语法 · 保存搜索</summary><div class="row wrap">${act('search-save', '保存当前搜索', 'text-btn', '', 'star')}${act('search-run', '绿色物品', 'chip', '种类:物品 品质:绿')}${act('search-run', '未完成目标', 'chip', '种类:目标 状态:未完成')}</div><div id="global-filter-help"></div></details><div id="global-filter-suggestions" class="search-filter-suggestions"></div><div id="global-results" class="search-results"></div><div class="search-foot">搜索效果、任务、地点与本周目记录 · Esc 关闭</div></section>`,
   );
-  rememberDrawer({ type: 'search', query: value, selection: context?.selection });
+  rememberDrawer({
+    type: 'search',
+    query: value,
+    personalAll: !!context?.personalAll,
+    selection: context?.selection,
+  });
   const input = document.querySelector('#global-search');
   input.value = value;
   showSearchResults(value);
@@ -2594,8 +2600,18 @@ function searchModal(context) {
   }
 }
 function showSearchResults(value) {
+  const results = overlay.querySelector('#global-results');
+  if (!results) return;
+  const search = currentDrawer?.type === 'search' ? currentDrawer : null;
+  const changed = search && search.query !== value;
+  const oldScroll = changed ? 0 : results.scrollTop;
+  const focused = results.contains(document.activeElement) ? document.activeElement.dataset : null;
+  if (changed) {
+    search.personalAll = false;
+    delete search.selection;
+  }
   lastSearchQuery = value;
-  if (currentDrawer?.type === 'search') currentDrawer.query = value;
+  if (search) search.query = value;
   const q = value.trim();
   const savedTasks =
     environment.saves.files.find((f) => f.name === environment.recent?.name)?.metadata?.quests || [];
@@ -2728,9 +2744,25 @@ function showSearchResults(value) {
     ]),
   );
   const input = overlay.querySelector('#global-search');
+  const selectedSuggestion = !changed && searchSuggestions[searchSuggestionIndex]?.label;
+  const focusedSuggestion =
+    !changed && document.activeElement.matches('[data-action="search-filter-suggestion"]')
+      ? searchSuggestions[Number(document.activeElement.dataset.id)]?.label
+      : null;
   searchSuggestions = searchFilterSuggestions(value, input?.selectionStart ?? value.length, values);
-  searchSuggestionIndex = searchSuggestions.length ? 0 : -1;
+  searchSuggestionIndex = searchSuggestions.length
+    ? Math.max(
+        0,
+        searchSuggestions.findIndex((suggestion) => suggestion.label === selectedSuggestion),
+      )
+    : -1;
   renderSearchSuggestions();
+  if (focusedSuggestion) {
+    const index = searchSuggestions.findIndex((suggestion) => suggestion.label === focusedSuggestion);
+    overlay
+      .querySelector('[data-action="search-filter-suggestion"][data-id="' + index + '"]')
+      ?.focus({ preventScroll: true });
+  }
   const help = overlay.querySelector('#global-filter-help');
   if (help && !help.innerHTML) help.innerHTML = searchHelpViews.help(values);
   let matches, compareTitles;
@@ -2738,7 +2770,8 @@ function showSearchResults(value) {
     matches = compileSearch(q);
     compareTitles = compareSearchTitles(q);
   } catch (e) {
-    document.querySelector('#global-results').innerHTML = notice(e.message, true);
+    results.innerHTML = notice(e.message, true);
+    results.scrollTop = 0;
     return;
   }
   const all = q
@@ -2747,16 +2780,27 @@ function showSearchResults(value) {
   const quotas = { personal: 8, records: 8, database: 12, guides: 7, quests: 5, places: 4 };
   const matchedRecords = all.filter((d) => d.group === 'records').map((d) => d.id);
   if (q) journalView.globalMatchedIds = matchedRecords;
+  const personal = all.filter((d) => d.group === 'personal').sort(compareTitles);
   const list = [];
-  for (const group of ['personal', 'records', 'database', 'guides', 'quests', 'places'])
-    list.push(
-      ...all
-        .filter((d) => d.group === group)
-        .sort(compareTitles)
-        .slice(0, quotas[group]),
-    );
-  const more = q
-    ? '<div class="search-all-groups">' +
+  if (search?.personalAll) list.push(...personal);
+  else
+    for (const group of ['personal', 'records', 'database', 'guides', 'quests', 'places'])
+      list.push(
+        ...all
+          .filter((d) => d.group === group)
+          .sort(compareTitles)
+          .slice(0, quotas[group]),
+      );
+  const more = search?.personalAll
+    ? '<div class="row wrap">' +
+      act('search-personal-short', '返回快捷结果', 'text-btn', '', 'arrow') +
+      '<span class="small muted">个人内容 ' +
+      personal.length +
+      ' 项 · 全部结果</span></div>'
+    : '<div class="search-all-groups">' +
+      (personal.length
+        ? act('search-personal-all', '个人内容 ' + personal.length + ' 项 · 查看全部', 'text-btn')
+        : '') +
       [
         ['records', '江湖记录'],
         ['guides', '精选线索'],
@@ -2764,6 +2808,7 @@ function showSearchResults(value) {
         ['quests', '任务'],
         ['places', '地点'],
       ]
+        .filter(() => q)
         .map(([id, label]) => {
           const count = all.filter((d) => d.group === id).length;
           return count
@@ -2779,9 +2824,9 @@ function showSearchResults(value) {
             : '';
         })
         .join('') +
-      '</div>'
-    : searchHistory();
-  document.querySelector('#global-results').innerHTML =
+      '</div>' +
+      (q ? '' : searchHistory());
+  results.innerHTML =
     more +
     (list.length
       ? list
@@ -2803,6 +2848,11 @@ function showSearchResults(value) {
           )
           .join('')
       : empty('暂时没有匹配内容', '可以搜索效果、材料、任务说明、个人目标，或使用下方筛选示例。'));
+  if (!changed && focused)
+    [...results.querySelectorAll('[data-action]')]
+      .find((result) => result.dataset.action === focused.action && result.dataset.id === focused.id)
+      ?.focus({ preventScroll: true });
+  results.scrollTop = oldScroll;
 }
 function searchHistory() {
   return [
@@ -2894,6 +2944,7 @@ async function refresh() {
     currentDrawer.planningSignature !== planningIntentSignature()
   )
     await showDatabaseDetail(currentDrawer.id);
+  if (currentDrawer?.type === 'search' && !composing) showSearchResults(currentDrawer.query);
 }
 async function handle(action, id, target, navigationFocused = false) {
   if (
@@ -3693,6 +3744,15 @@ async function handle(action, id, target, navigationFocused = false) {
       }
       break;
     }
+    case 'search-personal-all':
+    case 'search-personal-short':
+      if (currentDrawer?.type === 'search') {
+        currentDrawer.personalAll = action === 'search-personal-all';
+        overlay.querySelector('#global-results').scrollTop = 0;
+        showSearchResults(currentDrawer.query);
+        (overlay.querySelector('.search-result') || overlay.querySelector('#global-search'))?.focus();
+      }
+      break;
     case 'search-all': {
       const value = target.dataset.query || query;
       closeOverlay();
@@ -4668,15 +4728,16 @@ async function handle(action, id, target, navigationFocused = false) {
       await mutation({ type: 'search-history-clear' });
       showSearchResults('');
       break;
-    case 'search-goal':
+    case 'search-goal': {
       closeOverlay();
       route = 'goals';
       render();
-      document.querySelector('[data-action="goal-toggle"][data-id="' + id + '"]')?.focus();
-      document
-        .querySelector('[data-action="goal-toggle"][data-id="' + id + '"]')
-        ?.scrollIntoView({ block: 'center' });
+      const button = document.querySelector('[data-action="goal-toggle"][data-id="' + id + '"]');
+      const destination = button?.disabled ? button.closest('.goal-row') : button;
+      destination?.focus();
+      destination?.scrollIntoView({ block: 'center' });
       break;
+    }
     case 'search-note':
       closeOverlay();
       route = 'goals';
@@ -6207,6 +6268,7 @@ try {
       refresh().catch((e) => toast(e.message, true));
     } else if (intentsChanged) refresh().catch((e) => toast(e.message, true));
     render(true);
+    if (currentDrawer?.type === 'search' && !composing) showSearchResults(currentDrawer.query);
   });
   api.onEvent((event) => {
     if (event.type === 'protection') {
