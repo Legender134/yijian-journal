@@ -425,6 +425,48 @@ async function written(file) {
     checks.push(
       '行囊入口在冷重启后可全文查找已移除目标，取消找回保持，单条找回完整引用与次数且保留后来新目标',
     );
+    const countedReply = await page.evaluate(() =>
+      window.journal.mutate({
+        type: 'goal-add',
+        title: '数量单位回归的金矿石',
+        source: { type: 'database', id: 'item-10207', quantity: 10 },
+      }),
+    );
+    assert(countedReply.ok, countedReply.error);
+    p = await until((p) => p.goals.some((g) => g.title === '数量单位回归的金矿石'));
+    const countedGoal = p.goals.find((g) => g.title === '数量单位回归的金矿石');
+    await nav('goals');
+    await page.locator(`[data-action="goal-remove"][data-id="${countedGoal.id}"]`).click();
+    assert.match(await page.locator('#overlay').innerText(), /收集数量：10 件/);
+    assert(!(await page.locator('#overlay').innerText()).includes('制作次数'));
+    await page.screenshot({
+      path: path.join(results, 'item-goal-removal-count.png'),
+      animations: 'disabled',
+    });
+    await page.locator('[data-action="goal-remove-confirm"]').click();
+    p = await until((p) => p.journeyTrash.some((r) => r.kind === 'goal' && r.record.id === countedGoal.id));
+    const countedTrash = p.journeyTrash.find((r) => r.kind === 'goal' && r.record.id === countedGoal.id);
+    assert.deepEqual(countedTrash.record, countedGoal);
+    await nav('goals');
+    await page.locator('[data-action="journey-trash-open"]').click();
+    await page.locator('#journey-trash-query').fill('数量单位回归的金矿石');
+    await page.locator(`[data-action="journey-trash-restore-preview"][data-id="${countedTrash.id}"]`).click();
+    assert.match(await page.locator('#overlay').innerText(), /收集数量：10 件/);
+    assert(!(await page.locator('#overlay').innerText()).includes('制作次数'));
+    await page.screenshot({
+      path: path.join(results, 'item-goal-recovery-count.png'),
+      animations: 'disabled',
+    });
+    await page.keyboard.press('Escape');
+    assert(!(await current()).goals.some((g) => g.id === countedGoal.id));
+    await page.locator(`[data-action="journey-trash-restore-preview"][data-id="${countedTrash.id}"]`).click();
+    await page.locator('[data-action="journey-trash-confirm"]').click();
+    p = await until((p) => p.goals.some((g) => g.id === countedGoal.id));
+    assert.deepEqual(
+      p.goals.find((g) => g.id === countedGoal.id),
+      countedGoal,
+    );
+    checks.push('物品目标移除与找回均显示收集10件，配方仍按次数，取消不找回，确认精确保留原资料数量');
     await nav('goals');
     await page.locator('[data-action="goal-remove"][data-id="' + planGoalId + '"]').click();
     await page.locator('[data-action="goal-remove-confirm"]').click();

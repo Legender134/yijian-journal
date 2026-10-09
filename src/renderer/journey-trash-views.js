@@ -24,6 +24,13 @@ export function createJourneyTrashViews({ esc, act, when }) {
       return index.world?.quests.find((row) => row.id === source.id)?.name || '原任务需要重新核对';
     return sourceName(index, source.id);
   }
+  function goalSourceQuantity(source) {
+    if (source.type !== 'database') return '';
+    if (/^item-/.test(source.id)) return ' · 收集数量：' + esc(source.quantity || 1) + ' 件';
+    if (/^(fusion|alchemy|cooking)-/.test(source.id))
+      return ' · 制作次数 ' + esc(source.quantity || 1) + ' 次';
+    return '';
+  }
   function title(row, index) {
     const record = row.record;
     if (['craft-plan', 'itinerary'].includes(row.kind)) return record.name;
@@ -101,7 +108,7 @@ export function createJourneyTrashViews({ esc, act, when }) {
       return `<section class="detail-block"><h3 class="preserve-text">${esc(record.name)}</h3><p class="small muted">制作计划 · ${preview ? '准备移除，尚未确认' : '移除于 ' + when(row.deletedAt)}</p><p class="preserve-text">${esc(craftContent(record, index))}</p><p class="save-note">找回为独立保存的计划，不自动打开或改变当前编辑清单及其加工选择、预留设置；按当前参照重新核对共享用料，不重放完成事件或重新关联历史记录。</p></section>`;
     const goalSource =
       row.kind === 'goal' && record.source
-        ? `<p class="small muted">原资料：${esc({ guide: '线索', quest: '任务', database: '图鉴', planner: '备料计划' }[record.source.type])} · ${esc(goalSourceName(record.source, index))}${record.source.quantity ? ' · 制作次数 ' + record.source.quantity : ''}</p>`
+        ? `<p class="small muted">原资料：${esc({ guide: '线索', quest: '任务', database: '图鉴', planner: '备料计划' }[record.source.type])} · ${esc(goalSourceName(record.source, index))}${goalSourceQuantity(record.source)}</p>`
         : '';
     const goalState =
       row.kind === 'goal'
