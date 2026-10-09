@@ -59,6 +59,16 @@ old.setPath('savePath', oldGame);
 old.mutate({ type: 'settings', value: { autoBackup: false } });
 old.mutate({ type: 'note', value: '旧机器笔记：迁移保留这些中文文字' });
 old.mutate({
+  type: 'goal-add',
+  title: '按原数收集药草',
+  source: { type: 'database', id: 'item-100', quantity: 37 },
+});
+old.mutate({
+  type: 'goal-add',
+  title: '按原数准备配方',
+  source: { type: 'database', id: 'alchemy-100', quantity: 9 },
+});
+old.mutate({
   type: 'craft-plan-save',
   name: '旧机器独立制作计划',
   list: [{ id: 'fusion-1000', quantity: 2 }],
@@ -287,6 +297,24 @@ async function multiPlanFlow(page) {
     await page.waitForSelector('[data-action="protection-backup-select"]');
     assert.match(await page.locator('.content').innerText(), /迁移验收书签/);
     assert.match(await page.locator('.content').innerText(), /历史节点说明不能丢失/);
+    const historicalProfile = page
+      .locator('.content details.detail-block')
+      .filter({ has: page.locator('summary', { hasText: '件目标' }) })
+      .first();
+    await historicalProfile.locator(':scope > summary').click();
+    await historicalProfile.locator('summary', { hasText: '目标记录' }).click();
+    const historicalGoals = await historicalProfile
+      .locator('details')
+      .filter({ has: page.locator('summary', { hasText: '目标记录' }) })
+      .innerText();
+    assert.match(historicalGoals, /按原数收集药草[\s\S]*收集数量：37 件/);
+    assert.match(historicalGoals, /按原数准备配方[\s\S]*配方次数：9 次/);
+    assert.equal(hash(path.join(currentGame, '1.sav')), before);
+    await page.screenshot({
+      path: path.join(data, 'historical-goal-quantities.png'),
+      animations: 'disabled',
+    });
+    checks.push('只读历史目标按保存值显示自定义标题、37件收集目标和9次配方，未替换手札或改写存档');
     assert.equal(hash(path.join(currentGame, '1.sav')), before);
     await page.locator('[data-action="protection-backup-select"]').click();
     await page.locator('[data-action="protection-backup-inspect"][data-id="1.sav"]').click();
@@ -366,6 +394,49 @@ async function multiPlanFlow(page) {
     assert.equal(exported.historicalArchives, 1);
     checks.push('使用历史手札前保留当前副本，保持本机路径并重新导出可校验保护包');
     await page.screenshot({ path: path.join(data, 'imported-history.png') });
+    await nav(page, 'saves');
+    await page.locator('[data-action="backup-preview"][data-id="' + safety.id + '"]').click();
+    await page.waitForSelector('[aria-label="备份预览"]');
+    const beforeLocalEvents = JSON.parse(fs.readFileSync(activityFile, 'utf8')).events;
+    const beforeLocalBackupIds = liveBackups
+      .list()
+      .map((b) => b.id)
+      .sort();
+    await dialogAnswer(0);
+    await page.locator('[data-action="restore"]').click();
+    assert.equal((await app.evaluate(() => globalThis.maturityDialogResponses)).length, 1);
+    assert((await page.evaluate(() => window.journal.bootstrap())).ok);
+    assert.deepEqual(JSON.parse(fs.readFileSync(activityFile, 'utf8')).events, beforeLocalEvents);
+    assert.deepEqual(
+      liveBackups
+        .list()
+        .map((b) => b.id)
+        .sort(),
+      beforeLocalBackupIds,
+    );
+    assert.equal(hash(path.join(currentGame, '1.sav')), oldHash);
+    for (const [n, digest] of Object.entries(foreign)) assert.equal(hash(path.join(currentGame, n)), digest);
+    await dialogAnswer(1);
+    await page.locator('[data-action="restore"]').click();
+    await page.locator('.toast').filter({ hasText: '已恢复 4 个文件，恢复前副本已保留' }).waitFor();
+    const localReceipt = JSON.parse(fs.readFileSync(activityFile, 'utf8')).events[0];
+    const localSafety = liveBackups
+      .list()
+      .find((b) => b.kind === 'safety' && !beforeLocalBackupIds.includes(b.id));
+    assert(localSafety);
+    assert.equal(localReceipt.level, 'success');
+    for (const value of [safety.label, currentGame.slice(0, 220), localSafety.id])
+      assert(localReceipt.message.includes(value));
+    assert.match(localReceipt.message, /完整备份[\s\S]*已恢复 4 个文件/);
+    assert.equal(
+      crypto
+        .createHash('sha256')
+        .update(liveBackups.verify(localSafety.id).buffers.get('1.sav'))
+        .digest('hex'),
+      oldHash,
+    );
+    assert.equal(hash(path.join(currentGame, '1.sav')), before);
+    for (const [n, digest] of Object.entries(foreign)) assert.equal(hash(path.join(currentGame, n)), digest);
     await app.close();
     app = null;
     app = await _electron.launch({
@@ -381,16 +452,20 @@ async function multiPlanFlow(page) {
     await nav(restarted, 'saves');
     const operationHistory = restarted.locator('.operation-history');
     assert((await operationHistory.innerText()).includes(restoreReceipt.message));
+    assert((await operationHistory.innerText()).includes(localReceipt.message));
     assert(
       JSON.parse(fs.readFileSync(activityFile, 'utf8')).events.some(
         (event) => event.at === restoreReceipt.at && event.message === restoreReceipt.message,
       ),
     );
-    assert.equal(hash(path.join(currentGame, '1.sav')), oldHash);
+    assert.equal(hash(path.join(currentGame, '1.sav')), before);
     for (const [n, digest] of Object.entries(foreign)) assert.equal(hash(path.join(currentGame, n)), digest);
     await restarted.screenshot({ path: path.join(data, 'restore-receipt-restarted.png') });
     checks.push(
       '历史完整恢复留下目标与安全副本的持久成功回执，取消不记成功，冷重启后操作结果与恢复字节可核对',
+    );
+    checks.push(
+      '本机完整恢复取消保留全部字节且不记成功，确认后核对4个文件、安全副本与外来28/29槽，冷重启显示两类恢复回执',
     );
     assert.deepEqual(errors, []);
     assert.equal(await restarted.locator('.toast.error').count(), 0);

@@ -84,7 +84,7 @@ test('a failed protection operation releases the command barrier', async () => {
   assert.deepEqual(s.commands, ['save']);
 });
 
-function restoreSetup({ answer = 1, failPrepare = false, failRestore = false } = {}) {
+function restoreSetup({ answer = 1, failPrepare = false, failRestore = false, local = false } = {}) {
   const { Activity } = require('../src/core/activity.cjs');
   const parent = path.join(__dirname, '..', '.test-data', 'restore-receipt');
   fs.mkdirSync(parent, { recursive: true });
@@ -100,6 +100,7 @@ function restoreSetup({ answer = 1, failPrepare = false, failRestore = false } =
     updateTray: () => {},
     protectionJob: async (_label, work) => work(),
     owner: () => null,
+    checkedBackup: (_id, verify) => verify(),
     bridge: { busy: false, canStop: () => true },
     timeline: { data: {} },
     realDirectory: (value) => value,
@@ -121,6 +122,13 @@ function restoreSetup({ answer = 1, failPrepare = false, failRestore = false } =
       },
     },
     saves: {
+      verify: () => {
+        calls.push('verify');
+        if (failPrepare) throw Error('synthetic verification failure');
+        return {
+          manifest: { label: '本机出发前保护点', files: [{ name: '1.sav' }, { name: 'JHSaveConfig.sav' }] },
+        };
+      },
       pendingRestore: () => null,
       restore: () => {
         calls.push('restore');
@@ -131,7 +139,7 @@ function restoreSetup({ answer = 1, failPrepare = false, failRestore = false } =
     dialog: { showMessageBox: async () => ({ response: answer }) },
     overview: () => ({}),
     handle: (name, callback) => {
-      assert.equal(name, 'protection-restore');
+      assert.equal(name, local ? 'restore' : 'protection-restore');
       handler = callback;
     },
   };
@@ -139,7 +147,9 @@ function restoreSetup({ answer = 1, failPrepare = false, failRestore = false } =
   vm.runInContext(
     section('function resultFeedback(', '\nfunction bridgeEvent(') +
       '\n' +
-      section("    handle('protection-restore',", "    handle('export',"),
+      (local
+        ? section("    handle('restore',", "    handle('choose-saves',")
+        : section("    handle('protection-restore',", "    handle('export',")),
     context,
   );
   return { handler, activity, directory, calls, events, context };
@@ -181,6 +191,44 @@ test('history restore remains successful when its receipt cannot be written, wit
     throw Error('synthetic disk fault');
   };
   assert.equal((await s.handler({}, 'archive', 'history-backup')).restored, 2);
+  assert.match(s.activity.warning, /操作结果未能写入本机/);
+  assert(
+    s.events.some(([, event]) => event.type === 'operation' && /记录未能写入/.test(event.result.message)),
+  );
+});
+
+test('local complete restore records the actual target and protection copy after success and survives cold reopening', async () => {
+  const { Activity } = require('../src/core/activity.cjs');
+  const s = restoreSetup({ local: true });
+  assert.equal((await s.handler({}, 'local-backup')).restored, 2);
+  assert.deepEqual(s.calls, ['verify', 'restore']);
+  const receipt = new Activity(s.directory).get().events[0];
+  assert.equal(receipt.level, 'success');
+  for (const text of ['本机出发前保护点', '2', 'synthetic-target-SaveGames', 'verified-safety-copy'])
+    assert(receipt.message.includes(text));
+  assert(
+    s.events.some(([, event]) => event.type === 'operation' && event.result.message === receipt.message),
+  );
+});
+
+test('local complete restore cancellation and verification or restore failure never record a successful operation', async () => {
+  for (const flags of [{ answer: 0 }, { failPrepare: true }, { failRestore: true }]) {
+    const s = restoreSetup({ ...flags, local: true });
+    if (flags.answer === 0) {
+      assert.equal((await s.handler({}, 'local-backup')).cancelled, true);
+      assert.deepEqual(s.calls, ['verify']);
+    } else await assert.rejects(s.handler({}, 'local-backup'), /synthetic/);
+    assert.deepEqual(s.activity.get().events, []);
+    assert(!s.events.some(([, event]) => event.type === 'operation'));
+  }
+});
+
+test('a completed local restore remains successful if saving its receipt fails, with the existing recording warning', async () => {
+  const s = restoreSetup({ local: true });
+  s.activity.record = () => {
+    throw Error('synthetic activity write fault');
+  };
+  assert.equal((await s.handler({}, 'local-backup')).restored, 2);
   assert.match(s.activity.warning, /操作结果未能写入本机/);
   assert(
     s.events.some(([, event]) => event.type === 'operation' && /记录未能写入/.test(event.result.message)),
