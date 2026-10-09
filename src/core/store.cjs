@@ -78,6 +78,7 @@ function defaults() {
       saveFeedback: false,
       offerAutoSaveOnStart: true,
       compactOpacity: 0.96,
+      readingScale: 100,
     },
     updatedAt: now(),
   };
@@ -235,6 +236,8 @@ function validateState(s, ids) {
       s.settings.compactOpacity > 1)
   )
     throw Error('随行提示透明度无效');
+  if (s.settings.readingScale !== undefined && ![100, 110, 125, 150].includes(s.settings.readingScale))
+    throw Error('界面大小须选择 100%、110%、125% 或 150%');
   // Use the same byte ceiling for stored state, exports and imports. Otherwise
   // a valid multi-profile journal could export a file that cannot be imported.
   if (Buffer.byteLength(JSON.stringify(s, null, 2), 'utf8') > MAX_JOURNAL_BYTES)
@@ -864,6 +867,7 @@ class Store {
               'companionEnabled',
               'companionPosition',
               'compactOpacity',
+              'readingScale',
             ].includes(key)
           )
             throw new Error('不支持的设置');

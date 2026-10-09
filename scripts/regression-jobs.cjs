@@ -10,6 +10,7 @@ module.exports = Object.freeze([
   'scripts/comparison-smoke.cjs',
   'scripts/keyboard-offline.cjs',
   'scripts/navigation-focus-smoke.cjs',
+  'scripts/reading-scale-smoke.cjs',
   'scripts/saved-quest-orphan-smoke.cjs',
   'scripts/audit-viewport.cjs',
   'scripts/integration.cjs',

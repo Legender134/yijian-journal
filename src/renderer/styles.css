@@ -3462,3 +3462,72 @@ kbd {
     display: block;
   }
 }
+/* Reading zoom reduces the logical viewport even on a normal desktop window. */
+@media (max-width: 900px) {
+  .row.wrap {
+    flex-wrap: wrap;
+  }
+  .stack {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+  .card {
+    min-width: 0;
+  }
+  .card-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .card-header > .row {
+    max-width: 100%;
+    min-width: 0;
+  }
+  .topbar {
+    height: auto;
+    min-height: 56px;
+    padding: 8px 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .topbar > .row {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .content {
+    padding: 18px 16px;
+  }
+  .setting-row {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .setting-row > div {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .dashboard-grid,
+  .saved-goals,
+  .database-grid,
+  .card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hero-memory {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: auto;
+    margin: 0 18px 18px;
+  }
+  .hero {
+    flex-wrap: wrap;
+  }
+  .hero-copy,
+  .hero.has-save .hero-copy {
+    max-width: 100%;
+  }
+  .database-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .database-search {
+    min-width: 0;
+  }
+}

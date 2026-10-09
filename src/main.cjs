@@ -400,6 +400,10 @@ function broadcast(channel, data) {
     if (w.isDestroyed()) continue;
     const contents = w.webContents;
     if (contents.isDestroyed()) continue;
+    if (channel === 'state' && validUrl(contents.getURL())) {
+      const factor = (data.settings.readingScale || 100) / 100;
+      if (Math.abs(contents.getZoomFactor() - factor) > 0.001) contents.setZoomFactor(factor);
+    }
     try {
       contents.send(`journal:${channel}`, data);
     } catch (error) {
@@ -427,6 +431,7 @@ function makeWindow(compact = false) {
       contextIsolation: true,
       sandbox: true,
       webSecurity: true,
+      zoomFactor: (store.get().settings.readingScale || 100) / 100,
     },
   });
   win.setMenu(null);

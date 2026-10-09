@@ -161,6 +161,31 @@ test('bounds stay inside negative-coordinate and small client rectangles; helper
   ])
     assert(!validWindow(s));
 });
+
+test('reading size enlarges both hint and expanded bounds while keeping every corner within the display', () => {
+  const large = { x: -1920, y: -50, width: 1920, height: 1080 };
+  for (const scale of [1, 1.1, 1.25, 1.5])
+    for (const expanded of [true, false])
+      for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right']) {
+        const expectedWidth = Math.round((expanded ? 460 : 320) * scale);
+        assert.equal(boundsFor(large, expanded, corner, scale).width, expectedWidth);
+        for (const rect of [large, { x: -400, y: -200, width: 420, height: 300 }]) {
+          const b = boundsFor(rect, expanded, corner, scale);
+          assert(b.x >= rect.x && b.y >= rect.y);
+          assert(b.x + b.width <= rect.x + rect.width && b.y + b.height <= rect.y + rect.height);
+        }
+      }
+  const f = setup();
+  f.set(game);
+  f.win.emit('ready-to-show');
+  f.controller.rendererReady();
+  const normal = f.win.getBounds();
+  f.settings({ readingScale: 150 });
+  assert(f.win.getBounds().width > normal.width);
+  assert(f.win.getBounds().height > normal.height);
+  f.settings({ readingScale: 100 });
+  assert.deepEqual(f.win.getBounds(), normal);
+});
 test('unsaved companion edits are exposed after cancelled exit without toggling them closed', () => {
   const f = setup();
   f.set(game);
