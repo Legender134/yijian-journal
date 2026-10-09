@@ -16,6 +16,20 @@ function orderedOwnerIds(order, available) {
   validateResourcePriority(order);
   return [...order.filter((id) => available.includes(id)), ...available.filter((id) => !order.includes(id))];
 }
+function priorityReferenceProfile(profile, referenceName) {
+  if (referenceName === undefined) return profile;
+  if (
+    typeof referenceName !== 'string' ||
+    referenceName.length > 80 ||
+    (referenceName !== '' && referenceName !== '@latest' && !/^\d+\.sav$/i.test(referenceName))
+  )
+    throw Error('请选择有效的物资核对存档');
+  return {
+    ...profile,
+    referenceMode: referenceName === '' ? 'none' : referenceName === '@latest' ? 'latest' : 'slot',
+    saveSlot: referenceName === '' || referenceName === '@latest' ? '' : referenceName,
+  };
+}
 function priorityFingerprint(profile, reference) {
   return createHash('sha256')
     .update(
@@ -118,4 +132,10 @@ function resourcePriorityPreview(profile, reference, order) {
     afterMissingTotal: after.baseMaterialMissingTotal,
   };
 }
-module.exports = { validateResourcePriority, orderedOwnerIds, priorityFingerprint, resourcePriorityPreview };
+module.exports = {
+  validateResourcePriority,
+  orderedOwnerIds,
+  priorityFingerprint,
+  resourcePriorityPreview,
+  priorityReferenceProfile,
+};

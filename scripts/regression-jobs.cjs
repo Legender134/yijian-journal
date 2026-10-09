@@ -25,6 +25,7 @@ module.exports = Object.freeze([
   'scripts/session-journey-smoke.cjs',
   'scripts/itinerary-recovery-smoke.cjs',
   'scripts/resource-priority-smoke.cjs',
+  'scripts/shared-craft-money-smoke.cjs',
   'scripts/craft-completion-smoke.cjs',
   'scripts/natural-planning-refresh-smoke.cjs',
   'scripts/quest-output-smoke.cjs',

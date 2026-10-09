@@ -24,7 +24,8 @@ contextBridge.exposeInMainWorld('journal', {
   compareSaves: (leftName, rightName) => call('compare-saves', leftName, rightName),
   recipePlan: (id, quantity, saveName) => call('recipe-plan', id, quantity, saveName),
   materialPlan: (list, saveName) => call('material-plan', list, saveName),
-  resourcePriorityPreview: (profileId, order) => call('resource-priority-preview', profileId, order),
+  resourcePriorityPreview: (profileId, order, referenceName) =>
+    call('resource-priority-preview', profileId, order, referenceName),
   recipeDiscovery: (options) => call('recipe-discovery', options),
   backup: (label) => call('backup', label),
   verifyBackup: (id) => call('verify-backup', id),

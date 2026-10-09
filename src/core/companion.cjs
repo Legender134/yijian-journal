@@ -94,6 +94,8 @@ function companionSnapshot(state, catalog, reference, error = '') {
                   : '当前清单材料已齐 · 制作等级与配方需另核对',
       label: selectedPlan ? '备料追踪 · ' + selectedPlan.name : '备料追踪',
     });
+    if (allocations.moneySummary?.shortMessage)
+      hints[hints.length - 1].title += ' · ' + allocations.moneySummary.shortMessage;
   }
   const personalAction = nextActions.find((a) => ['todo', 'gift', 'place'].includes(a.kind));
   if (hints.length < 2 && personalAction)
