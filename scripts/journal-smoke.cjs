@@ -29,6 +29,9 @@ store.mutate({ type: 'settings', value: { autoBackup: false } });
 store.mutate({ type: 'note', value: '旧版随手记，不能覆盖或拆散。' });
 store.mutate({ type: 'goal-add', title: '今晚准备白芍' });
 const goalId = store.get().profiles[0].goals[0].id;
+for (let i = 1; i <= 22; i++)
+  store.mutate({ type: 'goal-add', title: '同名出发备药', detail: '关联备忘' + String(i).padStart(2, '0') });
+const lastReferenceId = store.get().profiles[0].goals.find((g) => g.detail === '关联备忘22').id;
 const saves = new Saves(path.join(userData, 'save-backups'));
 const backup = saves.capture(source, '界面筛选保护点');
 const checks = [],
@@ -64,7 +67,9 @@ async function nav(page, id) {
 }
 (async () => {
   try {
-    const env = { ...process.env, YIJIAN_TEST_DATA: userData };
+    const temp = path.join(data, 'temp');
+    fs.mkdirSync(temp, { recursive: true });
+    const env = { ...process.env, YIJIAN_TEST_DATA: userData, TEMP: temp, TMP: temp };
     delete env.ELECTRON_RUN_AS_NODE;
     app = await _electron.launch({
       executablePath: process.env.YIJIAN_EXECUTABLE || require('electron'),
@@ -75,6 +80,9 @@ async function nav(page, id) {
     const page = await app.firstWindow();
     page.on('pageerror', (e) => errors.push(e.message));
     await page.waitForSelector('.nav-btn');
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().forEach((win) => win.showInactive()),
+    );
     await nav(page, 'materials');
     await page.locator('#craft-search').fill('精钢锭');
     await page.locator('.craft-suggestions [data-action="craft-add"][data-id="fusion-9502"]').waitFor();
@@ -95,6 +103,48 @@ async function nav(page, id) {
       await page.locator('[data-action="journal-reference-add"][data-id="database:npc-10047"]').click();
       assert.equal(await page.locator('#journal-title').inputValue(), title);
       if (!i) {
+        const results = page.locator('#journal-reference-results');
+        await page.locator('#journal-reference-query').fill('同名出发备药');
+        assert((await results.innerText()).includes('找到 22 项 · 第 1 / 2 页'));
+        const first = await results
+          .locator('[data-action="journal-reference-add"]')
+          .evaluateAll((rows) => rows.map((row) => row.dataset.id));
+        assert.equal(first.length, 20);
+        await results.locator('[data-action="journal-reference-add"]').first().click();
+        await results.locator('[data-action="journal-reference-page"]').focus();
+        await page.keyboard.press('Enter');
+        await results.locator('[data-reference-page-heading]').waitFor();
+        assert((await results.innerText()).includes('找到 22 项 · 第 2 / 2 页'));
+        assert.equal(
+          await results
+            .locator('[data-reference-page-heading]')
+            .evaluate((el) => el === document.activeElement),
+          true,
+        );
+        const rest = await results
+          .locator('[data-action="journal-reference-add"]')
+          .evaluateAll((rows) => rows.map((row) => row.dataset.id));
+        assert.equal(rest.length, 2);
+        assert.equal(new Set([...first, ...rest]).size, 22);
+        await results.locator('[data-action="journal-reference-add"]').last().click();
+        assert.equal(
+          await page.locator('#journal-selected-references [data-action="journal-reference-remove"]').count(),
+          3,
+        );
+        await page.locator('#journal-reference-query').fill('关联备忘22');
+        assert.equal(await results.locator('[data-action="journal-reference-add"]').count(), 1);
+        assert.equal(
+          await results.locator('[data-action="journal-reference-add"]').getAttribute('data-id'),
+          'goal:' + lastReferenceId,
+        );
+        assert((await results.innerText()).includes('关联备忘22'));
+        assert.equal(await page.locator('#journal-title').inputValue(), title);
+        assert.equal(
+          await page.locator('#journal-body').inputValue(),
+          '清霄道长提到武当，先记下与卫霍的约定。',
+        );
+        assert.equal(await page.locator('#journal-tags').inputValue(), '人物，武当');
+        checks.push('22 个同名个人目标全部可翻页关联，说明可辨认和检索，键盘翻页保留正文、标签与已选关联');
         await page.locator('#journal-snapshot').selectOption('selected');
         await page.screenshot({ path: path.join(base, 'test-results', 'journal-editor.png') });
       }

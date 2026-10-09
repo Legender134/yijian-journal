@@ -38,6 +38,8 @@ const fields = {
   goal: [
     ['title', 'goal-title'],
     ['detail', 'goal-detail'],
+    ['placeId', 'journey-place'],
+    ['placeQuery', 'journey-place-search'],
   ],
   'craft-plan': [
     ['name', 'craft-plan-name'],
@@ -49,10 +51,15 @@ const fields = {
 };
 export function readIntentValues(kind, scope) {
   return Object.fromEntries(
-    fields[kind].map(([name, id, checked]) => {
-      const field = id ? scope.querySelector('#' + id) : scope.querySelector('[data-itinerary-place]');
-      return [name, checked ? !!field?.checked : field?.value || ''];
-    }),
+    fields[kind]
+      .filter(
+        ([name, id]) =>
+          kind !== 'goal' || !['placeId', 'placeQuery'].includes(name) || scope.querySelector('#' + id),
+      )
+      .map(([name, id, checked]) => {
+        const field = id ? scope.querySelector('#' + id) : scope.querySelector('[data-itinerary-place]');
+        return [name, checked ? !!field?.checked : field?.value || ''];
+      }),
   );
 }
 export function writeIntentValues(kind, values, scope) {

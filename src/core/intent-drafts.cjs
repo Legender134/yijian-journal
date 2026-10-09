@@ -28,7 +28,7 @@ const valueShapes = {
     stockOnly: 'boolean',
     placeQuery: 100,
   },
-  goal: { title: 200, detail: 2000 },
+  goal: { title: 200, detail: 2000, placeId: 'place', placeQuery: 100 },
   'craft-plan': { name: 80, addGoal: 'boolean', reserved: 'boolean' },
   'itinerary-name': { name: 80 },
   'itinerary-choice': { placeId: 'place' },
@@ -191,8 +191,17 @@ function identity(kind, targetId, context) {
 }
 function values(kind, value) {
   const shape = valueShapes[kind];
-  exact(value, Object.keys(shape), [], '草稿编辑值');
+  // Earlier goal drafts only held text. Missing place fields must retain the
+  // original goal's place; an explicit empty placeId is the user's removal.
+  const optional = kind === 'goal' ? ['placeId', 'placeQuery'] : [];
+  exact(
+    value,
+    Object.keys(shape).filter((key) => !optional.includes(key)),
+    optional,
+    '草稿编辑值',
+  );
   for (const [key, rule] of Object.entries(shape)) {
+    if (optional.includes(key) && !Object.hasOwn(value, key)) continue;
     if (typeof rule === 'number') text(value[key], rule, key);
     else if (rule === 'boolean') {
       if (typeof value[key] !== 'boolean') throw Error(`${key}须为布尔值`);
@@ -290,6 +299,7 @@ function normalizedIntent(profile, row, target) {
       ...(targetId ? { id: targetId } : {}),
       title: value.title,
       detail: value.detail,
+      ...(Object.hasOwn(value, 'placeId') ? { placeId: value.placeId } : {}),
     };
   } else if (kind === 'craft-plan') {
     text(value.name, 80, '制作计划名称', false);
