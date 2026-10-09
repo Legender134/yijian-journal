@@ -14,7 +14,7 @@ import { createResourcePriorityViews } from './resource-priority-views.js';
 import { createRecipeDiscoveryViews } from './recipe-discovery-views.js';
 import { createProtectionViews } from './protection-views.js';
 import { createBackupViews } from './backup-views.js';
-import { createJourneyViews } from './journey-views.js';
+import { createJourneyViews, itineraryPlaceLabel } from './journey-views.js';
 import { createJourneyTrashViews } from './journey-trash-views.js';
 import { projectItemUsage } from './item-usage.js';
 import { createItemUsageViews } from './item-usage-views.js';
@@ -3858,7 +3858,7 @@ async function handle(action, id, target) {
           .slice(0, 20)
           .map(
             (step, i) =>
-              `${i + 1}. ${step.title.slice(0, 100)}${step.selectedPlace ? ' · ' + step.selectedPlace.name.slice(0, 40) + ' · ' + step.selectedPlace.id : ''} · ${labels[step.status]}`,
+              `${i + 1}. ${step.title.slice(0, 100)} · ${itineraryPlaceLabel(step).slice(0, 120)} · ${labels[step.status]}`,
           )
           .join('\n') +
         (trip.steps.length > 20

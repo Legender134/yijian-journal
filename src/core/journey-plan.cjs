@@ -1107,7 +1107,12 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
               action.gameComplete ||
               confirmed)
           ) {
-            const nextAction = confirmed && samePlace(confirmed) ? confirmed : automatic ? only : null;
+            const nextAction =
+              confirmed && (choice.placeId === undefined || samePlace(confirmed))
+                ? confirmed
+                : automatic
+                  ? only
+                  : null;
             continuation = {
               kind: nextAction ? (confirmed ? 'selected' : 'automatic') : 'choice-required',
               originQuestId: q.id,
@@ -1142,6 +1147,13 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
         const candidates = action ? [...new Set(action.places.flatMap((p) => p.mapIds))] : [];
         const handledActionId = action?.id || (continuation ? null : choice.actionId);
         const place = maps.get(choice.placeId);
+        const placePending = choice.placeId === undefined && candidates.length > 0;
+        const placeLabel =
+          choice.placeId !== undefined
+            ? `${place?.name || '原场景 ' + choice.placeId} · 场景 #${choice.placeId.slice(6)}`
+            : placePending
+              ? `${[...new Set(action.places.map((p) => p.name))].join('、')} · 场景待核定`
+              : '未分组事项';
         const placeChanged = !!action && choice.placeId !== undefined && !candidates.includes(choice.placeId);
         if (choice.skipped) {
           status = 'skipped';
@@ -1181,6 +1193,8 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
           status = 'unavailable';
           reason = '原先选择的场景已不在这项行动的当前地点线索中；仍保留你的选择，请核对或更换场景。';
         }
+        if (placePending && status === 'pending')
+          reason += ' 地点线索已保留，具体场景可稍后核定；未替你猜选编号。';
         return {
           actionId: choice.actionId,
           position,
@@ -1191,6 +1205,8 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
           skipped: choice.skipped,
           handled: handled.has(handledActionId),
           handledActionId: action?.id || choice.actionId,
+          placePending,
+          placeLabel,
           selectedPlace:
             choice.placeId === undefined
               ? null

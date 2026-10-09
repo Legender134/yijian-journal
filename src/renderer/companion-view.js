@@ -1,3 +1,4 @@
+import { itineraryPlaceLabel } from './journey-views.js';
 export function createCompanionViews({ esc, icon, act, iconButton, picture, qualityText }) {
   function hintContent(h) {
     return h.id?.startsWith('item-') ? qualityText.name(h.id, h.title) : esc(h.title);
@@ -41,13 +42,13 @@ export function createCompanionViews({ esc, icon, act, iconButton, picture, qual
       const undo = trip.steps.filter(
         (s) => s.handled || s.skipped || (s.status === 'user-done' && s.craftPlanId),
       );
-      return `<section data-companion-itinerary><h3 class="companion-section">${esc(trip.name)} · 还剩 ${trip.summary.remaining} 项</h3><p class="small muted">你选定的顺序 · ${trip.status === 'ended' ? '已结束，可继续' : trip.status === 'active' ? '进行中，随时续接' : '已选好，准备开始'}</p>${trip.status !== 'active' ? act('journey-itinerary-status', trip.status === 'ended' ? '继续这一程' : '开始这一程', 'btn soft', 'active') : ''}${next ? `<div class="compact-goal" data-itinerary-next="${esc(next.actionId)}"><strong>下一项 · ${esc(next.title)}</strong><p class="small muted">${next.selectedPlace ? esc(next.selectedPlace.name) + ' · 场景 #' + esc(next.selectedPlace.id.slice(6)) : '未分组事项'}</p><p class="small muted">${esc(next.reason)}</p><div class="row wrap">${next.action ? act('journey-open', '步骤与来源', 'text-btn', next.actionId, 'arrow') : next.continuation?.kind === 'choice-required' ? act('journey-open', '选择接续步骤', 'btn soft', next.actionId, 'arrow') : ''}${next.action?.craftPlanId ? act('craft-plan-complete', '完成整份制作计划…', 'btn soft', next.action.craftPlanId, 'check') : ''}${next.status === 'pending' ? act('journey-itinerary-handle', next.action?.craftPlanId ? '仅个人已处理 · 不释放用料' : '个人已处理', 'btn soft', next.actionId, 'check') : ''}${act('journey-itinerary-skip', '仅本次跳过', 'text-btn', next.actionId)}</div></div>` : '<p class="small muted">本次已无待处理项；可以回顾并写下这一程。</p>'}${
+      return `<section data-companion-itinerary><h3 class="companion-section">${esc(trip.name)} · 还剩 ${trip.summary.remaining} 项</h3><p class="small muted">你选定的顺序 · ${trip.status === 'ended' ? '已结束，可继续' : trip.status === 'active' ? '进行中，随时续接' : '已选好，准备开始'}</p>${trip.status !== 'active' ? act('journey-itinerary-status', trip.status === 'ended' ? '继续这一程' : '开始这一程', 'btn soft', 'active') : ''}${next ? `<div class="compact-goal" data-itinerary-next="${esc(next.actionId)}"><strong>下一项 · ${esc(next.title)}</strong><p class="small muted">${esc(itineraryPlaceLabel(next))}</p><p class="small muted">${esc(next.reason)}</p><div class="row wrap">${next.action ? act('journey-open', '步骤与来源', 'text-btn', next.actionId, 'arrow') : next.continuation?.kind === 'choice-required' ? act('journey-open', '选择接续步骤', 'btn soft', next.actionId, 'arrow') : ''}${next.action?.craftPlanId ? act('craft-plan-complete', '完成整份制作计划…', 'btn soft', next.action.craftPlanId, 'check') : ''}${next.status === 'pending' ? act('journey-itinerary-handle', next.action?.craftPlanId ? '仅个人已处理 · 不释放用料' : '个人已处理', 'btn soft', next.actionId, 'check') : ''}${act('journey-itinerary-skip', '仅本次跳过', 'text-btn', next.actionId)}</div></div>` : '<p class="small muted">本次已无待处理项；可以回顾并写下这一程。</p>'}${
         trip.upcoming.length
           ? `<details open><summary>后续队列 · ${trip.upcoming.length} 项</summary>${trip.upcoming
               .slice(0, 5)
               .map(
                 (s) =>
-                  `<div class="compact-goal"><strong>${s.position + 1}. ${esc(s.title)}</strong><p class="small muted">${s.selectedPlace ? esc(s.selectedPlace.name) + ' · 场景 #' + esc(s.selectedPlace.id.slice(6)) : '未分组事项'}${s.needsReview ? ' · 需核对原选择' : ''}</p></div>`,
+                  `<div class="compact-goal"><strong>${s.position + 1}. ${esc(s.title)}</strong><p class="small muted">${esc(itineraryPlaceLabel(s))}${s.needsReview ? ' · 需核对原选择' : ''}</p></div>`,
               )
               .join(
                 '',

@@ -137,14 +137,60 @@ test('one action with same-name and multiple location clues occupies exactly one
     a = journeyPlan(p, r).actions.find((a) => a.questId === 'quest-14082');
   const ids = [...new Set(a.places.flatMap((p) => p.mapIds))];
   assert.ok(ids.length > 1);
-  assert.throws(() => add(p, a, r), /确切/);
-  p = add(p, a, r, ids[0]);
+  p = add(p, a, r);
+  const pending = journeyPlan(p, r).itinerary.next;
+  assert.equal(Object.hasOwn(p.journey.itinerary.steps[0], 'placeId'), false);
+  assert.equal(pending.selectedPlace, null);
+  assert.equal(pending.placePending, true);
+  assert.equal(pending.status, 'pending');
+  assert.match(pending.placeLabel, /场景待核定/);
+  assert.deepEqual(pending.selectionSources, p.journey.itinerary.steps[0].sources);
+  validateJourneyState(JSON.parse(JSON.stringify(p.journey)));
+  p = command(p, { type: 'journey-itinerary-place', id: a.id, placeId: ids[0] }, r);
   p = add(p, a, r, ids[1]);
   assert.equal(p.journey.itinerary.steps.length, 1);
   assert.equal(p.journey.itinerary.steps[0].placeId, ids[0]);
   p = command(p, { type: 'journey-itinerary-place', id: a.id, placeId: ids[1] }, r);
   assert.equal(journeyPlan(p, r).itinerary.next.selectedPlace.id, ids[1]);
   assert.equal(journeyPlan(p, r).itinerary.summary.total, 1);
+  assert.equal(journeyPlan(p, r).itinerary.next.placePending, false);
+  p = command(p, { type: 'journey-itinerary-place', id: a.id }, r);
+  assert.equal(journeyPlan(p, r).itinerary.next.placePending, true);
+  assert.equal(p.journey.itinerary.steps.length, 1);
+});
+
+test('unconfirmed scene intent survives cold restart and full protection without guessing a map', async (t) => {
+  const migration = require('../src/core/migration.cjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-unconfirmed-scene-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const dataRoot = path.join(dir, 'source');
+  const store = new Store(dataRoot, { entries: [] });
+  store.mutate({
+    type: 'goal-add',
+    title: '之后核定桃花林场景',
+    source: { type: 'quest', id: 'quest-14082' },
+  });
+  const p = store.get().profiles[0];
+  const actions = journeyPlan(p, null).actions;
+  const action = actions.find((row) => row.questId === 'quest-14082');
+  assert(new Set(action.places.flatMap((row) => row.mapIds)).size > 1);
+  store.mutate({ type: 'journey-itinerary-add', id: action.id }, { journeyActions: actions });
+  store.mutate({ type: 'journey-itinerary-status', status: 'active' });
+  const intent = store.get().profiles[0].journey.itinerary;
+  assert.equal(Object.hasOwn(intent.steps[0], 'placeId'), false);
+  const reopened = new Store(dataRoot, { entries: [] });
+  const saved = reopened.get().profiles[0];
+  assert.deepEqual(saved.journey.itinerary, intent);
+  const compact = companionSnapshot({ profiles: [saved], activeProfileId: saved.id }, { entries: [] }, null);
+  assert.equal(compact.itinerary.next.placePending, true);
+  assert.match(compact.hints[0].title, /场景待核定/);
+  const file = path.join(dir, 'synthetic-pending-scene.yijian-protection');
+  await migration.exportProtection({ dataRoot, file });
+  const targetDirectory = path.join(dir, 'historical');
+  await migration.importProtection({ file, targetDirectory });
+  const history = await migration.readHistory({ directory: targetDirectory });
+  assert.deepEqual(history.journal.profiles[0].journey.itinerary, intent);
+  assert.deepEqual(history.journal.profiles[0].goals, saved.goals);
 });
 
 test('selection limit is 100 and strict portable validation excludes all facts and malformed intent', () => {
