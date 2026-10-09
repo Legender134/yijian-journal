@@ -148,6 +148,8 @@ function rendererHarness() {
     route: 'saves',
     captureJournalDraft() {},
     flushJournalDrafts: async () => {},
+    captureIntentDrafts() {},
+    flushIntentDrafts: async () => {},
     saveNote: async () => {},
     render() {},
     toast() {},

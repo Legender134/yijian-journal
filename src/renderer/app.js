@@ -5574,7 +5574,9 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     case 'export': {
       captureJournalDraft();
+      captureIntentDrafts();
       await flushJournalDrafts();
+      await flushIntentDrafts();
       await saveNote();
       const r = await call('exportJournal');
       if (!r.cancelled) toast('全部周目已导出');
@@ -5641,7 +5643,9 @@ async function handle(action, id, target, navigationFocused = false) {
       const request = ++protectionExportRequest;
       const previousResult = protectionView.exportResultOverride;
       captureJournalDraft();
+      captureIntentDrafts();
       await flushJournalDrafts();
+      await flushIntentDrafts();
       await saveNote();
       if (request !== protectionExportRequest) break;
       const attemptAt = Date.now();
@@ -5749,7 +5753,9 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     case 'protection-use-journal': {
       captureJournalDraft();
+      captureIntentDrafts();
       await flushJournalDrafts();
+      await flushIntentDrafts();
       await saveNote();
       const result = await call('useHistoricalJournal', id);
       if (!result.cancelled) {
@@ -5772,7 +5778,9 @@ async function handle(action, id, target, navigationFocused = false) {
     }
     case 'import': {
       captureJournalDraft();
+      captureIntentDrafts();
       await flushJournalDrafts();
+      await flushIntentDrafts();
       await saveNote();
       const r = await call('importJournal');
       if (!r.cancelled) {
