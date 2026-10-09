@@ -10,7 +10,7 @@ const { Store } = require('../src/core/store.cjs');
 const catalog = require('../src/data/catalog.cjs');
 const { syntheticSave } = require('../tests/fixtures.cjs');
 const base = path.join(__dirname, '..');
-const evidence = path.resolve(base, '..', 'implementation-inventory-recipe-discovery');
+const evidence = path.join(base, 'test-results', 'recipe-discovery');
 fs.mkdirSync(evidence, { recursive: true });
 const flavor = process.env.YIJIAN_EXECUTABLE ? 'exe' : 'source';
 const run = fs.mkdtempSync(path.join(evidence, `ui-${flavor}-`));
@@ -202,6 +202,8 @@ async function staleAdd(scopeToken, quantity = 1) {
     assert.match(await card().innerText(), /已学配方/);
     assert.match(await card().innerText(), /直接材料支持 1 次/);
     assert.match(await card().innerText(), /当前生活技能等级未知/);
+    assert.match(await card().locator('[data-recipe-discovery-outputs]').innerText(), /纯钢剑\s* · 蓝色 × 1/);
+    assert.equal(await card().locator('[data-recipe-discovery-outputs] [data-id="item-1002"]').count(), 1);
     assert.match(await win.locator('.recipe-discovery-source').innerText(), /1\.sav/);
     assert.match(await win.locator('.recipe-discovery-source').innerText(), new RegExp(hash(original)));
     await win.screenshot({ path: path.join(run, '01-known-candidate.png'), animations: 'disabled' });
@@ -216,6 +218,37 @@ async function staleAdd(scopeToken, quantity = 1) {
     await win.locator('[data-action="close-overlay"]').click();
     await filterAll();
     await awaitCandidate({ missing: 0 });
+    const variants = win.locator('[data-recipe-discovery-id="fusion-1100"]');
+    assert.match(await variants.locator('[data-recipe-discovery-outputs]').innerText(), /白色 × 0–1/);
+    assert.match(await variants.locator('[data-recipe-discovery-outputs]').innerText(), /绿色 × 0–1/);
+    assert.match(await variants.locator('[data-recipe-discovery-outputs]').innerText(), /蓝色 × 0–1/);
+    await variants.locator('[data-recipe-discovery-quantity]').fill('2');
+    await variants.locator('[data-recipe-discovery-quantity]').dispatchEvent('change');
+    await win.waitForFunction(() =>
+      document
+        .querySelector('[data-recipe-discovery-id="fusion-1100"] [data-recipe-discovery-outputs]')
+        ?.textContent.includes('蓝色 × 0–2'),
+    );
+    await variants.locator('[data-recipe-discovery-outputs] [data-id="item-1001"]').click();
+    await win.waitForSelector('.drawer');
+    assert.match(await win.locator('.drawer').innerText(), /纯钢剑/);
+    await win.locator('[data-action="close-overlay"]').click();
+    await win.locator('#recipe-discovery-search').fill('铁锭');
+    const iron = win.locator('[data-recipe-discovery-id="fusion-9500"]');
+    await iron.waitFor();
+    await iron.locator('[data-recipe-discovery-quantity]').fill('2');
+    await iron.locator('[data-recipe-discovery-quantity]').dispatchEvent('change');
+    await win.waitForFunction(() =>
+      document
+        .querySelector('[data-recipe-discovery-id="fusion-9500"] [data-recipe-discovery-outputs]')
+        ?.textContent.includes('× 2–6'),
+    );
+    await win.screenshot({ path: path.join(run, '01b-output-range.png'), animations: 'disabled' });
+    await filterAll();
+    await awaitCandidate({ missing: 0 });
+    checks.push(
+      'candidate cards show actual output quality, exact detail links, variable yield, quantity scaling and zero-minimum alternative results separately from blueprints',
+    );
     const oldScope = await card()
       .locator('[data-action="recipe-discovery-add"]')
       .getAttribute('data-discovery-scope');
@@ -303,6 +336,7 @@ async function staleAdd(scopeToken, quantity = 1) {
         .querySelector('[data-recipe-discovery-id="fusion-1000"]')
         ?.textContent.includes('按 2 次还缺 5 件'),
     );
+    assert.match(await card().locator('[data-recipe-discovery-outputs]').innerText(), /纯钢剑\s* · 蓝色 × 2/);
     await card().locator('[data-action="recipe-discovery-add"]').click();
     await win.waitForFunction(async () => {
       const state = (await window.journal.bootstrap()).data.state;

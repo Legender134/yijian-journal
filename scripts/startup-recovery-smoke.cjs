@@ -42,6 +42,18 @@ sourceStore.mutate({
   tags: ['验证'],
   links: [],
 });
+const originalEntry = sourceStore.get().profiles[0].journalEntries[0];
+sourceStore.mutate({
+  type: 'journal-entry-update',
+  id: originalEntry.id,
+  expectedEntry: originalEntry,
+  title: originalEntry.title,
+  body: '恢复后保留的当前正式正文',
+  occurredAt: originalEntry.occurredAt,
+  tags: originalEntry.tags,
+  links: [],
+  snapshotMode: 'keep',
+});
 sourceStore.setPath('savePath', gameFiles);
 sourceStore.mutate({ type: 'save-slot', value: '29.sav', mode: 'slot' });
 sourceStore.mutate({ type: 'craft-set', id: 'fusion-1000', quantity: 2 });
@@ -99,7 +111,13 @@ sourceStore.mutate({
 const sourceState = sourceStore.get();
 sourceState.profiles[0].resourcePriority = ['@draft'];
 sourceStore.commit(sourceState);
-const personalFields = ['resourcePriority', 'intentDrafts', 'journeyTrash', 'journalTrash'];
+const personalFields = [
+  'resourcePriority',
+  'intentDrafts',
+  'journeyTrash',
+  'journalTrash',
+  'journalRevisions',
+];
 const preservedPersonal = Object.fromEntries(
   personalFields.map((key) => [key, sourceStore.get().profiles[0][key]]),
 );
@@ -247,6 +265,7 @@ async function closeNormally(window) {
     await window.waitForSelector('#preview:not([hidden])');
     assert.match(await window.locator('#profiles').innerText(), /恢复验证江湖/);
     assert.match(await window.locator('#profiles').innerText(), /1 条江湖记录/);
+    assert.match(await window.locator('#profiles').innerText(), /1 份记录旧版本/);
     assert.match(await window.locator('#profiles').innerText(), /1 份安排草稿/);
     assert.match(await window.locator('#profiles').innerText(), /1 条已删除记录/);
     assert.match(await window.locator('#profiles').innerText(), /3 项已移除安排/);
@@ -297,7 +316,8 @@ async function closeNormally(window) {
     await window.waitForSelector('.layout');
     bootstrap = await window.evaluate(async () => (await window.journal.bootstrap()).data);
     assert.equal(bootstrap.state.profiles[0].notes, '恢复后与重启后完整保留的笔记');
-    assert.equal(bootstrap.state.profiles[0].journalEntries[0].body, '原始正文完整保留');
+    assert.equal(bootstrap.state.profiles[0].journalEntries[0].body, '恢复后保留的当前正式正文');
+    assert.equal(bootstrap.state.profiles[0].journalRevisions[0].entry.body, '原始正文完整保留');
     personalStatePreserved(bootstrap.state.profiles[0]);
     assert.equal(bootstrap.state.settings.savePath, '');
     assert.equal(bootstrap.environment.timeline.enabled, false);
@@ -309,7 +329,7 @@ async function closeNormally(window) {
       'restart retains restored journal and isolation; prior enabled timeline and game slot bytes remain exact',
     );
     facts.scenarios.push(
-      'recovery preview and cold restart preserve arrangement drafts, both trash collections and explicit resource priority',
+      'recovery preview counts record versions; cold restart preserves old and current text, arrangement drafts, both trash collections and explicit resource priority',
     );
     facts.gameBytesUnchanged = true;
     facts.gameWriteCount = (await app.evaluate(() => global.__recoveryGameWrites)).length;
