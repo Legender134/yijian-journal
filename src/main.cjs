@@ -1320,6 +1320,10 @@ app.whenReady().then(async () => {
       });
       if (answer.response !== 1) return { cancelled: true };
       const result = saves.recoverRestore(() => bridge.canStop());
+      resultFeedback(
+        'success',
+        `中断的恢复已回退 ${result.restored} 个文件；目标：${recovery.source.slice(0, 220)}；恢复前安全副本：${result.safetyId}`,
+      );
       broadcast('event', { type: 'backup', text: '已回退中断的恢复，安全副本仍然保留' });
       return { ...result, environment: overview() };
     });

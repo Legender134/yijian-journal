@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const { _electron } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const { Store } = require('../src/core/store.cjs');
 const { Saves } = require('../src/core/saves.cjs');
@@ -997,6 +997,117 @@ async function corruptRestoreGuidance() {
   }
 }
 
+async function interruptedRestoreReceipt() {
+  const data = makeData('interruptedRestore'),
+    source = path.join(data, 'SaveGames');
+  fs.mkdirSync(source);
+  const incoming = save(1, 1, 1000),
+    current = save(10, 4, 5000),
+    second = save(20, 4, 6000),
+    foreign = save(30, 4, 7000),
+    newer = save(99, 4, 9000);
+  fs.writeFileSync(path.join(source, '1.sav'), incoming);
+  fs.writeFileSync(path.join(source, '2.sav'), second);
+  const store = new Store(data, catalog);
+  store.setPath('savePath', source);
+  store.mutate({ type: 'settings', value: { autoBackup: false } });
+  const backups = new Saves(path.join(data, 'save-backups')),
+    snapshot = backups.capture(source, '合成中断恢复来源');
+  fs.writeFileSync(path.join(source, '1.sav'), current);
+  fs.writeFileSync(path.join(source, '9.sav'), foreign);
+  const child = spawnSync(
+    process.execPath,
+    [path.join(base, 'tests/crash-restore-child.cjs'), backups.root, source, snapshot.id, '1.sav'],
+    { encoding: 'utf8', timeout: 20000, windowsHide: true },
+  );
+  assert.equal(child.status, 71, child.stderr);
+  const pending = backups.pendingRestore();
+  assert.equal(pending.count, 1);
+  const operationBefore = fs.readFileSync(backups.operationFile),
+    originalCopy = backups.verify(snapshot.id),
+    safety = backups.verify(pending.safetyId);
+  assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), incoming);
+  let { app, win } = (running = await launch(data));
+  try {
+    await nav(win, 'saves');
+    const banner = () => win.locator('[aria-label="存档恢复待核对"]');
+    await banner().waitFor();
+    const operations = () => new Activity(data).get().events;
+    const beforeEvents = operations();
+    const answer = (response) =>
+      app.evaluate(({ dialog }, value) => {
+        dialog.showMessageBox = async () => ({ response: value });
+      }, response);
+    await answer(0);
+    await banner().locator('[data-action="recover-restore"]').click();
+    await win.evaluate(() => window.journal.refresh());
+    assert.deepEqual(operations(), beforeEvents);
+    assert.deepEqual(fs.readFileSync(backups.operationFile), operationBefore);
+    assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), incoming);
+    assert.deepEqual(fs.readFileSync(path.join(source, '2.sav')), second);
+    assert.deepEqual(fs.readFileSync(path.join(source, '9.sav')), foreign);
+    check(
+      'interrupted restore cancellation preserves pending recovery, all save bytes and operation history',
+      { data },
+    );
+    fs.writeFileSync(path.join(source, '1.sav'), newer);
+    await answer(1);
+    await banner().locator('[data-action="recover-restore"]').click();
+    await win.locator('.toast.error').filter({ hasText: '其他修改' }).waitFor();
+    assert.deepEqual(operations(), beforeEvents);
+    assert.deepEqual(fs.readFileSync(backups.operationFile), operationBefore);
+    assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), newer);
+    assert.deepEqual(fs.readFileSync(path.join(source, '2.sav')), second);
+    assert.deepEqual(fs.readFileSync(path.join(source, '9.sav')), foreign);
+    assert.equal(await banner().count(), 1);
+    check('interrupted restore refuses later progress without recording success or modifying other slots', {
+      data,
+    });
+    // Only the disposable fixture is reset to the known attempted-write bytes for retry.
+    fs.writeFileSync(path.join(source, '1.sav'), incoming);
+    await banner().locator('[data-action="recover-restore"]').click();
+    await banner().waitFor({ state: 'detached' });
+    assert.equal(backups.pendingRestore(), null);
+    assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), current);
+    assert.deepEqual(fs.readFileSync(path.join(source, '2.sav')), second);
+    assert.deepEqual(fs.readFileSync(path.join(source, '9.sav')), foreign);
+    const receipt = operations().find((event) => /中断的恢复已回退/.test(event.message));
+    assert(receipt, 'Successful interrupted restore must leave a persistent receipt');
+    assert.equal(receipt.level, 'success');
+    assert.match(receipt.message, /已回退 1 个文件/);
+    assert(receipt.message.includes(source.slice(0, 220)));
+    assert(receipt.message.includes(pending.safetyId));
+    assert((await win.locator('.operation-history').innerText()).includes(receipt.message));
+    for (const copy of [originalCopy, safety]) {
+      const verified = backups.verify(copy.manifest.id);
+      for (const [name, bytes] of copy.buffers) assert.deepEqual(verified.buffers.get(name), bytes);
+    }
+    await app.close();
+    running = null;
+    ({ app, win } = running = await launch(data));
+    await nav(win, 'saves');
+    assert.equal(await banner().count(), 0);
+    assert((await win.locator('.operation-history').innerText()).includes(receipt.message));
+    assert.equal(operations().filter((event) => event.message === receipt.message).length, 1);
+    assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), current);
+    assert.deepEqual(fs.readFileSync(path.join(source, '2.sav')), second);
+    assert.deepEqual(fs.readFileSync(path.join(source, '9.sav')), foreign);
+    await win.screenshot({ path: path.join(data, 'recovery-receipt-restarted.png') });
+    check(
+      'successful interrupted restore retains target, file count and verified safety copy in UI after cold restart',
+      {
+        data,
+        safetyId: pending.safetyId,
+        restored: 1,
+        receipt: receipt.message,
+      },
+    );
+  } finally {
+    await app.close();
+    running = null;
+  }
+}
+
 async function corruptTimelineReconnect() {
   const data = makeData('corruptTimeline'),
     source = path.join(data, 'old-SaveGames'),
@@ -1398,6 +1509,7 @@ async function customOpacityImport() {
       trayQuitDelayed: () => cancelledTrayQuit(100),
       trayQuitCompanion: () => cancelledTrayQuit(100, true),
       corruptRestore: corruptRestoreGuidance,
+      interruptedRestore: interruptedRestoreReceipt,
       corruptTimeline: corruptTimelineReconnect,
       badBackup: knownBadBackup,
       questReading: questReadingAndReservations,
