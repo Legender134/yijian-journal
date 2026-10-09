@@ -11,6 +11,41 @@ const { ProtectionArchives } = require('../src/core/protection-archives.cjs');
 const catalog = require('../src/data/catalog.cjs');
 const world = require('../src/data/world-index.json');
 const current = (store) => store.get().profiles[0];
+test('removal and recovery previews preserve item counts and recipe repetitions, including legacy defaults and missing references', async () => {
+  const { createJourneyTrashViews } = await import(
+    'data:text/javascript;base64,' +
+      fs.readFileSync(path.join(__dirname, '../src/renderer/journey-trash-views.js')).toString('base64')
+  );
+  const view = createJourneyTrashViews({ esc: (v) => String(v ?? ''), act: () => '', when: (v) => v });
+  const index = { entries: [], world: { maps: [], quests: [] }, guides: [] };
+  for (const [source, label] of [
+    [{ type: 'database', id: 'item-10207', quantity: 10 }, '收集数量：10 件'],
+    [{ type: 'database', id: 'item-999999999', quantity: 37 }, '收集数量：37 件'],
+    [{ type: 'database', id: 'item-10207' }, '收集数量：1 件'],
+    [{ type: 'database', id: 'fusion-1000', quantity: 9 }, '制作次数 9 次'],
+    [{ type: 'database', id: 'alchemy-100' }, '制作次数 1 次'],
+    [{ type: 'database', id: 'cooking-100', quantity: 3 }, '制作次数 3 次'],
+    [{ type: 'database', id: 'npc-5011' }, ''],
+    [{ type: 'quest', id: 'quest-5053' }, ''],
+    [{ type: 'planner', id: 'current' }, ''],
+  ]) {
+    const row = {
+        id: 'removed',
+        kind: 'goal',
+        deletedAt: '2026-10-09T08:00:00.000Z',
+        record: { title: '原目标', detail: '原说明', source, done: false },
+      },
+      before = structuredClone(row);
+    for (const preview of [true, false]) {
+      const html = view.detail(row, index, { preview });
+      assert(html.includes(label));
+      if (source.id.startsWith('item-')) assert(!html.includes('制作次数'));
+      if (!label) assert(!/收集数量|制作次数/.test(html));
+      assert(html.includes('原说明'));
+    }
+    assert.deepEqual(row, before);
+  }
+});
 function setup(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-goal-trash-'));
   t.after(() => {
