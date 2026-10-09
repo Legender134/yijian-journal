@@ -875,11 +875,17 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
           goalIds: [goal.id],
           userDone: goal.done === true,
           progress: { status: 'manual', label: '个人目标', source: null },
-          sources: [sourceForUser(goal.id)],
+          sources: [sourceForUser(goal.id, 'goals')],
+          places: explicitPlace(goal.placeId, sourceForUser(goal.id, 'goals')),
           navigation: [{ action: 'journey-goal', id: goal.id }],
-          unknowns: [
-            uncertainty('personal-goal-location-unknown', '个人目标尚未绑定地点，可创建带地点的个人待办。'),
-          ],
+          unknowns: goal.placeId
+            ? []
+            : [
+                uncertainty(
+                  'personal-goal-location-unknown',
+                  '个人目标尚未指定地点，可编辑原目标补充地点；不会从标题或说明猜选。',
+                ),
+              ],
         });
     for (const p of state.places)
       addAction('place', [p.placeId], {

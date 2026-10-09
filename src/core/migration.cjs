@@ -509,6 +509,10 @@ function portableJournal(input) {
       goalIds.add(g.id);
       const goal = { id: g.id, title: g.title, detail: g.detail, done: g.done };
       if (g.pinned !== undefined) goal.pinned = g.pinned;
+      if (g.placeId !== undefined) {
+        checked(typeof g.placeId === 'string' && /^place-\d{1,9}$/.test(g.placeId), 'Invalid goal place');
+        goal.placeId = g.placeId;
+      }
       if (g.progressMode !== undefined) {
         checked(
           ['auto', 'manual'].includes(g.progressMode) && g.source?.type === 'quest',

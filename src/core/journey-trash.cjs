@@ -53,7 +53,7 @@ function validateRecord(kind, record) {
     exact(
       record,
       ['id', 'title', 'detail', 'done'],
-      ['createdAt', 'source', 'pinned', 'progressMode'],
+      ['createdAt', 'source', 'pinned', 'progressMode', 'placeId'],
       '已移除目标',
     );
     if (typeof record.id !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(record.id)) throw Error('待办编号无效');
@@ -68,6 +68,11 @@ function validateRecord(kind, record) {
       throw Error('待办无效');
     if (record.createdAt !== undefined) validateISOTime(record.createdAt, '目标创建时间');
     if (record.pinned !== undefined && typeof record.pinned !== 'boolean') throw Error('目标置顶无效');
+    if (
+      record.placeId !== undefined &&
+      (typeof record.placeId !== 'string' || !/^place-\d{1,9}$/.test(record.placeId))
+    )
+      throw Error('目标地点无效');
     if (
       record.progressMode !== undefined &&
       (!['auto', 'manual'].includes(record.progressMode) || record.source?.type !== 'quest')
@@ -240,6 +245,7 @@ function applyJourneyTrashCommand(profile, command, options = {}) {
         done: row.record.done,
         createdAt,
         ...(row.record.pinned === undefined ? {} : { pinned: row.record.pinned }),
+        ...(row.record.placeId === undefined ? {} : { placeId: row.record.placeId }),
       };
       validateRecord('goal', record);
       return { journey: next, trash: nextTrash, goals: [...clone(profile.goals), record] };

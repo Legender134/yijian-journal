@@ -37,6 +37,8 @@ const { validateJourneyTrash, applyJourneyTrashCommand } = require('./journey-tr
 const { validateNoteRevisions, retainNote } = require('./note-revisions.cjs');
 const world = require('../data/world-index.json');
 const questIds = new Set(world.quests.map((q) => q.id));
+const placeIds = new Set(world.maps.map((p) => p.id));
+const databaseKinds = new Map(require('../data/game-index.json').entries.map((e) => [e.id, e.kind]));
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const now = () => new Date().toISOString();
@@ -189,6 +191,14 @@ function validateState(s, ids) {
       text(g.detail, 2000);
       if (!g.title.trim() || typeof g.done !== 'boolean') throw new Error('待办无效');
       if (g.pinned !== undefined && typeof g.pinned !== 'boolean') throw Error('目标置顶无效');
+      if (g.placeId !== undefined && (typeof g.placeId !== 'string' || !placeIds.has(g.placeId)))
+        throw Error('目标地点无效，请明确选择资料中的场景');
+      if (
+        g.placeId !== undefined &&
+        (['quest', 'planner'].includes(g.source?.type) ||
+          (g.source?.type === 'database' && ['物品', '配方'].includes(databaseKinds.get(g.source.id))))
+      )
+        throw Error('这类资料目标沿用原资料的行程地点');
       if (
         g.progressMode !== undefined &&
         (!['auto', 'manual'].includes(g.progressMode) || g.source?.type !== 'quest')
@@ -737,6 +747,8 @@ class Store {
         break;
       }
       case 'goal-add': {
+        if (Object.hasOwn(command, 'placeId') && typeof command.placeId !== 'string')
+          throw Error('目标地点须明确选择，或以地点未定移除');
         const title = text(command.title, 200);
         if (!title) throw new Error('请填写目标');
         validateGoalSource(command.source, this.ids, p.craftPlans);
@@ -747,6 +759,9 @@ class Store {
           done: false,
           createdAt: now(),
           ...(command.source ? { source: clone(command.source) } : {}),
+          ...(Object.hasOwn(command, 'placeId') && command.placeId !== ''
+            ? { placeId: command.placeId }
+            : {}),
         });
         break;
       }
@@ -791,10 +806,16 @@ class Store {
         break;
       }
       case 'goal-edit': {
+        if (Object.hasOwn(command, 'placeId') && typeof command.placeId !== 'string')
+          throw Error('目标地点须明确选择，或以地点未定移除');
         const g = p.goals.find((x) => x.id === command.id);
         if (!g) throw new Error('待办不存在');
         g.title = text(command.title, 200);
         g.detail = text(command.detail || '', 2000);
+        if (Object.hasOwn(command, 'placeId')) {
+          if (command.placeId === '') delete g.placeId;
+          else g.placeId = command.placeId;
+        }
         break;
       }
       case 'profile-add': {

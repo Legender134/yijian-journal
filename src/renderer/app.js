@@ -1634,7 +1634,7 @@ function saveNote(id = profile().id) {
     });
 }
 function noteBlock() {
-  return `<div class="note-paper"><div class="row between wrap"><h3>江湖随手记</h3>${act('navigate', '逐条记录与回顾', 'text-btn', 'journal', 'feather')}</div><textarea id="note" data-persist="note" maxlength="20000" aria-label="江湖随手记" placeholder="上次停在何处？下次想做什么？\n给未来的自己留句话。">${esc(drafts.get(profile().id) ?? profile().notes)}</textarea><div id="note-status" class="note-footer">${drafts.has(profile().id) ? '正在保存…' : '只存在这台电脑 · 自动保存'}</div>${act('note-history', '找回旧内容 · ' + (profile().noteRevisions?.length || 0), 'text-btn', '', 'archive')}<details class="small"><summary>旧内容保留规则</summary><p class="save-note">自动保留最近 20 份非空旧内容；连续编辑每隔 5 分钟留一份，清空或恢复前立即保留。更早的内容可通过导出手札备份另行保存。</p></details></div>`;
+  return `<div class="note-paper"><div class="row between wrap"><h3>江湖随手记</h3>${act('navigate', '逐条记录与回顾', 'text-btn', 'journal', 'feather')}</div><textarea id="note" data-persist="note" data-profile-id="${esc(profile().id)}" maxlength="20000" aria-label="江湖随手记" placeholder="上次停在何处？下次想做什么？\n给未来的自己留句话。">\n${esc(drafts.get(profile().id) ?? profile().notes)}</textarea><div id="note-status" class="note-footer">${drafts.has(profile().id) ? '正在保存…' : '只存在这台电脑 · 自动保存'}</div>${act('note-history', '找回旧内容 · ' + (profile().noteRevisions?.length || 0), 'text-btn', '', 'archive')}<details class="small"><summary>旧内容保留规则</summary><p class="save-note">自动保留最近 20 份非空旧内容；连续编辑每隔 5 分钟留一份，清空或恢复前立即保留。更早的内容可通过导出手札备份另行保存。</p></details></div>`;
 }
 function showNoteHistory(returnContext = null) {
   const rows = profile().noteRevisions || [];
@@ -1819,6 +1819,13 @@ function libraryPage() {
 function entryCard(e) {
   return `<article class="entry-card" tabindex="0" role="button" aria-label="查看 ${esc(e.title)}" data-action="detail" data-id="${e.id}"><div class="entry-card-top"><div class="entry-avatar ${e.kind === '装备' || e.kind === '武学' ? 'equipment' : ''}">${e.kind === '队友' ? gameImages.person(e.title.split(' · ')[0]) || icon('person') : icon(kindIcon(e.kind))}</div>${iconButton('favorite', 'star', profile().favorites.includes(e.id) ? '取消收藏' : '收藏线索', e.id, `favorite ${profile().favorites.includes(e.id) ? 'on' : ''}`)}</div><h3>${esc(e.title)}</h3><p>${esc(e.hint)}</p><div class="entry-card-bottom"><span>${esc(e.location)}</span>${pill(e.kind)}</div></article>`;
 }
+function personalGoal(g) {
+  return (
+    !g?.source ||
+    !['quest', 'planner', 'database'].includes(g.source.type) ||
+    (g.source.type === 'database' && !['物品', '配方'].includes(gameViews.byId(gameIndex, g.source.id)?.kind))
+  );
+}
 function goalRow(g) {
   const progress = goalStatus(g),
     done = progress.done;
@@ -1833,7 +1840,11 @@ function goalRow(g) {
     : g.source?.type === 'quest' && state.settings.spoiler === 'hints'
       ? `<details data-persist-detail="goal-note-${esc(profile().id)}-${esc(g.id)}"><summary>任务备忘 · 可能涉及剧情</summary><p>${esc(g.detail)}</p></details>`
       : `<p>${esc(g.detail)}</p>`;
-  return `<div id="goal-${esc(g.id)}" class="goal-row ${done ? 'done' : ''}" tabindex="-1"><button id="goal-toggle-${esc(g.id)}" class="check ${done ? 'checked' : ''}" data-action="goal-toggle" data-id="${g.id}" ${progress.planDone ? 'disabled' : ''} aria-label="${progress.planDone ? '关联制作计划已完成，请先重新打开计划' : progress.automaticDone ? '保留为手动待办' : done ? '取消完成' : '完成目标'} ${esc(g.title)}">${done ? icon('check') : ''}</button><div class="spacer"><h3>${g.pinned ? '<span class="small muted">置顶 · </span>' : ''}${esc(g.title)}</h3>${tracking}${detail}${g.source ? act('goal-source', g.source.type === 'planner' ? '重新核对备料清单' : g.source.type === 'quest' ? '查看任务资料与记录' : g.source.quantity ? '打开配方，重新核对材料' : '查看原资料', 'text-btn', g.id, 'arrow') : ''}</div>${iconButton('goal-pin', 'pin', g.pinned ? '取消置顶目标' : '置顶目标', g.id, g.pinned ? 'on' : '')}${iconButton('goal-edit', 'edit', '编辑目标', g.id)}${iconButton('goal-remove', 'trash', '删除目标', g.id)}</div>`;
+  const place = gameIndex.world.maps.find((p) => p.id === g.placeId);
+  const location = personalGoal(g)
+    ? `<p class="small muted">${place ? '地点：' + esc(place.name) + ' · 场景 #' + place.gameId : '地点未定'}</p>${act('goal-place-edit', place ? '修改或移除地点' : '补充地点', 'text-btn', g.id, 'map')}`
+    : '';
+  return `<div id="goal-${esc(g.id)}" class="goal-row ${done ? 'done' : ''}" tabindex="-1"><button id="goal-toggle-${esc(g.id)}" class="check ${done ? 'checked' : ''}" data-action="goal-toggle" data-id="${g.id}" ${progress.planDone ? 'disabled' : ''} aria-label="${progress.planDone ? '关联制作计划已完成，请先重新打开计划' : progress.automaticDone ? '保留为手动待办' : done ? '取消完成' : '完成目标'} ${esc(g.title)}">${done ? icon('check') : ''}</button><div class="spacer"><h3>${g.pinned ? '<span class="small muted">置顶 · </span>' : ''}${esc(g.title)}</h3>${tracking}${detail}${location}${g.source ? act('goal-source', g.source.type === 'planner' ? '重新核对备料清单' : g.source.type === 'quest' ? '查看任务资料与记录' : g.source.quantity ? '打开配方，重新核对材料' : '查看原资料', 'text-btn', g.id, 'arrow') : ''}</div>${iconButton('goal-pin', 'pin', g.pinned ? '取消置顶目标' : '置顶目标', g.id, g.pinned ? 'on' : '')}${iconButton('goal-edit', 'edit', '编辑目标', g.id)}${iconButton('goal-remove', 'trash', '删除目标', g.id)}</div>`;
 }
 function goalsPage() {
   const p = profile();
@@ -1856,7 +1867,7 @@ function goalsPage() {
           )
           .join('')
       : empty('把线索装进行囊', '在江湖索引中点击星标，就能在这里找到它。')
-  }</section></div><div class="stack">${noteBlock()}<div class="notice info">${icon('leaf')}<span>每个周目的清单、收藏和随手记彼此独立。你可以在左下角切换或新建周目。</span></div></div></div>`;
+  }</section></div><div class="stack">${noteBlock()}<div class="notice info">${icon('leaf')}<span>每个周目的清单、收藏和随手记彼此独立。${compact ? '打开完整手札后，可以在左下角切换或新建周目。' + act('main', '打开完整手札', 'text-btn', '', 'external') : '你可以在左下角切换或新建周目。'}</span></div></div></div>`;
 }
 function nodeDraftPanel() {
   const entries = Object.entries(environment.activity?.drafts || {});
@@ -2019,7 +2030,11 @@ function refreshPlacePicker(page) {
   view.page = page || 1;
   const focused = document.activeElement?.id;
   document.querySelector('#journey-place-options').innerHTML = placePicker.options(gameIndex, view);
-  writeIntentValues('journey-' + journeyDraft.kind, { placeId: view.selectedId }, overlay);
+  writeIntentValues(
+    journeyDraft.kind === 'goal' ? 'goal' : 'journey-' + journeyDraft.kind,
+    { placeId: view.selectedId },
+    overlay,
+  );
   if (focused === 'journey-place') document.querySelector('#journey-place').focus();
 }
 function refreshGiftPicker(kind, page) {
@@ -2204,6 +2219,49 @@ function compactPage() {
 function render(preserve = false, navigationId = null) {
   if (!catalog || !state || composing) return;
   captureIntentDrafts();
+  const replaceRoot = (html) => {
+    const note = preserve ? root.querySelector('#note') : null;
+    if (!note) {
+      root.innerHTML = html;
+      return;
+    }
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    const next = template.content.querySelector('#note');
+    if (!next || note.dataset.profileId !== next.dataset.profileId || note.value !== next.value) {
+      root.replaceChildren(template.content);
+      return;
+    }
+    const oldPath = [],
+      newPath = [];
+    for (let node = note; node !== root; node = node.parentNode) oldPath.unshift(node);
+    for (let node = next; node !== template.content; node = node.parentNode) newPath.unshift(node);
+    if (
+      oldPath.length !== newPath.length ||
+      oldPath.some((node, i) => node.nodeName !== newPath[i].nodeName)
+    ) {
+      root.replaceChildren(template.content);
+      return;
+    }
+    oldPath.unshift(root);
+    newPath.unshift(template.content);
+    // Chromium discards native undo even if the same textarea is reattached.
+    // Keep its entire ancestor chain connected; update only surrounding nodes.
+    for (let i = 0; i < oldPath.length - 1; i++) {
+      const current = oldPath[i],
+        replacement = newPath[i],
+        kept = oldPath[i + 1],
+        source = newPath[i + 1];
+      if (current !== root) {
+        for (const name of current.getAttributeNames())
+          if (!replacement.hasAttribute(name)) current.removeAttribute(name);
+        for (const { name, value } of replacement.attributes) current.setAttribute(name, value);
+      }
+      for (const child of [...current.childNodes]) if (child !== kept) child.remove();
+      while (replacement.firstChild !== source) current.insertBefore(replacement.firstChild, kept);
+      while (source.nextSibling) current.append(source.nextSibling);
+    }
+  };
   const active = document.activeElement,
     focusId = preserve ? active?.id : null,
     selection = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null,
@@ -2254,7 +2312,7 @@ function render(preserve = false, navigationId = null) {
       ]),
     );
     const compactScroll = root.querySelector('.compact-body')?.scrollTop || 0;
-    root.innerHTML = compactPage();
+    replaceRoot(compactPage());
     const navigation = root.querySelector('.companion-tabs');
     if (navigation) {
       navigation.setAttribute('role', 'navigation');
@@ -2279,7 +2337,7 @@ function render(preserve = false, navigationId = null) {
     if (focusId && companionMode === 'expanded') {
       const field = document.getElementById(focusId);
       if (field) {
-        if (fieldValue !== null) field.value = fieldValue;
+        if (fieldValue !== null && focusId !== 'note') field.value = fieldValue;
         field.focus();
         if (selection && field.setSelectionRange && !['number', 'email'].includes(field.type))
           field.setSelectionRange(...selection);
@@ -2298,32 +2356,34 @@ function render(preserve = false, navigationId = null) {
         ])
       : [],
   );
-  root.innerHTML = `<div class="layout"><aside class="sidebar"><div class="brand"><span class="seal">逸</span><div><div class="brand-name">逸剑手札</div><div class="brand-sub">WANDERING JOURNAL</div></div></div><nav class="sidebar-nav" aria-label="手札页面"><div class="nav-section">我的江湖</div>${[
-    ['home', 'home'],
-    ['checklist', 'scroll'],
-    ['library', 'book'],
-    ['database', 'sword'],
-    ['world', 'scroll'],
-    ['materials', 'leaf'],
-    ['journey', 'map'],
-    ['goals', 'bag'],
-    ['journal', 'feather'],
-  ]
-    .map(
-      ([id, glyph]) =>
-        `<button class="nav-btn ${route === id ? 'active' : ''}"${route === id ? ' aria-current="page"' : ''} data-action="navigate" data-id="${id}">${icon(glyph)}${headings[id]}${id === 'goals' && profile().goals.filter((g) => !goalDone(g)).length ? `<span class="nav-count">${profile().goals.filter((g) => !goalDone(g)).length}</span>` : ''}</button>`,
-    )
-    .join('')}<div class="nav-section mt">一路相伴</div>${[
-    ['saves', 'archive'],
-    ['settings', 'settings'],
-  ]
-    .map(
-      ([id, glyph]) =>
-        `<button class="nav-btn ${route === id ? 'active' : ''}"${route === id ? ' aria-current="page"' : ''} data-action="navigate" data-id="${id}">${icon(glyph)}${headings[id]}</button>`,
-    )
-    .join(
-      '',
-    )}</nav><div class="sidebar-art"><div class="sidebar-line"></div><p>山水有相逢<br>江湖不相忘</p><small>ONE JOURNEY AT A TIME</small></div><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong><small>记录只保存在本机</small></div>${iconButton('profiles', 'settings', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑风云决 · 个人助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="breadcrumb">我的江湖 ${icon('chevron')}<b>${headings[route]}</b></div><div class="row"><span data-save-health>${timelineViews.chip(environment.health)}</span><button class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${iconButton('compact', 'pin', '打开随行小窗 · Ctrl+Alt+J')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`;
+  replaceRoot(
+    `<div class="layout"><aside class="sidebar"><div class="brand"><span class="seal">逸</span><div><div class="brand-name">逸剑手札</div><div class="brand-sub">WANDERING JOURNAL</div></div></div><nav class="sidebar-nav" aria-label="手札页面"><div class="nav-section">我的江湖</div>${[
+      ['home', 'home'],
+      ['checklist', 'scroll'],
+      ['library', 'book'],
+      ['database', 'sword'],
+      ['world', 'scroll'],
+      ['materials', 'leaf'],
+      ['journey', 'map'],
+      ['goals', 'bag'],
+      ['journal', 'feather'],
+    ]
+      .map(
+        ([id, glyph]) =>
+          `<button class="nav-btn ${route === id ? 'active' : ''}"${route === id ? ' aria-current="page"' : ''} data-action="navigate" data-id="${id}">${icon(glyph)}${headings[id]}${id === 'goals' && profile().goals.filter((g) => !goalDone(g)).length ? `<span class="nav-count">${profile().goals.filter((g) => !goalDone(g)).length}</span>` : ''}</button>`,
+      )
+      .join('')}<div class="nav-section mt">一路相伴</div>${[
+      ['saves', 'archive'],
+      ['settings', 'settings'],
+    ]
+      .map(
+        ([id, glyph]) =>
+          `<button class="nav-btn ${route === id ? 'active' : ''}"${route === id ? ' aria-current="page"' : ''} data-action="navigate" data-id="${id}">${icon(glyph)}${headings[id]}</button>`,
+      )
+      .join(
+        '',
+      )}</nav><div class="sidebar-art"><div class="sidebar-line"></div><p>山水有相逢<br>江湖不相忘</p><small>ONE JOURNEY AT A TIME</small></div><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong><small>记录只保存在本机</small></div>${iconButton('profiles', 'settings', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑风云决 · 个人助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="breadcrumb">我的江湖 ${icon('chevron')}<b>${headings[route]}</b></div><div class="row"><span data-save-health>${timelineViews.chip(environment.health)}</span><button class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${iconButton('compact', 'pin', '打开随行小窗 · Ctrl+Alt+J')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`,
+  );
   root.querySelector('.sidebar-nav').scrollTop = sidebarScroll;
   if (availableIntentDrafts().length && !['home', 'journey'].includes(route))
     root.querySelector('.content')?.insertAdjacentHTML('afterbegin', intentDraftBanner());
@@ -2337,7 +2397,8 @@ function render(preserve = false, navigationId = null) {
   if (focusId) {
     const next = document.getElementById(focusId);
     if (next) {
-      if (fieldValue !== null && next.dataset.persist && focusId !== 'list-search') next.value = fieldValue;
+      if (fieldValue !== null && next.dataset.persist && !['list-search', 'note'].includes(focusId))
+        next.value = fieldValue;
       next.focus();
       if (selection && typeof next.setSelectionRange === 'function')
         try {
@@ -2536,10 +2597,21 @@ async function changeStage(id) {
 }
 function goalModal(id, savedDraft = null) {
   const g = id ? profile().goals.find((x) => x.id === id) : null;
+  journeyDraft = personalGoal(g)
+    ? {
+        kind: 'goal',
+        profileId: profile().id,
+        placePicker: {
+          selectedId: savedDraft?.values.placeId ?? g?.placeId ?? '',
+          query: savedDraft?.values.placeQuery || '',
+          page: 1,
+        },
+      }
+    : null;
   modal(
     g ? '编辑行囊目标' : '下一步，想做什么？',
     '一句明确的小目标，就足够开始下一次出发。',
-    `<div class="field"><label for="goal-title">目标</label><input id="goal-title" maxlength="200" placeholder="例如：去青木舫，看看司马铃的新任务" value="${esc(g?.title || '')}"></div><div class="field"><label for="goal-detail">补充说明（可选）</label><textarea id="goal-detail" rows="4" maxlength="2000" placeholder="地点、前置条件、需要准备的东西……">${esc(g?.detail || '')}</textarea></div>`,
+    `<div class="field"><label for="goal-title">目标</label><input id="goal-title" maxlength="200" placeholder="例如：去青木舫，看看司马铃的新任务" value="${esc(g?.title || '')}"></div><div class="field"><label for="goal-detail">补充说明（可选）</label><textarea id="goal-detail" rows="4" maxlength="2000" placeholder="前置条件、需要准备的东西……">${esc(g?.detail || '')}</textarea></div>${journeyDraft ? placePicker.field(gameIndex, journeyDraft.placePicker, '目标地点（可选）') + '<p class="save-note">保存地点后，同一个目标会参与按地点行程，完成状态仍由原目标管理。选择「地点未定」可移除地点；不会从文字猜选，也不会合并同名待办。</p>' : ''}`,
     act('goal-save', g ? '保存修改' : '放进行囊', 'btn primary', g?.id || ''),
   );
   document.querySelector('#goal-title')?.focus();
@@ -3648,6 +3720,19 @@ async function handle(action, id, target, navigationFocused = false) {
       closeOverlay();
       render();
       toast('所选记录已移入已删除记录，可以逐条恢复');
+      break;
+    }
+    case 'journal-reference-page': {
+      const input = document.querySelector('#journal-reference-query');
+      const results = document.querySelector('#journal-reference-results');
+      if (!input || !results) break;
+      results.innerHTML = eventJournalViews.referenceResults(
+        profile(),
+        journalIndex(),
+        input.value,
+        Number(id),
+      );
+      results.querySelector('[data-reference-page-heading]')?.focus({ preventScroll: true });
       break;
     }
     case 'journal-reference-remove':
@@ -4830,6 +4915,7 @@ async function handle(action, id, target, navigationFocused = false) {
       }
       break;
     }
+    case 'goal-place-edit':
     case 'goal-edit':
       goalModal(id);
       break;
@@ -5722,6 +5808,7 @@ document.addEventListener('click', async (event) => {
     'reveal',
     'goal-add',
     'goal-edit',
+    'goal-place-edit',
     'profiles',
   ].includes(action);
   if (lock) target.disabled = true;

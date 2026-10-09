@@ -90,7 +90,7 @@ function referenceLabel(link, profile, index, sources = tables(profile, index)) 
   }
   return link.label;
 }
-export function journalReferenceChoices(profile, index, query = '', limit = 20) {
+function matchingJournalReferences(profile, index, query) {
   const tokens = lower(query).trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return [];
   const candidates = [];
@@ -98,17 +98,23 @@ export function journalReferenceChoices(profile, index, query = '', limit = 20) 
   for (const [type, rows] of Object.entries(sources)) {
     for (const row of rows) {
       const label = rowLabel(type, row, profile, index, sources);
-      const haystack = lower(`${LINK_LABELS[type]} ${row.id} ${label}`);
-      if (tokens.every((token) => haystack.includes(token))) candidates.push({ type, id: row.id, label });
+      const detail = ['goal', 'todo', 'gift', 'craft-plan'].includes(type)
+        ? row.detail || row.note || ''
+        : '';
+      const haystack = lower(`${LINK_LABELS[type]} ${row.id} ${label} ${detail}`);
+      if (tokens.every((token) => haystack.includes(token)))
+        candidates.push({ type, id: row.id, label, detail });
     }
   }
-  return candidates
-    .sort(
-      (a, b) =>
-        a.label.localeCompare(b.label, 'zh-CN') ||
-        `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`, 'en'),
-    )
-    .slice(0, Math.max(0, Math.min(20, limit)));
+  return candidates.sort(
+    (a, b) =>
+      a.label.localeCompare(b.label, 'zh-CN') || `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`, 'en'),
+  );
+}
+export function journalReferenceChoices(profile, index, query = '', limit = 20) {
+  return matchingJournalReferences(profile, index, query)
+    .slice(0, Math.max(0, Math.min(20, limit)))
+    .map(({ type, id, label }) => ({ type, id, label }));
 }
 function dateBound(value, end = false) {
   if (!value) return null;
@@ -423,16 +429,22 @@ export function createEventJournalViews({
     if (!row) return notice('旧版本已不存在，请重新打开。', true);
     return `<section class="drawer" role="dialog" aria-modal="true" aria-label="记录旧版本完整预览"><div class="drawer-head"><h2>记录旧版本 · 只读预览</h2>${act('close-overlay', '关闭预览', 'text-btn')}</div><div class="drawer-body">${revisionContent(row)}<p class="save-note">原记录、后来的内容与游戏存档保留。</p></div><div class="drawer-actions">${readOnly ? pill('只读历史') : act('journal-revision-restore-preview', '另存为新记录…', 'btn primary', row.id, 'plus')}</div></section>`;
   }
-  function referenceResults(profile, index, query) {
-    const choices = journalReferenceChoices(profile, index, query);
-    return choices.length
-      ? choices
-          .map(
-            (choice) =>
-              `<div class="row between"><span>${esc(LINK_LABELS[choice.type])} · ${esc(choice.label)}</span>${act('journal-reference-add', '关联', 'text-btn', `${choice.type}:${choice.id}`, 'plus')}</div>`,
-          )
-          .join('')
-      : '<p class="small muted">输入人物、地点、任务或个人目标的名称，选择要关联的资料。</p>';
+  function referenceResults(profile, index, query, requestedPage = 1) {
+    const choices = matchingJournalReferences(profile, index, query);
+    if (!choices.length)
+      return `<p class="small muted">${query.trim() ? '没有匹配的资料，请换个名称或备忘内容再找。' : '输入人物、地点、任务或个人目标的名称或备忘内容，选择要关联的资料。'}</p>`;
+    const pages = Math.ceil(choices.length / JOURNAL_PAGE_SIZE);
+    const page = Number.isSafeInteger(requestedPage) ? Math.max(1, Math.min(requestedPage, pages)) : 1;
+    return (
+      `<nav class="row wrap" aria-label="关联资料分页"><span class="small muted" tabindex="-1" data-reference-page-heading>找到 ${choices.length} 项 · 第 ${page} / ${pages} 页 · 每页 ${JOURNAL_PAGE_SIZE} 项</span>${page > 1 ? act('journal-reference-page', '上一页', 'text-btn', String(page - 1)) : ''}${page < pages ? act('journal-reference-page', '下一页', 'text-btn', String(page + 1)) : ''}</nav>` +
+      choices
+        .slice((page - 1) * JOURNAL_PAGE_SIZE, page * JOURNAL_PAGE_SIZE)
+        .map(
+          (choice) =>
+            `<div class="row between journal-reference-choice"><span class="spacer">${esc(LINK_LABELS[choice.type])} · ${esc(choice.label)}${choice.detail ? `<small class="preserve-text muted">${esc(choice.detail)}</small>` : ''}</span>${act('journal-reference-add', '关联', 'text-btn', `${choice.type}:${choice.id}`, 'plus')}</div>`,
+        )
+        .join('')
+    );
   }
   function selectedReferences(profile, index, ids, entry) {
     const sources = tables(profile, index);

@@ -12,7 +12,7 @@ fs.mkdirSync(data, { recursive: true });
 fs.mkdirSync(path.join(base, 'test-results'), { recursive: true });
 const store = new Store(userData, catalog);
 store.mutate({ type: 'save-slot', mode: 'none', value: '' });
-const original = '合成随手记原文\n\n第二行 <script>literal</script>\n  尾部  ';
+const original = '\n合成随手记原文\n\n第二行 <script>literal</script>\n  尾部  ';
 store.mutate({ type: 'note', value: original });
 let app, page;
 const checks = [],
@@ -30,7 +30,9 @@ async function waitNote(value) {
   throw Error('Note did not reach the expected saved value');
 }
 async function launch() {
-  const env = { ...process.env, YIJIAN_TEST_DATA: userData };
+  const temp = path.join(data, 'temp');
+  fs.mkdirSync(temp, { recursive: true });
+  const env = { ...process.env, YIJIAN_TEST_DATA: userData, TEMP: temp, TMP: temp };
   delete env.ELECTRON_RUN_AS_NODE;
   app = await _electron.launch({
     executablePath: process.env.YIJIAN_EXECUTABLE || require('electron'),
@@ -41,6 +43,9 @@ async function launch() {
   page = await app.firstWindow();
   page.on('pageerror', (error) => errors.push(error.message));
   await page.locator('.layout').waitFor();
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().forEach((win) => win.showInactive()),
+  );
 }
 async function quit() {
   await Promise.all([page.waitForEvent('close'), page.evaluate(() => window.journal.window('quit'))]);
@@ -55,12 +60,62 @@ async function preview(id) {
   await row.locator('[data-action="note-restore-preview"]').click();
   assert.equal(await page.locator('[data-note-restore-preview] > p').textContent(), original);
 }
+async function savedUndo(editor, value) {
+  const acknowledged = () =>
+    editor.waitForFunction(() =>
+      ['已保存到本机', '只存在这台电脑 · 自动保存'].includes(
+        document.querySelector('#note-status')?.textContent,
+      ),
+    );
+  await editor.locator('#note').focus();
+  await editor.keyboard.press('Control+End');
+  await editor.evaluate(() => {
+    window.noteUndoProbe = document.querySelector('#note');
+  });
+  await editor.keyboard.type('Z');
+  await waitNote(value + 'Z');
+  await acknowledged();
+  assert.equal(await editor.evaluate(() => window.noteUndoProbe === document.querySelector('#note')), true);
+  await editor.keyboard.press('Control+z');
+  await waitNote(value);
+  await acknowledged();
+  await editor.keyboard.press('Control+Shift+z');
+  await waitNote(value + 'Z');
+  await acknowledged();
+  const update = await page.evaluate(() =>
+    window.journal.mutate({ type: 'goal-add', title: '撤销验证的独立安排' }),
+  );
+  assert(update.ok, update.error);
+  await editor.waitForFunction(() => document.querySelector('#note') === window.noteUndoProbe);
+  await editor.keyboard.press('Control+z');
+  await waitNote(value);
+  await acknowledged();
+}
 (async () => {
   try {
     await launch();
     assert.equal(await page.locator('#note').inputValue(), original);
+    await savedUndo(page, original);
+    checks.push('主窗自动保存及其他安排刷新后，原生撤销和重做仍有效，撤销后的文字继续持久保存');
+    const created = app.waitForEvent('window');
+    await page.locator('.topbar [data-action="compact"]').click();
+    const companion = await created;
+    companion.on('pageerror', (error) => errors.push(error.message));
+    await companion.locator('.compact-shell').waitFor();
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().forEach((win) => win.showInactive()),
+    );
+    await companion.keyboard.press('Control+k');
+    await companion.locator('#global-search').fill('种类:笔记 合成随手记原文');
+    await companion.locator('.search-result[data-action="search-note"]').click();
+    await companion.locator('#note').waitFor();
+    await savedUndo(companion, original);
+    assert.equal(await page.locator('#note').inputValue(), original);
+    checks.push('小窗自动保存后仍能原生撤销和重做，跨窗口刷新保留编辑器且主窗得到同一已保存正文');
     await page.locator('#note').fill('');
     await waitNote('');
+    await companion.waitForFunction(() => document.querySelector('#note')?.value === '');
+    checks.push('另一窗口明确改写随手记时同步新正文，不用旧焦点文字覆盖已保存内容');
     const old = (await current()).noteRevisions.find((row) => row.body === original);
     assert(old);
     await page.locator('.nav-btn[data-id="journal"]').click();

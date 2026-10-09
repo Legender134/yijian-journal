@@ -18,7 +18,10 @@ export function createJourneyViews({
 }) {
   const navigation = (n, label) =>
     ['world-quest', 'world-place', 'database-detail', 'journey-goal', 'journey-todo'].includes(n.action)
-      ? act(n.action, esc(label || '查看资料'), 'text-btn', n.id, 'arrow')
+      ? act(n.action, esc(label || '查看资料'), 'text-btn', n.id, 'arrow') +
+        (n.action === 'journey-goal'
+          ? act('goal-place-edit', '编辑目标与地点', 'text-btn', n.id, 'edit')
+          : '')
       : '';
   const statuses = {
     pending: '待处理',

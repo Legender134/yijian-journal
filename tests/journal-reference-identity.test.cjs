@@ -47,6 +47,39 @@ const expectedSwords = [
   ['item-1008', '物品 · 长虹剑（金色品质）'],
 ];
 
+test('event reference pages reach every same-name personal intent and identify it by its full memo', async () => {
+  const { journalReferenceChoices, createEventJournalViews } = await views;
+  const p = profile();
+  p.goals = Array.from({ length: 22 }, (_, i) => ({
+    id: 'personal-' + String(i + 1).padStart(2, '0'),
+    title: '出发前备药',
+    detail: `第 ${i + 1} 次出发；独有备忘 ${i + 1 === 22 ? '<末次 & 核对>' : '准备'}`,
+    done: i === 0,
+  }));
+  const factory = createEventJournalViews(helpers);
+  const ids = (html) =>
+    [...html.matchAll(/data-action="journal-reference-add" data-id="([^"]+)"/g)].map((m) => m[1]);
+  const first = factory.referenceResults(p, {}, '出发前备药');
+  const second = factory.referenceResults(p, {}, '出发前备药', 2);
+  assert.match(first, /找到 22 项 · 第 1 \/ 2 页/);
+  assert.match(second, /找到 22 项 · 第 2 \/ 2 页/);
+  assert.equal(ids(first).length, 20);
+  assert.equal(ids(second).length, 2);
+  assert.deepEqual(
+    [...new Set([...ids(first), ...ids(second)])].sort(),
+    p.goals.map((g) => 'goal:' + g.id).sort(),
+  );
+  assert.deepEqual(ids(factory.referenceResults(p, {}, '出发前备药', 999)), ids(second));
+  assert.deepEqual(ids(factory.referenceResults(p, {}, '出发前备药', -2)), ids(first));
+  assert.equal(journalReferenceChoices(p, {}, '出发前备药').length, 20);
+  const narrowed = factory.referenceResults(p, {}, '末次 核对');
+  assert.deepEqual(ids(narrowed), ['goal:personal-22']);
+  assert.match(narrowed, /&lt;末次 &amp; 核对&gt;/);
+  assert(!narrowed.includes('<末次'));
+  assert.match(factory.referenceResults(profile(), {}, '末次 核对'), /没有匹配/);
+  assert.equal(ids(factory.referenceResults(profile(), {}, '末次 核对')).length, 0);
+});
+
 test('real same-name swords expose actual quality in choices, selected references, saved links and history', async () => {
   const { journalReferenceChoices, createEventJournalViews, queryJournalEntries } = await views;
   const p = profile();
