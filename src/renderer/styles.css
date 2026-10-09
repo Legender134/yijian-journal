@@ -3530,4 +3530,12 @@ kbd {
   .database-search {
     min-width: 0;
   }
+  .backup-row[data-craft-plan-id] {
+    flex-wrap: wrap;
+  }
+  .backup-row[data-craft-plan-id] > .spacer {
+    flex-basis: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
 }

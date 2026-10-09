@@ -210,6 +210,33 @@ async function capture(win, name) {
     report.checks.push(
       'scaling in an open intent editor preserves exact text and reachable confirmation controls',
     );
+    for (const name of ['放大后的独立制作计划', '长制作计划标题'.repeat(6)]) {
+      const reply = await page.evaluate(
+        (name) =>
+          window.journal.mutate({
+            type: 'craft-plan-save',
+            name,
+            list: [{ id: 'fusion-1000', quantity: 2 }],
+          }),
+        name,
+      );
+      assert.equal(reply.ok, true, reply.error);
+    }
+    await page.locator('.sidebar-nav [data-id="materials"]').click();
+    await page.waitForFunction(() => document.querySelectorAll('[data-craft-plan-id]').length === 2);
+    await noHorizontal(page);
+    for (const action of [
+      'craft-plan-open',
+      'craft-plan-complete',
+      'craft-plan-copy',
+      'craft-plan-reserve',
+      'craft-plan-remove',
+    ])
+      await fits(page, `[data-craft-plan-id] [data-action="${action}"]`);
+    await capture(page, 'populated-plans-150.png');
+    report.checks.push(
+      'populated and long-title crafting plans keep all five actions reachable without horizontal clipping at 150%',
+    );
     for (const route of [
       'home',
       'checklist',
