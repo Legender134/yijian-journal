@@ -55,6 +55,44 @@ test('journal persists checks, favorites, Unicode notes and goals across restart
   assert.match(p.notes, /明天出发/);
   assert.equal(p.goals[0].title, '去青木舫');
 });
+test('reading size persists, accepts older journals and preserves local preference when importing writing', (t) => {
+  const dir = temp(t),
+    store = new Store(dir, catalog);
+  assert.equal(store.get().settings.readingScale, 100);
+  for (const readingScale of [110, 125, 150, 100]) {
+    store.mutate({ type: 'settings', value: { readingScale } });
+    assert.equal(new Store(dir, catalog).get().settings.readingScale, readingScale);
+  }
+  store.mutate({ type: 'settings', value: { readingScale: 125 } });
+  const legacy = defaults();
+  delete legacy.settings.readingScale;
+  assert.doesNotThrow(() => validateState(legacy, store.ids));
+  legacy.profiles[0].notes = '旧手札的文字';
+  store.importData(legacy);
+  const reopened = new Store(dir, catalog).get();
+  assert.equal(reopened.settings.readingScale, 125);
+  assert.equal(reopened.profiles[0].notes, '旧手札的文字');
+  assert(fs.readdirSync(dir).some((name) => name.startsWith('journal-before-import-')));
+});
+
+test('invalid reading size rejects the whole settings mutation and malformed imports without changing saved data', (t) => {
+  const store = new Store(temp(t), catalog),
+    before = store.get();
+  for (const readingScale of [0, -100, 99, 120, 151, 500, '125', null, NaN, Infinity, [], {}]) {
+    assert.throws(
+      () => store.mutate({ type: 'settings', value: { spoiler: 'details', readingScale } }),
+      /界面大小/,
+    );
+    assert.deepEqual(store.get(), before);
+    assert.deepEqual(new Store(store.dir, catalog).get(), before);
+  }
+  const invalid = defaults();
+  invalid.settings.readingScale = 1000;
+  assert.throws(() => store.importData(invalid), /界面大小/);
+  assert.deepEqual(store.get(), before);
+  assert(!fs.readdirSync(store.dir).some((name) => name.startsWith('journal-before-import-')));
+});
+
 test('delayed note write remains in its original profile', (t) => {
   const s = new Store(temp(t), catalog),
     first = s.get().activeProfileId;

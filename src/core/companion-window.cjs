@@ -9,9 +9,9 @@ function preferences(settings = {}) {
       : 0.96,
   };
 }
-function boundsFor(rect, expanded, position) {
-  const width = Math.min(expanded ? 460 : 320, rect.width - 24);
-  const height = Math.min(expanded ? 660 : 112, rect.height - 24);
+function boundsFor(rect, expanded, position, scale = 1) {
+  const width = Math.min((expanded ? 460 : 320) * scale, rect.width - 24);
+  const height = Math.min((expanded ? 660 : 112) * scale, rect.height - 24);
   return {
     x: Math.round(position.endsWith('left') ? rect.x + 12 : rect.x + rect.width - width - 12),
     y: Math.round(position.startsWith('bottom') ? rect.y + rect.height - height - 12 : rect.y + 12),
@@ -137,7 +137,7 @@ class CompanionWindow {
     const rect = physical
       ? this.screen.screenToDipRect(null, physical)
       : this.screen.getPrimaryDisplay().workArea;
-    const next = boundsFor(rect, expanded, p.position);
+    const next = boundsFor(rect, expanded, p.position, (this.settings().readingScale || 100) / 100);
     const previous = win.getBounds();
     // Windows fractional scaling can round a native boundary by one DIP.
     if (Object.keys(next).some((k) => Math.abs(next[k] - previous[k]) > 1)) win.setBounds(next);

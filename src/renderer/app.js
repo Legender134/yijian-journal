@@ -101,6 +101,24 @@ let activeIntentEditor = null,
   intentDraftQueue = Promise.resolve(),
   intentDraftTimer;
 let intentDraftConfirmation = null;
+let readingScaleQueue = Promise.resolve();
+function changeReadingScale(direction) {
+  const next = readingScaleQueue
+    .catch(() => {})
+    .then(async () => {
+      const sizes = [100, 110, 125, 150],
+        current = state.settings.readingScale || 100;
+      const value =
+        direction === 'reset'
+          ? 100
+          : direction === 'in'
+            ? sizes.find((size) => size > current) || 150
+            : sizes.findLast((size) => size < current) || 100;
+      if (value !== current) await mutation({ type: 'settings', value: { readingScale: value } });
+    });
+  readingScaleQueue = next;
+  return next;
+}
 function intentEditorKey(fieldId, profileId = profile().id) {
   return profileId + '\u0000' + fieldId;
 }
@@ -2004,7 +2022,7 @@ function companionSettings() {
     )}</select><label for="companion-opacity">提示透明度</label><select id="companion-opacity" class="input">${options.map((n) => `<option value="${n}" ${n === opacity ? 'selected' : ''}>${Number((n * 100).toFixed(2))}%${presets.includes(n) ? '' : '（当前）'}</option>`).join('')}</select></div><p class="small muted">Ctrl Alt J 展开或收起；Esc 先关闭详情，再收起面板。窗口化与无边框窗口可叠加；独占全屏的可见性取决于系统与游戏。材料来自标明时间的存档，不是实时背包。未连接游戏组件时无法自动识别战斗和对话。</p></section>`;
 }
 function settingsPage() {
-  return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">阅读与陪伴</h2><div class="setting-row"><div><h3>第一次使用这本手札</h3><p>看看存档回顾、备料、小窗和备份怎么用。</p></div>${act('help', '打开使用说明', 'btn', '', 'book')}</div><div class="setting-row"><div><h3>少剧透提示</h3><p>显示人物名、地点和提醒，详细步骤需要主动展开；不保证完全无剧透。</p></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3>随行小窗</h3><p>游戏中显示两条轻提示，按键展开查询与追踪。${environment.shortcutReady ? 'Ctrl + Alt + J 可展开或收起。' : '可使用右侧按钮开关。'}可在下方选择提示位置和透明度。</p></div>${act('compact', '打开随行小窗', 'btn', '', 'pin')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3><p>每个周目有独立的进度、收藏、目标和笔记。</p></div>${act('profiles', '管理周目', 'btn', '', 'person')}</div></section>
+  return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">阅读与陪伴</h2><div class="setting-row"><div><label for="reading-scale"><strong>界面大小</strong></label><p>文字与按钮一起放大，主窗和小窗共用。Ctrl + 加号 / 减号调整，Ctrl + 0 恢复默认；也可按住 Ctrl 滚动鼠标。</p></div><div class="row wrap"><select id="reading-scale" class="input" aria-label="界面大小">${[100, 110, 125, 150].map((size) => `<option value="${size}"${(state.settings.readingScale || 100) === size ? ' selected' : ''}>${size}%${size === 100 ? ' · 默认' : ''}</option>`).join('')}</select>${act('reading-scale-reset', '恢复默认大小', 'text-btn')}</div></div><div class="setting-row"><div><h3>第一次使用这本手札</h3><p>看看存档回顾、备料、小窗和备份怎么用。</p></div>${act('help', '打开使用说明', 'btn', '', 'book')}</div><div class="setting-row"><div><h3>少剧透提示</h3><p>显示人物名、地点和提醒，详细步骤需要主动展开；不保证完全无剧透。</p></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3>随行小窗</h3><p>游戏中显示两条轻提示，按键展开查询与追踪。${environment.shortcutReady ? 'Ctrl + Alt + J 可展开或收起。' : '可使用右侧按钮开关。'}可在下方选择提示位置和透明度。</p></div>${act('compact', '打开随行小窗', 'btn', '', 'pin')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3><p>每个周目有独立的进度、收藏、目标和笔记。</p></div>${act('profiles', '管理周目', 'btn', '', 'person')}</div></section>
  ${companionSettings()}${shortcutSettings()}<section class="card"><h2 class="mb">本机连接</h2><div class="setting-row"><div><h3>逸剑风云决 ${environment.game.installed ? '· 已找到' : '· 由 Steam 启动'}</h3><p>${esc(environment.game.path || '使用 Steam 游戏入口启动')}${environment.game.build ? ` · Build ${esc(environment.game.build)}` : ''}</p></div>${act('launch', '启动游戏', 'btn', '', 'game')}</div><div class="setting-row"><div><h3>游戏存档目录</h3><p class="mono">${esc(state.settings.savePath || '尚未选择')}</p></div>${act('choose-saves', '选择目录', 'btn', '', 'folder')}</div>${environment.detected.length > 1 ? `<div class="setting-row"><div><h3>检测到多个存档目录</h3><p>请选择你本次游玩的账户目录。</p></div><select id="detected-save" class="input">${environment.detected.map((p) => `<option value="${esc(p)}" ${p === state.settings.savePath ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>` : ''}<div class="setting-row"><div><h3>完整自动备份 · ${backupStatus()}</h3><p>原生游戏连接工作或正在存读档时暂停，避免重复复制全部存档；等待连接时仍保护已保存的文件。复制已保存的存档，不会替游戏执行保存。开启后每分钟检查变化，稳定后留存副本；文件没有变化时不重复备份，不会自动删除旧副本。</p></div><button class="switch ${state.settings.autoBackup ? 'on' : ''}" role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" data-action="auto-backup"></button></div></section>
  ${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${protectionViews.controls(protectionView)}<section class="card"><h2 class="mb">记录与数据</h2><div class="setting-row"><div><h3>手札备份</h3><p>导出全部周目的记录。导入前会保留当前手札副本；此功能不包含游戏存档。</p></div><div class="row">${act('import', '导入', 'btn', '', 'upload')}${act('export', '导出手札', 'btn', '', 'download')}</div></div><div class="setting-row"><div><h3>本地数据目录</h3><p class="mono">${esc(environment.userData)}</p></div>${act('folder', '打开', 'btn', 'data', 'folder')}</div><div class="setting-row"><div><h3>游戏存档备份目录</h3><p class="mono">${esc(environment.backupRoot)}</p></div>${act('folder', '打开', 'btn', 'backups', 'folder')}</div></section>
  <section class="card"><div class="card-header"><h2>资料与版本</h2>${pill(`v${version}`)}</div><p class="small muted mb">${esc(catalog.notice)} 本地卡片可离线阅读，原文链接会在默认浏览器打开。本工具是个人非官方助手。</p><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></section></div>`;
@@ -5365,6 +5383,9 @@ async function handle(action, id, target, navigationFocused = false) {
     case 'window-quit':
       if (await prepareQuit()) await call('window', 'quit');
       break;
+    case 'reading-scale-reset':
+      await changeReadingScale('reset');
+      break;
     case 'window-quit-discard':
       await nodeDraftQueue.catch(() => {});
       await journalDraftQueue.catch(() => {});
@@ -6157,6 +6178,20 @@ document.addEventListener('change', async (event) => {
     render(true);
     return;
   }
+  if (event.target.id === 'reading-scale') {
+    const value = Number(event.target.value);
+    const next = readingScaleQueue
+      .catch(() => {})
+      .then(() => mutation({ type: 'settings', value: { readingScale: value } }));
+    readingScaleQueue = next;
+    try {
+      await next;
+    } catch (e) {
+      toast(e.message, true);
+      render(true);
+    }
+    return;
+  }
   if (['companion-position', 'companion-opacity'].includes(event.target.id)) {
     const value =
       event.target.id === 'companion-position'
@@ -6274,6 +6309,13 @@ document.addEventListener('change', async (event) => {
 });
 document.addEventListener('keydown', (event) => {
   if (event.isComposing || composing) return;
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && ['=', '+', '-', '0'].includes(event.key)) {
+    event.preventDefault();
+    changeReadingScale(event.key === '0' ? 'reset' : event.key === '-' ? 'out' : 'in').catch((e) =>
+      toast(e.message, true),
+    );
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
     searchModal();
@@ -6352,6 +6394,18 @@ document.addEventListener('keydown', (event) => {
     }
   }
 });
+let readingWheelAt = 0;
+document.addEventListener(
+  'wheel',
+  (event) => {
+    if (!event.ctrlKey || event.altKey || event.isComposing || composing || !event.deltaY) return;
+    event.preventDefault();
+    if (Date.now() - readingWheelAt < 180) return;
+    readingWheelAt = Date.now();
+    changeReadingScale(event.deltaY < 0 ? 'in' : 'out').catch((e) => toast(e.message, true));
+  },
+  { passive: false },
+);
 let escapeCollapse = false;
 document.addEventListener('keyup', (event) => {
   if (
