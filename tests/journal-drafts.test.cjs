@@ -115,7 +115,14 @@ test('editing drafts never overwrite an independently changed or deleted origina
   const draft = applyDraftCommand(
     [],
     [original],
-    put({ entryId: original.id, entryUpdatedAt: T0, title: '我的编辑', tags: '', snapshotMode: 'keep' }),
+    put({
+      entryId: original.id,
+      entryUpdatedAt: T0,
+      entrySnapshot: original,
+      title: '我的编辑',
+      tags: '',
+      snapshotMode: 'keep',
+    }),
     context(),
     options,
   ).drafts;
@@ -153,11 +160,19 @@ test('same-tick edits and clock rollback cannot let a stale draft replace newer 
   const drafts = applyDraftCommand(
     [],
     [original],
-    put({ entryId: original.id, entryUpdatedAt: T0, title: '过期编辑', tags: '', snapshotMode: 'keep' }),
+    put({
+      entryId: original.id,
+      entryUpdatedAt: T0,
+      entrySnapshot: original,
+      title: '过期编辑',
+      tags: '',
+      snapshotMode: 'keep',
+    }),
     context(),
     options,
   ).drafts;
-  const update = (title) => ({
+  const update = (title, expectedEntry) => ({
+    expectedEntry,
     type: 'journal-entry-update',
     id: original.id,
     title,
@@ -167,8 +182,8 @@ test('same-tick edits and clock rollback cannot let a stale draft replace newer 
     links: [],
     snapshotMode: 'keep',
   });
-  const changed = applyEntryCommand([original], update('另一窗口已保存'), context(), options);
-  const rolledBack = applyEntryCommand(changed, update('回拨时钟后的保存'), context(), {
+  const changed = applyEntryCommand([original], update('另一窗口已保存', original), context(), options);
+  const rolledBack = applyEntryCommand(changed, update('回拨时钟后的保存', changed[0]), context(), {
     now: '2026-10-09T07:59:59.000Z',
   });
   assert.ok(Date.parse(changed[0].updatedAt) > Date.parse(original.updatedAt));

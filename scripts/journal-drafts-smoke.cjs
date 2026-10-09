@@ -119,8 +119,9 @@ async function quit() {
     let changed;
     try {
       changed = await page.evaluate(
-        ({ id }) =>
+        ({ id, expectedEntry }) =>
           window.journal.mutate({
+            expectedEntry,
             type: 'journal-entry-update',
             id,
             title: '其他窗口修改',
@@ -130,7 +131,7 @@ async function quit() {
             links: [],
             snapshotMode: 'none',
           }),
-        { id: original.id },
+        { id: original.id, expectedEntry: original },
       );
     } finally {
       await app.evaluate(() => {

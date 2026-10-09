@@ -82,6 +82,7 @@ test('a stale main-window deletion cannot remove a record updated through anothe
     ...manual,
     type: 'journal-entry-update',
     id: original.id,
+    expectedEntry: original,
     title: '小窗刚保存的标题',
     body: '新增的重要正文',
   });

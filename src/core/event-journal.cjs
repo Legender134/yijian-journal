@@ -2,6 +2,7 @@
 
 // User history only. No save writes, native capability, filesystem path or telemetry.
 const { randomUUID } = require('node:crypto');
+const { isDeepStrictEqual } = require('node:util');
 const gameIndex = require('../data/game-index.json');
 const worldIndex = require('../data/world-index.json');
 const { giftItemLabel, giftPersonLabel } = require('./gift-labels.cjs');
@@ -260,7 +261,7 @@ function applyEntryCommand(entries, command, context, options = {}) {
   const fields = ['type', 'title', 'body', 'occurredAt', 'tags', 'links', 'snapshotMode'];
   const schemas = {
     'journal-entry-put': fields,
-    'journal-entry-update': [...fields, 'id'],
+    'journal-entry-update': [...fields, 'id', 'expectedEntry'],
     'journal-entry-remove': ['type', 'id', 'expectedEntry'],
     'journal-entries-remove': ['type', 'ids', 'expectedEntries'],
   };
@@ -300,6 +301,8 @@ function applyEntryCommand(entries, command, context, options = {}) {
     if (!previous) throw Error('记录不存在');
     if (command.type === 'journal-entry-update' && previous.kind !== 'manual')
       throw Error('用户状态事件不能作为手写记录修改');
+    if (command.type === 'journal-entry-update' && !isDeepStrictEqual(previous, command.expectedEntry))
+      throw Error('原记录已变化或尚未完整核对；原记录与草稿仍保留，请重新打开');
   }
   if (command.type === 'journal-entry-remove') {
     if (!command.expectedEntry || JSON.stringify(previous) !== JSON.stringify(command.expectedEntry))
@@ -408,6 +411,7 @@ function validateDrafts(drafts, context) {
         'revision',
         'entryId',
         'entryUpdatedAt',
+        'entrySnapshot',
         'title',
         'body',
         'localTime',
@@ -426,7 +430,17 @@ function validateDrafts(drafts, context) {
     if (draft.entryId !== undefined) {
       id(draft.entryId);
       iso(draft.entryUpdatedAt, '原记录更新时间');
+      if (draft.entrySnapshot !== undefined) {
+        validateEntries([draft.entrySnapshot], context);
+        if (
+          draft.entrySnapshot.kind !== 'manual' ||
+          draft.entrySnapshot.id !== draft.entryId ||
+          draft.entrySnapshot.updatedAt !== draft.entryUpdatedAt
+        )
+          throw Error('草稿完整原记录快照无效');
+      }
     } else if (draft.entryUpdatedAt !== undefined) throw Error('草稿原记录无效');
+    else if (draft.entrySnapshot !== undefined) throw Error('草稿原记录快照无效');
     text(draft.title, 160, '草稿标题');
     text(draft.body, 4000, '草稿正文');
     text(draft.localTime, 32, '草稿事件时间');
@@ -448,7 +462,16 @@ function applyDraftCommand(drafts, entries, command, context, options = {}) {
   validateEntries(entries, context);
   const content = ['title', 'body', 'localTime', 'tags', 'links', 'snapshotMode'];
   const schemas = {
-    'journal-draft-put': ['type', 'id', 'revision', 'entryId', 'entryUpdatedAt', 'sourceId', ...content],
+    'journal-draft-put': [
+      'type',
+      'id',
+      'revision',
+      'entryId',
+      'entryUpdatedAt',
+      'entrySnapshot',
+      'sourceId',
+      ...content,
+    ],
     'journal-draft-remove': ['type', 'id', 'revision'],
     'journal-draft-commit': ['type', 'id', 'revision', 'occurredAt'],
   };
@@ -466,13 +489,15 @@ function applyDraftCommand(drafts, entries, command, context, options = {}) {
     const original = previous.entryId && entries.find((entry) => entry.id === previous.entryId);
     if (previous.entryId && (!original || original.updatedAt !== previous.entryUpdatedAt))
       throw Error('原记录已被修改或删除，草稿仍保留。请另存为新记录后核对');
+    if (previous.entryId && !isDeepStrictEqual(original, previous.entrySnapshot))
+      throw Error('原记录已被修改或缺少完整核对快照，草稿仍保留。请另存为新记录后核对');
     if (!original && entries.some((entry) => entry.id === previous.id))
       throw Error('记录编号已存在，请另存草稿');
     const next = applyEntryCommand(
       entries,
       {
         type: original ? 'journal-entry-update' : 'journal-entry-put',
-        ...(original ? { id: original.id } : {}),
+        ...(original ? { id: original.id, expectedEntry: previous.entrySnapshot } : {}),
         title: previous.title,
         body: previous.body,
         occurredAt: command.occurredAt,
@@ -490,7 +515,9 @@ function applyDraftCommand(drafts, entries, command, context, options = {}) {
   }
   if (
     previous &&
-    (previous.entryId !== command.entryId || previous.entryUpdatedAt !== command.entryUpdatedAt)
+    (previous.entryId !== command.entryId ||
+      previous.entryUpdatedAt !== command.entryUpdatedAt ||
+      !isDeepStrictEqual(previous.entrySnapshot, command.entrySnapshot))
   )
     throw Error('草稿原记录关联不能更换，请另存一份');
   const original = command.entryId && entries.find((entry) => entry.id === command.entryId);
@@ -499,13 +526,20 @@ function applyDraftCommand(drafts, entries, command, context, options = {}) {
     throw Error('另存草稿来源无效');
   if (!previous && command.entryId && (!original || original.kind !== 'manual'))
     throw Error('原手写记录已不存在');
+  if (!previous && command.entryId && !isDeepStrictEqual(original, command.entrySnapshot))
+    throw Error('原记录已变化或尚未完整核对；原记录与草稿仍保留，请重新打开');
+  if (!command.entryId && command.entrySnapshot !== undefined) throw Error('草稿原记录快照无效');
   const stamps = clock(options);
   const draft = {
     id: command.id,
     revision: command.revision + 1,
     ...(command.entryId === undefined
       ? {}
-      : { entryId: command.entryId, entryUpdatedAt: command.entryUpdatedAt }),
+      : {
+          entryId: command.entryId,
+          entryUpdatedAt: command.entryUpdatedAt,
+          ...(command.entrySnapshot === undefined ? {} : { entrySnapshot: clone(command.entrySnapshot) }),
+        }),
     title: command.title,
     body: command.body,
     localTime: command.localTime,
@@ -528,6 +562,7 @@ function detachLinks(entries, type, targetId) {
   if (!Array.isArray(entries) || entries.length > MAX_ENTRIES) throw Error('江湖记录数组无效');
   return entries.map((entry) => ({
     ...clone(entry),
+    ...(entry.entrySnapshot ? { entrySnapshot: detachLinks([entry.entrySnapshot], type, targetId)[0] } : {}),
     links: entry.links.map((link) =>
       link.type === type && link.id === targetId ? { ...clone(link), detached: true } : clone(link),
     ),

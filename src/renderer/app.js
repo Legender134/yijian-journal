@@ -484,6 +484,7 @@ let craftPlanDraft = null;
 let journalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
 let journalRemoveDraft = null;
 let journalTrashConfirmation = null;
+let journalRevisionConfirmation = null;
 let historyJournalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
 function historyJournalProfile() {
   return protectionView.history?.journal.profiles.find((p) => p.id === protectionView.journalProfileId);
@@ -507,6 +508,7 @@ let protectionRequest = 0;
 let journeyView = { query: '', place: '', completed: false };
 let journeyTrashView = { open: false, query: '', page: 1 },
   journeyTrashConfirmation = null;
+let itineraryClearConfirmation = null;
 const historicalJourneyTrashViews = new Map();
 const itineraryFormDrafts = new Map();
 function itineraryDraftKey(id) {
@@ -849,10 +851,12 @@ const protectionViews = createProtectionViews({
       ? journeyTrashViews.panel(p, journalIndex(), historicalJourneyTrashViews.get(p.id) || {}, true)
       : '',
   journalPage: (p, v) =>
-    historyJournalView.trash
-      ? eventJournalViews.trash(p, { ...historyJournalView, readOnly: true }, journalIndex())
-      : eventJournalViews.drafts(p.journalDrafts || [], true) +
-        eventJournalViews.page(p, { ...historyJournalView, readOnly: true }, journalIndex()),
+    historyJournalView.revisions
+      ? eventJournalViews.revisions(p, { ...historyJournalView, readOnly: true })
+      : historyJournalView.trash
+        ? eventJournalViews.trash(p, { ...historyJournalView, readOnly: true }, journalIndex())
+        : eventJournalViews.drafts(p.journalDrafts || [], true) +
+          eventJournalViews.page(p, { ...historyJournalView, readOnly: true }, journalIndex()),
   esc,
   act,
   pill,
@@ -899,6 +903,7 @@ const journeyTrashViews = createJourneyTrashViews({ esc, act, when });
 const itemUsageViews = createItemUsageViews({ esc, act, when });
 const journalIndex = () => ({ entries: gameIndex.entries, world: gameIndex.world, guides: catalog.entries });
 function journalPage() {
+  if (journalView.revisions) return eventJournalViews.revisions(profile(), journalView);
   if (journalView.trash) return eventJournalViews.trash(profile(), journalView, journalIndex());
   return (
     eventJournalViews.drafts(availableJournalDrafts()) +
@@ -1537,14 +1542,15 @@ async function call(method, ...args) {
     result.data.draft = pendingNodeDrafts.get(args[0]);
   return result.data;
 }
-function toast(text, error = false) {
+function toast(text, error = false, recoveryAction = '') {
   const div = document.createElement('div');
   div.className = `toast${error ? ' error' : ''}`;
-  div.innerHTML = `${icon(error ? 'info' : 'check')}<span>${esc(text)}</span>`;
+  div.innerHTML = `${icon(error ? 'info' : 'check')}<span>${esc(text)}</span>${recoveryAction}`;
+  if (recoveryAction) div.style.pointerEvents = 'auto';
   const container = document.querySelector('#toasts');
   container.append(div);
   while (container.children.length > 2) container.firstElementChild.remove();
-  setTimeout(() => div.remove(), error ? 7000 : 3300);
+  setTimeout(() => div.remove(), error || recoveryAction ? 7000 : 3300);
 }
 function mutation(command) {
   const profileId = profile().id;
@@ -2313,6 +2319,7 @@ function showOverlay(html, drawer = false, preserve = false) {
 }
 function closeOverlay() {
   journeyTrashConfirmation = null;
+  itineraryClearConfirmation = null;
   craftCompletionDraft = null;
   resourcePriorityRequest++;
   resourcePriorityDraft = null;
@@ -2802,23 +2809,44 @@ async function handle(action, id, target) {
       if (!row) throw Error('这项已移除安排已变化，请重新核对');
       const purge = action === 'journey-trash-purge-preview';
       const copyGoal = action === 'journey-trash-copy-goal-preview';
+      const itinerary = !purge && row.kind === 'itinerary';
       if (copyGoal && row.kind !== 'goal') throw Error('请选择要另存的已移除行囊目标');
       journeyTrashConfirmation = {
         profileId: profile().id,
         row: structuredClone(row),
         type: purge ? 'journey-trash-purge' : copyGoal ? 'journey-trash-copy-goal' : 'journey-trash-restore',
+        ...(itinerary ? { expectedItinerary: structuredClone(profile().journey?.itinerary ?? null) } : {}),
       };
       modal(
-        purge ? '永久清除这项个人安排？' : copyGoal ? '按原文字另存为独立目标？' : '找回这项个人安排？',
+        purge
+          ? '永久清除这项个人安排？'
+          : copyGoal
+            ? '按原文字另存为独立目标？'
+            : itinerary
+              ? '找回这一程？'
+              : '找回这项个人安排？',
         purge
           ? '清除后无法从这里找回。已有导出副本仍保留；其他安排和后续内容保持。'
           : copyGoal
             ? '另存全文、原完成状态与置顶设置，作为新的手动目标；不再关联原资料或自动跟踪。原完整副本仍保留，当前其他目标保持。'
-            : '只找回原完整内容。当前库存用途会重新核对，后来的记录与游戏存档保留。',
-        journeyTrashViews.detail(row, journalIndex()),
+            : itinerary
+              ? '确认后仅替换本次行程选择。当前行程先保留为可找回副本；个人已处理按当前状态保留，后来的独立安排与手记继续保留。'
+              : '只找回原完整内容。当前库存用途会重新核对，后来的记录与游戏存档保留。',
+        journeyTrashViews.detail(row, journalIndex()) +
+          (itinerary
+            ? journeyTrashViews.itineraryDetail(journeyTrashConfirmation.expectedItinerary, journalIndex(), {
+                heading: '当前待替换行程 · 将先保留完整副本',
+              })
+            : ''),
         act(
           'journey-trash-confirm',
-          purge ? '永久清除这项安排' : copyGoal ? '另存为独立目标并保留原副本' : '找回这项安排',
+          purge
+            ? '永久清除这项安排'
+            : copyGoal
+              ? '另存为独立目标并保留原副本'
+              : itinerary
+                ? '保留当前副本并找回这一程'
+                : '找回这项安排',
           purge ? 'btn danger' : 'btn primary',
           id,
         ),
@@ -2834,13 +2862,21 @@ async function handle(action, id, target) {
         preview.row.id !== id
       )
         throw Error('安排或周目已变化，请重新核对');
-      await mutation({ type: preview.type, profileId: preview.profileId, id, expectedTrash: preview.row });
+      await mutation({
+        type: preview.type,
+        profileId: preview.profileId,
+        id,
+        expectedTrash: preview.row,
+        ...(preview.expectedItinerary !== undefined ? { expectedItinerary: preview.expectedItinerary } : {}),
+      });
       journeyTrashConfirmation = null;
       closeOverlay();
       await refresh();
       toast(
         preview.type === 'journey-trash-restore'
-          ? '所选安排已找回，后续内容保留；请核对当前物资用途'
+          ? preview.row.kind === 'itinerary'
+            ? '这一程已找回，刚才的行程副本与后续内容保留；个人已处理沿用当前状态'
+            : '所选安排已找回，后续内容保留；请核对当前物资用途'
           : preview.type === 'journey-trash-copy-goal'
             ? '已另存为独立目标，原完整副本与其他目标保留'
             : '所选安排已永久清除',
@@ -3005,6 +3041,87 @@ async function handle(action, id, target) {
       toast('已重新核对，草稿仍未正式提交');
       break;
     }
+    case 'journal-revisions-open':
+    case 'historical-journal-revisions-open':
+    case 'journal-revisions-entry':
+    case 'historical-journal-revisions-entry':
+    case 'journal-revisions-close':
+    case 'historical-journal-revisions-close': {
+      const historical = action.startsWith('historical-'),
+        view = historical ? historyJournalView : journalView;
+      const selected = historical ? historyJournalProfile() : profile();
+      if (!selected) throw Error('周目已变化，请重新打开旧版本');
+      view.revisions = !action.endsWith('-close');
+      view.trash = false;
+      view.revisionEntryId = action.endsWith('-entry') ? id : '';
+      view.revisionPage = 1;
+      view.revisionQuery = '';
+      closeOverlay();
+      render();
+      break;
+    }
+    case 'journal-revisions-page':
+    case 'historical-journal-revisions-page': {
+      const view = action.startsWith('historical-') ? historyJournalView : journalView;
+      view.revisionPage = Math.max(1, Number(id) || 1);
+      render(true);
+      break;
+    }
+    case 'journal-revision-detail':
+    case 'historical-journal-revision-detail': {
+      const historical = action.startsWith('historical-');
+      const selected = historical ? historyJournalProfile() : profile();
+      if (!selected?.journalRevisions?.some((row) => row.id === id)) throw Error('旧版本已变化，请重新打开');
+      showOverlay(eventJournalViews.revisionDetail(selected, id, historical), true);
+      break;
+    }
+    case 'journal-revision-restore-preview':
+    case 'journal-revision-purge-preview': {
+      const row = profile().journalRevisions?.find((row) => row.id === id);
+      if (!row) throw Error('旧版本已变化，请重新打开');
+      const purge = action === 'journal-revision-purge-preview';
+      journalRevisionConfirmation = {
+        profileId: profile().id,
+        row: structuredClone(row),
+        entry: structuredClone(profile().journalEntries?.find((entry) => entry.id === row.entry.id) || null),
+        type: purge ? 'journal-revision-purge' : 'journal-revision-restore',
+      };
+      modal(
+        purge ? '永久清除这个旧版本？' : '将旧版本另存为新记录？',
+        purge
+          ? '只清除下面这个旧版本，无法再从旧版本列表恢复。原记录、其他旧版本、草稿与已导出备份保留。'
+          : '将下面的完整旧内容保存为一条独立新记录。原记录、后来新增内容、目标、行程与游戏存档保留。',
+        eventJournalViews.revisionContent(row),
+        act(
+          'journal-revision-confirm',
+          purge ? '永久清除这个旧版本' : '另存为新记录',
+          purge ? 'btn danger' : 'btn primary',
+          id,
+        ),
+      );
+      break;
+    }
+    case 'journal-revision-confirm': {
+      const confirmation = journalRevisionConfirmation;
+      if (!confirmation || confirmation.profileId !== profile().id || confirmation.row.id !== id)
+        throw Error('旧版本或周目已变化，请重新核对');
+      await mutation({
+        type: confirmation.type,
+        id,
+        profileId: confirmation.profileId,
+        expectedRevision: confirmation.row,
+        expectedEntry: confirmation.entry,
+      });
+      journalRevisionConfirmation = null;
+      closeOverlay();
+      render(true);
+      toast(
+        confirmation.type === 'journal-revision-restore'
+          ? '旧版本已另存为新记录，原记录与后来内容保留'
+          : '这个旧版本已永久清除',
+      );
+      break;
+    }
     case 'journal-trash-open':
     case 'historical-journal-trash-open':
     case 'journal-trash-close':
@@ -3013,6 +3130,7 @@ async function handle(action, id, target) {
         view = historical ? historyJournalView : journalView;
       if (historical && !historyJournalProfile()) throw Error('历史周目已变化，请重新打开');
       view.trash = action.endsWith('-open');
+      view.revisions = false;
       view.trashPage = 1;
       closeOverlay();
       render();
@@ -3031,7 +3149,7 @@ async function handle(action, id, target) {
         selected = historical ? historyJournalProfile() : profile();
       if (!selected?.journalTrash?.some((row) => row.entry.id === id))
         throw Error('这条已删除记录已变化，请重新核对');
-      showOverlay(eventJournalViews.detail(selected, id, { readOnly: true, trash: true }), true);
+      showOverlay(eventJournalViews.detail(selected, id, { readOnly: true, trash: true, historical }), true);
       break;
     }
     case 'journal-trash-restore-preview':
@@ -3149,6 +3267,7 @@ async function handle(action, id, target) {
       };
       delete copy.entryId;
       delete copy.entryUpdatedAt;
+      delete copy.entrySnapshot;
       if (profile().journalDrafts?.some((draft) => draft.id === original.id)) copy.sourceId = original.id;
       await mutation(copy);
       pendingJournalDrafts.delete(original.id);
@@ -3599,8 +3718,14 @@ async function handle(action, id, target) {
       break;
     }
     case 'journey-itinerary-remove':
-      await mutation({ type: action, id });
+      await mutation({
+        type: action,
+        id,
+        profileId: profile().id,
+        expectedItinerary: structuredClone(profile().journey?.itinerary ?? null),
+      });
       await refresh();
+      toast('已移出本次选择，原完整行程已保留', false, act('journey-trash-open', '找回这一程…', 'btn soft'));
       break;
     case 'journey-itinerary-move':
       await mutation({ type: action, id, direction: target.dataset.direction });
@@ -3652,20 +3777,34 @@ async function handle(action, id, target) {
       break;
     }
     case 'journey-itinerary-clear':
+      itineraryClearConfirmation = {
+        profileId: profile().id,
+        expectedItinerary: structuredClone(profile().journey?.itinerary ?? null),
+      };
       modal(
         '清空本次行程选择？',
-        '个人待办、目标和已处理记录会继续保留。',
-        '',
-        act('journey-itinerary-clear-confirm', '清空本次选择', 'btn danger'),
+        '先保留下面这份完整行程，再清空本次选择。个人待办、目标和已处理记录会继续保留，之后可单独找回这一程。',
+        journeyTrashViews.itineraryDetail(itineraryClearConfirmation.expectedItinerary, journalIndex(), {
+          heading: '清空前的完整行程 · 将保留副本',
+        }),
+        act('journey-itinerary-clear-confirm', '保留副本并清空本次选择', 'btn danger'),
       );
       break;
-    case 'journey-itinerary-clear-confirm':
-      await mutation({ type: 'journey-itinerary-clear' });
+    case 'journey-itinerary-clear-confirm': {
+      const preview = itineraryClearConfirmation;
+      if (!preview || preview.profileId !== profile().id) throw Error('行程或周目已变化，请重新核对');
+      await mutation({
+        type: 'journey-itinerary-clear',
+        profileId: preview.profileId,
+        expectedItinerary: preview.expectedItinerary,
+      });
       for (const key of itineraryFormDrafts.keys())
         if (key.startsWith(profile().id + '\u0000')) itineraryFormDrafts.delete(key);
       closeOverlay();
       await refresh();
+      toast('本次选择已清空，原完整行程已保留', false, act('journey-trash-open', '找回这一程…', 'btn soft'));
       break;
+    }
     case 'journey-itinerary-journal': {
       const trip = compact ? companionData?.itinerary : environment.journey?.itinerary;
       if (!trip?.steps.length) throw Error('本次行程尚无选择');
@@ -5328,6 +5467,17 @@ document.addEventListener('input', (event) => {
   }
   if (event.target.closest('.personal-intent-editor')) captureIntentEditor(activeIntentEditor);
   if (
+    ['journal-revision-query', 'historical-journal-revision-query'].includes(event.target.id) &&
+    !event.isComposing &&
+    !composing
+  ) {
+    const view = event.target.id.startsWith('historical-') ? historyJournalView : journalView;
+    view.revisionQuery = event.target.value;
+    view.revisionPage = 1;
+    render(true);
+    return;
+  }
+  if (
     ['journal-trash-query', 'historical-journal-trash-query'].includes(event.target.id) &&
     !event.isComposing &&
     !composing
@@ -5483,6 +5633,11 @@ document.addEventListener('compositionend', (event) => {
     if (event.target.dataset.journeyTrashQuery === 'history')
       historicalJourneyTrashViews.set(event.target.dataset.profileId, { query: event.target.value, page: 1 });
     else Object.assign(journeyTrashView, { query: event.target.value, page: 1 });
+  }
+  if (['journal-revision-query', 'historical-journal-revision-query'].includes(event.target.id)) {
+    const view = event.target.id.startsWith('historical-') ? historyJournalView : journalView;
+    view.revisionQuery = event.target.value;
+    view.revisionPage = 1;
   }
   if (['journal-trash-query', 'historical-journal-trash-query'].includes(event.target.id)) {
     const view = event.target.id.startsWith('historical-') ? historyJournalView : journalView;

@@ -1,8 +1,14 @@
 'use strict';
 
-// Personal arrangements only. The caller owns persistence and history events.
+// Personal arrangements and itinerary intent only. The caller owns persistence and history events.
 const { randomUUID } = require('node:crypto');
-const { emptyJourneyState, validateJourneyState, applyJourneyCommand, MAX } = require('./journey-state.cjs');
+const {
+  emptyJourneyState,
+  validateJourneyState,
+  validateItinerary,
+  applyJourneyCommand,
+  MAX,
+} = require('./journey-state.cjs');
 const { validateISOTime } = require('./event-journal.cjs');
 const { intentFingerprint } = require('./intent-drafts.cjs');
 const { validateCraftPlans } = require('./craft-plans.cjs');
@@ -14,6 +20,7 @@ const kinds = {
   gift: ['gifts', 'id'],
   goal: ['goals', 'id'],
   'craft-plan': ['craftPlans', 'id'],
+  itinerary: ['itinerary'],
 };
 const clone = (value) => structuredClone(value);
 
@@ -32,6 +39,10 @@ function id(value) {
 }
 function validateRecord(kind, record) {
   if (typeof kind !== 'string' || !Object.hasOwn(kinds, kind)) throw Error('已删除安排类型无效');
+  if (kind === 'itinerary') {
+    validateItinerary(record);
+    return;
+  }
   if (kind === 'craft-plan') {
     validateCraftPlans([record]);
     return;
@@ -107,6 +118,26 @@ function validateJourneyTrash(rows) {
 function same(left, right) {
   return intentFingerprint(left) === intentFingerprint(right);
 }
+function checkItinerary(expected, current) {
+  if (expected !== null) validateItinerary(expected);
+  if (!same(expected, current === undefined ? null : current))
+    throw Error('本次行程已变化，请重新核对；当前资料与完整行程副本均已保留');
+}
+function archiveItinerary(trash, record, options) {
+  if (trash.length >= MAX_TRASH)
+    throw Error('已删除安排已满，当前行程仍保留；请先恢复或确认永久清除部分安排');
+  const deletedAt =
+    typeof options.now === 'function'
+      ? options.now()
+      : options.now === undefined
+        ? new Date().toISOString()
+        : options.now;
+  validateISOTime(deletedAt, '移除时间');
+  const trashId = options.id === undefined ? randomUUID() : options.id();
+  id(trashId);
+  if (trash.some((row) => row.id === trashId)) throw Error('已删除安排 ID 已存在，当前行程仍保留');
+  return { id: trashId, kind: 'itinerary', record: clone(record), deletedAt };
+}
 
 function applyJourneyTrashCommand(profile, command, options = {}) {
   // The whole profile must be JSON, but unrelated profile fields belong to Store.
@@ -119,9 +150,42 @@ function applyJourneyTrashCommand(profile, command, options = {}) {
   validateJourneyTrash(trash);
   const next = clone(journey),
     nextTrash = clone(trash);
+  if (['journey-itinerary-remove', 'journey-itinerary-clear'].includes(command?.type)) {
+    exact(
+      command,
+      command.type === 'journey-itinerary-remove'
+        ? ['type', 'id', 'expectedItinerary']
+        : ['type', 'expectedItinerary'],
+      [],
+      '行程移除命令',
+    );
+    if (
+      command.type === 'journey-itinerary-remove' &&
+      (typeof command.id !== 'string' || !/^journey:[a-z-]+:[a-f0-9]{32}$/.test(command.id))
+    )
+      throw Error('行动 ID 无效');
+    checkItinerary(command.expectedItinerary, journey.itinerary);
+    if (
+      journey.itinerary === undefined ||
+      (command.type === 'journey-itinerary-remove' &&
+        !journey.itinerary.steps.some((step) => step.actionId === command.id))
+    )
+      return { journey: next, trash: nextTrash };
+    const { expectedItinerary, ...intent } = command;
+    const removedJourney = applyJourneyCommand(journey, intent);
+    if (same(removedJourney, journey)) return { journey: next, trash: nextTrash };
+    nextTrash.push(archiveItinerary(trash, journey.itinerary, options));
+    validateJourneyTrash(nextTrash);
+    return { journey: removedJourney, trash: nextTrash };
+  }
   let nextGoals, nextCraftPlans;
   if (['journey-trash-restore', 'journey-trash-purge', 'journey-trash-copy-goal'].includes(command?.type)) {
-    exact(command, ['type', 'id', 'expectedTrash'], [], '已删除安排命令');
+    exact(
+      command,
+      ['type', 'id', 'expectedTrash'],
+      command.type === 'journey-trash-restore' ? ['expectedItinerary'] : [],
+      '已删除安排命令',
+    );
     id(command.id);
     validateJourneyTrash([command.expectedTrash]);
     const at = trash.findIndex((row) => row.id === command.id);
@@ -129,6 +193,27 @@ function applyJourneyTrashCommand(profile, command, options = {}) {
       throw Error('所选已删除安排已变化，请重新核对；当前资料已保留');
     const row = trash[at],
       [list, key] = kinds[row.kind];
+    if (command.type === 'journey-trash-restore' && row.kind === 'itinerary') {
+      if (!Object.hasOwn(command, 'expectedItinerary')) throw Error('请先核对当前待替换的完整行程');
+      checkItinerary(command.expectedItinerary, journey.itinerary);
+      // Already restored intent is a no-op: keep the archived copy and do not
+      // consume a new ID, timestamp or protection slot.
+      if (journey.itinerary !== undefined && same(row.record, journey.itinerary))
+        return { journey: next, trash: nextTrash };
+      nextTrash.splice(at, 1);
+      if (journey.itinerary !== undefined) {
+        const backup = archiveItinerary(nextTrash, journey.itinerary, options);
+        if (backup.id === row.id) throw Error('已删除安排 ID 已存在，当前行程仍保留');
+        nextTrash.push(backup);
+      }
+      // Never restore handledActionIds or save-derived progress with itinerary
+      // intent. All other arrangements remain the caller's current objects.
+      next.itinerary = clone(row.record);
+      validateJourneyState(next);
+      validateJourneyTrash(nextTrash);
+      return { journey: next, trash: nextTrash };
+    }
+    if (Object.hasOwn(command, 'expectedItinerary')) throw Error('仅找回完整行程时可指定待替换行程');
     if (command.type === 'journey-trash-copy-goal') {
       if (row.kind !== 'goal') throw Error('只能把已移除的行囊目标另存为独立目标');
       if (!Array.isArray(profile.goals) || profile.goals.length >= 300)

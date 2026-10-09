@@ -238,7 +238,12 @@ export function readJournalForm(form) {
   const entryId = form.dataset.entryId;
   return {
     type: entryId ? 'journal-entry-update' : 'journal-entry-put',
-    ...(entryId ? { id: entryId } : {}),
+    ...(entryId
+      ? {
+          id: entryId,
+          ...(form.dataset.entrySnapshot ? { expectedEntry: JSON.parse(form.dataset.entrySnapshot) } : {}),
+        }
+      : {}),
     title: get('journal-title'),
     body: get('journal-body'),
     occurredAt: journalTimeFromLocal(get('journal-time')),
@@ -259,7 +264,11 @@ export function readJournalDraft(form) {
     revision: Number(form.dataset.draftRevision),
     profileId: form.dataset.profileId,
     ...(form.dataset.entryId
-      ? { entryId: form.dataset.entryId, entryUpdatedAt: form.dataset.entryUpdatedAt }
+      ? {
+          entryId: form.dataset.entryId,
+          entryUpdatedAt: form.dataset.entryUpdatedAt,
+          ...(form.dataset.entrySnapshot ? { entrySnapshot: JSON.parse(form.dataset.entrySnapshot) } : {}),
+        }
       : {}),
     title: get('journal-title'),
     body: get('journal-body'),
@@ -294,10 +303,10 @@ export function createEventJournalViews({
       ? `<span class="pill" title="原对象已移除，保留记录时的名称与编号">${esc(title)} · 原关联已移除</span>`
       : act('journal-link', esc(title), 'text-btn', `${link.type}:${link.id}`, 'arrow');
   }
-  function snapshot(entry) {
+  function snapshot(entry, complete = false) {
     const ref = entry.snapshot;
     if (!ref) return '';
-    return `<details><summary>记录时附加的只读存档参照</summary><p class="small">${esc(ref.name)} · ${when(ref.modifiedAt)}${ref.mapName ? ' · ' + esc(ref.mapName) : ''}${ref.playSeconds !== undefined ? ' · 游玩 ' + Math.floor(ref.playSeconds / 3600) + ' 时 ' + Math.floor((ref.playSeconds % 3600) / 60) + ' 分' : ''}</p><p class="small mono">SHA-256 ${esc(ref.hash)}</p><p class="save-note">这份摘要用于回顾当时的已保存进度；没有存读档操作。</p></details>`;
+    return `<details><summary>记录时附加的只读存档参照</summary><p class="small">${esc(ref.name)} · ${when(ref.modifiedAt)}${ref.mapName ? ' · ' + esc(ref.mapName) : ''}${ref.playSeconds !== undefined ? ' · 游玩 ' + Math.floor(ref.playSeconds / 3600) + ' 时 ' + Math.floor((ref.playSeconds % 3600) / 60) + ' 分' : ''}</p><p class="small mono">SHA-256 ${esc(ref.hash)}</p>${complete ? `<p class="small mono">摘要原修改时间 ${esc(ref.modifiedAt)}${ref.playSeconds !== undefined ? `<br>原游玩秒数 ${esc(ref.playSeconds)}` : ''}</p>` : ''}<p class="save-note">这份摘要用于回顾当时的已保存进度；没有存读档操作。</p></details>`;
   }
   function card(entry, readOnly, profile, index, sources) {
     const action = (name) => (readOnly ? 'historical-' : '') + name;
@@ -323,7 +332,7 @@ export function createEventJournalViews({
       .join('');
     const controls = `<section class="card mb"><form id="${prefix}journal-filter-form" class="stack"><label>找记录、人物、地点或标签<input id="${prefix}journal-search" name="journal-query" data-persist="${prefix}journal-search" maxlength="200" value="${esc(view.query || '')}" placeholder="例如：上官虹 梧桐村" type="search"></label><div class="row wrap"><label>开始日期<input id="${prefix}journal-from" name="journal-from" type="date" value="${esc(view.from || '')}"></label><label>结束日期<input id="${prefix}journal-to" name="journal-to" type="date" value="${esc(view.to || '')}"></label><label>记录类型<select id="${prefix}journal-kind" name="journal-kind"><option value="">全部类型</option>${kinds}</select></label><label>标签<select id="${prefix}journal-tag" name="journal-tag"><option value="">全部标签</option>${tagOptions}</select></label>${act(action('journal-filter'), '查找记录', 'btn', '', 'search')}${act(action('journal-filter-clear'), '清除筛选', 'text-btn')}</div></form><p class="save-note">事件时间按本机时间显示与筛选；按事件发生时间倒序排列。完成记录表示你在手札中的操作，游戏状态需另行核对。</p></section>`;
     const pager = `<nav class="row between" aria-label="记录分页"><span class="small muted">找到 ${result.total} 条 · 第 ${result.page} / ${result.pages} 页 · 每页 ${JOURNAL_PAGE_SIZE} 条</span><div class="row">${result.page > 1 ? act(action('journal-page'), '上一页', 'btn', String(result.page - 1), 'arrow') : ''}${result.page < result.pages ? act(action('journal-page'), '下一页', 'btn', String(result.page + 1), 'arrow') : ''}</div></nav>`;
-    return `<div class="page-header"><div><div class="eyebrow">ONE EVENT, ONE RECORD</div><h1 class="serif">${readOnly ? '历史江湖记录' : '江湖记录'}</h1><p>${readOnly ? esc(profile.name) + ' · 只读回顾，当前手札保持原样。' : '记下这一程遇到的人、走过的地方和自己的决定。'}</p></div><div class="row wrap">${readOnly ? pill('只读历史', 'green') : act('journal-export', '导出手札备份', 'btn', '', 'download') + act('journal-entry-new', '写一条记录', 'btn primary', '', 'plus')}</div></div>${view.globalQuery ? `<section class="card mb">${notice('来自全局查询：' + view.globalQuery, true)}${act(action('journal-filter-clear'), '清除全局查询，查看全部记录', 'text-btn')}</section>` : ''}${act(action('journal-trash-open'), '已删除记录 · ' + (profile.journalTrash?.length || 0), 'btn mb', '', 'archive')}${controls}${!readOnly && result.total > 0 && !result.error ? `<section class="card mb"><div class="row between"><p class="save-note">选中的记录会移入已删除记录，可以逐条恢复；目标、待办与赠礼处理状态保留。</p>${act('journal-remove-filtered', '删除筛选出的记录…', 'btn danger', '', 'trash')}</div></section>` : ''}${result.error ? notice(result.error, true) : pager + (result.entries.map((entry) => card(entry, readOnly, profile, index, sources)).join('') || empty('没有找到记录', '写下第一件事，或调整筛选条件。')) + pager}${profile.notes ? `<details class="card mt"><summary>旧版整段江湖札记</summary><p class="save-note">原笔记保留在这里，不会自动拆分成事件。</p><p class="preserve-text">${esc(profile.notes)}</p></details>` : ''}`;
+    return `<div class="page-header"><div><div class="eyebrow">ONE EVENT, ONE RECORD</div><h1 class="serif">${readOnly ? '历史江湖记录' : '江湖记录'}</h1><p>${readOnly ? esc(profile.name) + ' · 只读回顾，当前手札保持原样。' : '记下这一程遇到的人、走过的地方和自己的决定。'}</p></div><div class="row wrap">${readOnly ? pill('只读历史', 'green') : act('journal-export', '导出手札备份', 'btn', '', 'download') + act('journal-entry-new', '写一条记录', 'btn primary', '', 'plus')}</div></div>${view.globalQuery ? `<section class="card mb">${notice('来自全局查询：' + view.globalQuery, true)}${act(action('journal-filter-clear'), '清除全局查询，查看全部记录', 'text-btn')}</section>` : ''}${act(action('journal-trash-open'), '已删除记录 · ' + (profile.journalTrash?.length || 0), 'btn mb', '', 'archive')}${act(action('journal-revisions-open'), '记录旧版本 · ' + (profile.journalRevisions?.length || 0), 'btn mb', '', 'archive')}${controls}${!readOnly && result.total > 0 && !result.error ? `<section class="card mb"><div class="row between"><p class="save-note">选中的记录会移入已删除记录，可以逐条恢复；目标、待办与赠礼处理状态保留。</p>${act('journal-remove-filtered', '删除筛选出的记录…', 'btn danger', '', 'trash')}</div></section>` : ''}${result.error ? notice(result.error, true) : pager + (result.entries.map((entry) => card(entry, readOnly, profile, index, sources)).join('') || empty('没有找到记录', '写下第一件事，或调整筛选条件。')) + pager}${profile.notes ? `<details class="card mt"><summary>旧版整段江湖札记</summary><p class="save-note">原笔记保留在这里，不会自动拆分成事件。</p><p class="preserve-text">${esc(profile.notes)}</p></details>` : ''}`;
   }
   function trash(profile, view = {}, index = {}) {
     const readOnly = view.readOnly === true,
@@ -357,7 +366,62 @@ export function createEventJournalViews({
       : (profile.journalEntries || []).find((row) => row.id === entryId);
     if (!entry) return notice('这条记录已不存在，请返回列表刷新。', true);
     const sources = tables(profile, index);
-    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(entry.title)}"><div class="drawer-head"><span class="small muted">江湖记录 / ${view.trash ? '已删除记录' : '原记录'}</span>${act('close-overlay', '关闭详情', 'text-btn')}</div><div class="drawer-body" data-journal-id="${esc(entry.id)}">${pill(JOURNAL_KIND_LABELS[entry.kind])}<h1>${esc(entry.title)}</h1>${deleted ? `<p class="small muted">移除 ${when(deleted.deletedAt)}</p>` : ''}<p class="small">事件时间 ${when(entry.occurredAt)}</p><p class="preserve-text">${esc(entry.body)}</p><div class="tag-row">${entry.tags.map((tag) => pill(tag)).join('')}${entry.links.map((item) => link(item, readOnly, profile, index, sources)).join('')}</div>${snapshot(entry)}<p class="small muted">写入 ${when(entry.createdAt)} · 更新 ${when(entry.updatedAt)}</p><p class="small mono">记录编号 ${esc(entry.id)}</p>${entry.kind !== 'manual' ? notice('这是你在手札中的完成或重开操作记录；游戏任务、物品和赠礼状态仍需另行核对。', true) : ''}${view.trash ? '<p class="save-note">这是已删除记录，完整正文与关联保留。</p>' : readOnly ? '<p class="save-note">来自离线档案的只读记录；个人关联保留当时名称，当前周目不受影响。</p>' : '<p class="save-note">移入已删除记录后可逐条恢复；原目标、待办与赠礼处理状态保留。</p>'}</div><div class="drawer-actions">${!readOnly && entry.kind === 'manual' ? act('journal-entry-edit', '编辑记录', 'btn primary', entry.id, 'edit') : ''}${readOnly ? '' : act('journal-entry-remove', '删除这条历史记录', 'btn danger', entry.id, 'trash')}</div></section>`;
+    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(entry.title)}"><div class="drawer-head"><span class="small muted">江湖记录 / ${view.trash ? '已删除记录' : '原记录'}</span>${act('close-overlay', '关闭详情', 'text-btn')}</div><div class="drawer-body" data-journal-id="${esc(entry.id)}">${pill(JOURNAL_KIND_LABELS[entry.kind])}<h1>${esc(entry.title)}</h1>${deleted ? `<p class="small muted">移除 ${when(deleted.deletedAt)}</p>` : ''}<p class="small">事件时间 ${when(entry.occurredAt)}</p><p class="preserve-text">${esc(entry.body)}</p><div class="tag-row">${entry.tags.map((tag) => pill(tag)).join('')}${entry.links.map((item) => link(item, readOnly, profile, index, sources)).join('')}</div>${snapshot(entry)}<p class="small muted">写入 ${when(entry.createdAt)} · 更新 ${when(entry.updatedAt)}</p><p class="small mono">记录编号 ${esc(entry.id)}</p>${entry.kind !== 'manual' ? notice('这是你在手札中的完成或重开操作记录；游戏任务、物品和赠礼状态仍需另行核对。', true) : ''}${view.trash ? '<p class="save-note">这是已删除记录，完整正文与关联保留。</p>' : readOnly ? '<p class="save-note">来自离线档案的只读记录；个人关联保留当时名称，当前周目不受影响。</p>' : '<p class="save-note">移入已删除记录后可逐条恢复；原目标、待办与赠礼处理状态保留。</p>'}</div><div class="drawer-actions">${!readOnly && entry.kind === 'manual' ? act('journal-entry-edit', '编辑记录', 'btn primary', entry.id, 'edit') : ''}${entry.kind === 'manual' ? act((view.historical || (readOnly && !view.trash) ? 'historical-' : '') + 'journal-revisions-entry', '查看这条记录的旧版本 · ' + (profile.journalRevisions || []).filter((row) => row.entry.id === entry.id && row.entry.createdAt === entry.createdAt).length, 'btn', entry.id, 'archive') : ''}${readOnly ? '' : act('journal-entry-remove', '删除这条历史记录', 'btn danger', entry.id, 'trash')}</div></section>`;
+  }
+  function revisionContent(row) {
+    const entry = row.entry;
+    return `<div data-journal-revision-id="${esc(row.id)}">${pill('手写记录旧版本')}<h2>${esc(entry.title)}</h2><p class="preserve-text">${esc(entry.body)}</p><div class="tag-row">${entry.tags.map((tag) => pill(tag)).join('')}</div><div class="stack">${entry.links.map((item) => `<p class="small">${esc(LINK_LABELS[item.type])} · ${esc(item.label)} · ${esc(item.id)}${item.detached ? ' · 原关联已移除' : ''}</p>`).join('')}</div>${snapshot(entry, true)}<p class="small">事件时间 ${when(entry.occurredAt)} <span class="mono">${esc(entry.occurredAt)}</span></p><p class="small muted">原创建 ${when(entry.createdAt)} · 原更新 ${when(entry.updatedAt)} · 保留旧版 ${when(row.replacedAt)}</p><p class="small mono">原创建 ${esc(entry.createdAt)}<br>原更新 ${esc(entry.updatedAt)}<br>保留旧版 ${esc(row.replacedAt)}<br>原记录编号 ${esc(entry.id)}<br>旧版本编号 ${esc(row.id)}</p></div>`;
+  }
+  function revisions(profile, view = {}) {
+    const readOnly = view.readOnly === true,
+      prefix = readOnly ? 'historical-' : '';
+    const tokens = lower(view.revisionQuery || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    const rows = (profile.journalRevisions || [])
+      .filter(
+        (row) =>
+          (!view.revisionEntryId || row.entry.id === view.revisionEntryId) &&
+          tokens.every((token) =>
+            lower(
+              [
+                row.entry.title,
+                row.entry.body,
+                ...row.entry.tags,
+                ...row.entry.links.map((link) => link.label + ' ' + link.id),
+                row.entry.snapshot?.name,
+                row.entry.snapshot?.mapName,
+              ].join(' '),
+            ).includes(token),
+          ),
+      )
+      .slice()
+      .sort((a, b) => Date.parse(b.replacedAt) - Date.parse(a.replacedAt) || a.id.localeCompare(b.id));
+    const pages = Math.max(1, Math.ceil(rows.length / JOURNAL_PAGE_SIZE));
+    const requested = Number(view.revisionPage);
+    const page = Number.isSafeInteger(requested) && requested > 0 ? Math.min(requested, pages) : 1;
+    const pager = `<nav class="row wrap mb" aria-label="记录旧版本分页"><span class="small muted">${rows.length} 份 · 第 ${page} / ${pages} 页</span>${page > 1 ? act(prefix + 'journal-revisions-page', '上一页', 'btn', String(page - 1)) : ''}${page < pages ? act(prefix + 'journal-revisions-page', '下一页', 'btn', String(page + 1)) : ''}</nav>`;
+    return `<div class="page-header"><div><h1 class="serif">${readOnly ? '历史记录旧版本' : '记录旧版本'}</h1><p>${readOnly ? '保护包中的完整旧正文，只读回顾。' : '编辑正式手写记录前，会完整保留原版本。可选择旧版本另存为一条新记录。'}</p></div>${act(prefix + 'journal-revisions-close', '返回江湖记录', 'btn')}</div><section class="card mb"><label>查找旧版本<input id="${prefix}journal-revision-query" data-persist="${prefix}journal-revision-query" type="search" maxlength="200" value="${esc(view.revisionQuery || '')}" placeholder="标题、正文、标签或关联"></label>${view.revisionEntryId ? act(prefix + 'journal-revisions-open', '查看全部记录的旧版本', 'text-btn') : ''}<p class="save-note">${readOnly ? '当前记录与游戏存档保持原样。' : '不会自动过期。每个周目最多 5000 份或 8 MiB，满时保留原记录和草稿并拒绝编辑。永久清除需另行确认。'}</p></section>${pager}${
+      rows
+        .slice((page - 1) * JOURNAL_PAGE_SIZE, page * JOURNAL_PAGE_SIZE)
+        .map(
+          (row) =>
+            `<article class="card mb" data-journal-revision-row="${esc(row.id)}"><h2>${esc(row.entry.title)}</h2><p class="preserve-text">${esc(row.entry.body.length > 240 ? row.entry.body.slice(0, 240) + '…' : row.entry.body)}</p><p class="small muted">保留旧版 ${when(row.replacedAt)} · 原更新 ${when(row.entry.updatedAt)}</p><div class="row wrap">${act(prefix + 'journal-revision-detail', '查看完整旧版本', 'btn', row.id)}${readOnly ? '' : act('journal-revision-restore-preview', '另存为新记录…', 'btn soft', row.id, 'plus') + act('journal-revision-purge-preview', '永久清除旧版本…', 'text-btn', row.id, 'trash')}</div></article>`,
+        )
+        .join('') ||
+      empty(
+        '没有匹配的旧版本',
+        view.revisionEntryId
+          ? '这条手写记录尚无保留的编辑前版本。'
+          : '编辑正式手写记录后，旧版本会保留在这里。',
+      )
+    }${pager}`;
+  }
+  function revisionDetail(profile, id, readOnly = false) {
+    const row = profile.journalRevisions?.find((item) => item.id === id);
+    if (!row) return notice('旧版本已不存在，请重新打开。', true);
+    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="记录旧版本完整预览"><div class="drawer-head"><h2>记录旧版本 · 只读预览</h2>${act('close-overlay', '关闭预览', 'text-btn')}</div><div class="drawer-body">${revisionContent(row)}<p class="save-note">原记录、后来的内容与游戏存档保留。</p></div><div class="drawer-actions">${readOnly ? pill('只读历史') : act('journal-revision-restore-preview', '另存为新记录…', 'btn primary', row.id, 'plus')}</div></section>`;
   }
   function referenceResults(profile, index, query) {
     const choices = journalReferenceChoices(profile, index, query);
@@ -403,7 +467,7 @@ export function createEventJournalViews({
     const time = draft
       ? draft.localTime
       : journalLocalTime(entry?.occurredAt || view.now || new Date().toISOString());
-    return `<form id="journal-entry-form" class="stack" data-profile-id="${esc(profile.id)}" data-draft-id="${esc(draft?.id || view.draftId || '')}" data-draft-revision="${draft?.revision || 0}" ${draft && !draft.pending ? 'data-draft-persisted="true"' : ''} ${originalId ? `data-entry-id="${esc(originalId)}" data-entry-updated-at="${esc(draft?.entryUpdatedAt || entry.updatedAt)}"` : ''}><p id="journal-draft-status" class="save-note" role="status">${draft?.pending ? '这份草稿尚未成功保存，当前窗口仍保留编辑。' : draft ? '已找回本机草稿，可以继续写。' : '输入后会自动暂存到本机；点击保存记录后才成为正式记录。'}</p><label>标题<input name="journal-title" id="journal-title" maxlength="160" required value="${esc(value.title || '')}"></label><label>事件发生时间<input name="journal-time" id="journal-time" type="datetime-local" step="0.001" required value="${esc(time)}"></label><label>记录正文<textarea name="journal-body" id="journal-body" maxlength="4000" rows="7">${esc(value.body || '')}</textarea></label><label>标签<input name="journal-tags" id="journal-tags" maxlength="310" value="${esc(draft ? draft.tags : (entry?.tags || []).join('，'))}" placeholder="最多 10 个，以逗号分隔，每个最多 30 字"></label><div class="detail-block"><label>查找要关联的资料<input id="journal-reference-query" type="search" maxlength="100" value="${esc(view.referenceQuery || '')}" placeholder="例如：卫霍、梧桐村、我的锻造目标"></label><div id="journal-reference-results">${referenceResults(profile, index, view.referenceQuery || '')}</div><div class="journal-selected"><span class="small muted">已关联资料</span><div id="journal-selected-references">${selectedReferences(
+    return `<form id="journal-entry-form" class="stack" data-profile-id="${esc(profile.id)}" data-draft-id="${esc(draft?.id || view.draftId || '')}" data-draft-revision="${draft?.revision || 0}" ${draft && !draft.pending ? 'data-draft-persisted="true"' : ''} ${originalId ? `data-entry-id="${esc(originalId)}" data-entry-updated-at="${esc(draft?.entryUpdatedAt || entry.updatedAt)}" ${draft && !draft.entrySnapshot ? '' : `data-entry-snapshot="${esc(JSON.stringify(draft?.entrySnapshot || entry))}"`}` : ''}><p id="journal-draft-status" class="save-note" role="status">${draft?.pending ? '这份草稿尚未成功保存，当前窗口仍保留编辑。' : draft ? '已找回本机草稿，可以继续写。' : '输入后会自动暂存到本机；点击保存记录后才成为正式记录。'}</p><label>标题<input name="journal-title" id="journal-title" maxlength="160" required value="${esc(value.title || '')}"></label><label>事件发生时间<input name="journal-time" id="journal-time" type="datetime-local" step="0.001" required value="${esc(time)}"></label><label>记录正文<textarea name="journal-body" id="journal-body" maxlength="4000" rows="7">${esc(value.body || '')}</textarea></label><label>标签<input name="journal-tags" id="journal-tags" maxlength="310" value="${esc(draft ? draft.tags : (entry?.tags || []).join('，'))}" placeholder="最多 10 个，以逗号分隔，每个最多 30 字"></label><div class="detail-block"><label>查找要关联的资料<input id="journal-reference-query" type="search" maxlength="100" value="${esc(view.referenceQuery || '')}" placeholder="例如：卫霍、梧桐村、我的锻造目标"></label><div id="journal-reference-results">${referenceResults(profile, index, view.referenceQuery || '')}</div><div class="journal-selected"><span class="small muted">已关联资料</span><div id="journal-selected-references">${selectedReferences(
       profile,
       index,
       links.map((link) => link.type + ':' + link.id),
@@ -428,5 +492,8 @@ export function createEventJournalViews({
         : '',
     query: queryJournalEntries,
     trash,
+    revisions,
+    revisionDetail,
+    revisionContent,
   };
 }

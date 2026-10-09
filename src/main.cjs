@@ -898,7 +898,8 @@ app.whenReady().then(async () => {
       if (
         command?.type?.startsWith('journal-entr') ||
         command?.type?.startsWith('journal-draft') ||
-        command?.type?.startsWith('journal-trash-')
+        command?.type?.startsWith('journal-trash-') ||
+        command?.type?.startsWith('journal-revision-')
       ) {
         const current = store.get(),
           profile = current.profiles.find(
@@ -909,6 +910,8 @@ app.whenReady().then(async () => {
                 : current.activeProfileId),
           );
         if (!profile) throw Error('草稿所属周目已不存在，当前编辑仍保留');
+        if (command.type.startsWith('journal-revision-') && command.profileId !== profile.id)
+          throw Error('周目已变化，请重新核对记录版本');
         if (command.profileId && command.profileId !== profile.id) throw Error('周目已变化，请重新打开记录');
         command = { ...command, profileId: profile.id };
         const committingDraft =
@@ -939,6 +942,18 @@ app.whenReady().then(async () => {
       if (command?.type?.startsWith('journey-')) {
         const current = store.get(),
           profile = current.profiles.find((p) => p.id === current.activeProfileId);
+        if (
+          ['journey-itinerary-remove', 'journey-itinerary-clear'].includes(command.type) ||
+          (command.type === 'journey-trash-restore' && command.expectedTrash?.kind === 'itinerary')
+        ) {
+          if (command.profileId !== profile.id) throw Error('周目已变化，请重新核对本次行程');
+        }
+        if (
+          (command.type.startsWith('journey-trash-') ||
+            ['journey-itinerary-remove', 'journey-itinerary-clear'].includes(command.type)) &&
+          Object.hasOwn(command, 'actionIds')
+        )
+          throw Error('行程命令包含未知字段');
         if (command.profileId && command.profileId !== profile.id) throw Error('周目已变化，请重新打开行程');
         command = { ...command, profileId: profile.id };
         delete command.actionIds;

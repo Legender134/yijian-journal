@@ -15,6 +15,7 @@ const {
 } = require('./backup-anomalies.cjs');
 const { validateEntries, validateDrafts } = require('./event-journal.cjs');
 const { validateTrash } = require('./event-journal-trash.cjs');
+const { validateRevisions } = require('./journal-revisions.cjs');
 const { validateIntentDrafts } = require('./intent-drafts.cjs');
 const { validateJourneyTrash } = require('./journey-trash.cjs');
 const catalog = require('../data/catalog.cjs');
@@ -409,6 +410,8 @@ function portablePersonalFields(input, profile) {
       if (!Array.isArray(draft.links)) continue;
       for (const link of draft.links)
         if (portableLinkIds[link.type] && !portableLinkIds[link.type].has(link.id)) link.detached = true;
+      for (const link of draft.entrySnapshot?.links || [])
+        if (portableLinkIds[link.type] && !portableLinkIds[link.type].has(link.id)) link.detached = true;
     }
     validateDrafts(drafts, { profile, catalog, guideIds: new Set(catalog.entries.map((e) => e.id)) });
     profile.journalDrafts = drafts;
@@ -426,6 +429,20 @@ function portablePersonalFields(input, profile) {
       profile.journalEntries || [],
     );
     profile.journalTrash = trash;
+  }
+  if (input.journalRevisions !== undefined) {
+    const rows = JSON.parse(JSON.stringify(input.journalRevisions));
+    for (const row of Array.isArray(rows) ? rows : []) {
+      if (!Array.isArray(row?.entry?.links)) continue;
+      for (const link of row.entry.links)
+        if (portableLinkIds[link.type] && !portableLinkIds[link.type].has(link.id)) link.detached = true;
+    }
+    validateRevisions(rows, {
+      profile,
+      catalog,
+      guideIds: new Set(catalog.entries.map((entry) => entry.id)),
+    });
+    profile.journalRevisions = rows;
   }
 }
 function portableJournal(input) {

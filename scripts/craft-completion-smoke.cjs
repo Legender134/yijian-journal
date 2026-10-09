@@ -63,6 +63,7 @@ store.mutate({
   addGoal: true,
 });
 const b = store.get().profiles[0].craftPlans[0].id;
+store.mutate({ type: 'craft-plan-open', id: b });
 store.mutate({
   type: 'journey-gift-put',
   id: 'synthetic-gift',
@@ -144,6 +145,23 @@ async function controlsVisible(target) {
   }
   visibility.push({ viewport, bounds });
 }
+async function completedTracking(label) {
+  await companion.locator('[data-action="navigate"][data-id="home"]').first().click();
+  const card = companion.locator('.companion-materials');
+  await card.waitFor();
+  await companion.waitForFunction(() =>
+    document.querySelector('.companion-materials')?.textContent.includes('个人已制作完成'),
+  );
+  const text = await card.innerText();
+  assert.match(text, /计划 B · <img>两份铁锭/);
+  assert.match(text, /用料已释放/);
+  assert.match(text, /下方仅供若重新制作时核对/);
+  assert.match(text, /若重新制作：原料端点/);
+  for (const row of await card.locator('.companion-material > span:last-child').allTextContents())
+    assert.match(row, /^若重做：/);
+  assert.equal(await card.locator('h3 img').count(), 0, 'plan title must remain escaped');
+  await card.screenshot({ path: path.join(results, 'craft-completion-redo-' + label + '.png') });
+}
 async function completeMain() {
   await nav('materials');
   await page.locator(`[data-craft-plan-id="${b}"] [data-action="craft-plan-complete"]`).click();
@@ -210,6 +228,8 @@ async function completeMain() {
       document.querySelector('[data-companion-itinerary]')?.textContent.includes('本次已无待处理项'),
     );
     await companion.screenshot({ path: path.join(results, 'craft-completion-compact.png') });
+    await completedTracking('completed');
+    checks.push('随行追踪显示具体已完成计划，用料与制作次数明确限定为若重新制作');
     checks.push('小窗完成会推进原选行程，只释放 B 的铁矿与煤，保留 A、任务和赠礼用量，记录个人完成');
 
     await nav('materials');
@@ -232,6 +252,7 @@ async function completeMain() {
     await compact();
     assert.deepEqual((await current()).journey.itinerary, selected);
     assert.equal((await readPlan()).done, true);
+    await completedTracking('restart');
     const undo = companion.locator('summary').filter({ hasText: '撤回个人处理、完成计划或本次跳过' });
     await undo.click();
     await companion.locator(`[data-action="craft-plan-complete"][data-id="${b}"]`).click();

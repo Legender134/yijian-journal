@@ -169,6 +169,7 @@ test('stale and malformed confirmations keep both current and previous files unc
     ...manual,
     type: 'journal-entry-update',
     id: original.id,
+    expectedEntry: original,
     body: '另一窗口刚保存的重要正文',
   });
   rejectedUnchanged(
@@ -218,6 +219,7 @@ test('a cold restart retains trash and merges selected restoration with later re
     revision: 0,
     entryId: original.id,
     entryUpdatedAt: original.updatedAt,
+    entrySnapshot: original,
     title: '小窗尚未完成的编辑',
     body: '未丢失的草稿',
     localTime: '2026-10-08T16:00',

@@ -26,6 +26,13 @@ const {
   detachTrashLinks,
 } = require('./event-journal-trash.cjs');
 const { validateIntentDrafts, applyIntentDraftCommand } = require('./intent-drafts.cjs');
+const {
+  validateRevisions,
+  retainEditedRevisions,
+  assertFreshEntryIds,
+  applyRevisionCommand,
+  detachRevisionLinks,
+} = require('./journal-revisions.cjs');
 const { validateJourneyTrash, applyJourneyTrashCommand } = require('./journey-trash.cjs');
 const world = require('../data/world-index.json');
 const questIds = new Set(world.quests.map((q) => q.id));
@@ -128,6 +135,8 @@ function validateState(s, ids) {
     if (p.journalDrafts !== undefined) validateDrafts(p.journalDrafts, { profile: p, guideIds: ids });
     if (p.journalTrash !== undefined)
       validateTrash(p.journalTrash, { profile: p, guideIds: ids }, p.journalEntries || []);
+    if (p.journalRevisions !== undefined)
+      validateRevisions(p.journalRevisions, { profile: p, guideIds: ids });
     if (p.intentDrafts !== undefined) validateIntentDrafts(p.intentDrafts);
     if (p.journeyTrash !== undefined) validateJourneyTrash(p.journeyTrash);
     if (p.activeCraftPlanId !== undefined && !p.craftPlans?.some((x) => x.id === p.activeCraftPlanId))
@@ -363,11 +372,18 @@ class Store {
       case 'journal-draft-remove':
       case 'journal-draft-commit': {
         const { profileId, ...intent } = command;
+        const before = p.journalEntries || [];
         const result = applyDraftCommand(p.journalDrafts || [], p.journalEntries || [], intent, {
           profile: p,
           catalog: this.catalog,
           guideIds: this.ids,
           selectedReference: trustedContext.selectedReference,
+        });
+        assertFreshEntryIds(before, result.entries, p.journalRevisions || [], p.journalTrash || []);
+        p.journalRevisions = retainEditedRevisions(before, result.entries, p.journalRevisions || [], {
+          profile: p,
+          catalog: this.catalog,
+          guideIds: this.ids,
         });
         p.journalDrafts = result.drafts;
         p.journalEntries = result.entries;
@@ -376,12 +392,33 @@ class Store {
       case 'journal-entry-put':
       case 'journal-entry-update': {
         const { profileId, ...intent } = command;
+        const before = p.journalEntries || [];
         p.journalEntries = applyEntryCommand(p.journalEntries || [], intent, {
           profile: p,
           catalog: this.catalog,
           guideIds: this.ids,
           selectedReference: trustedContext.selectedReference,
         });
+        assertFreshEntryIds(before, p.journalEntries, p.journalRevisions || [], p.journalTrash || []);
+        p.journalRevisions = retainEditedRevisions(before, p.journalEntries, p.journalRevisions || [], {
+          profile: p,
+          catalog: this.catalog,
+          guideIds: this.ids,
+        });
+        break;
+      }
+      case 'journal-revision-restore':
+      case 'journal-revision-purge': {
+        if (command.profileId !== p.id || p.id !== s.activeProfileId)
+          throw Error('周目已变化，请重新核对旧版本；当前资料已保留');
+        const { profileId, ...intent } = command;
+        const result = applyRevisionCommand(p.journalEntries || [], p.journalRevisions || [], intent, {
+          profile: p,
+          catalog: this.catalog,
+          guideIds: this.ids,
+        });
+        p.journalEntries = result.entries;
+        p.journalRevisions = result.revisions;
         break;
       }
       case 'journal-entry-remove':
@@ -480,9 +517,18 @@ class Store {
       case 'journey-gift-remove':
       case 'goal-remove':
       case 'craft-plan-remove':
+      case 'journey-itinerary-remove':
+      case 'journey-itinerary-clear':
       case 'journey-trash-restore':
       case 'journey-trash-copy-goal':
       case 'journey-trash-purge': {
+        if (
+          ['journey-itinerary-remove', 'journey-itinerary-clear'].includes(command.type) ||
+          (command.type === 'journey-trash-restore' && command.expectedTrash?.kind === 'itinerary')
+        ) {
+          if (command.profileId !== p.id || p.id !== s.activeProfileId)
+            throw Error('周目已变化，请重新核对本次行程；当前资料与完整副本均已保留');
+        }
         const { profileId, ...intent } = command;
         const result = applyJourneyTrashCommand(p, intent);
         if (command.type === 'craft-plan-remove') {
@@ -511,11 +557,9 @@ class Store {
       case 'journey-gift-put':
       case 'journey-action-handle':
       case 'journey-itinerary-add':
-      case 'journey-itinerary-remove':
       case 'journey-itinerary-move':
       case 'journey-itinerary-place':
       case 'journey-itinerary-continue':
-      case 'journey-itinerary-clear':
       case 'journey-itinerary-name':
       case 'journey-itinerary-status':
       case 'journey-itinerary-skip': {
@@ -795,6 +839,7 @@ class Store {
         if (p.journalEntries) p.journalEntries = detachLinks(p.journalEntries, type, id);
         if (p.journalDrafts) p.journalDrafts = detachLinks(p.journalDrafts, type, id);
         if (p.journalTrash) p.journalTrash = detachTrashLinks(p.journalTrash, type, id);
+        if (p.journalRevisions) p.journalRevisions = detachRevisionLinks(p.journalRevisions, type, id);
       }
     }
     for (const type of ['goal', 'todo', 'gift', 'craft-plan']) {

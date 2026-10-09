@@ -37,7 +37,11 @@ function companionSnapshot(state, catalog, reference, error = '') {
     : profile.craftList?.length
       ? profile.craftList
       : [...goalRecipes].map(([id, quantity]) => ({ id, quantity }));
-  const list = recipeGoalList(profile, selectedList);
+  const selectedPlan =
+    namedPlan ||
+    (profile.craftList?.length && profile.craftPlans?.find((p) => p.id === profile.activeCraftPlanId));
+  const materialsCompleted = selectedPlan?.done === true;
+  const list = materialsCompleted ? selectedList : recipeGoalList(profile, selectedList);
   let materials = null;
   try {
     if (list.length) {
@@ -67,7 +71,7 @@ function companionSnapshot(state, catalog, reference, error = '') {
       source: goals[0].source || null,
       label: '我的目标',
     });
-  if (materials && hints.length < 2) {
+  if (materials && !materialsCompleted && hints.length < 2) {
     const shortages = materials.materials.filter((m) => m.missing > 0).sort((a, b) => b.missing - a.missing);
     const first = shortages[0];
     const processingReady =
@@ -88,7 +92,7 @@ function companionSnapshot(state, catalog, reference, error = '') {
                 : materials.stages?.workRemaining.processing > 0
                   ? `原料已齐 · 还需加工 ${materials.stages.workRemaining.processing} 次，再制作成品`
                   : '当前清单材料已齐 · 制作等级与配方需另核对',
-      label: namedPlan ? '备料追踪 · ' + namedPlan.name : '备料追踪',
+      label: selectedPlan ? '备料追踪 · ' + selectedPlan.name : '备料追踪',
     });
   }
   const personalAction = nextActions.find((a) => ['todo', 'gift', 'place'].includes(a.kind));
@@ -145,7 +149,8 @@ function companionSnapshot(state, catalog, reference, error = '') {
     hints: hints.slice(0, 2),
     quests,
     materials,
-    materialsLabel: namedPlan ? namedPlan.name : '当前制作清单与制作目标',
+    materialsLabel: selectedPlan ? selectedPlan.name : '当前制作清单与制作目标',
+    materialsCompleted,
     nextActions: nextActions.slice(0, 6).map((a) => ({
       id: a.id,
       title: a.title,

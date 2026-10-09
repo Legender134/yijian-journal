@@ -76,7 +76,13 @@ const put = (extra = {}) => ({
   links: [],
   ...extra,
 });
-const update = (extra = {}) => ({ ...put(), type: 'journal-entry-update', id: 'entry-1', ...extra });
+const update = (extra = {}) => ({
+  ...put(),
+  type: 'journal-entry-update',
+  id: 'entry-1',
+  expectedEntry: entry(),
+  ...extra,
+});
 const options = (extra = {}) => ({ now: T1, id: 'new-entry', ...extra });
 function freeze(value) {
   if (value && typeof value === 'object') {
@@ -254,7 +260,12 @@ test('commands cannot submit system kinds, generated timestamps, identity or sna
 test('record removal binds confirmation to the complete record, including edits and detached links', () => {
   const ctx = context();
   const original = entry({ links: [{ type: 'goal', id: 'goal-1', label: '去梧桐村见上官虹' }] });
-  const changed = applyEntryCommand([original], update({ body: '另一窗口的新正文' }), ctx, options());
+  const changed = applyEntryCommand(
+    [original],
+    update({ body: '另一窗口的新正文', expectedEntry: original }),
+    ctx,
+    options(),
+  );
   for (const command of [
     { type: 'journal-entry-remove', id: original.id, expectedEntry: original },
     { type: 'journal-entries-remove', ids: [original.id], expectedEntries: [original] },
@@ -313,14 +324,14 @@ test('snapshot comes only from selected reference, with a strict path-free reado
   assert.ok(!JSON.stringify(result).includes('never-persist'));
   const edited = applyEntryCommand(
     result,
-    update({ id: 'new-entry' }),
+    update({ id: 'new-entry', expectedEntry: result[0] }),
     context({ selectedReference: null }),
     options(),
   );
   assert.deepEqual(edited[0].snapshot, result[0].snapshot);
   const detached = applyEntryCommand(
     edited,
-    update({ id: 'new-entry', snapshotMode: 'none' }),
+    update({ id: 'new-entry', expectedEntry: edited[0], snapshotMode: 'none' }),
     context(),
     options(),
   );
@@ -450,12 +461,17 @@ test('detach preserves historical link identity and label, and manual commands c
   assert.throws(() => validateEntries(original, ctx), /不存在/);
   const revised = applyEntryCommand(
     detached,
-    update({ id: 'new-entry', links: [{ type: 'goal', id: 'goal-1' }] }),
+    update({ id: 'new-entry', expectedEntry: detached[0], links: [{ type: 'goal', id: 'goal-1' }] }),
     ctx,
     options(),
   );
   assert.deepEqual(revised[0].links, detached[0].links);
-  const cleared = applyEntryCommand(revised, update({ id: 'new-entry', links: [] }), ctx, options());
+  const cleared = applyEntryCommand(
+    revised,
+    update({ id: 'new-entry', expectedEntry: revised[0], links: [] }),
+    ctx,
+    options(),
+  );
   assert.deepEqual(cleared[0].links, []);
   for (const link of [
     { type: 'goal', id: 'goal-1', label: '', detached: true },
@@ -470,7 +486,12 @@ test('5000 entries are valid; an update remains possible and entry 5001 is rejec
   const list = Array.from({ length: MAX_ENTRIES }, (_, i) => entry({ id: `entry-${i}` }));
   const ctx = context();
   assert.equal(validateEntries(list, ctx), list);
-  const changed = applyEntryCommand(list, update({ id: 'entry-4999', title: '编辑末条' }), ctx, options());
+  const changed = applyEntryCommand(
+    list,
+    update({ id: 'entry-4999', expectedEntry: list[4999], title: '编辑末条' }),
+    ctx,
+    options(),
+  );
   assert.equal(changed.length, MAX_ENTRIES);
   assert.equal(changed[4999].title, '编辑末条');
   assert.throws(() => applyEntryCommand(list, put(), ctx, options()), /5000/);
