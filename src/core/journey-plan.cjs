@@ -5,6 +5,7 @@ const game = require('../data/game-index.json');
 const placeAliases = require('../data/world-place-aliases.json');
 const { createJourneyStateTools, emptyJourneyState } = require('./journey-state.cjs');
 const { giftItemLabel, giftPersonLabel } = require('./gift-labels.cjs');
+const { craftMoneySummary } = require('./resource-budget.cjs');
 
 const safeCount = (n) => Number.isSafeInteger(n) && n >= 0 && n <= 1000000000000;
 const stableId = (kind, parts) =>
@@ -287,6 +288,9 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
       warnings.push(
         uncertainty('budget-unknown', '尚无与此周目和存档指纹匹配的资源预算；缺料与可用库存待核对。'),
       );
+    const craftMoney = budgetBound ? craftMoneySummary(budget) : null;
+    if (craftMoney && craftMoney.status !== 'supported')
+      warnings.push(uncertainty('craft-money-' + craftMoney.status, craftMoney.message));
     if (selected?.metadata?.build && String(selected.metadata.build) !== String(worldIndex.build))
       warnings.push(uncertainty('build-mismatch', '存档版本与本机资料版本不同，资料线索须在游戏内核对。'));
     const actions = [],

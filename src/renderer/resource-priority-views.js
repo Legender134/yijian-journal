@@ -2,7 +2,7 @@ export function createResourcePriorityViews({ esc, act, notice, when }) {
   function entry(summary) {
     if (!summary?.priorityOwners?.length || summary.priorityOwners.length < 2) return '';
     if (!summary.explicitPriority && !(summary.directMissingTotal > 0)) return '';
-    return `<section class="card mt"><div class="card-header"><h2>这些打算怎样分配材料</h2>${act('resource-priority-open', '预览并调整顺序', 'btn', '', 'edit')}</div><p class="save-note">按本周目参照${summary.referenceIdentity ? '「' + esc(summary.referenceIdentity.name) + '」' : '（库存待核对）'}核对。留用和任务预留先保留；制作与赠礼的直接材料按用途顺序分配，再用剩余库存安排加工。${summary.explicitPriority ? '已采用你确认的顺序，打开另一份计划不会改变它。' : '目前按编辑清单及保存顺序核对；材料争用时可选择先支持哪项打算。'}</p><ol class="resource-priority-current">${summary.priorityOwners.map((row) => `<li>${esc(row.name)}</li>`).join('')}</ol></section>`;
+    return `<section class="card mt"><div class="card-header"><h2>这些打算怎样分配材料</h2>${act('resource-priority-open', '预览并调整顺序', 'btn', '', 'edit')}</div><p class="save-note">按当前核对参照${summary.referenceIdentity ? '「' + esc(summary.referenceIdentity.name) + '」' : '（库存待核对）'}核对。留用和任务预留先保留；制作与赠礼的直接材料按用途顺序分配，再用剩余库存安排加工。${summary.explicitPriority ? '已采用你确认的顺序，打开另一份计划不会改变它。' : '目前按编辑清单及保存顺序核对；材料争用时可选择先支持哪项打算。'}顺序只分配材料；全部制作费仍需共同支付。</p><ol class="resource-priority-current">${summary.priorityOwners.map((row) => `<li>${esc(row.name)}</li>`).join('')}</ol></section>`;
   }
   function editor(draft, index) {
     const result = draft.preview;

@@ -36,6 +36,51 @@ function stockMap(inventory) {
   for (const item of inventory || []) stock.set(item.id, add(stock.get(item.id) || 0, item.count));
   return stock;
 }
+function craftMoneySummary(budget) {
+  if (!budget?.crafts?.length) return null;
+  const number = (value) => value.toLocaleString('zh-CN');
+  const feeKnown = Number.isSafeInteger(budget.money) && budget.money >= 0;
+  const copperKnown = Number.isSafeInteger(budget.copper) && budget.copper >= 0;
+  const complete = budget.moneyComplete === true;
+  const status = !feeKnown
+    ? 'unknown-fee'
+    : !copperKnown
+      ? 'unknown-copper'
+      : !budget.inventoryAvailable
+        ? 'unknown-inventory'
+        : !complete
+          ? 'incomplete'
+          : budget.copperMissing > 0
+            ? 'shortfall'
+            : 'supported';
+  const cost = feeKnown
+    ? `${complete ? '含加工预计需' : '已确定步骤费用'} ${number(budget.money)} 文`
+    : '含加工制作费待核对';
+  const balance = copperKnown ? `存档铜钱 ${number(budget.copper)} 文` : '存档铜钱待核对';
+  const support = !feeKnown
+    ? '费用资料未齐，共同缺口待核对'
+    : !copperKnown
+      ? '共同费用是否足够待核对'
+      : !budget.inventoryAvailable
+        ? '库存未核对，加工费用与共同缺口仍待核对'
+        : budget.copperMissing > 0
+          ? `${complete ? '共同还差' : '仅已确定步骤已至少缺'} ${number(budget.copperMissing)} 文${complete ? '' : '，完整费用仍待核对'}`
+          : complete
+            ? '铜钱足够支付全部已安排路线'
+            : '完整路线费用待核对，实际费用可能增加';
+  return {
+    status,
+    message: `全部有效制作计划：${cost}；${balance}；${support}。费用不含购买原料。`,
+    shortMessage:
+      status === 'shortfall'
+        ? `全部制作计划铜钱还差 ${number(budget.copperMissing)} 文`
+        : status === 'supported'
+          ? ''
+          : status === 'unknown-copper'
+            ? '共同制作铜钱待核对'
+            : '完整制作费用待核对',
+  };
+}
 function resourceBudget(
   profile,
   reference,
@@ -262,7 +307,7 @@ function resourceBudget(
     ? crafts.reduce((sum, craft) => add(sum, craft.processing.processingMoney), 0)
     : null;
   const copper = Number.isSafeInteger(metadata?.money) && metadata.money >= 0 ? metadata.money : null;
-  return {
+  const budget = {
     ...summary,
     owners,
     manualAllocation,
@@ -294,6 +339,8 @@ function resourceBudget(
         : '默认依次核对编辑清单、保存计划、配方目标和赠礼；可预览并调整用途顺序。') +
       '加工产物仍须制作，不计入真实库存。',
   };
+  budget.moneySummary = craftMoneySummary(budget);
+  return budget;
 }
 function recipeBudget(profile, reference, id) {
   if (typeof id !== 'string' || !/^(fusion|alchemy|cooking)-\d+$/.test(id)) throw Error('配方编号无效');
@@ -364,4 +411,11 @@ function materialReport(
     };
   return result;
 }
-module.exports = { resourceBudget, subtractBudget, recipeGoalList, recipeBudget, materialReport };
+module.exports = {
+  resourceBudget,
+  subtractBudget,
+  recipeGoalList,
+  recipeBudget,
+  materialReport,
+  craftMoneySummary,
+};

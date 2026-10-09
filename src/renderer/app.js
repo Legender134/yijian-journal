@@ -9,7 +9,7 @@ import { createSearchHelpViews } from './search-help-views.js';
 import { createGameViews } from './game-views.js';
 import { createComparisonViews } from './comparison-views.js';
 import { createWorldViews } from './world-views.js';
-import { createMaterialViews } from './material-views.js';
+import { createMaterialViews, craftMoneyNotice } from './material-views.js';
 import { createResourcePriorityViews } from './resource-priority-views.js';
 import { createRecipeDiscoveryViews } from './recipe-discovery-views.js';
 import { createProtectionViews } from './protection-views.js';
@@ -1143,10 +1143,29 @@ function craftPlanModal(
     savedDraft,
   );
 }
+function materialBudgetContext() {
+  const view = materialView;
+  const referenceName =
+    view.referenceName === undefined ? undefined : view.follow ? '@latest' : view.referenceName || '';
+  const ready =
+    view.result &&
+    !view.loading &&
+    view.profileId === profile().id &&
+    JSON.stringify(view.resultList) === JSON.stringify(profile().craftList || []) &&
+    view.resultChoices === JSON.stringify(profile().craftChoices || {}) &&
+    view.resultIntent === planningIntentSignature() &&
+    (view.result.reference?.name || '') === (view.referenceName || '');
+  return {
+    summary: ready
+      ? view.result.sharedBudget
+      : referenceName === undefined && environment.goalProfileId === profile().id
+        ? environment.allocations
+        : null,
+    referenceName,
+  };
+}
 function allocationLedger() {
-  const summary =
-    materialView.result?.sharedBudget ||
-    (environment.goalProfileId === profile().id ? environment.allocations : null);
+  const { summary } = materialBudgetContext();
   return `<section class="card mt"><h2>物资用途</h2><p class="save-note">手动保留与各项任务用量分别记录并合计扣除，赠礼和制作使用同一份可用库存。先满足手动留用，再按任务记录顺序展示已分配量。已完成任务的预留仍保留记录，切换到较早存档会重新核对。</p>${
     (profile().allocations || [])
       .map((owner) => {
@@ -1164,7 +1183,7 @@ function allocationLedger() {
           )}${act('allocation-remove', '释放这项任务的预留', 'text-btn', owner.questId, 'trash')}</details>`;
       })
       .join('') || '<p class="small muted">在任务所需物品旁点击预留，即可按任务记录用途。</p>'
-  }</section>${resourcePriorityViews.entry(environment.goalProfileId === profile().id ? environment.allocations : null)}${craftBudgetLedger(summary)}`;
+  }</section>${resourcePriorityViews.entry(summary)}${craftBudgetLedger(summary)}`;
 }
 function renderResourcePriorityDialog() {
   const draft = resourcePriorityDraft;
@@ -1179,15 +1198,14 @@ function renderResourcePriorityDialog() {
   );
   overlay.querySelector('.modal')?.classList.add('resource-priority-modal');
 }
-async function previewResourcePriority(order, initial = false) {
+async function previewResourcePriority(order, initial = false, context = null) {
   if (initial) {
     closeOverlay();
     resourcePriorityDraft = {
       profileId: profile().id,
       order: [...order],
-      labels: Object.fromEntries(
-        (environment.allocations?.priorityOwners || []).map((row) => [row.id, row.name]),
-      ),
+      referenceName: context?.referenceName,
+      labels: Object.fromEntries((context?.summary?.priorityOwners || []).map((row) => [row.id, row.name])),
       preview: null,
       loading: true,
       error: '',
@@ -1201,7 +1219,7 @@ async function previewResourcePriority(order, initial = false) {
   draft.error = '';
   renderResourcePriorityDialog();
   try {
-    const result = await call('resourcePriorityPreview', draft.profileId, order);
+    const result = await call('resourcePriorityPreview', draft.profileId, order, draft.referenceName);
     if (
       token !== resourcePriorityRequest ||
       resourcePriorityDraft !== draft ||
@@ -1227,7 +1245,7 @@ async function previewResourcePriority(order, initial = false) {
 }
 function craftBudgetLedger(summary) {
   if (!summary?.crafts?.length) return '';
-  return `<section class="card mt"><h2>制作计划已占用的库存</h2><p class="save-note">${esc(summary.processingNotice || '制作与赠礼共用有限库存。')}</p><p class="small">全部用途：直接材料还差 ${summary.directMissingTotal ?? '待核对'} 件 · 按加工安排的原料还差 ${summary.baseMaterialMissingTotal ?? '待核对'} 件。两个数量分别表示直接材料与展开原料，不能相加。</p>${summary.crafts
+  return `<section class="card mt"><h2>制作计划已占用的库存</h2>${craftMoneyNotice(summary, esc)}<p class="save-note">${esc(summary.processingNotice || '制作与赠礼共用有限库存。')}</p><p class="small">全部用途：直接材料还差 ${summary.directMissingTotal ?? '待核对'} 件 · 按加工安排的原料还差 ${summary.baseMaterialMissingTotal ?? '待核对'} 件。两个数量分别表示直接材料与展开原料，不能相加。</p>${summary.crafts
     .map(
       (
         plan,
@@ -1339,10 +1357,12 @@ async function calculateMaterials() {
     profileId = profile().id;
   const list = (profile().craftList || []).map((line) => ({ ...line }));
   const choices = JSON.stringify(profile().craftChoices || {});
+  const intent = planningIntentSignature();
   view.follow ??= defaultFollow();
   if (view.follow) view.referenceName = latestReference();
   view.referenceName ??= defaultReference();
   const name = view.referenceName;
+  const follow = view.follow;
   view.result = null;
   view.error = '';
   view.loading = true;
@@ -1354,12 +1374,16 @@ async function calculateMaterials() {
       materialView !== view ||
       profile().id !== profileId ||
       JSON.stringify(list) !== JSON.stringify(profile().craftList || []) ||
-      choices !== JSON.stringify(profile().craftChoices || {})
+      choices !== JSON.stringify(profile().craftChoices || {}) ||
+      intent !== planningIntentSignature() ||
+      view.referenceName !== name ||
+      view.follow !== follow
     )
       return;
     view.result = result;
     view.resultList = list;
     view.resultChoices = choices;
+    view.resultIntent = intent;
     view.profileId = profileId;
   } catch (e) {
     if (token === materialRequest && materialView === view) view.error = e.message;
@@ -1563,6 +1587,7 @@ function mutation(command) {
     const intentsChanged = previousIntents !== planningIntentSignature();
     if (intentsChanged) invalidateRecipeDiscovery();
     if (
+      intentsChanged ||
       previousBasket !== JSON.stringify(profile().craftList || []) ||
       command.type === 'reserve-set' ||
       command.type.startsWith('task-reserve') ||
@@ -4063,10 +4088,12 @@ async function handle(action, id, target) {
       break;
     case 'resource-priority-open': {
       await refresh();
-      const summary = environment.goalProfileId === profile().id ? environment.allocations : null;
+      if (!materialBudgetContext().summary && (profile().craftList || []).length) await calculateMaterials();
+      const context = materialBudgetContext();
+      const summary = context.summary;
       if (!summary?.priorityOwners?.length) throw Error('物资用途正在变化，请重新核对');
       const ids = summary.priorityOwners.map((row) => row.id);
-      await previewResourcePriority(ids, true);
+      await previewResourcePriority(ids, true, context);
       break;
     }
     case 'resource-priority-move': {
@@ -4098,9 +4125,11 @@ async function handle(action, id, target) {
           profileId: draft.profileId,
           order: draft.preview.order,
           fingerprint: draft.preview.fingerprint,
+          referenceName: draft.referenceName,
         });
         closeOverlay();
         await refresh();
+        if (route === 'materials' && (profile().craftList || []).length) await calculateMaterials();
         toast('物资用途顺序已保存');
       } catch (e) {
         draft.loading = false;

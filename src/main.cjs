@@ -27,7 +27,11 @@ const {
 const { ProtectionArchives } = require('./core/protection-archives.cjs');
 const { journeyPlan } = require('./core/journey-plan.cjs');
 const { applyIntentDraftCommand } = require('./core/intent-drafts.cjs');
-const { priorityFingerprint, resourcePriorityPreview } = require('./core/resource-priority.cjs');
+const {
+  priorityFingerprint,
+  resourcePriorityPreview,
+  priorityReferenceProfile,
+} = require('./core/resource-priority.cjs');
 const { recipeDiscovery, assertDiscoveryScope } = require('./core/recipe-discovery.cjs');
 const crypto = require('node:crypto');
 const {
@@ -687,6 +691,15 @@ function currentJourney(profile) {
     error,
   };
 }
+function currentPriorityPlanning(profile, referenceName) {
+  const scoped = priorityReferenceProfile(profile, referenceName);
+  if (scoped.referenceMode === 'none') return { profile: scoped, reference: null };
+  const { reference, error } = currentPlanningReference(scoped);
+  if (error) throw Error(error);
+  if (referenceName && referenceName !== '@latest' && !reference)
+    throw Error('所选核对存档已不可读，请重新核对物资顺序');
+  return { profile: scoped, reference };
+}
 function handle(name, fn) {
   ipcMain.handle(`journal:${name}`, async (event, ...args) => {
     try {
@@ -890,10 +903,10 @@ app.whenReady().then(async () => {
         const current = store.get(),
           profile = current.profiles.find((p) => p.id === current.activeProfileId);
         if (command.profileId !== profile.id) throw Error('周目已变化，请重新核对物资顺序');
-        const { reference } = currentPlanningReference(profile);
-        const preview = resourcePriorityPreview(profile, reference, command.order);
+        const context = currentPriorityPlanning(profile, command.referenceName);
+        const preview = resourcePriorityPreview(context.profile, context.reference, command.order);
         if (command.fingerprint !== preview.fingerprint) throw Error('存档或计划已变化，请重新核对物资顺序');
-        trustedContext.resourcePriorityFingerprint = priorityFingerprint(profile, reference);
+        trustedContext.resourcePriorityFingerprint = priorityFingerprint(context.profile, context.reference);
       }
       if (
         command?.type?.startsWith('journal-entr') ||
@@ -993,12 +1006,12 @@ app.whenReady().then(async () => {
       const data = store.get();
       return currentJourney(data.profiles.find((p) => p.id === data.activeProfileId));
     });
-    handle('resource-priority-preview', (_event, profileId, order) => {
+    handle('resource-priority-preview', (_event, profileId, order, referenceName) => {
       const data = store.get(),
         profile = data.profiles.find((p) => p.id === data.activeProfileId);
       if (profileId !== profile.id) throw Error('周目已变化，请重新打开物资顺序');
-      const { reference } = currentPlanningReference(profile);
-      return resourcePriorityPreview(profile, reference, order);
+      const context = currentPriorityPlanning(profile, referenceName);
+      return resourcePriorityPreview(context.profile, context.reference, order);
     });
     handle('recipe-discovery', (_event, options) => {
       const data = store.get(),
