@@ -99,11 +99,17 @@ function itinerarySelection(action, placeId) {
     .map(({ type, id, field }) => ({ type, id, field }));
   const distinct = [...new Map(sources.map((s) => [`${s.type}:${s.id}:${s.field}`, s])).values()];
   const generatedQuantity = ['material', 'craft', 'collection', 'gift'].includes(action.kind);
+  const selectionTitle =
+    action.kind === 'collection'
+      ? action.title.replace(/\s*×\s*\d+$/, '')
+      : generatedQuantity
+        ? action.title.replace(/\s*×\s*\d+.*$/, '')
+        : action.title;
   return {
     actionId: action.id,
     // Only generated quantity labels are shortened. Multiplication signs and
     // following text in a personal title are part of the player's intent.
-    title: (generatedQuantity ? action.title.replace(/\s*×\s*\d+.*$/, '') : action.title).slice(0, 360),
+    title: selectionTitle.slice(0, 360),
     ...(placeId === undefined ? {} : { placeId }),
     sources: distinct.slice(0, 32),
     skipped: false,

@@ -131,6 +131,69 @@ test('generated crafting quantity labels are still shortened independently of pe
   assert.equal(Object.hasOwn(selected.journey.itinerary.steps[0], 'quantity'), false);
 });
 
+test('distinct personal collection names follow the same item into actions, itinerary, compact data and unavailable-source history', () => {
+  const item = game.entries.find((entry) => entry.id === 'item-10201');
+  const original = profile({
+    goals: [
+      {
+        id: 'collect-craft',
+        title: '给师兄核对 × 2，再打造兵器',
+        detail: '保留原说明',
+        done: false,
+        source: { type: 'database', id: item.id, quantity: 10 },
+      },
+      {
+        id: 'collect-gift',
+        title: '给掌柜的赠礼备料',
+        detail: '另一份独立打算',
+        done: false,
+        source: { type: 'database', id: item.id, quantity: 10 },
+      },
+    ],
+  });
+  const before = structuredClone(original),
+    actions = journeyPlan(original, null).actions;
+  assert.equal(actions.length, 2);
+  for (const goal of original.goals) {
+    const action = actions.find((row) => row.goalIds.includes(goal.id));
+    assert(action.title.includes(goal.title));
+    assert(action.title.includes(item.name + ' × 10'));
+  }
+  assert.notEqual(actions[0].title, actions[1].title);
+  let p = original;
+  for (const action of actions) p = add(p, action);
+  assert.deepEqual(original, before);
+  const selections = structuredClone(p.journey.itinerary.steps);
+  assert(selections[0].title.includes(original.goals[0].title));
+  assert(!selections[0].title.endsWith('× 10'));
+  p = command(p, { type: 'journey-itinerary-status', status: 'active' });
+  const compact = companionSnapshot({ profiles: [p], activeProfileId: p.id }, { entries: [] }, null);
+  assert(compact.itinerary.next.title.includes(original.goals[0].title));
+  assert(compact.itinerary.upcoming[0].title.includes(original.goals[1].title));
+  assert(compact.nextActions[0].title.includes(original.goals[0].title));
+  p = {
+    ...p,
+    goals: p.goals.map((goal) =>
+      goal.id === 'collect-craft'
+        ? { ...goal, title: '下一程再核对图纸', source: { ...goal.source, quantity: 12 } }
+        : goal,
+    ),
+  };
+  const renamed = journeyPlan(p, null).itinerary.next;
+  assert.equal(renamed.actionId, actions[0].id);
+  assert(renamed.title.includes('下一程再核对图纸'));
+  assert(renamed.title.includes(item.name + ' × 12'));
+  assert.deepEqual(p.journey.itinerary.steps, selections);
+  p = { ...p, goals: p.goals.filter((goal) => goal.id !== 'collect-craft') };
+  const removed = journeyPlan(p, null).itinerary.steps[0];
+  assert.equal(removed.status, 'unavailable');
+  assert(removed.title.includes(original.goals[0].title));
+  assert.deepEqual(removed.selectionSources, selections[0].sources);
+  validateJourneyState(JSON.parse(JSON.stringify(p.journey)));
+  const defaults = profile({ goals: [{ ...original.goals[0], title: '寻找' + item.name }] });
+  assert.equal(journeyPlan(defaults, null).actions[0].title, '收集目标：' + item.name + ' × 10');
+});
+
 test('one action with same-name and multiple location clues occupies exactly one chosen position', () => {
   let p = profile({ goals: [goal(14082)] });
   const r = reference(),
