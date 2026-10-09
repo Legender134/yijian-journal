@@ -276,9 +276,17 @@ async function closeNormally(window) {
     await window.locator('#ack').check();
     await window.locator('#confirm').click();
     await window.waitForSelector('#error:not([hidden])');
+    await window.waitForFunction(() => !document.getElementById('cancel').disabled);
+    assert.equal(await window.locator('#preview').isVisible(), false);
+    assert.equal(await window.locator('#ack').isChecked(), false);
+    assert.equal(await window.locator('#confirm').isEnabled(), false);
+    assert.match(await window.locator('#error').innerText(), /未通过完整校验/);
+    await window.screenshot({ path: path.join(out, '02b-stale-preview-invalidated.png') });
     originalsUnchanged();
     fs.writeFileSync(good, packageBytes);
-    facts.scenarios.push('package changed after preview is refused and retry remains available');
+    facts.scenarios.push(
+      'changed package refused; stale verified preview and acknowledgement cleared, confirm disabled until reselected',
+    );
     await window.locator('[data-mode="protection"]').click();
     await window.waitForSelector('#preview:not([hidden])');
     await window.screenshot({ path: path.join(out, '03-valid-package-preview.png') });

@@ -4445,6 +4445,7 @@ async function handle(action, id, target, navigationFocused = false) {
       await mutation({ type: 'craft-remove', id });
       invalidateMaterials();
       render(true);
+      toast('已移出配方，原次数和清单已保留，可找回上一次编辑清单');
       break;
     case 'craft-review':
     case 'craft-calculate':

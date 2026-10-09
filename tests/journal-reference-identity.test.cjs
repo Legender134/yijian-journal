@@ -80,6 +80,169 @@ test('event reference pages reach every same-name personal intent and identify i
   assert.equal(ids(factory.referenceResults(profile(), {}, '末次 核对')).length, 0);
 });
 
+test('same-title goals expose only their explicitly saved place and scene in choices and selected links', async () => {
+  const { journalReferenceChoices, createEventJournalViews, queryJournalEntries } = await views;
+  const p = profile();
+  p.goals = [
+    { id: 'herbs-mountain', title: '明早采药', detail: '带上空行囊', placeId: 'place-14' },
+    { id: 'herbs-woods', title: '明早采药', detail: '带上空行囊', placeId: 'place-22' },
+    { id: 'herbs-unplaced', title: '明早采药', detail: '去野猪林，尚未选择地点' },
+  ];
+  const expected = [
+    ['herbs-mountain', '明早采药 · 碗子山 · 场景 #14'],
+    ['herbs-woods', '明早采药 · 野猪林 · 场景 #22'],
+    ['herbs-unplaced', '明早采药'],
+  ];
+  const before = structuredClone(p);
+  const choices = journalReferenceChoices(p, index, '明早采药');
+  for (const [id, label] of expected) assert.equal(choices.find((row) => row.id === id).label, label);
+  assert.deepEqual(
+    journalReferenceChoices(p, index, '明早采药 场景 #22').map((row) => row.id),
+    ['herbs-woods'],
+  );
+  const factory = createEventJournalViews({ ...helpers, getIndex: () => index });
+  const results = factory.referenceResults(p, index, '明早采药');
+  for (const [id, label] of expected.slice(0, 2)) {
+    assert.ok(results.includes(label));
+    assert.ok(results.includes(`aria-label="关联 目标 · ${label} · 带上空行囊"`));
+    assert.ok(results.includes(`data-id="goal:${id}"`));
+  }
+  const links = expected.map(([id]) => ({ type: 'goal', id }));
+  const entries = save(links, context(p));
+  assert.deepEqual(
+    entries[0].links,
+    links.map((link) => ({ ...link, label: '明早采药' })),
+  );
+  const stored = { ...p, journalEntries: entries };
+  for (const html of [
+    factory.selectedReferences(
+      p,
+      index,
+      links.map((link) => 'goal:' + link.id),
+    ),
+    factory.selectedReferences(
+      stored,
+      index,
+      links.map((link) => 'goal:' + link.id),
+      entries[0],
+    ),
+    factory.page(stored, { readOnly: true }, index),
+    factory.detail(stored, entries[0].id, { readOnly: true }),
+  ]) {
+    assert.ok(html.includes('碗子山 · 场景 #14'));
+    assert.ok(html.includes('野猪林 · 场景 #22'));
+  }
+  assert.match(
+    factory.selectedReferences(p, index, ['goal:herbs-woods']),
+    /aria-label="移除 目标 · 明早采药 · 野猪林 · 场景 #22"/,
+  );
+  assert.deepEqual(queryJournalEntries(stored, { query: '场景 #14' }, index).matchedIds, [entries[0].id]);
+  const unplaced = factory.selectedReferences(p, index, ['goal:herbs-unplaced']);
+  assert.ok(!unplaced.includes('场景 #'));
+  assert.ok(!unplaced.includes('野猪林'));
+  assert.deepEqual(p, before);
+});
+
+test('real duplicate quest titles expose their exact game numbers in choices and accessible selected links', async () => {
+  const { journalReferenceChoices, createEventJournalViews } = await views;
+  const p = profile();
+  const expected = [5230, 9010, 9011].map((id) => [`quest-${id}`, `莫问授剑 · 任务 #${id}`]);
+  const choices = journalReferenceChoices(p, index, '莫问授剑');
+  assert.equal(choices.length, 3);
+  const factory = createEventJournalViews({ ...helpers, getIndex: () => index });
+  const results = factory.referenceResults(p, index, '莫问授剑');
+  for (const [id, label] of expected) {
+    assert.equal(choices.find((row) => row.id === id).label, label);
+    assert.ok(results.includes(`aria-label="关联 任务 · ${label}"`));
+    assert.deepEqual(
+      journalReferenceChoices(p, index, label).map((row) => row.id),
+      [id],
+    );
+    const selected = factory.selectedReferences(p, index, ['quest:' + id]);
+    assert.ok(selected.includes(label));
+    assert.ok(selected.includes(`aria-label="移除 任务 · ${label}"`));
+    assert.ok(selected.includes(`data-id="quest:${id}"`));
+  }
+  const entries = save(expected.map(([id]) => ({ type: 'quest', id })));
+  assert.deepEqual(
+    entries[0].links.map((link) => link.id),
+    expected.map(([id]) => id),
+  );
+  assert.ok(entries[0].links.every((link) => link.label === '莫问授剑'));
+  const before = structuredClone(entries);
+  const html = factory.selectedReferences(
+    { ...p, journalEntries: entries },
+    index,
+    expected.map(([id]) => 'quest:' + id),
+    entries[0],
+  );
+  for (const [, label] of expected) assert.ok(html.includes('当前资料：' + label));
+  assert.deepEqual(entries, before);
+});
+
+test('long goal and place display context leaves the core persisted label within its original 160-character limit', async () => {
+  const { journalReferenceChoices, createEventJournalViews } = await views;
+  const p = profile();
+  const title = '字'.repeat(148) + '<标题 & "尾部">';
+  assert.ok(title.length <= 160);
+  const placeName = '山'.repeat(180) + '<地点 & "尾部">';
+  p.goals = [{ id: 'long-goal', title, detail: '', placeId: 'place-14' }];
+  const displayIndex = { world: { maps: [{ id: 'place-14', gameId: 14, name: placeName }] } };
+  const choice = journalReferenceChoices(p, displayIndex, 'long-goal')[0];
+  assert.ok(choice.label.endsWith(placeName + ' · 场景 #14'));
+  const entries = save([{ type: 'goal', id: 'long-goal' }], context(p));
+  assert.equal(entries[0].links[0].label, title);
+  assert.ok(entries[0].links[0].label.length <= 160);
+  validateEntries(entries, context(p));
+  const factory = createEventJournalViews(helpers);
+  for (const html of [
+    factory.referenceResults(p, displayIndex, 'long-goal'),
+    factory.selectedReferences(p, displayIndex, ['goal:long-goal'], entries[0]),
+  ]) {
+    assert.ok(html.includes(esc(placeName) + ' · 场景 #14'));
+    assert.ok(html.includes(esc(title)));
+    assert.ok(!html.includes('<标题'));
+    assert.ok(!html.includes('<地点'));
+  }
+});
+
+test('goal context and action names escape markup, tolerate unknown scenes and do not infer detached context', async () => {
+  const { createEventJournalViews } = await views;
+  const p = profile();
+  p.goals = [
+    {
+      id: 'unsafe-goal',
+      title: '<script>采药</script>',
+      detail: '<img src=x> & "备忘"',
+      placeId: 'place-14',
+    },
+    { id: 'unknown-goal', title: '旧目标', placeId: 'place-999999999' },
+  ];
+  const unsafeIndex = { world: { maps: [{ id: 'place-14', gameId: 14, name: '<b>山</b> & "地点"' }] } };
+  const factory = createEventJournalViews(helpers);
+  for (const html of [
+    factory.referenceResults(p, unsafeIndex, '采药'),
+    factory.selectedReferences(p, unsafeIndex, ['goal:unsafe-goal']),
+  ]) {
+    assert.ok(html.includes('&lt;script&gt;采药&lt;/script&gt;'));
+    assert.ok(html.includes('&lt;b&gt;山&lt;/b&gt; &amp; &quot;地点&quot; · 场景 #14'));
+    assert.ok(!html.includes('<script>'));
+    assert.ok(!html.includes('<img'));
+  }
+  assert.ok(
+    factory.referenceResults(p, unsafeIndex, '采药').includes('&lt;img src=x&gt; &amp; &quot;备忘&quot;'),
+  );
+  assert.ok(
+    factory
+      .selectedReferences(p, unsafeIndex, ['goal:unknown-goal'])
+      .includes('place-999999999 · 场景 #999999999'),
+  );
+  const entry = { links: [{ type: 'goal', id: 'unsafe-goal', label: '原来的目标', detached: true }] };
+  const detached = factory.selectedReferences(p, unsafeIndex, ['goal:unsafe-goal'], entry);
+  assert.ok(detached.includes('原来的目标 · 原关联已移除'));
+  assert.ok(!detached.includes('场景 #14'));
+});
+
 test('real same-name swords expose actual quality in choices, selected references, saved links and history', async () => {
   const { journalReferenceChoices, createEventJournalViews, queryJournalEntries } = await views;
   const p = profile();

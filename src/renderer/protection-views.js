@@ -15,7 +15,11 @@ export function createProtectionViews({
   hours,
   name,
 }) {
-  const label = (id) => esc(name(id) || id);
+  const label = (id) => {
+    const title = name(id) || id;
+    const suffix = ' · 场景 #' + String(id).slice(6);
+    return esc(String(id).startsWith('place-') && !String(title).endsWith(suffix) ? title + suffix : title);
+  };
   function exportResult(result) {
     if (!result) return '';
     const complete = result.status === 'success';
@@ -43,7 +47,7 @@ export function createProtectionViews({
   }
   function profileHistory(p) {
     const journey = p.journey;
-    return `<details class="detail-block"><summary>${esc(p.name)} · ${p.goals.length} 件目标 · ${p.craftPlans?.length || 0} 份制作计划</summary>${draftHistory(p)}${journeyTrashHistory(p)}${p.journalEntries?.length || p.journalDrafts?.length || p.journalTrash?.length || p.journalRevisions?.length ? act('protection-journal-profile', '浏览逐条江湖记录 · ' + (p.journalEntries?.length || 0) + ' 条' + (p.journalDrafts?.length ? ' · ' + p.journalDrafts.length + ' 份草稿' : '') + (p.journalTrash?.length ? ' · ' + p.journalTrash.length + ' 条已删除记录' : '') + (p.journalRevisions?.length ? ' · ' + p.journalRevisions.length + ' 份旧版本' : ''), 'btn', p.id, 'book') : ''}${p.noteRevisions?.length ? `<details data-historical-note-revisions><summary>随手记旧内容 · ${p.noteRevisions.length} 份 · 只读</summary>${p.noteRevisions.map((row) => `<details class="detail-block"><summary>${when(row.replacedAt)} · ${esc(row.body.slice(0, 80))}</summary><p class="preserve-text">${esc(row.body)}</p></details>`).join('')}</details>` : ''}${p.notes ? `<h3>随手记</h3><p class="preserve-text">${esc(p.notes)}</p>` : '<p class="small muted">没有笔记</p>'}<details><summary>目标记录</summary>${p.goals.map((g) => `<p class="small">${g.done ? '✓' : '○'} ${esc(g.title)}${g.detail ? '<br>' + esc(g.detail) : ''}</p>`).join('') || '<p class="small muted">没有目标</p>'}</details>${(
+    return `<details class="detail-block"><summary>${esc(p.name)} · ${p.goals.length} 件目标 · ${p.craftPlans?.length || 0} 份制作计划</summary>${draftHistory(p)}${journeyTrashHistory(p)}${p.journalEntries?.length || p.journalDrafts?.length || p.journalTrash?.length || p.journalRevisions?.length ? act('protection-journal-profile', '浏览逐条江湖记录 · ' + (p.journalEntries?.length || 0) + ' 条' + (p.journalDrafts?.length ? ' · ' + p.journalDrafts.length + ' 份草稿' : '') + (p.journalTrash?.length ? ' · ' + p.journalTrash.length + ' 条已删除记录' : '') + (p.journalRevisions?.length ? ' · ' + p.journalRevisions.length + ' 份旧版本' : ''), 'btn', p.id, 'book') : ''}${p.noteRevisions?.length ? `<details data-historical-note-revisions><summary>随手记旧内容 · ${p.noteRevisions.length} 份 · 只读</summary>${p.noteRevisions.map((row) => `<details class="detail-block"><summary>${when(row.replacedAt)} · ${esc(row.body.slice(0, 80))}</summary><p class="preserve-text">${esc(row.body)}</p></details>`).join('')}</details>` : ''}${p.notes ? `<h3>随手记</h3><p class="preserve-text">${esc(p.notes)}</p>` : '<p class="small muted">没有笔记</p>'}<details><summary>目标记录</summary>${p.goals.map((g) => `<p class="small">${g.done ? '✓' : '○'} ${esc(g.title)}${g.placeId ? ' · ' + label(g.placeId) : ''}${g.detail ? '<br>' + esc(g.detail) : ''}</p>`).join('') || '<p class="small muted">没有目标</p>'}</details>${(
       p.craftPlans || []
     )
       .map(

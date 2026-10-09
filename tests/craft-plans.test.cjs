@@ -28,6 +28,47 @@ test('saved plans and their goals retain recipe quantities after the editor chan
   store.mutate({ type: 'craft-draft-restore' });
   assert.equal(store.get().profiles[0].craftList[0].id, recipes[2].id);
 });
+test('removing an unsaved recipe retains its quantity across restart and recovery preserves later edits', (t) => {
+  const { dir, store } = setup(t);
+  store.mutate({ type: 'craft-set', id: 'fusion-1000', quantity: 7 });
+  store.mutate({ type: 'craft-set', id: 'fusion-1001', quantity: 2 });
+  store.mutate({ type: 'craft-choice', itemId: '10216', recipeId: 'fusion-9500' });
+  store.mutate({ type: 'craft-draft-reserve', value: false });
+  const before = store.get().profiles[0];
+  store.mutate({ type: 'craft-remove', id: 'fusion-1000' });
+  const reloaded = new Store(dir, catalog);
+  assert.deepEqual(reloaded.get().profiles[0].craftList, [{ id: 'fusion-1001', quantity: 2 }]);
+  reloaded.mutate({ type: 'craft-set', id: 'fusion-1000', quantity: 1 });
+  reloaded.mutate({ type: 'craft-choice', itemId: '10216', recipeId: '' });
+  reloaded.mutate({ type: 'craft-draft-reserve', value: true });
+  const later = reloaded.get().profiles[0];
+  reloaded.mutate({ type: 'craft-draft-restore' });
+  let restored = new Store(dir, catalog).get().profiles[0];
+  assert.deepEqual(restored.craftList, before.craftList);
+  assert.deepEqual(restored.craftChoices, before.craftChoices);
+  assert.equal(restored.reserveCraftDraft, false);
+  reloaded.mutate({ type: 'craft-draft-restore' });
+  restored = reloaded.get().profiles[0];
+  assert.deepEqual(restored.craftList, later.craftList);
+  assert.deepEqual(restored.craftChoices, later.craftChoices);
+  assert.equal(restored.reserveCraftDraft, true);
+});
+
+test('removed recipe recovery retains plan ownership and a missing row does not replace its snapshot', (t) => {
+  const { dir, store } = setup(t);
+  const list = [{ id: 'fusion-1000', quantity: 7 }];
+  store.mutate({ type: 'craft-set', ...list[0] });
+  store.mutate({ type: 'craft-plan-save', name: '保留原计划', list, addGoal: true });
+  const original = store.get().profiles[0];
+  store.mutate({ type: 'craft-remove', id: list[0].id });
+  store.mutate({ type: 'craft-remove', id: list[0].id });
+  store.mutate({ type: 'craft-draft-restore' });
+  const restored = new Store(dir, catalog).get().profiles[0];
+  assert.deepEqual(restored.craftList, list);
+  assert.equal(restored.activeCraftPlanId, original.activeCraftPlanId);
+  assert.deepEqual(restored.craftPlans, original.craftPlans);
+  assert.deepEqual(restored.goals, original.goals);
+});
 test('opening and undoing plans restores allocation and editor ownership, including identical recipe lists', (t) => {
   const { dir, store } = setup(t), list = [{ id: recipes[0].id, quantity: 1 }];
   store.mutate({ type: 'craft-set', ...list[0] });

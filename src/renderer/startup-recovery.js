@@ -16,6 +16,8 @@ function setBusy(value, message = '') {
   if (message) status.textContent = message;
 }
 function fail(message) {
+  resetPreview();
+  confirm.disabled = true;
   error.textContent = message;
   error.hidden = false;
   status.textContent = '恢复未完成，原件和保护副本仍保留。';
@@ -116,7 +118,7 @@ confirm.addEventListener('click', async () => {
     }
     status.textContent = newJournal ? '新手札已建立，正在进入正常软件…' : '手札已恢复，正在进入正常软件…';
   } catch {
-    fail('恢复状态暂时无法确认。保护原件仍在本机；请退出重启核对，或重试。');
+    fail('恢复状态暂时无法确认。保护原件仍在本机；请退出重启核对，再重新选择资料。');
   } finally {
     setBusy(false);
   }
