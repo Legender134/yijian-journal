@@ -2514,6 +2514,23 @@ function dismissOverlay() {
       return;
     }
   }
+  const intent = journeyTrashConfirmation;
+  if (
+    intent?.type === 'remove' &&
+    intent.returnContext &&
+    overlay.querySelector('[data-action="journey-intent-remove-confirm"]')
+  ) {
+    journeyTrashConfirmation = null;
+    if (intent.profileId === profile().id) {
+      overlay.replaceChildren(intent.returnContext.content);
+      activeIntentEditor = intent.returnContext.editor;
+      journeyDraft = intent.returnContext.draft;
+      overlay.querySelector('[data-action="journey-intent-remove"]')?.focus({ preventScroll: true });
+      overlay.querySelector('.modal').scrollTop = intent.returnContext.scroll;
+      if (journeyDraft?.kind === 'gift') loadGiftStock(journeyDraft);
+      return;
+    }
+  }
   closeOverlay();
 }
 function closeOverlay() {
@@ -4322,6 +4339,12 @@ async function handle(action, id, target, navigationFocused = false) {
         kind: draft.kind,
         profileId: draft.profileId,
         record: structuredClone(draft.record),
+        returnContext: {
+          content: overlay.firstChild,
+          editor: activeIntentEditor,
+          draft,
+          scroll: overlay.querySelector('.modal').scrollTop,
+        },
       };
       modal(
         '移除这项个人安排？',

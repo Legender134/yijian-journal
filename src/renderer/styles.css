@@ -3435,9 +3435,6 @@ kbd {
 .journey-action .world-rule {
   gap: 12px;
 }
-.journey-handled {
-  opacity: 0.78;
-}
 .journey-evidence {
   margin-top: 14px;
 }

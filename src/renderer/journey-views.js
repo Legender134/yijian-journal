@@ -112,7 +112,7 @@ export function createJourneyViews({
         .filter((r) => view.completed || r.pendingCount > 0 || r.favorite)
         .map(
           (r) =>
-            `<div class="journey-location"><button class="chip ${selected?.id === r.id ? 'active' : ''}" data-action="journey-place-filter" data-id="${esc(r.id)}">${r.favorite ? '★ ' : ''}${esc(r.name)} · ${r.pendingCount}</button><small>${r.ambiguous ? '多个资料场景，需核对阶段' : '资料线索或你的地点目标'}</small>${r.mapIds.length === 1 ? act('journey-place-dialog', r.favorite ? '编辑地点目标' : '记下这个地点', 'text-btn', r.mapIds[0], 'pin') : `<details><summary>选择资料场景</summary>${r.mapIds.map((id) => `<div>${navigation({ action: 'world-place', id }, '查看 ' + r.name + ' · #' + id.slice(6))}${act('journey-place-dialog', '记为地点目标', 'text-btn', id, 'pin')}</div>`).join('')}</details>`}</div>`,
+            `<div class="journey-location"><button class="chip ${selected?.id === r.id ? 'active' : ''}" data-action="journey-place-filter" data-id="${esc(r.id)}">${r.favorite ? '★ ' : ''}${esc(r.name)} · ${r.pendingCount}</button><small>${r.ambiguous ? '多个资料场景，需核对阶段' : '资料线索或你的地点目标'}</small>${r.mapIds.length === 1 ? act('journey-place-dialog', r.favorite ? '编辑地点目标' : '记下这个地点', 'text-btn', r.mapIds[0], 'pin') : `<details data-persist-detail="journey-location:${esc(r.id)}"><summary>选择资料场景</summary>${r.mapIds.map((id) => `<div>${navigation({ action: 'world-place', id }, '查看 ' + r.name + ' · #' + id.slice(6))}${act('journey-place-dialog', '记为地点目标', 'text-btn', id, 'pin')}</div>`).join('')}</details>`}</div>`,
         )
         .join('') || '<p class="small muted">有明确地点的任务、材料说明和个人待办会在这里合并。</p>'
     }</section>`;

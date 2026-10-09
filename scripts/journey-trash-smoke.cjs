@@ -163,11 +163,64 @@ async function written(file) {
   try {
     await launch();
     await nav('journey');
+    const scenes = page.locator('details[data-persist-detail^="journey-location:"]').first();
+    const sceneKey = await scenes.getAttribute('data-persist-detail');
+    await scenes.locator('summary').click();
+    const redrawn = await page.evaluate(() =>
+      window.journal.mutate({ type: 'settings', value: { spoiler: 'hints' } }),
+    );
+    assert(redrawn.ok, redrawn.error);
+    await page.waitForFunction(
+      (key) => document.querySelector('details[data-persist-detail="' + key + '"]')?.open,
+      sceneKey,
+    );
     await editor('todo');
     await page.locator('[data-action="journey-intent-remove"]').click();
     assert.match(await page.locator('#overlay').innerText(), /准备移除，尚未确认/);
     await page.keyboard.press('Escape');
     assert.equal((await current()).journey.todos.length, 1);
+    assert.equal(await page.locator('#journey-title').count(), 1);
+    await page.keyboard.press('Escape');
+    for (const kind of ['todo', 'gift', 'place']) {
+      for (const cancel of ['button', 'escape', 'backdrop']) {
+        await editor(kind);
+        await page.locator('#journey-note').fill('\n取消后继续 ' + kind + ' / ' + cancel + '\n末尾保留  ');
+        if (kind === 'todo') await page.locator('#journey-title').fill('正在修改的待办 ' + cancel);
+        if (kind === 'gift') await page.locator('#journey-quantity').fill('7');
+        await page.locator('#journey-done').check();
+        const before = await page.locator('#overlay').evaluate((el) => {
+          const modal = el.querySelector('.modal');
+          modal.scrollTop = modal.scrollHeight;
+          return {
+            values: [...el.querySelectorAll('input,textarea,select')].map((n) => ({
+              id: n.id,
+              value: n.value,
+              checked: n.checked,
+            })),
+            scroll: modal.scrollTop,
+          };
+        });
+        await page.locator('[data-action="journey-intent-remove"]').click();
+        if (cancel === 'escape') await page.keyboard.press('Escape');
+        else if (cancel === 'backdrop') await page.locator('.overlay-backdrop').evaluate((el) => el.click());
+        else await page.locator('.modal-footer [data-action="close-overlay"]').click();
+        const after = await page.locator('#overlay').evaluate((el) => ({
+          values: [...el.querySelectorAll('input,textarea,select')].map((n) => ({
+            id: n.id,
+            value: n.value,
+            checked: n.checked,
+          })),
+          scroll: el.querySelector('.modal').scrollTop,
+          focus: document.activeElement?.dataset.action,
+        }));
+        assert.deepEqual(after.values, before.values);
+        assert.equal(after.scroll, before.scroll);
+        assert.equal(after.focus, 'journey-intent-remove');
+        assert.deepEqual((await current()).journey, originals);
+        await page.keyboard.press('Escape');
+      }
+    }
+    checks.push('三类安排取消移除经按钮、Esc与背景返回原编辑，输入、选择、滚动和焦点保留，正式记录不变');
     await remove('todo');
     await remove('gift');
     await remove('place');
