@@ -134,13 +134,51 @@ test('same-title goals expose only their explicitly saved place and scene in cho
   }
   assert.match(
     factory.selectedReferences(p, index, ['goal:herbs-woods']),
-    /aria-label="移除 目标 · 明早采药 · 野猪林 · 场景 #22"/,
+    /aria-label="移除 目标 · 明早采药 · 野猪林 · 场景 #22 · 当前备忘：带上空行囊"/,
   );
   assert.deepEqual(queryJournalEntries(stored, { query: '场景 #14' }, index).matchedIds, [entries[0].id]);
   const unplaced = factory.selectedReferences(p, index, ['goal:herbs-unplaced']);
   assert.ok(!unplaced.includes('场景 #'));
-  assert.ok(!unplaced.includes('野猪林'));
+  assert.match(unplaced, /当前备忘：去野猪林，尚未选择地点/);
   assert.deepEqual(p, before);
+});
+
+test('selected personal references retain escaped current memos without rewriting history or borrowing detached records', async () => {
+  const { createEventJournalViews } = await views;
+  const p = profile();
+  p.goals = [
+    { id: 'medicine-first', title: '出发备药', detail: '第一次 <核对> & 备忘' },
+    { id: 'medicine-next', title: '出发备药', detail: '下一次独立备忘' },
+  ];
+  p.journey.todos = [{ id: 'todo', title: '去药铺', note: '先询问掌柜' }];
+  p.craftPlans = [{ id: 'craft', name: '备药计划', note: '留给下一程' }];
+  p.journey.gifts = [{ id: 'gift', npcId: 'person-1', itemId: 'item-100', quantity: 1, note: '见面时再送' }];
+  const links = [
+    { type: 'goal', id: 'medicine-first', label: '原来的目标标题' },
+    { type: 'goal', id: 'medicine-next', label: '出发备药' },
+  ];
+  const entry = { links },
+    before = structuredClone({ p, entry });
+  const factory = createEventJournalViews(helpers);
+  const html = factory.selectedReferences(
+    p,
+    {},
+    ['goal:medicine-first', 'goal:medicine-next', 'todo:todo', 'craft-plan:craft', 'gift:gift'],
+    entry,
+  );
+  assert.match(html, /当前备忘：第一次 &lt;核对&gt; &amp; 备忘/);
+  assert.match(html, /aria-label="移除 目标 · 出发备药 · 当前备忘：下一次独立备忘"/);
+  for (const memo of ['先询问掌柜', '留给下一程', '见面时再送']) assert(html.includes('当前备忘：' + memo));
+  assert(!html.includes('<核对>'));
+  assert.deepEqual({ p, entry }, before);
+  const detached = factory.selectedReferences(p, {}, ['goal:medicine-first'], {
+    links: [{ ...links[0], detached: true }],
+  });
+  assert.match(detached, /原来的目标标题/);
+  assert.match(detached, /原关联已移除/);
+  assert(!detached.includes('当前备忘') && !detached.includes('第一次'));
+  const missing = factory.selectedReferences(profile(), {}, ['goal:medicine-first'], entry);
+  assert(missing.includes('原来的目标标题') && !missing.includes('当前备忘'));
 });
 
 test('real duplicate quest titles expose their exact game numbers in choices and accessible selected links', async () => {

@@ -140,6 +140,40 @@ async function nav(page, id) {
           await page.locator('#journal-selected-references [data-action="journal-reference-remove"]').count(),
           3,
         );
+        const selected = page.locator('#journal-selected-references');
+        const selectedGoals = [first[0], rest.at(-1)].map((key) => ({
+          key,
+          detail: store.get().profiles[0].goals.find((goal) => 'goal:' + goal.id === key).detail,
+        }));
+        for (const goal of selectedGoals) {
+          assert((await selected.innerText()).includes('当前备忘：' + goal.detail));
+          assert.equal(
+            await selected
+              .getByRole('button', {
+                name: '移除 目标 · 同名出发备药 · 当前备忘：' + goal.detail,
+                exact: true,
+              })
+              .count(),
+            1,
+          );
+        }
+        await selected
+          .getByRole('button', {
+            name: '移除 目标 · 同名出发备药 · 当前备忘：' + selectedGoals[0].detail,
+            exact: true,
+          })
+          .click();
+        assert(
+          !(await page.locator('#journal-links').inputValue()).split('\n').includes(selectedGoals[0].key),
+        );
+        assert(
+          (await page.locator('#journal-links').inputValue()).split('\n').includes(selectedGoals[1].key),
+        );
+        await page.locator('#journal-reference-query').fill(selectedGoals[0].detail);
+        await results
+          .locator('[data-action="journal-reference-add"][data-id="' + selectedGoals[0].key + '"]')
+          .click();
+        checks.push('已选同名目标保留当前备忘，按可访问名称准确移除一项，另一项及正文保留');
         await page.locator('#journal-reference-query').fill('关联备忘22');
         assert.equal(await results.locator('[data-action="journal-reference-add"]').count(), 1);
         assert.equal(
@@ -163,7 +197,10 @@ async function nav(page, id) {
             .click();
           await page
             .locator('#journal-selected-references')
-            .getByRole('button', { name: '移除 目标 · 明早采药 · ' + scene.label, exact: true })
+            .getByRole('button', {
+              name: '移除 目标 · 明早采药 · ' + scene.label + ' · 当前备忘：带上空行囊',
+              exact: true,
+            })
             .waitFor();
         }
         await page.locator('#journal-reference-query').fill('莫问授剑');

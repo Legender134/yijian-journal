@@ -4,6 +4,17 @@ const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict'),
   { createHash } = require('node:crypto');
+const base = path.resolve(__dirname, '..'),
+  data = path.join(
+    process.env.YIJIAN_INTENT_EVIDENCE || path.join(base, '.test-data'),
+    'intent-drafts-' + Date.now(),
+  ),
+  userData = path.join(data, 'userdata'),
+  source = path.join(data, 'synthetic-SaveGames'),
+  results = process.env.YIJIAN_INTENT_EVIDENCE ? path.join(data, 'results') : path.join(base, 'test-results'),
+  toolTemp = path.join(data, 'tool-temp');
+fs.mkdirSync(toolTemp, { recursive: true });
+for (const key of ['TEMP', 'TMP', 'TMPDIR']) process.env[key] = toolTemp;
 const { _electron } = require('playwright'),
   { Store } = require('../src/core/store.cjs'),
   { syntheticSave } = require('../tests/fixtures.cjs');
@@ -12,8 +23,7 @@ const { journeyPlan } = require('../src/core/journey-plan.cjs'),
 const catalog = require('../src/data/catalog.cjs'),
   game = require('../src/data/game-index.json');
 const originalMemo = '\n\n原正式说明 <literal> & 原文\n  尾部空白  ';
-const base = path.resolve(__dirname, '..'),
-  override = process.env.YIJIAN_EXECUTABLE;
+const override = process.env.YIJIAN_EXECUTABLE;
 const executable = path.join(
   base,
   'dist',
@@ -23,10 +33,6 @@ const executable = path.join(
 );
 if (override && path.resolve(override).toLowerCase() !== executable.toLowerCase())
   throw Error('只接受本候选实际 EXE');
-const data = path.join(base, '.test-data', 'intent-drafts-' + Date.now()),
-  userData = path.join(data, 'userdata'),
-  source = path.join(data, 'synthetic-SaveGames'),
-  results = path.join(base, 'test-results');
 fs.mkdirSync(source, { recursive: true });
 fs.mkdirSync(results, { recursive: true });
 const file = path.join(source, '1.sav');
@@ -38,7 +44,10 @@ fs.writeFileSync(
       { id: 5200, step: 1 },
       { id: 11077, step: 1 },
     ],
-    inventory: [{ id: 1000, count: 10 }],
+    inventory: [
+      { id: 1000, count: 10 },
+      { id: 10201, count: 4 },
+    ],
   }),
 );
 const settled = new Date(Date.now() - 5000);
@@ -116,6 +125,7 @@ async function nav(route) {
 }
 async function resume(id, target = page) {
   const button = target.locator('[data-action="intent-draft-resume"][data-id="' + id + '"]').first();
+  if (!(await button.count())) await target.locator('[data-action="intent-drafts"]').first().click();
   if (!(await button.isVisible()))
     await button.locator('xpath=ancestor::details[1]').locator('summary').first().click();
   await button.click();
@@ -132,9 +142,156 @@ async function mutate(target, command) {
   assert(r.ok, r.error);
   return r.data;
 }
+async function collectionQuantityJourney() {
+  await page.locator('.topbar [data-action="search"]').click();
+  await page.locator('#global-search').fill('铁矿石');
+  await page.locator('[data-action="database-detail"][data-id="item-10201"]').first().click();
+  await page.locator('[data-action="database-goal"][data-id="item-10201"]').click();
+  let p = await until((p) => p.goals.some((g) => g.source?.id === 'item-10201'));
+  const goal = p.goals.find((g) => g.source?.id === 'item-10201');
+  await page.keyboard.press('Escape');
+  await nav('goals');
+  await page.locator('[data-action="goal-edit"][data-id="' + goal.id + '"]').click();
+  assert.equal(await page.locator('#goal-quantity').inputValue(), '1');
+  assert.equal(await page.locator('#goal-quantity').getAttribute('max'), '999');
+  assert.equal(await page.locator('#journey-place').count(), 0);
+  await page.locator('#goal-title').fill('采集铁矿石 10 个');
+  await page.locator('#goal-detail').fill('下次出发需要 10 个铁矿石');
+  await page.locator('#goal-quantity').fill('10');
+  await page.keyboard.press('Escape');
+  p = await until((p) => p.intentDrafts?.some((r) => r.targetId === goal.id && r.values.quantity === '10'));
+  const draftId = p.intentDrafts.find((r) => r.targetId === goal.id).id;
+  assert.equal(p.goals.find((g) => g.id === goal.id).source.quantity, undefined);
+  await app.close();
+  app = null;
+  await launch();
+  await nav('goals');
+  await resume(draftId);
+  assert.equal(await page.locator('#goal-quantity').inputValue(), '10');
+  await page.locator('#goal-quantity').fill('1000');
+  await page.locator('[data-action="goal-save"]').click();
+  await page.waitForFunction(() => document.querySelector('#toasts').textContent.includes('收集数量'));
+  assert.equal((await current()).goals.find((g) => g.id === goal.id).source.quantity, undefined);
+  await page.locator('#goal-quantity').fill('10');
+  await page.locator('[data-action="goal-save"]').click();
+  p = await until((p) => p.goals.find((g) => g.id === goal.id)?.source.quantity === 10);
+  assert.equal(p.goals.find((g) => g.id === goal.id).createdAt, goal.createdAt);
+  assert.equal(p.goals.filter((g) => g.source?.id === 'item-10201').length, 1);
+  assert.match(await page.locator('#goal-' + goal.id).innerText(), /收集数量：10 件/);
+  assert.match(await page.locator('#goal-' + goal.id).innerText(), /查看物品原资料/);
+  await nav('journey');
+  const action = journeyPlan(p, null).actions.find((a) => a.goalIds?.includes(goal.id));
+  const card = page.locator('[data-journey-id="' + action.id + '"]');
+  assert.match(await card.innerText(), /需 10 · 已保存持有 4/);
+  await card.locator('[data-action="journey-itinerary-add"]').click();
+  p = await until((p) => p.journey.itinerary.steps.some((s) => s.actionId === action.id));
+  const selection = p.journey.itinerary.steps.find((s) => s.actionId === action.id);
+  const todoAction = journeyPlan(p, null).actions.find((a) => a.kind === 'todo');
+  await page.locator('[data-action="journey-itinerary-remove"][data-id="' + todoAction.id + '"]').click();
+  await page.locator('[data-action="journey-itinerary-status"][data-id="active"]').first().click();
+  await until((p) => p.journey.itinerary.status === 'active');
+  const created = app.waitForEvent('window');
+  await page.locator('.topbar [data-action="compact"]').click();
+  companion = await created;
+  companion.on('pageerror', (e) => errors.push(e.message));
+  await companion.locator('.compact-shell').waitFor();
+  await companion.waitForFunction(() => document.body.textContent.includes('铁矿石 × 10'));
+  await companion.screenshot({ path: path.join(results, 'item-quantity-compact.png') });
+  await page.locator('.topbar [data-action="search"]').click();
+  await page.locator('#global-search').fill('铁矿石');
+  await page.waitForFunction(() =>
+    document.querySelector('#global-results').textContent.includes('铁矿石 × 10'),
+  );
+  await page.screenshot({ path: path.join(results, 'item-quantity-search.png') });
+  await page.keyboard.press('Escape');
+  await nav('goals');
+  await page.locator('[data-action="goal-edit"][data-id="' + goal.id + '"]').click();
+  await page.locator('#goal-quantity').fill('12');
+  await until((p) => p.intentDrafts.some((r) => r.targetId === goal.id && r.values.quantity === '12'));
+  await page.locator('[data-action="intent-draft-copy"]').click();
+  p = await until((p) => p.intentDrafts.some((r) => r.targetId === goal.id && r.values.quantity === '12'));
+  assert.equal(await page.locator('[data-action="intent-draft-copy"]').innerText(), '另存此目标的编辑草稿');
+  await page.locator('[data-action="goal-save"]').click();
+  p = await until((p) => p.goals.find((g) => g.id === goal.id)?.source.quantity === 12);
+  assert.deepEqual(
+    p.journey.itinerary.steps.find((s) => s.actionId === action.id),
+    selection,
+  );
+  await companion.waitForFunction(() => document.body.textContent.includes('铁矿石 × 12'));
+  const stale = p.intentDrafts.find((r) => r.targetId === goal.id);
+  assert(stale, 'the original independent editing draft remains');
+  await resume(stale.id);
+  await page.locator('[data-action="intent-draft-copy"]').click();
+  await page.waitForFunction(() =>
+    document.querySelector('#toasts').textContent.includes('原物品目标已变化'),
+  );
+  assert.equal((await current()).goals.find((g) => g.id === goal.id).source.quantity, 12);
+  await page.keyboard.press('Escape');
+  await page.locator('[data-action="intent-drafts"]').first().click();
+  await page.locator('[data-action="intent-draft-discard"][data-id="' + stale.id + '"]').click();
+  await page.locator('[data-action="intent-draft-discard-confirm"]').click();
+  await until((p) => !p.intentDrafts.some((r) => r.id === stale.id));
+  await page.locator('[data-action="goal-edit"][data-id="' + goal.id + '"]').click();
+  await page.locator('#goal-quantity').fill('13');
+  await page.keyboard.press('Escape');
+  p = await until((p) => p.intentDrafts.some((r) => r.targetId === goal.id && r.values.quantity === '13'));
+  const removedDraft = p.intentDrafts.find((r) => r.targetId === goal.id);
+  await page.locator('[data-action="goal-remove"][data-id="' + goal.id + '"]').click();
+  await page.locator('[data-action="goal-remove-confirm"]').click();
+  p = await until((p) => !p.goals.some((g) => g.id === goal.id));
+  await resume(removedDraft.id);
+  assert.equal(await page.locator('#goal-quantity').inputValue(), '13');
+  assert.match(await page.locator('#overlay').innerText(), /原物品目标已移除，草稿仍保留/);
+  await page.locator('[data-action="intent-draft-copy"]').click();
+  await page.waitForFunction(() => document.querySelector('#toasts').textContent.includes('请先恢复原目标'));
+  await page.keyboard.press('Escape');
+  const removed = p.journeyTrash.find((r) => r.kind === 'goal' && r.record.id === goal.id);
+  await mutate(page, { type: 'journey-trash-restore', id: removed.id, expectedTrash: removed });
+  await until((p) => p.goals.some((g) => g.id === goal.id));
+  await resume(removedDraft.id);
+  await page.locator('#goal-quantity').fill('12');
+  await page.locator('[data-action="goal-save"]').click();
+  await until((p) => !p.intentDrafts.some((r) => r.id === removedDraft.id));
+  for (const source of [
+    undefined,
+    { type: 'quest', id: 'quest-5200' },
+    { type: 'database', id: 'fusion-1000', quantity: 2 },
+  ]) {
+    await mutate(page, {
+      type: 'goal-add',
+      title: '非物品数量隔离',
+      detail: '',
+      ...(source ? { source } : {}),
+    });
+    p = await until((p) => p.goals[0].title === '非物品数量隔离');
+    await page.locator('[data-action="goal-edit"][data-id="' + p.goals[0].id + '"]').click();
+    assert.equal(await page.locator('#goal-quantity').count(), 0);
+    await page.keyboard.press('Escape');
+  }
+  await app.close();
+  app = null;
+  companion = null;
+  await launch();
+  await nav('journey');
+  p = await current();
+  assert.equal(p.goals.find((g) => g.id === goal.id).source.quantity, 12);
+  assert.deepEqual(
+    p.journey.itinerary.steps.find((s) => s.actionId === action.id),
+    selection,
+  );
+  assert.match(await page.locator('[data-itinerary]').innerText(), /铁矿石 × 12/);
+  await page.screenshot({ path: path.join(results, 'item-quantity-restarted.png') });
+  await page
+    .locator('[data-journey-id="' + todoAction.id + '"] [data-action="journey-itinerary-add"]')
+    .click();
+  checks.push(
+    '图鉴物品默认1件，明确编辑10件并对照持有4；数量草稿冷重启、超限拒绝、同目标另存并发保护、已选行程/搜索/小窗同步12件且重启保留；普通/任务/配方目标不显示件数',
+  );
+}
 (async () => {
   try {
     await launch();
+    await collectionQuantityJourney();
     await nav('journey');
     await page.locator('[data-action="journey-todo-dialog"][data-id="existing-todo"]').click();
     assert.equal(await page.locator('#journey-note').inputValue(), originalMemo);
@@ -158,12 +315,13 @@ async function mutate(target, command) {
     const giftDraft = p.intentDrafts.find((r) => r.kind === 'journey-gift').id;
     assert.equal(p.journey.gifts[0].quantity, 2);
     await nav('goals');
+    const goalsBeforePartial = (await current()).goals.length;
     await page.locator('[data-action="goal-add"]').first().click();
     await page.locator('#goal-detail').fill('只写说明也要保留');
     await page.keyboard.press('Escape');
     p = await until((p) => p.intentDrafts.some((r) => r.kind === 'goal'));
     const goalDraft = p.intentDrafts.find((r) => r.kind === 'goal').id;
-    assert.equal(p.goals.length, 0);
+    assert.equal(p.goals.length, goalsBeforePartial);
     await nav('materials');
     await page.locator('[data-action="craft-plan-dialog"]').first().click();
     await page.locator('#craft-plan-name').fill('仍未提交的制作名称');

@@ -4,7 +4,7 @@ const test = require('node:test'),
   fs = require('node:fs'),
   path = require('node:path'),
   os = require('node:os');
-const { Store } = require('../src/core/store.cjs');
+const { Store, validateState } = require('../src/core/store.cjs');
 const { intentTarget } = require('../src/core/intent-drafts.cjs');
 const { journeyPlan } = require('../src/core/journey-plan.cjs');
 const migration = require('../src/core/migration.cjs');
@@ -46,6 +46,71 @@ function draft(store, id, goal, values) {
 function commit(store, row) {
   store.mutate({ type: 'intent-draft-commit', id: row.id, expectedDraft: row });
 }
+
+test('item quantity editing preserves the goal and selected action while rejecting invalid or unrelated edits atomically', (t) => {
+  const { root, store } = setup(t);
+  store.mutate({
+    type: 'goal-add',
+    title: '收集 10 个也不猜数量',
+    detail: '原说明',
+    source: { type: 'database', id: 'item-1000' },
+  });
+  const goal = current(store).goals[0],
+    first = journeyPlan(current(store), null).actions.find((a) => a.kind === 'collection');
+  assert.equal(first.material.count, 1);
+  store.mutate({ type: 'goal-pin', id: goal.id });
+  store.mutate({ type: 'journey-itinerary-add', id: first.id }, { journeyActions: [first] });
+  const selection = current(store).journey.itinerary.steps[0];
+  for (const quantity of [undefined, null, 0, -1, 1.5, 1000, '10', NaN, Infinity]) {
+    unchanged(
+      store,
+      () =>
+        store.mutate({ type: 'goal-edit', id: goal.id, title: goal.title, detail: goal.detail, quantity }),
+      /数量/,
+    );
+    if (quantity !== undefined) {
+      const invalidState = store.get();
+      invalidState.profiles[0].goals[0].source.quantity = quantity;
+      assert.throws(() => validateState(invalidState, store.ids), /数量/);
+      unchanged(
+        store,
+        () => store.mutate({ type: 'goal-add', title: '无效数量', source: { ...goal.source, quantity } }),
+        /数量/,
+      );
+    }
+  }
+  store.mutate({ type: 'goal-edit', id: goal.id, title: goal.title, detail: goal.detail, quantity: 10 });
+  let p = current(store),
+    action = journeyPlan(p, null).actions.find((a) => a.kind === 'collection');
+  assert.deepEqual(p.goals[0], { ...goal, pinned: true, source: { ...goal.source, quantity: 10 } });
+  assert.equal(action.id, first.id);
+  assert.equal(action.material.count, 10);
+  assert.match(action.title, /× 10/);
+  assert.deepEqual(p.journey.itinerary.steps[0], selection);
+  assert.equal(journeyPlan(p, null).itinerary.steps[0].action.material.count, 10);
+  store.mutate({ type: 'goal-toggle', id: goal.id });
+  store.mutate({ type: 'goal-edit', id: goal.id, title: goal.title, detail: goal.detail, quantity: 999 });
+  p = current(store);
+  assert.equal(p.goals[0].done, true);
+  assert.equal(p.goals[0].source.quantity, 999);
+  assert.deepEqual(new Store(path.join(root, 'source'), catalog).get().profiles[0].goals, p.goals);
+  for (const source of [
+    undefined,
+    { type: 'quest', id: world.quests[0].id },
+    { type: 'database', id: 'fusion-1000', quantity: 2 },
+    { type: 'database', id: 'npc-5011' },
+  ]) {
+    store.mutate({ type: 'goal-add', title: '其他目标', ...(source ? { source } : {}) });
+    const other = current(store).goals[0];
+    unchanged(
+      store,
+      () => store.mutate({ type: 'goal-edit', id: other.id, title: other.title, quantity: 10 }),
+      /只有物品/,
+    );
+    store.mutate({ type: 'goal-edit', id: other.id, title: other.title, detail: '照常改说明' });
+    assert.deepEqual(current(store).goals[0].source, other.source);
+  }
+});
 
 test('an existing personal goal gains, changes and removes an explicit scene while keeping one identity, completion and itinerary selection', (t) => {
   const { store } = setup(t);

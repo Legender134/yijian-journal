@@ -44,6 +44,99 @@ const todo = (id, title = '') => ({
   values: { title, detail: '可续写的说明\n第二行', placeId: '', done: false, placeQuery: '村' },
 });
 
+test('collection quantity drafts retain incomplete input, survive restart, and commit only to the unchanged original item goal', (t) => {
+  const { directory, store } = setup(t);
+  store.mutate({
+    type: 'goal-add',
+    title: '原收集目标',
+    detail: '原说明',
+    source: { type: 'database', id: 'item-1000', quantity: 2 },
+  });
+  const goal = current(store).goals[0];
+  let row = put(store, {
+    id: 'item-count',
+    kind: 'goal',
+    targetId: goal.id,
+    context: {},
+    values: { title: goal.title, detail: goal.detail, quantity: '' },
+  });
+  let cold = new Store(path.join(directory, 'source'), catalog);
+  assert.deepEqual(current(cold).intentDrafts[0], row);
+  const unchanged = cold.get(),
+    bytes = fs.readFileSync(cold.file);
+  assert.throws(() => commit(cold, row), /收集数量/);
+  assert.deepEqual(cold.get(), unchanged);
+  assert.deepEqual(fs.readFileSync(cold.file), bytes);
+  for (const quantity of ['0', '1.5', '1000', '1e2', 'Infinity']) {
+    cold.mutate({
+      type: 'intent-draft-put',
+      id: row.id,
+      kind: row.kind,
+      targetId: row.targetId,
+      context: {},
+      values: { ...row.values, quantity },
+      expectedRevision: row.revision,
+    });
+    row = current(cold).intentDrafts[0];
+    assert.throws(() => commit(cold, row), /收集数量/);
+    assert.equal(current(cold).goals[0].source.quantity, 2);
+  }
+  cold.mutate({
+    type: 'intent-draft-put',
+    id: row.id,
+    kind: row.kind,
+    targetId: row.targetId,
+    context: {},
+    values: { ...row.values, quantity: '10' },
+    expectedRevision: row.revision,
+  });
+  row = current(cold).intentDrafts[0];
+  cold.mutate({ type: 'goal-edit', id: goal.id, title: goal.title, detail: goal.detail, quantity: 3 });
+  assert.throws(() => commit(cold, row), /原安排/);
+  assert.deepEqual(current(cold).intentDrafts[0], row);
+  cold.mutate({
+    type: 'intent-draft-rebase',
+    id: row.id,
+    expectedDraft: row,
+    expectedTarget: intentTarget(current(cold), 'goal', goal.id),
+  });
+  row = current(cold).intentDrafts[0];
+  commit(cold, row);
+  assert.deepEqual(current(cold).goals[0], { ...goal, source: { ...goal.source, quantity: 10 } });
+  const legacy = put(cold, {
+    id: 'old-text',
+    kind: 'goal',
+    targetId: goal.id,
+    context: {},
+    values: { title: goal.title, detail: '旧版文字草稿' },
+  });
+  commit(cold, legacy);
+  assert.equal(current(cold).goals[0].source.quantity, 10);
+  const invalidNew = put(cold, {
+    id: 'no-source',
+    kind: 'goal',
+    targetId: '',
+    context: {},
+    values: { title: '普通新目标', detail: '', quantity: '10' },
+  });
+  assert.throws(() => commit(cold, invalidNew), /原物品目标/);
+  assert.equal(current(cold).goals.length, 1);
+  row = put(cold, {
+    id: 'removed-target',
+    kind: 'goal',
+    targetId: goal.id,
+    context: {},
+    values: { title: goal.title, detail: '', quantity: '20' },
+  });
+  const saved = current(cold).goals[0];
+  cold.mutate({ type: 'goal-remove', id: goal.id, expectedRecord: saved });
+  assert.throws(() => commit(cold, row), /原安排/);
+  assert(current(cold).intentDrafts.some((r) => r.id === row.id));
+  const removed = current(cold).journeyTrash[0];
+  cold.mutate({ type: 'journey-trash-restore', id: removed.id, expectedTrash: removed });
+  assert.deepEqual(current(cold).goals[0], saved);
+});
+
 test('cold restart retains incomplete drafts without scheduling or allocating them; each explicit commit is atomic', (t) => {
   const { directory, store } = setup(t);
   const npc = game.entries.find((row) => row.kind === '人物').id,
@@ -166,6 +259,13 @@ test('itinerary commit still requires current trusted action and exact scene, no
 
 test('all seven drafts remain portable through a protection package and nested complete migration with exact original bytes', async (t) => {
   const { directory, store } = setup(t);
+  store.mutate({
+    type: 'goal-add',
+    title: '迁移的物品目标',
+    detail: '原说明',
+    source: { type: 'database', id: 'item-1000', quantity: 10 },
+  });
+  const itemGoal = current(store).goals[0];
   const actionId = 'journey:quest:' + 'a'.repeat(32),
     recipe = game.entries.find((r) => r.kind === '配方').id;
   const specs = [
@@ -180,9 +280,9 @@ test('all seven drafts remain portable through a protection package and nested c
     {
       id: 'portable-goal',
       kind: 'goal',
-      targetId: '',
+      targetId: itemGoal.id,
       context: {},
-      values: { title: '', detail: '未提交目标说明' },
+      values: { title: '', detail: '未提交目标说明', quantity: '12' },
     },
     {
       id: 'portable-craft',
@@ -238,6 +338,7 @@ test('all seven drafts remain portable through a protection package and nested c
   const received = await archives.import(single);
   const history = await archives.history(received.id, receivedStore);
   assert.deepEqual(history.journal.profiles[0].intentDrafts, original);
+  assert.deepEqual(history.journal.profiles[0].goals, [itemGoal]);
   assert.equal(history.journal.profiles[0].referenceMode, 'none');
   const bundle = path.join(directory, 'nested.yijian-protection');
   await complete.exportComplete({ dataRoot: receiver, store: receivedStore, archives, file: bundle });
@@ -250,6 +351,7 @@ test('all seven drafts remain portable through a protection package and nested c
     const entry = await finalArchives.history(archive.id, finalStore);
     if (entry.journal.profiles[0].intentDrafts?.length === 7) {
       assert.deepEqual(entry.journal.profiles[0].intentDrafts, original);
+      assert.deepEqual(entry.journal.profiles[0].goals, [itemGoal]);
       matched = true;
     }
   }

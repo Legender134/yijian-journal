@@ -134,6 +134,35 @@ function commit(p, id) {
   return applyIntentDraftCommand(p, guarded(p, 'intent-draft-commit', id));
 }
 
+test('optional collection draft quantity is bounded raw text until explicit commit and legacy goal values stay unchanged', () => {
+  const original = profile();
+  original.goals[0].source = { type: 'database', id: ITEM, quantity: 2 };
+  for (const quantity of ['', '...', '0', '1.5', '1000', '1e2']) {
+    const p = create(
+      original,
+      sample('goal', { targetId: 'goal-1', values: { title: '数量草稿', detail: '', quantity } }),
+    );
+    assert.equal(p.intentDrafts[0].values.quantity, quantity);
+    assert.throws(() => commit(p), /收集数量/);
+    assert.equal(p.goals[0].source.quantity, 2);
+  }
+  for (const quantity of [null, 10, true, {}, '1'.repeat(33)])
+    assert.throws(() =>
+      create(
+        original,
+        sample('goal', { targetId: 'goal-1', values: { title: '数量草稿', detail: '', quantity } }),
+      ),
+    );
+  const valid = create(
+    original,
+    sample('goal', { targetId: 'goal-1', values: { title: '数量草稿', detail: '', quantity: '999' } }),
+  );
+  assert.equal(commit(valid).intent.quantity, 999);
+  const legacy = create(original, sample('goal', { targetId: 'goal-1' }));
+  assert.equal(Object.hasOwn(commit(legacy).intent, 'quantity'), false);
+  assert.deepEqual(original.goals[0].source, { type: 'database', id: ITEM, quantity: 2 });
+});
+
 test('canonical fingerprints sort object keys, preserve arrays, and hash only JSON without invoking hooks', () => {
   const first = { z: [1, { b: false, a: null }], a: '逸剑', zero: -0 };
   const second = { zero: 0, a: '逸剑', z: [1, { a: null, b: false }] };

@@ -28,7 +28,7 @@ const valueShapes = {
     stockOnly: 'boolean',
     placeQuery: 100,
   },
-  goal: { title: 200, detail: 2000, placeId: 'place', placeQuery: 100 },
+  goal: { title: 200, detail: 2000, placeId: 'place', placeQuery: 100, quantity: 32 },
   'craft-plan': { name: 80, addGoal: 'boolean', reserved: 'boolean' },
   'itinerary-name': { name: 80 },
   'itinerary-choice': { placeId: 'place' },
@@ -193,7 +193,7 @@ function values(kind, value) {
   const shape = valueShapes[kind];
   // Earlier goal drafts only held text. Missing place fields must retain the
   // original goal's place; an explicit empty placeId is the user's removal.
-  const optional = kind === 'goal' ? ['placeId', 'placeQuery'] : [];
+  const optional = kind === 'goal' ? ['placeId', 'placeQuery', 'quantity'] : [];
   exact(
     value,
     Object.keys(shape).filter((key) => !optional.includes(key)),
@@ -294,11 +294,20 @@ function normalizedIntent(profile, row, target) {
     }
   } else if (kind === 'goal') {
     text(value.title, 200, '目标标题', false);
+    let quantity;
+    if (Object.hasOwn(value, 'quantity')) {
+      if (!targetId) throw Error('收集数量须编辑原物品目标');
+      const raw = value.quantity.trim();
+      quantity = Number(raw);
+      if (!/^\d+$/.test(raw) || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 999)
+        throw Error('收集数量须为 1 至 999 的整数');
+    }
     intent = {
       type: targetId ? 'goal-edit' : 'goal-add',
       ...(targetId ? { id: targetId } : {}),
       title: value.title,
       detail: value.detail,
+      ...(quantity !== undefined ? { quantity } : {}),
       ...(Object.hasOwn(value, 'placeId') ? { placeId: value.placeId } : {}),
     };
   } else if (kind === 'craft-plan') {

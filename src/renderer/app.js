@@ -154,7 +154,15 @@ function activateIntentEditor(kind, targetId, context = {}, row = null) {
     ?.insertAdjacentHTML(
       'beforeend',
       (['goal', 'journey-todo', 'journey-gift', 'craft-plan'].includes(kind)
-        ? act('intent-draft-copy', '另存为新草稿', 'text-btn', activeIntentEditor.id)
+        ? act(
+            'intent-draft-copy',
+            kind === 'goal' &&
+              (itemGoal(activeIntentEditor.expectedTarget) || Object.hasOwn(row?.values || {}, 'quantity'))
+              ? '另存此目标的编辑草稿'
+              : '另存为新草稿',
+            'text-btn',
+            activeIntentEditor.id,
+          )
         : '') +
         act('intent-draft-recheck', '重新核对原安排…', 'text-btn', activeIntentEditor.id) +
         act('intent-draft-discard', '放弃草稿…', 'text-btn', activeIntentEditor.id),
@@ -1819,6 +1827,9 @@ function libraryPage() {
 function entryCard(e) {
   return `<article class="entry-card" tabindex="0" role="button" aria-label="查看 ${esc(e.title)}" data-action="detail" data-id="${e.id}"><div class="entry-card-top"><div class="entry-avatar ${e.kind === '装备' || e.kind === '武学' ? 'equipment' : ''}">${e.kind === '队友' ? gameImages.person(e.title.split(' · ')[0]) || icon('person') : icon(kindIcon(e.kind))}</div>${iconButton('favorite', 'star', profile().favorites.includes(e.id) ? '取消收藏' : '收藏线索', e.id, `favorite ${profile().favorites.includes(e.id) ? 'on' : ''}`)}</div><h3>${esc(e.title)}</h3><p>${esc(e.hint)}</p><div class="entry-card-bottom"><span>${esc(e.location)}</span>${pill(e.kind)}</div></article>`;
 }
+function itemGoal(g) {
+  return g?.source?.type === 'database' && gameViews.byId(gameIndex, g.source.id)?.kind === '物品';
+}
 function personalGoal(g) {
   return (
     !g?.source ||
@@ -1844,7 +1855,7 @@ function goalRow(g) {
   const location = personalGoal(g)
     ? `<p class="small muted">${place ? '地点：' + esc(place.name) + ' · 场景 #' + place.gameId : '地点未定'}</p>${act('goal-place-edit', place ? '修改或移除地点' : '补充地点', 'text-btn', g.id, 'map')}`
     : '';
-  return `<div id="goal-${esc(g.id)}" class="goal-row ${done ? 'done' : ''}" tabindex="-1"><button id="goal-toggle-${esc(g.id)}" class="check ${done ? 'checked' : ''}" data-action="goal-toggle" data-id="${g.id}" ${progress.planDone ? 'disabled' : ''} aria-label="${progress.planDone ? '关联制作计划已完成，请先重新打开计划' : progress.automaticDone ? '保留为手动待办' : done ? '取消完成' : '完成目标'} ${esc(g.title)}">${done ? icon('check') : ''}</button><div class="spacer"><h3>${g.pinned ? '<span class="small muted">置顶 · </span>' : ''}${esc(g.title)}</h3>${tracking}${detail}${location}${g.source ? act('goal-source', g.source.type === 'planner' ? '重新核对备料清单' : g.source.type === 'quest' ? '查看任务资料与记录' : g.source.quantity ? '打开配方，重新核对材料' : '查看原资料', 'text-btn', g.id, 'arrow') : ''}</div>${iconButton('goal-pin', 'pin', g.pinned ? '取消置顶目标' : '置顶目标', g.id, g.pinned ? 'on' : '')}${iconButton('goal-edit', 'edit', '编辑目标', g.id)}${iconButton('goal-remove', 'trash', '删除目标', g.id)}</div>`;
+  return `<div id="goal-${esc(g.id)}" class="goal-row ${done ? 'done' : ''}" tabindex="-1"><button id="goal-toggle-${esc(g.id)}" class="check ${done ? 'checked' : ''}" data-action="goal-toggle" data-id="${g.id}" ${progress.planDone ? 'disabled' : ''} aria-label="${progress.planDone ? '关联制作计划已完成，请先重新打开计划' : progress.automaticDone ? '保留为手动待办' : done ? '取消完成' : '完成目标'} ${esc(g.title)}">${done ? icon('check') : ''}</button><div class="spacer"><h3>${g.pinned ? '<span class="small muted">置顶 · </span>' : ''}${esc(g.title)}</h3>${itemGoal(g) ? `<p class="small muted">收集数量：${g.source.quantity || 1} 件</p>` : ''}${tracking}${detail}${location}${g.source ? act('goal-source', g.source.type === 'planner' ? '重新核对备料清单' : g.source.type === 'quest' ? '查看任务资料与记录' : itemGoal(g) ? '查看物品原资料' : g.source.quantity ? '打开配方，重新核对材料' : '查看原资料', 'text-btn', g.id, 'arrow') : ''}</div>${iconButton('goal-pin', 'pin', g.pinned ? '取消置顶目标' : '置顶目标', g.id, g.pinned ? 'on' : '')}${iconButton('goal-edit', 'edit', '编辑目标', g.id)}${iconButton('goal-remove', 'trash', '删除目标', g.id)}</div>`;
 }
 function goalsPage() {
   const p = profile();
@@ -2597,23 +2608,30 @@ async function changeStage(id) {
 }
 function goalModal(id, savedDraft = null) {
   const g = id ? profile().goals.find((x) => x.id === id) : null;
-  journeyDraft = personalGoal(g)
-    ? {
-        kind: 'goal',
-        profileId: profile().id,
-        placePicker: {
-          selectedId: savedDraft?.values.placeId ?? g?.placeId ?? '',
-          query: savedDraft?.values.placeQuery || '',
-          page: 1,
-        },
-      }
-    : null;
+  const quantityField =
+    itemGoal(g) || Object.hasOwn(savedDraft?.values || {}, 'quantity')
+      ? `<div class="field"><label for="goal-quantity">收集数量（件）</label><input id="goal-quantity" type="number" min="1" max="999" step="1" required value="${g?.source?.quantity || 1}"><p class="save-note">${g ? '按这件物品的数量核对行程与持有参照；默认 1 件，完成状态仍由你管理。' : '原物品目标已移除，草稿仍保留；请先恢复原目标再重新核对，正式保存会更新原目标。'}</p></div>`
+      : '';
+  journeyDraft =
+    !quantityField && personalGoal(g)
+      ? {
+          kind: 'goal',
+          profileId: profile().id,
+          placePicker: {
+            selectedId: savedDraft?.values.placeId ?? g?.placeId ?? '',
+            query: savedDraft?.values.placeQuery || '',
+            page: 1,
+          },
+        }
+      : null;
   modal(
     g ? '编辑行囊目标' : '下一步，想做什么？',
     '一句明确的小目标，就足够开始下一次出发。',
     `<div class="field"><label for="goal-title">目标</label><input id="goal-title" maxlength="200" placeholder="例如：去青木舫，看看司马铃的新任务" value="${esc(g?.title || '')}"></div><div class="field"><label for="goal-detail">补充说明（可选）</label><textarea id="goal-detail" rows="4" maxlength="2000" placeholder="前置条件、需要准备的东西……">${esc(g?.detail || '')}</textarea></div>${journeyDraft ? placePicker.field(gameIndex, journeyDraft.placePicker, '目标地点（可选）') + '<p class="save-note">保存地点后，同一个目标会参与按地点行程，完成状态仍由原目标管理。选择「地点未定」可移除地点；不会从文字猜选，也不会合并同名待办。</p>' : ''}`,
     act('goal-save', g ? '保存修改' : '放进行囊', 'btn primary', g?.id || ''),
   );
+  if (quantityField)
+    document.querySelector('#goal-detail').closest('.field').insertAdjacentHTML('beforebegin', quantityField);
   document.querySelector('#goal-title')?.focus();
   if (savedDraft) writeIntentValues('goal', savedDraft.values, overlay);
   activateIntentEditor('goal', id || '', {}, savedDraft);
@@ -3180,15 +3198,51 @@ async function handle(action, id, target, navigationFocused = false) {
       const pending = pendingIntentDrafts.get(id),
         values = readIntentValues(editor.kind, editor.scope),
         newId = crypto.randomUUID();
+      const copiedTargetId =
+        editor.kind === 'goal' && (itemGoal(editor.expectedTarget) || Object.hasOwn(values, 'quantity'))
+          ? editor.targetId
+          : '';
+      const originalDraft = profile().intentDrafts?.find((row) => row.id === id);
+      if (copiedTargetId && !editor.expectedTarget)
+        throw Error('原物品目标已变化或删除，请先恢复原目标；草稿仍保留');
+      if (copiedTargetId && originalDraft) {
+        // Reopening an old draft previews the current target. Preserve its original
+        // Store fingerprint until the user explicitly rechecks that target.
+        const ordered = (value) =>
+          Array.isArray(value)
+            ? value.map(ordered)
+            : value && typeof value === 'object'
+              ? Object.fromEntries(
+                  Object.keys(value)
+                    .sort()
+                    .map((key) => [key, ordered(value[key])]),
+                )
+              : value;
+        const digest = await crypto.subtle.digest(
+          'SHA-256',
+          new TextEncoder().encode(JSON.stringify(ordered(editor.expectedTarget))),
+        );
+        const fingerprint = [...new Uint8Array(digest)]
+          .map((byte) => byte.toString(16).padStart(2, '0'))
+          .join('');
+        if (fingerprint !== originalDraft.targetFingerprint)
+          throw Error('原物品目标已变化或删除，请先重新核对；草稿仍保留');
+      }
+      if (
+        copiedTargetId &&
+        JSON.stringify(intentTarget(profile(), editor.kind, copiedTargetId, editor.context)) !==
+          JSON.stringify(editor.expectedTarget)
+      )
+        throw Error('原物品目标已变化或删除，请先重新核对；草稿仍保留');
       pendingIntentDrafts.set(newId, {
         type: 'intent-draft-put',
         id: newId,
         kind: editor.kind,
-        targetId: '',
+        targetId: copiedTargetId,
         context: structuredClone(editor.context),
         values,
         expectedRevision: 0,
-        expectedTarget: null,
+        expectedTarget: copiedTargetId ? structuredClone(editor.expectedTarget) : null,
         profileId: editor.profileId,
         signature: JSON.stringify(values),
         capturedAt: new Date().toISOString(),
@@ -3278,7 +3332,9 @@ async function handle(action, id, target, navigationFocused = false) {
         (current?.npcId ? '当前赠礼意图' : current ? '当前安排' : '原安排已不存在或尚未新建');
       modal(
         '重新核对原安排',
-        '确认后以现在的原安排为参照，保留草稿文字；仍需点击正式保存。原安排已删除时，个人待办、赠礼、目标和制作计划可另存为新草稿。',
+        row.kind === 'goal' && Object.hasOwn(row.values, 'quantity')
+          ? '确认后以现在的原物品目标为参照，保留数量与文字；仍需点击正式保存。原目标已移除时，请先从已移除的个人安排恢复原目标。'
+          : '确认后以现在的原安排为参照，保留草稿文字；仍需点击正式保存。原安排已删除时，个人待办、赠礼、目标和制作计划可另存为新草稿。',
         `<h3>${esc(currentName)}</h3><p class="preserve-text">${esc(current?.detail || current?.note || '')}</p>${intentDraftViews.detail(row, gameIndex)}`,
         act('intent-draft-recheck-confirm', '以当前安排重新核对', 'btn primary', id),
       );

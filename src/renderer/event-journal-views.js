@@ -470,7 +470,12 @@ export function createEventJournalViews({
             index,
             sources,
           );
-          return `<div class="row between journal-reference-chip"><span><small>${esc(LINK_LABELS[type] || '资料')}</small> · ${esc(title)}${original?.detached ? ' · 原关联已移除' : ''}</span><button type="button" class="text-btn" data-action="journal-reference-remove" data-id="${esc(key)}" aria-label="${esc('移除 ' + (LINK_LABELS[type] || '资料') + ' · ' + title + (original?.detached ? ' · 原关联已移除' : ''))}">移除</button></div>`;
+          const memo =
+            current && ['goal', 'todo', 'gift', 'craft-plan'].includes(type)
+              ? current.detail || current.note || ''
+              : '';
+          const context = memo ? '当前备忘：' + memo : '';
+          return `<div class="row between journal-reference-chip"><span><small>${esc(LINK_LABELS[type] || '资料')}</small> · ${esc(title)}${original?.detached ? ' · 原关联已移除' : ''}${context ? `<small class="preserve-text muted">${esc(context)}</small>` : ''}</span><button type="button" class="text-btn" data-action="journal-reference-remove" data-id="${esc(key)}" aria-label="${esc('移除 ' + (LINK_LABELS[type] || '资料') + ' · ' + title + (original?.detached ? ' · 原关联已移除' : '') + (context ? ' · ' + context : ''))}">移除</button></div>`;
         })
         .join('') || '<p class="small muted">尚未关联资料</p>'
     );
