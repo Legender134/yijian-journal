@@ -1332,7 +1332,12 @@ app.whenReady().then(async () => {
         noLink: true,
       });
       if (answer.response !== 1) return { cancelled: true };
-      const result = saves.restore(id, store.get().settings.savePath, () => bridge.canStop());
+      const source = store.get().settings.savePath;
+      const result = saves.restore(id, source, () => bridge.canStop());
+      resultFeedback(
+        'success',
+        `完整备份「${manifest.label}」已恢复 ${result.restored} 个文件；目标：${source.slice(0, 220)}；恢复前安全副本：${result.safetyId}`,
+      );
       broadcast('event', { type: 'backup', text: '存档恢复完成，恢复前副本已保留' });
       return { ...result, environment: overview() };
     });

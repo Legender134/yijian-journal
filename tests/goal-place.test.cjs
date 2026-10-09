@@ -376,6 +376,18 @@ test('read-only protection history shows each saved goal scene, preserves unknow
       { id: 'woods', title: '明早采药', placeId: 'place-22' },
       { id: 'unknown', title: '旧版未知地点', placeId: 'place-999999999' },
       { id: 'legacy', title: '旧目标无地点', detail: '计划前往梧桐村，尚未选择地点' },
+      {
+        id: 'counted-item',
+        title: '采药数量自定',
+        source: { type: 'database', id: 'item-100', quantity: 37 },
+      },
+      { id: 'legacy-item', title: '旧物品数量', source: { type: 'database', id: 'item-100' } },
+      {
+        id: 'counted-recipe',
+        title: '配方自定标题',
+        source: { type: 'database', id: 'fusion-1000', quantity: 9 },
+      },
+      { id: 'legacy-recipe', title: '旧配方次数', source: { type: 'database', id: 'alchemy-100' } },
     ],
     journey: {
       todos: [{ id: 'todo', title: '待办', placeId: PLACE }],
@@ -401,6 +413,10 @@ test('read-only protection history shows each saved goal scene, preserves unknow
   assert.ok(goals.includes('野猪林 · 场景 #22'));
   assert.ok(goals.includes('旧版未知地点 · place-999999999 · 场景 #999999999'));
   assert.match(goals, /旧目标无地点<br>计划前往梧桐村，尚未选择地点<\/p>/);
+  assert.match(goals, /采药数量自定<br>收集数量：37 件/);
+  assert.match(goals, /旧物品数量<br>收集数量：1 件/);
+  assert.match(goals, /配方自定标题<br>配方次数：9 次/);
+  assert.match(goals, /旧配方次数<br>配方次数：1 次/);
   assert.ok(!goals.includes('<script>'));
   assert.ok(!goals.includes('<img'));
   assert.ok(goals.includes('&lt;script&gt;明早采药&lt;/script&gt;'));
