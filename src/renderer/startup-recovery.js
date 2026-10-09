@@ -40,7 +40,7 @@ function showPreview(value) {
   list.replaceChildren();
   for (const profile of value.profiles) {
     const item = document.createElement('li');
-    item.textContent = `${profile.name} · ${profile.goals} 项目标 · ${profile.entries} 条江湖记录 · ${profile.recordVersions ?? 0} 份记录旧版本 · ${profile.drafts} 份草稿（记录） · ${profile.arrangementDrafts} 份安排草稿 · ${profile.deletedEntries} 条已删除记录 · ${profile.removedArrangements} 项已移除安排`;
+    item.textContent = `${profile.name} · ${profile.goals} 项目标 · ${profile.entries} 条江湖记录 · ${profile.recordVersions ?? 0} 份记录旧版本 · ${profile.noteVersions ?? 0} 份随手记旧内容 · ${profile.drafts} 份草稿（记录） · ${profile.arrangementDrafts} 份安排草稿 · ${profile.deletedEntries} 条已删除记录 · ${profile.removedArrangements} 项已移除安排`;
     list.append(item);
   }
   document.getElementById('ignored').textContent =

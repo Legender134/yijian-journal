@@ -2436,6 +2436,12 @@ kbd {
   line-height: 1.9;
   font-size: 12px;
 }
+[data-note-history] .preserve-text,
+[data-note-restore-preview] .preserve-text,
+[data-historical-note-revisions] .preserve-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .related-items {
   display: flex;
   gap: 8px;

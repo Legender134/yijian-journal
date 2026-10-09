@@ -192,7 +192,12 @@ async function exportCollection({ components, file }) {
     await output.sync();
     await output.close();
     await scanCollection({ file: temporary });
-    await fs.link(temporary, target);
+    try {
+      await fs.link(temporary, target);
+    } catch (error) {
+      if (error.code === 'EEXIST') error.protectionOutput = target;
+      throw error;
+    }
     return {
       file: target,
       packageHash: footer.toString('hex'),

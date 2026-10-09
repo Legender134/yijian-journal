@@ -337,7 +337,12 @@ async function exportCompleteAttempt({
     // Exclusive mkdir/link cannot overwrite an existing user's file or folder.
     const directory = path.resolve(file) + '.parts';
     archives.assertSeparated(directory);
-    await fs.mkdir(directory, { mode: 0o700 });
+    try {
+      await fs.mkdir(directory, { mode: 0o700 });
+    } catch (error) {
+      if (error.code === 'EEXIST') error.protectionOutput = directory;
+      throw error;
+    }
     try {
       for (const part of prepared) await fs.link(part.source, path.join(directory, part.name));
       const receipt = {
@@ -371,8 +376,28 @@ async function exportCompleteAttempt({
   }
 }
 async function exportComplete(options) {
-  if (options.recordResult !== true) return exportCompleteAttempt(options);
   const { dataRoot, file } = options;
+  async function attempt() {
+    try {
+      return await exportCompleteAttempt(options);
+    } catch (error) {
+      const target = path.resolve(file);
+      // Only collisions at an actual final publication point carry this marker.
+      // EEXIST from staging or source IO must retain its original classification.
+      if (error.code === 'EEXIST' && [target, target + '.parts'].includes(error.protectionOutput))
+        throw Object.assign(
+          Error('完整保护资料未导出：目标已存在，请另选新文件名后重试；原文件已保留，未被覆盖。'),
+          {
+            code: 'PROTECTION_EXPORT_TARGET_EXISTS',
+            file: error.protectionOutput,
+            diagnostic: error.message,
+            cause: error,
+          },
+        );
+      throw error;
+    }
+  }
+  if (options.recordResult !== true) return attempt();
   try {
     options.archives.assertSeparated(path.join(dataRoot, 'protection-export-result.json'));
     // Persist the attempt before collection or publication, so a recording IO
@@ -403,20 +428,20 @@ async function exportComplete(options) {
   }
   let result;
   try {
-    result = await exportCompleteAttempt(options);
+    result = await attempt();
   } catch (error) {
     const failure = {
       status: 'failed',
-      file: path.resolve(file),
+      file: error.code === 'PROTECTION_EXPORT_TARGET_EXISTS' ? error.file : path.resolve(file),
       code: error.code || 'PROTECTION_EXPORT_FAILED',
       message: error.message,
+      ...(error.diagnostic ? { diagnostic: error.diagnostic } : {}),
       ...(error.backupId
         ? {
             backupId: error.backupId,
             directory: error.directory,
             reasonCode: error.reasonCode,
             reason: error.reason,
-            diagnostic: error.diagnostic,
           }
         : {}),
     };
