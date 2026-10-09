@@ -520,7 +520,15 @@ class Store {
         p.allocations = (p.allocations || []).filter((a) => a.questId !== command.questId);
         break;
       case 'craft-remove':
-        p.craftList = (p.craftList || []).filter((line) => line.id !== command.id);
+        if ((p.craftList || []).some((line) => line.id === command.id)) {
+          p.previousCraftList = clone(p.craftList);
+          p.previousCraftChoices = clone(p.craftChoices || {});
+          p.previousCraftContext = {
+            reserveCraftDraft: p.reserveCraftDraft !== false,
+            ...(p.activeCraftPlanId ? { activeCraftPlanId: p.activeCraftPlanId } : {}),
+          };
+          p.craftList = p.craftList.filter((line) => line.id !== command.id);
+        }
         break;
       case 'resource-priority-set': {
         validateResourcePriority(command.order);

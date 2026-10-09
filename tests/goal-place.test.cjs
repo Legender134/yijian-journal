@@ -271,3 +271,76 @@ test('protection and complete migration preserve goal places, pending changes, r
   assert(matched);
   assert.deepEqual(fs.readFileSync(store.file), bytes);
 });
+
+test('read-only protection history shows each saved goal scene, preserves unknown IDs and never infers a legacy place', async () => {
+  const { createProtectionViews } = await import(
+    'data:text/javascript;base64,' +
+      fs.readFileSync(path.join(__dirname, '../src/renderer/protection-views.js')).toString('base64')
+  );
+  const esc = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+    );
+  const factory = createProtectionViews({
+    backupViews: { page: () => '' },
+    journalPage: () => '',
+    historyBackupView: {},
+    esc,
+    act: () => '',
+    pill: esc,
+    notice: esc,
+    empty: esc,
+    when: esc,
+    name: (id) => (id === 'place-14' ? '<b>碗子山</b> & "地点"' : world.maps.find((m) => m.id === id)?.name),
+  });
+  const p = {
+    id: 'historical',
+    name: '历史周目',
+    notes: '',
+    craftPlans: [],
+    goals: [
+      { id: 'village-a', title: '同名村中采药', detail: '带上空行囊', placeId: PLACE, done: false },
+      { id: 'village-b', title: '同名村中采药', detail: '带上空行囊', placeId: OTHER, done: true },
+      {
+        id: 'mountain',
+        title: '<script>明早采药</script>',
+        detail: '<img src=x> & 原说明',
+        placeId: 'place-14',
+      },
+      { id: 'woods', title: '明早采药', placeId: 'place-22' },
+      { id: 'unknown', title: '旧版未知地点', placeId: 'place-999999999' },
+      { id: 'legacy', title: '旧目标无地点', detail: '计划前往梧桐村，尚未选择地点' },
+    ],
+    journey: {
+      todos: [{ id: 'todo', title: '待办', placeId: PLACE }],
+      gifts: [{ id: 'gift', npcId: 'npc-0', itemId: 'item-1006', quantity: 1, placeId: OTHER }],
+      places: [],
+      handledActionIds: [],
+    },
+  };
+  const history = {
+    id: 'synthetic-history',
+    createdAt: '2026-10-09T08:00:00.000Z',
+    compatible: true,
+    journal: { profiles: [p] },
+    backups: [],
+    timeline: { records: [] },
+  };
+  const before = structuredClone(history);
+  const html = factory.page({ history, archives: [], loaded: true });
+  const goals = html.match(/<summary>目标记录<\/summary>(.*?)<\/details>/s)[1];
+  assert.match(goals, /○ 同名村中采药 · 梧桐村 · 场景 #9<br>带上空行囊/);
+  assert.match(goals, /✓ 同名村中采药 · 梧桐村 · 场景 #10<br>带上空行囊/);
+  assert.ok(goals.includes('&lt;b&gt;碗子山&lt;/b&gt; &amp; &quot;地点&quot; · 场景 #14'));
+  assert.ok(goals.includes('野猪林 · 场景 #22'));
+  assert.ok(goals.includes('旧版未知地点 · place-999999999 · 场景 #999999999'));
+  assert.match(goals, /旧目标无地点<br>计划前往梧桐村，尚未选择地点<\/p>/);
+  assert.ok(!goals.includes('<script>'));
+  assert.ok(!goals.includes('<img'));
+  assert.ok(goals.includes('&lt;script&gt;明早采药&lt;/script&gt;'));
+  assert.ok(goals.includes('&lt;img src=x&gt; &amp; 原说明'));
+  assert.ok(html.includes('待办 · 梧桐村 · 场景 #9'));
+  assert.ok(html.includes('item-1006 × 1 · 梧桐村 · 场景 #10'));
+  assert.deepEqual(history, before);
+});

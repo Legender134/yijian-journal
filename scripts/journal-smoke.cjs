@@ -32,6 +32,16 @@ const goalId = store.get().profiles[0].goals[0].id;
 for (let i = 1; i <= 22; i++)
   store.mutate({ type: 'goal-add', title: '同名出发备药', detail: '关联备忘' + String(i).padStart(2, '0') });
 const lastReferenceId = store.get().profiles[0].goals.find((g) => g.detail === '关联备忘22').id;
+const goalScenes = [
+  { placeId: 'place-14', label: '碗子山 · 场景 #14' },
+  { placeId: 'place-22', label: '野猪林 · 场景 #22' },
+];
+for (const scene of goalScenes) {
+  store.mutate({ type: 'goal-add', title: '明早采药', detail: '带上空行囊', placeId: scene.placeId });
+  scene.id = store
+    .get()
+    .profiles[0].goals.find((g) => g.title === '明早采药' && g.placeId === scene.placeId).id;
+}
 const saves = new Saves(path.join(userData, 'save-backups'));
 const backup = saves.capture(source, '界面筛选保护点');
 const firstBody = '\n\n清霄道长提到武当，先记下与卫霍的约定。\n  原文 <literal> & 尾部  ';
@@ -141,6 +151,40 @@ async function nav(page, id) {
         assert.equal(await page.locator('#journal-body').inputValue(), firstBody);
         assert.equal(await page.locator('#journal-tags').inputValue(), '人物，武当');
         checks.push('22 个同名个人目标全部可翻页关联，说明可辨认和检索，键盘翻页保留正文、标签与已选关联');
+        await page.locator('#journal-reference-query').fill('明早采药');
+        assert.equal(await results.locator('[data-action="journal-reference-add"]').count(), 2);
+        for (const scene of goalScenes) {
+          assert((await results.innerText()).includes('明早采药 · ' + scene.label));
+          await results
+            .getByRole('button', {
+              name: '关联 目标 · 明早采药 · ' + scene.label + ' · 带上空行囊',
+              exact: true,
+            })
+            .click();
+          await page
+            .locator('#journal-selected-references')
+            .getByRole('button', { name: '移除 目标 · 明早采药 · ' + scene.label, exact: true })
+            .waitFor();
+        }
+        await page.locator('#journal-reference-query').fill('莫问授剑');
+        assert.equal(await results.locator('[data-action="journal-reference-add"]').count(), 3);
+        for (const id of [5230, 9010, 9011]) {
+          await results
+            .getByRole('button', { name: '关联 任务 · 莫问授剑 · 任务 #' + id, exact: true })
+            .click();
+          await page
+            .locator('#journal-selected-references')
+            .getByRole('button', { name: '移除 任务 · 莫问授剑 · 任务 #' + id, exact: true })
+            .waitFor();
+        }
+        assert.equal(
+          await page.locator('#journal-selected-references [data-action="journal-reference-remove"]').count(),
+          8,
+        );
+        const referenceKeys = (await page.locator('#journal-links').inputValue()).split('\n');
+        for (const scene of goalScenes) assert(referenceKeys.includes('goal:' + scene.id));
+        for (const id of [5230, 9010, 9011]) assert(referenceKeys.includes('quest:quest-' + id));
+        checks.push('同名不同地点目标与三个莫问授剑任务在候选、已选及按钮可访问名称中可辨认，关联值仍为原ID');
         await page.locator('#journal-snapshot').selectOption('selected');
         await page.screenshot({ path: path.join(base, 'test-results', 'journal-editor.png') });
       }
@@ -151,6 +195,16 @@ async function nav(page, id) {
     assert.equal(p.notes, '旧版随手记，不能覆盖或拆散。');
     assert.equal(p.journalEntries[0].snapshot.name, '1.sav');
     assert.equal(p.journalEntries[0].links[0].label, '人物 · 卫霍');
+    for (const scene of goalScenes)
+      assert.deepEqual(
+        p.journalEntries[0].links.find((link) => link.id === scene.id),
+        { type: 'goal', id: scene.id, label: '明早采药' },
+      );
+    for (const id of [5230, 9010, 9011])
+      assert.deepEqual(
+        p.journalEntries[0].links.find((link) => link.id === 'quest-' + id),
+        { type: 'quest', id: 'quest-' + id, label: '莫问授剑' },
+      );
     await page.locator('[data-action="search"]').click();
     await page.locator('#global-search').fill('卫霍');
     const original = page
@@ -223,6 +277,17 @@ async function nav(page, id) {
       .locator('summary')
       .first()
       .click();
+    const historicalProfile = page
+      .locator('[data-action="protection-journal-profile"]')
+      .locator('xpath=ancestor::details[1]');
+    await historicalProfile
+      .locator('summary')
+      .filter({ hasText: /^目标记录$/ })
+      .click();
+    for (const scene of goalScenes)
+      assert((await historicalProfile.innerText()).includes('明早采药 · ' + scene.label));
+    assert.deepEqual((await current(page)).goals, p.goals);
+    checks.push('只读档案在使用历史手札前显示两条目标各自保存的地点与场景，当前目标保持原样');
     await page.locator('[data-action="protection-journal-profile"]').click();
     await page.locator('#historical-journal-search').fill('今晚准备白芍');
     await page.locator('[data-action="historical-journal-filter"]').click();

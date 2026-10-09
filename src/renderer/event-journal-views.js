@@ -71,6 +71,12 @@ function rowLabel(type, row, profile, index, sources = tables(profile, index)) {
   }
   if (type === 'place')
     return `${row.name || row.title || row.id} · 场景 #${row.gameId ?? String(row.id).slice(6)}`;
+  if (type === 'quest')
+    return `${row.title || row.name || row.id} · 任务 #${row.gameId ?? String(row.id).replace(/^quest-/, '')}`;
+  if (type === 'goal' && row.placeId) {
+    const place = byId(sources.place, row.placeId) || { id: row.placeId };
+    return `${row.title || row.name || row.id} · ${rowLabel('place', place, profile, index, sources)}`;
+  }
   if (type === 'gift') {
     const entries = index.entries || index.game?.entries || [];
     return `${giftPersonLabel(byId(sources.database, row.npcId), entries) || row.npcId} · ${giftItemLabel(byId(sources.database, row.itemId)) || row.itemId} × ${row.quantity}`.slice(
@@ -83,7 +89,7 @@ function rowLabel(type, row, profile, index, sources = tables(profile, index)) {
 function referenceLabel(link, profile, index, sources = tables(profile, index)) {
   if (link.type === 'place') return placeLabel(link.label, link.id);
   const current = link.detached ? null : byId(sources[link.type], link.id);
-  if (current && ['database', 'gift'].includes(link.type)) {
+  if (current && ['database', 'gift', 'goal', 'quest'].includes(link.type)) {
     const identity = rowLabel(link.type, current, profile, index, sources);
     const suffix = ` · 当前资料：${identity}`;
     if (link.label !== identity && !link.label.endsWith(suffix)) return link.label + suffix;
@@ -441,7 +447,7 @@ export function createEventJournalViews({
         .slice((page - 1) * JOURNAL_PAGE_SIZE, page * JOURNAL_PAGE_SIZE)
         .map(
           (choice) =>
-            `<div class="row between journal-reference-choice"><span class="spacer">${esc(LINK_LABELS[choice.type])} · ${esc(choice.label)}${choice.detail ? `<small class="preserve-text muted">${esc(choice.detail)}</small>` : ''}</span>${act('journal-reference-add', '关联', 'text-btn', `${choice.type}:${choice.id}`, 'plus')}</div>`,
+            `<div class="row between journal-reference-choice"><span class="spacer">${esc(LINK_LABELS[choice.type])} · ${esc(choice.label)}${choice.detail ? `<small class="preserve-text muted">${esc(choice.detail)}</small>` : ''}</span><button type="button" class="text-btn" data-action="journal-reference-add" data-id="${esc(choice.type + ':' + choice.id)}" aria-label="${esc('关联 ' + LINK_LABELS[choice.type] + ' · ' + choice.label + (choice.detail ? ' · ' + choice.detail : ''))}">${icon('plus')}关联</button></div>`,
         )
         .join('')
     );
@@ -464,7 +470,7 @@ export function createEventJournalViews({
             index,
             sources,
           );
-          return `<div class="row between journal-reference-chip"><span><small>${esc(LINK_LABELS[type] || '资料')}</small> · ${esc(title)}${original?.detached ? ' · 原关联已移除' : ''}</span>${act('journal-reference-remove', '移除', 'text-btn', key)}</div>`;
+          return `<div class="row between journal-reference-chip"><span><small>${esc(LINK_LABELS[type] || '资料')}</small> · ${esc(title)}${original?.detached ? ' · 原关联已移除' : ''}</span><button type="button" class="text-btn" data-action="journal-reference-remove" data-id="${esc(key)}" aria-label="${esc('移除 ' + (LINK_LABELS[type] || '资料') + ' · ' + title + (original?.detached ? ' · 原关联已移除' : ''))}">移除</button></div>`;
         })
         .join('') || '<p class="small muted">尚未关联资料</p>'
     );
