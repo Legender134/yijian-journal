@@ -203,6 +203,43 @@ async function multiPlanFlow(page) {
     assert.equal(await todo.count(), 0);
     await page.locator('[data-action="journey-show-completed"]').click();
     assert.match(await todo.innerText(), /手动已处理/);
+    const recoveryReadability = await todo.locator('[data-action="journey-handle"]').evaluate((button) => {
+      const rgb = (color) => (color.match(/[\d.]+/g) || []).map(Number);
+      const blend = (color, background, alpha = color[3] ?? 1) =>
+        color.slice(0, 3).map((v, i) => v * alpha + background[i] * (1 - alpha));
+      const luminance = (color) =>
+        color
+          .map((v) => {
+            v /= 255;
+            return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+          })
+          .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const ancestors = [];
+      for (let el = button; el; el = el.parentElement) ancestors.unshift(el);
+      const group = button.closest('.journey-action');
+      let background = [255, 255, 255],
+        behind;
+      for (const el of ancestors) {
+        if (el === group) behind = [...background];
+        background = blend(rgb(getComputedStyle(el).backgroundColor), background);
+      }
+      const opacity = Number(getComputedStyle(group).opacity),
+        foreground = blend(rgb(getComputedStyle(button).color), background);
+      const levels = [
+        luminance(blend(foreground, behind, opacity)),
+        luminance(blend(background, behind, opacity)),
+      ].sort((a, b) => b - a);
+      return {
+        text: button.textContent.trim(),
+        enabled: !button.disabled,
+        contrast: (levels[0] + 0.05) / (levels[1] + 0.05),
+      };
+    });
+    assert(
+      recoveryReadability.enabled && recoveryReadability.contrast >= 4.5,
+      JSON.stringify(recoveryReadability),
+    );
+    await page.screenshot({ path: path.join(data, 'handled-recovery-readable.png') });
     await todo.locator('[data-action="journey-handle"]').click();
     assert.match(await todo.innerText(), /个人待办/);
     checks.push('带地点个人待办持久保存、转义、处理与撤回，和游戏完成分开');
