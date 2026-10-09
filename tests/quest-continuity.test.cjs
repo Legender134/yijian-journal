@@ -99,6 +99,29 @@ test('a completed child continues to an explicit PreQuest successor without inhe
   assert.equal(planner.journeyPlan(p, ref([root, child], 'older')).itinerary.steps[0].status, 'handled');
 });
 
+test('an unconfirmed scene never silently adopts a successor but permits an explicit step choice', () => {
+  let p = select(profile(), 'quest-11077', ref([root]));
+  const original = structuredClone(p.journey.itinerary.steps[0]);
+  const r = ref([root, child]);
+  const plan = journeyPlan(p, r);
+  assert.equal(plan.itinerary.next.continuation.kind, 'choice-required');
+  assert.equal(plan.itinerary.next.action, null);
+  const targetId = stableId('quest', ['quest-11078']);
+  p.journey = applyJourneyCommand(
+    p.journey,
+    { type: 'journey-itinerary-continue', id: original.actionId, targetId },
+    { actions: plan.actions, itinerarySteps: plan.itinerary.steps },
+  );
+  const step = journeyPlan(p, r).itinerary.next;
+  assert.equal(step.action.questId, 'quest-11078');
+  assert.equal(step.continuation.kind, 'selected');
+  assert.equal(step.placePending, true);
+  assert.equal(step.selectedPlace, null);
+  assert.equal(step.status, 'pending');
+  assert.deepEqual(p.journey.itinerary.steps[0], { ...original, continuationId: targetId });
+  validateItinerary(JSON.parse(JSON.stringify(p.journey.itinerary)));
+});
+
 test('multiple active steps require an explicit trusted choice, retaining the original pointer and queue', () => {
   const { planner } = fixture();
   let p = select(profile(), 'quest-11077', ref([root]), 'place-13', planner);

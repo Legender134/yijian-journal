@@ -1,16 +1,13 @@
 'use strict';
 const test = require('node:test'),
   assert = require('node:assert/strict');
-const fs = require('node:fs'),
-  path = require('node:path');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { defaults } = require('../src/core/store.cjs');
 const { companionSnapshot } = require('../src/core/companion.cjs');
 const catalog = require('../src/data/catalog.cjs');
 const recipe = require('../src/data/game-index.json').entries.find((e) => e.id === 'fusion-1002');
-const views = import(
-  'data:text/javascript;base64,' +
-    fs.readFileSync(path.join(__dirname, '../src/renderer/companion-view.js')).toString('base64')
-);
+const views = import(pathToFileURL(path.join(__dirname, '../src/renderer/companion-view.js')).href);
 function fixture() {
   const state = defaults(),
     p = state.profiles[0],

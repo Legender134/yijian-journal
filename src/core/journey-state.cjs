@@ -217,7 +217,7 @@ function createJourneyStateTools({ world: worldIndex, game: gameIndex }) {
         if (command.placeId !== undefined) {
           placeId(command.placeId);
           if (!candidates.includes(command.placeId)) throw Error('所选场景不属于这项行动的地点线索');
-        } else if (candidates.length) throw Error('请选择这项行动要去的确切资料场景');
+        }
         if (command.type === 'journey-itinerary-add') {
           if (at < 0) {
             if (itinerary.steps.length >= MAX_ITINERARY_STEPS) throw Error('本次行程最多选择 100 项行动');

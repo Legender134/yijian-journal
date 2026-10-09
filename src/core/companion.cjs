@@ -60,7 +60,7 @@ function companionSnapshot(state, catalog, reference, error = '') {
     hints.push({
       type: 'journey',
       id: itinerary.next.actionId,
-      title: `${itinerary.next.needsReview ? '需核对：' : '下一项：'}${itinerary.next.title}${itinerary.next.selectedPlace ? ' · ' + itinerary.next.selectedPlace.name : ''}`,
+      title: `${itinerary.next.needsReview ? '需核对：' : '下一项：'}${itinerary.next.title}${itinerary.next.placePending ? ' · ' + itinerary.next.placeLabel : itinerary.next.selectedPlace ? ' · ' + itinerary.next.selectedPlace.name : ''}`,
       label: itinerary.name,
     });
   if (goals[0] && hints.length < 2)

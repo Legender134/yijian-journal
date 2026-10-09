@@ -128,12 +128,51 @@ async function expandUndo() {
       await page.locator('[data-journey-id="' + id + '"] [data-action="journey-itinerary-add"]').click();
     const questCard = page.locator('[data-journey-id="' + q.id + '"]');
     await questCard.locator('[data-action="journey-itinerary-add"]').click();
-    assert.equal((await current()).journey.itinerary.steps.length, 2);
+    await until(current, (p) => p.journey.itinerary.steps.length === 3, 'pending scene was not saved');
+    assert.equal(
+      Object.hasOwn(
+        (await current()).journey.itinerary.steps.find((s) => s.actionId === q.id),
+        'placeId',
+      ),
+      false,
+    );
+    assert.match(await row(q.id).innerText(), /场景待核定/);
+    for (let i = 0; i < 2; i++)
+      await row(q.id).locator('[data-action="journey-itinerary-move"][data-direction="up"]').click();
+    await until(current, (p) => p.journey.itinerary.steps[0].actionId === q.id, 'pending scene ordering');
+    await nav('home');
+    assert.match(await page.locator('[data-home-itinerary-next="' + q.id + '"]').innerText(), /场景待核定/);
+    await page.screenshot({
+      path: path.join(resultDir, 'session-scene-pending-home.png'),
+      animations: 'disabled',
+    });
+    await compact();
+    await next(companion, q.id);
+    assert.match(await companion.locator('[data-itinerary-next="' + q.id + '"]').innerText(), /场景待核定/);
+    await companion.screenshot({
+      path: path.join(resultDir, 'session-scene-pending-compact.png'),
+      animations: 'disabled',
+    });
+    await app.close();
+    await launch();
+    await nav('journey');
+    assert.equal((await current()).journey.itinerary.steps[0].actionId, q.id);
+    assert.equal((await plan()).itinerary.next.placePending, true);
+    assert.match(await row(q.id).innerText(), /场景待核定/);
     const chosenPlace = [...new Set(q.places.flatMap((p) => p.mapIds))][1];
     assert.ok(chosenPlace);
-    await questCard.locator('[data-itinerary-place]').selectOption(chosenPlace);
-    await questCard.locator('[data-action="journey-itinerary-add"]').click();
-    await until(current, (p) => p.journey.itinerary.steps.length === 3, 'selection did not persist');
+    await row(q.id).locator('summary').filter({ hasText: '更换本次场景' }).click();
+    await row(q.id).locator('[data-itinerary-place]').selectOption(chosenPlace);
+    await row(q.id).locator('[data-action="journey-itinerary-place"]').click();
+    await until(
+      current,
+      (p) => p.journey.itinerary.steps[0].placeId === chosenPlace,
+      'later exact scene did not persist',
+    );
+    for (let i = 0; i < 2; i++)
+      await row(q.id).locator('[data-action="journey-itinerary-move"][data-direction="down"]').click();
+    await until(current, (p) => p.journey.itinerary.steps[2].actionId === q.id, 'original order restored');
+    checks.push('多场景行动可先按场景待核定加入，首页/小窗与冷重启保留名称、顺序和来源，之后可补选确切场景');
     await row(a.id).locator('[data-action="journey-itinerary-move"][data-direction="down"]').click();
     await until(current, (p) => p.journey.itinerary.steps[0].actionId === b.id, 'ordering did not persist');
     await page.locator('[data-itinerary] summary').filter({ hasText: '调整名称' }).click();
@@ -146,7 +185,7 @@ async function expandUndo() {
     );
     await page.locator('[data-itinerary] [data-action="journey-itinerary-status"][data-id="active"]').click();
     await next(page, b.id);
-    checks.push('全部行动挑选、同名场景必选、去重、排序、默认名称与开始已持久化');
+    checks.push('全部行动挑选、场景选择、去重、排序、默认名称与开始已持久化');
     await page.screenshot({ path: path.join(resultDir, 'session-journey-main.png'), fullPage: true });
 
     await nav('home');
