@@ -487,6 +487,7 @@ let journalRemoveDraft = null;
 let journalTrashConfirmation = null;
 let journalRevisionConfirmation = null;
 let noteRestoreConfirmation = null;
+let backupRenameDraft = null;
 let historyJournalView = { query: '', from: '', to: '', kind: '', tag: '', page: 1 };
 function historyJournalProfile() {
   return protectionView.history?.journal.profiles.find((p) => p.id === protectionView.journalProfileId);
@@ -2364,6 +2365,25 @@ function showOverlay(html, drawer = false, preserve = false) {
   if (currentDrawer?.type === 'timeline') updateHealth(environment.health);
 }
 function dismissOverlay() {
+  const backup = backupRenameDraft;
+  if (backup && overlay.querySelector('[data-action="backup-rename-save"]')) {
+    backupRenameDraft = null;
+    const previousOverlay = overlay.firstChild;
+    call('inspectBackup', backup.id)
+      .then((current) => {
+        if (overlay.firstChild !== previousOverlay) return;
+        drawerHistory.splice(0, drawerHistory.length, ...backup.history);
+        showBackupPreview(current);
+        overlay.querySelector('[data-action="backup-rename"]')?.focus({ preventScroll: true });
+        overlay.querySelector('.drawer-body').scrollTop = backup.scroll;
+      })
+      .catch((error) => {
+        if (overlay.firstChild !== previousOverlay) return;
+        closeOverlay();
+        toast('无法重新打开备份预览：' + error.message, true);
+      });
+    return;
+  }
   const note = noteRestoreConfirmation;
   if (note && overlay.querySelector('[data-note-restore-preview]')) {
     noteRestoreConfirmation = null;
@@ -2392,6 +2412,7 @@ function dismissOverlay() {
   closeOverlay();
 }
 function closeOverlay() {
+  backupRenameDraft = null;
   noteRestoreConfirmation = null;
   journalRemoveDraft = null;
   journeyTrashConfirmation = null;
@@ -5128,6 +5149,14 @@ async function handle(action, id, target) {
       break;
     case 'backup-rename': {
       const b = environment.backups.find((b) => b.id === id);
+      backupRenameDraft =
+        currentDrawer?.type === 'backup' && currentDrawer.data.id === id
+          ? {
+              id,
+              scroll: overlay.querySelector('.drawer-body')?.scrollTop || 0,
+              history: [...drawerHistory],
+            }
+          : null;
       modal(
         '修改备份名称',
         '更改名称不会改变备份里的存档内容。',

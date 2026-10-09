@@ -31,6 +31,7 @@ module.exports = Object.freeze([
   'scripts/natural-planning-refresh-smoke.cjs',
   'scripts/quest-output-smoke.cjs',
   'scripts/backup-anomalies-smoke.cjs',
+  'scripts/backup-rename-context-smoke.cjs',
   'scripts/export-target-feedback-smoke.cjs',
   'scripts/startup-recovery-smoke.cjs',
   'scripts/startup-recovery-new-smoke.cjs',
