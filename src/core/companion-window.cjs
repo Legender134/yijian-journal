@@ -89,6 +89,15 @@ class CompanionWindow {
     this.update();
     return true;
   }
+  showEdits() {
+    // A failed exit must expose the window that still owns unsaved edits.
+    // Unlike the shortcut toggle, repeated requests keep it expanded.
+    this.mode = 'expanded';
+    this.wantFocus = true;
+    this.grace = Date.now() + 750;
+    this.ensure();
+    this.update();
+  }
   async collapse(restore = true) {
     const hwnd = this.returnHwnd;
     // Restore before disabling focus; the native helper checks the foreground again.

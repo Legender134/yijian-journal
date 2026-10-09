@@ -1,0 +1,251 @@
+'use strict';
+const fs = require('node:fs'),
+  path = require('node:path'),
+  assert = require('node:assert/strict');
+const base = path.resolve(__dirname, '..'),
+  { _electron } = require('playwright');
+const { Store } = require('../src/core/store.cjs'),
+  { Saves } = require('../src/core/saves.cjs');
+const { syntheticSave } = require('../tests/fixtures.cjs'),
+  catalog = require('../src/data/catalog.cjs');
+const complete = require('../src/core/complete-migration.cjs'),
+  { ProtectionArchives } = require('../src/core/protection-archives.cjs');
+const data = path.join(base, '.test-data', 'journal-ui-' + Date.now()),
+  userData = path.join(data, 'userdata'),
+  source = path.join(data, 'synthetic-SaveGames');
+const exported = path.join(data, '江湖记录备份.json'),
+  protection = path.join(data, '完整保护.yijian-protection');
+fs.mkdirSync(source, { recursive: true });
+fs.mkdirSync(path.join(base, 'test-results'), { recursive: true });
+fs.writeFileSync(
+  path.join(source, '1.sav'),
+  syntheticSave({ full: true, seconds: 9000, quests: [{ id: 5200, step: 1 }], inventory: [] }),
+);
+const old = new Date(Date.now() - 5000);
+fs.utimesSync(path.join(source, '1.sav'), old, old);
+const store = new Store(userData, catalog);
+store.setPath('savePath', source);
+store.mutate({ type: 'settings', value: { autoBackup: false } });
+store.mutate({ type: 'note', value: '旧版随手记，不能覆盖或拆散。' });
+store.mutate({ type: 'goal-add', title: '今晚准备白芍' });
+const goalId = store.get().profiles[0].goals[0].id;
+const saves = new Saves(path.join(userData, 'save-backups'));
+const backup = saves.capture(source, '界面筛选保护点');
+const checks = [],
+  errors = [];
+let app;
+async function current(page) {
+  const result = await page.evaluate(() => window.journal.bootstrap());
+  assert(result.ok, result.error);
+  return result.data.state.profiles.find((p) => p.id === result.data.state.activeProfileId);
+}
+async function until(page, predicate) {
+  const end = Date.now() + 5000;
+  while (Date.now() < end) {
+    const p = await current(page);
+    if (predicate(p)) return p;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw Error('record UI did not persist');
+}
+async function written(file, parse = false) {
+  const end = Date.now() + 8000;
+  while (Date.now() < end) {
+    try {
+      const value = fs.readFileSync(file);
+      if (value.length) return parse ? JSON.parse(value) : value;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  throw Error('export did not finish: ' + file);
+}
+async function nav(page, id) {
+  await page.locator('.nav-btn[data-id="' + id + '"]').click();
+}
+(async () => {
+  try {
+    const env = { ...process.env, YIJIAN_TEST_DATA: userData };
+    delete env.ELECTRON_RUN_AS_NODE;
+    app = await _electron.launch({
+      executablePath: process.env.YIJIAN_EXECUTABLE || require('electron'),
+      args: process.env.YIJIAN_EXECUTABLE ? [] : [base],
+      cwd: base,
+      env,
+    });
+    const page = await app.firstWindow();
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.waitForSelector('.nav-btn');
+    await nav(page, 'materials');
+    await page.locator('#craft-search').fill('精钢锭');
+    await page.locator('.craft-suggestions [data-action="craft-add"][data-id="fusion-9502"]').waitFor();
+    assert((await page.locator('.craft-picker').innerText()).includes('同名成品和生产配方优先'));
+    await page.locator('[data-action="craft-search-page"]').last().click();
+    assert((await page.locator('.craft-picker').innerText()).includes('第 2 /'));
+    checks.push('精确材料搜索优先生产配方，匹配结果分页可达');
+    await nav(page, 'journal');
+    for (const [i, title] of ['第一天见卫霍', '第二天重新安排'].entries()) {
+      await page.locator('[data-action="journal-entry-new"]').click();
+      await page.locator('#journal-title').fill(title);
+      await page
+        .locator('#journal-body')
+        .fill(i ? '今天仍未赠送，先去武当。' : '清霄道长提到武当，先记下与卫霍的约定。');
+      await page.locator('#journal-time').fill('2026-10-0' + (8 + i) + 'T10:30');
+      await page.locator('#journal-tags').fill('人物，武当');
+      await page.locator('#journal-reference-query').fill('卫霍');
+      await page.locator('[data-action="journal-reference-add"][data-id="database:npc-10047"]').click();
+      assert.equal(await page.locator('#journal-title').inputValue(), title);
+      if (!i) {
+        await page.locator('#journal-snapshot').selectOption('selected');
+        await page.screenshot({ path: path.join(base, 'test-results', 'journal-editor.png') });
+      }
+      await page.locator('[data-action="journal-entry-save"]').click();
+      await until(page, (p) => p.journalEntries?.filter((e) => e.kind === 'manual').length === i + 1);
+    }
+    let p = await current(page);
+    assert.equal(p.notes, '旧版随手记，不能覆盖或拆散。');
+    assert.equal(p.journalEntries[0].snapshot.name, '1.sav');
+    assert.equal(p.journalEntries[0].links[0].label, '人物 · 卫霍');
+    await page.locator('[data-action="search"]').click();
+    await page.locator('#global-search').fill('卫霍');
+    const original = page
+      .locator('.search-result[data-action="journal-entry-open"]')
+      .filter({ hasText: '第一天见卫霍' });
+    await original.click();
+    await page.locator('#overlay [data-journal-id="' + p.journalEntries[0].id + '"]').waitFor();
+    assert((await page.locator('#overlay').innerText()).includes('清霄道长'));
+    await page.locator('#overlay [data-action="close-overlay"]').click();
+    checks.push('逐事件记录有时间、标签、人物关联和只读参照；全局搜索直达原记录');
+    await nav(page, 'goals');
+    await page.locator('[data-action="goal-toggle"][data-id="' + goalId + '"]').click();
+    await until(page, (p) => p.journalEntries.some((e) => e.kind === 'goal-completed'));
+    await page.locator('[data-action="goal-toggle"][data-id="' + goalId + '"]').click();
+    await until(page, (p) => p.journalEntries.some((e) => e.kind === 'goal-reopened'));
+    await nav(page, 'journal');
+    await page.locator('#journal-kind').selectOption('manual');
+    await page.locator('[data-action="journal-filter"]').click();
+    assert.equal(await page.locator('article[data-journal-id]').count(), 2);
+    await app.evaluate(({ dialog }, file) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
+    }, exported);
+    await page.locator('[data-action="journal-export"]').click();
+    const archived = await written(exported, true);
+    assert.equal(archived.profiles[0].journalEntries.length, 4);
+    await page.locator('[data-action="journal-remove-filtered"]').click();
+    await page.locator('#overlay [data-action="close-overlay"]').first().click();
+    assert.equal((await current(page)).journalEntries.length, 4);
+    await page.locator('[data-action="journal-remove-filtered"]').click();
+    await page.locator('[data-action="journal-remove-filtered-confirm"]').click();
+    p = await until(page, (p) => p.journalEntries.length === 2);
+    assert.equal(p.goals[0].done, false);
+    assert(p.journalEntries.every((e) => e.kind !== 'manual'));
+    checks.push('完成与重开生成独立用户事件；精确筛选删除先确认并可取消，导出留底且目标状态保持');
+    await nav(page, 'saves');
+    await page.locator('#backup-search').fill('界面筛选保护点');
+    assert.equal(await page.locator('[data-action="backup-preview"]').count(), 1);
+    await page.locator('[data-action="backup-selection"][data-id="' + backup.id + '"]').check();
+    await app.evaluate(({ dialog }, file) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
+    }, protection);
+    await page.locator('[data-action="backup-export-selected"]').click();
+    await written(protection);
+    const archives = new ProtectionArchives(userData, () => source),
+      preview = await complete.previewComplete({ archives, file: protection });
+    assert.deepEqual(
+      preview.backups.map((b) => b.id),
+      [backup.id],
+    );
+    checks.push('完整备份按名称查找并精确分批导出，原副本保留');
+    // Archived event records are browsable without replacing the current journal.
+    await app.evaluate(({ dialog }, file) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
+      dialog.showMessageBox = async () => ({ response: 1 });
+    }, protection);
+    await page.locator('[data-action="protection-import"]').click();
+    await page.locator('[data-action="protection-journal-profile"]').waitFor({ state: 'attached' });
+    await page
+      .locator('[data-action="protection-journal-profile"]')
+      .locator('xpath=ancestor::details[1]')
+      .locator('summary')
+      .first()
+      .click();
+    await page.locator('[data-action="protection-journal-profile"]').click();
+    await page.locator('#historical-journal-search').fill('今晚准备白芍');
+    await page.locator('[data-action="historical-journal-filter"]').click();
+    const historyRecord = page
+      .locator('[data-action="historical-journal-entry-open"]')
+      .filter({ hasText: '完成目标' });
+    await historyRecord.first().click();
+    assert.equal(await page.locator('#overlay [data-action="journal-entry-edit"]').count(), 0);
+    assert.equal(await page.locator('#overlay [data-action="journal-entry-remove"]').count(), 0);
+    assert.equal((await current(page)).journalEntries.length, 2);
+    await page.locator('#overlay [data-action="close-overlay"]').click();
+    checks.push('旧档案逐条记录可检索、打开全文；只读浏览不会替换当前手札');
+    // Default safety locks, explicit unlock, export-before-cleanup and cancellation.
+    await nav(page, 'saves');
+    await page.locator('[data-action="backup-lock"][data-id="' + backup.id + '"]').click();
+    await page.locator('[data-action="backup-unlock"][data-id="' + backup.id + '"]').waitFor();
+    await app.evaluate(({ dialog }) => {
+      dialog.showMessageBox = async () => ({ response: 0 });
+    });
+    await page.locator('[data-action="backup-unlock"][data-id="' + backup.id + '"]').click();
+    assert.equal(
+      new Saves(path.join(userData, 'save-backups')).list().find((b) => b.id === backup.id).locked,
+      true,
+    );
+    await app.evaluate(({ dialog }) => {
+      dialog.showMessageBox = async () => ({ response: 1 });
+    });
+    await page.locator('[data-action="backup-unlock"][data-id="' + backup.id + '"]').click();
+    await page.locator('[data-action="backup-lock"][data-id="' + backup.id + '"]').waitFor();
+    const cancelledPackage = path.join(data, '清理取消留底.yijian-protection');
+    await app.evaluate(({ dialog }, file) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
+      dialog.showMessageBox = async () => ({ response: 0 });
+    }, cancelledPackage);
+    await page.locator('[data-action="backup-cleanup-selected"]').click();
+    await written(cancelledPackage);
+    await page.waitForFunction(
+      () => !document.querySelector('[data-action="backup-cleanup-selected"]')?.disabled,
+    );
+    assert(fs.existsSync(path.join(userData, 'save-backups', backup.id)));
+    const cleanupPackage = path.join(data, '清理确认留底.yijian-protection');
+    await app.evaluate(({ dialog }, file) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
+      dialog.showMessageBox = async () => ({ response: 1 });
+    }, cleanupPackage);
+    await page.locator('[data-action="backup-cleanup-selected"]').click();
+    await page.waitForFunction(() => !document.querySelector('[data-action="backup-preview"]'));
+    assert(!fs.existsSync(path.join(userData, 'save-backups', backup.id)));
+    const cleanupPreview = await complete.previewComplete({ archives, file: cleanupPackage });
+    assert.deepEqual(
+      cleanupPreview.backups.map((b) => b.id),
+      [backup.id],
+    );
+    assert(
+      fs
+        .readFileSync(path.join(source, '1.sav'))
+        .equals(syntheticSave({ full: true, seconds: 9000, quests: [{ id: 5200, step: 1 }], inventory: [] })),
+    );
+    checks.push('副本锁定、解锁取消和清理取消均保留原件；确认清理前导出留底，游戏文件字节不变');
+    await app.close();
+    app = null;
+    const restarted = new Store(userData, catalog).get().profiles[0];
+    assert.equal(restarted.journalEntries.length, 2);
+    assert.equal(restarted.notes, '旧版随手记，不能覆盖或拆散。');
+    assert.deepEqual(errors, []);
+    fs.writeFileSync(
+      path.join(base, 'test-results', 'journal-flows-ui-result.json'),
+      JSON.stringify({ status: 'PASS', checks, data, errors }, null, 2),
+    );
+    console.log(JSON.stringify({ status: 'PASS', checks, data }));
+  } catch (e) {
+    fs.writeFileSync(
+      path.join(base, 'test-results', 'journal-flows-ui-result.json'),
+      JSON.stringify({ status: 'FAIL', checks, data, errors, error: e.stack }, null, 2),
+    );
+    console.error(e);
+    process.exitCode = 1;
+  } finally {
+    if (app) await app.close();
+  }
+})();

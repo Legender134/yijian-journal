@@ -200,6 +200,7 @@ test('unrecoverable data is not silently replaced with a blank journal', (t) => 
 });
 test('import keeps local paths/settings and preserves the pre-import journal', (t) => {
   const s = new Store(temp(t), catalog);
+  s.mutate({ type: 'settings', value: { autoBackup: false } });
   s.setPath('savePath', 'C:/local/SaveGames');
   const imported = s.get();
   imported.profiles[0].name = '导入的周目';

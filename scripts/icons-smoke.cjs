@@ -2,9 +2,7 @@
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
-const {
-  _electron,
-} = require('playwright');
+const { _electron } = require('playwright');
 const { Store } = require('../src/core/store.cjs'),
   { sha } = require('../src/core/saves.cjs');
 const { syntheticSave } = require('../tests/fixtures.cjs');
@@ -25,7 +23,9 @@ fs.writeFileSync(
   }),
 );
 const before = sha(fs.readFileSync(save));
-new Store(data, catalog).setPath('savePath', source);
+const store = new Store(data, catalog);
+store.mutate({ type: 'settings', value: { autoBackup: false } });
+store.setPath('savePath', source);
 const report = { startedAt: new Date().toISOString(), checks: [], errors: [], externalRequests: [] };
 let app, win;
 async function launch() {
@@ -155,7 +155,7 @@ async function shot(name) {
     await win.locator('[data-action="craft-add"][data-id="fusion-1002"]').click();
     await win.locator('.craft-line').waitFor();
     await win.locator('[data-action="craft-calculate"]').click();
-    await win.locator('.craft-totals').waitFor();
+    await win.locator('.craft-totals').first().waitFor();
     await loaded('.craft-line .game-image');
     await loaded('.craft-materials .game-image');
     await shot('23-material-pictures');

@@ -36,6 +36,11 @@ export function createTimelineViews({ esc, icon, act, pill, notice, hours, bytes
   }
   function chip(h) {
     const t = h?.timeline;
+    const p = h?.protection;
+    if (p) {
+      const detail = p.detail + (p.at ? ' ' + time(p.at) : '');
+      return `<button class="save-health ${p.warning ? 'warning' : p.ready ? 'ready' : ''}" data-action="navigate" data-id="saves" title="${esc(detail + ' · ' + p.reason)}" aria-label="保存状态：${esc(p.label)}，${esc(detail)}">${icon(p.warning ? 'info' : 'shield')}<span>${esc(p.label)}<small>${esc(detail)}</small></span></button>`;
+    }
     const saved = t?.latest ? `最近保存 ${time(t.latest.at)}` : '尚无成功保存';
     return `<button class="save-health ${t?.error || t?.pending ? 'warning' : t?.enabled && t?.ready ? 'ready' : ''}" data-action="navigate" data-id="saves" title="${esc(saved + ' · ' + (t?.reason || '等待连接'))}" aria-label="保存状态：${esc(status(t))}，${esc(saved)}">${icon(t?.error || t?.pending ? 'info' : 'shield')}<span>${status(t)}<small>${esc(saved)}</small></span></button>`;
   }
@@ -68,6 +73,8 @@ export function createTimelineViews({ esc, icon, act, pill, notice, hours, bytes
   }
   function page(t, view = {}) {
     if (!t) return '';
+    if (t.indexError)
+      return `<section class="card timeline-card mb" aria-label="时间线需要核对"><div class="card-header"><h2>${icon('clock')} 时间线需要核对</h2>${pill('自动存读档已停止')}</div>${notice(t.error)}<p class="save-note">历史数量暂时无法核对。${view.recoveryBlocked ? '还存在待核对的完整存档恢复；核对之前不能更换目录或创建新备份。资料查询和查看已有副本仍可使用。' : '仍可重新选择有效存档目录，使用资料查询、存档回顾和完整备份。'}</p><p class="save-note">请先退出游戏，并保留历史目录中的原记录、上一份记录和历史存档副本；不要删除或重建记录来绕过核对。需要帮助时提供下方诊断文字，无需发送存档文件。</p><details><summary>查看时间线诊断</summary><p class="small mono preserve-text">${esc(t.recordPath)}${t.diagnostic ? '\n' + esc(t.diagnostic) : ''}</p></details><div class="row mt">${act('folder', '打开历史目录', 'btn', 'timeline', 'folder')}</div></section>`;
     const duplicate = new Map();
     for (const n of t.nodes) if (n.record) duplicate.set(n.record.id, (duplicate.get(n.record.id) || 0) + 1);
     const selected = view.target || 60;
@@ -87,7 +94,7 @@ export function createTimelineViews({ esc, icon, act, pill, notice, hours, bytes
       .map(node)
       .join(
         '',
-      )}</div><p class="save-note">暂停较久时，近处目标可能暂无记录；可直接查看最近可靠记录。返回入口保存的是最近一次读档前进度，每次读档会更新。想多次尝试同一选择，请先收藏尝试起点。</p><button class="btn" data-action="timeline-save" data-id="attempt" data-save-ready ${canAct ? '' : 'disabled'}>${icon('star')}留住本次尝试起点</button><p class="save-note">静默保存，不弹成功提示、不打开菜单。提供 11 个目标时间点，为持续接近这些时间，最多轮换 ${t.maxAutomaticRecords} 份自动候选，不保留每次保存。只使用目标时间之前的记录，偏差超限即不可用。10–50 秒档位允许偏差 15 秒；1/2/5/10/30/60 分钟分别允许 20/45/90/90/240/300 秒。推荐 10 秒间隔，调大间隔后较近档位可能不可用。</p><p class="save-note">游戏、手札需同时运行，菜单、战斗、对话及过场中暂停。专用 29 号手动槽请勿手动覆盖。仅能保存游戏允许保存的进度，不能从战斗中的任意一帧回退。</p>${history(t, view)}<details class="timeline-component"><summary>游戏接入组件</summary><div class="row between"><p class="small muted">${t.installed ? '官方 UE4SS 组件已接入' : '安装后请重新启动游戏'} · 已验证 Build 21798996</p><div class="row">${act('bridge-install', t.installed ? '更新组件' : '安装组件', 'btn', '', 'shield')}${act('bridge-disable', '停用接入', 'text-btn', '', 'close')}</div></div></details></section>`;
+      )}</div><p class="save-note">暂停较久时，近处目标可能暂无记录；可直接查看最近可靠记录。返回入口保存的是最近一次读档前进度，每次读档会更新。想多次尝试同一选择，请先收藏尝试起点。</p><button class="btn" data-action="timeline-save" data-id="attempt" data-save-ready ${canAct ? '' : 'disabled'}>${icon('star')}留住本次尝试起点</button><p class="save-note">静默保存，不弹成功提示、不打开菜单。提供 11 个目标时间点，为持续接近这些时间，最多轮换 ${t.maxAutomaticRecords} 份自动候选，不保留每次保存。只使用目标时间之前的记录，偏差超限即不可用。10–50 秒档位允许偏差 15 秒；1/2/5/10/30/60 分钟分别允许 20/45/90/90/240/300 秒。推荐 10 秒间隔，调大间隔后较近档位可能不可用。</p><p class="save-note">游戏、手札需同时运行，菜单、战斗、对话及过场中暂停。专用 29 号手动槽请勿手动覆盖。仅能保存游戏允许保存的进度，不能从战斗中的任意一帧回退。</p>${history(t, view)}<details class="timeline-component" data-persist-detail="timeline-component"><summary>游戏接入组件</summary><div class="row between"><p class="small muted">${t.installed ? '官方 UE4SS 组件已接入' : '安装后请重新启动游戏'} · 已验证 Build 21798996</p><div class="row">${act('bridge-install', t.installed ? '更新组件' : '安装组件', 'btn', '', 'shield')}${act('bridge-disable', '停用接入', 'text-btn', '', 'close')}</div></div></details></section>`;
   }
   function differences(result) {
     const c = result.comparison;

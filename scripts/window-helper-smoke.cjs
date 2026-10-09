@@ -55,7 +55,7 @@ function waitFor(emitter, event, predicate, ms = 5000) {
 (async () => {
   const helper = build();
   const fixture = spawn(executable, [], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  let exact, spoof;
+  let exact, spoof, second;
   try {
     await waitFor(fixture.stdout, 'data', (s) => String(s).includes('ready'));
     exact = new GameWindow(helper, executable);
@@ -77,6 +77,25 @@ function waitFor(emitter, event, predicate, ms = 5000) {
     const absent = waitFor(spoof, 'change', (s) => s && !s.available);
     spoof.start();
     await absent;
+    // Retarget the same controller to a different full executable path.
+    const secondExecutable = path.join(folder, 'SecondFixture.exe');
+    fs.copyFileSync(executable, secondExecutable);
+    second = spawn(secondExecutable, [], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    await waitFor(second.stdout, 'data', (s) => String(s).includes('ready'));
+    const previous = exact.child;
+    const previousExited = waitFor(previous, 'exit', () => true);
+    const switched = waitFor(exact, 'change', (s) => s?.available && s.hwnd !== state.hwnd);
+    exact.setTarget(secondExecutable);
+    const secondState = await switched;
+    await previousExited;
+    assert.notEqual(secondState.hwnd, state.hwnd);
+    assert.equal(await exact.restore(state.hwnd), false, 'A former target must not regain focus');
+    const sameChild = exact.child;
+    assert.equal(exact.setTarget(secondExecutable), false);
+    assert.equal(exact.child, sameChild);
+    const removed = waitFor(exact, 'change', (s) => s && !s.available);
+    exact.setTarget('');
+    await removed;
     const child = exact.child;
     const exited = waitFor(child, 'exit', () => true);
     exact.dispose();
@@ -91,6 +110,10 @@ function waitFor(emitter, event, predicate, ms = 5000) {
           fullPathMatch: true,
           titleSpoofRejected: true,
           invalidFocusRejected: true,
+          targetChangeFollowed: true,
+          formerTargetFocusRejected: true,
+          unchangedTargetReused: true,
+          removedTargetCleared: true,
           pipeClosureExited: true,
         },
         null,
@@ -102,6 +125,7 @@ function waitFor(emitter, event, predicate, ms = 5000) {
     exact?.dispose();
     spoof?.dispose();
     fixture.kill();
+    second?.kill();
   }
 })().catch((e) => {
   console.error(e);

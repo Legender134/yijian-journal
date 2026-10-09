@@ -6,11 +6,30 @@ const { execFileSync } = require('node:child_process');
 const { realDirectory, sha } = require('./saves.cjs');
 const { readStable, writeBytes, safeId, SLOT } = require('./timeline.cjs');
 const provenance = require('../game-bridge/provenance.json');
+const { PROTOCOL, assertNativePath, grantFrame, commandFrame } = require('./native-io.cjs');
 const resources = path.join(__dirname, '..', 'game-bridge');
+const NATIVE_MOD = 'YijianJournalUnicode';
 const slash = (p) => p.replaceAll('\\', '/');
 const same = (a, b) => slash(a).toLowerCase() === slash(b).toLowerCase();
 const json = (file) => JSON.parse(readStable(file).toString('utf8'));
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function bridgeStateRoot(game, userData, test = false) {
+  const root = path.join(userData, 'game-bridge');
+  if (test || !game?.installed) return root;
+  try {
+    const bin = path.join(game.path, 'Wandering_Sword', 'Binaries', 'Win64');
+    const legacy = path.join(bin, 'ue4ss', 'YijianJournal');
+    const marker = json(path.join(bin, '.yijian-component.json'));
+    // Keep the runtime directory used by existing components and their token.
+    if (
+      marker.schema === 1 &&
+      ['YijianJournalBridge', 'YijianSaveProbe'].includes(marker.mod) &&
+      same(marker.root, legacy)
+    )
+      return legacy;
+  } catch {}
+  return root;
+}
 function activeSteamId() {
   const out = execFileSync(
     'reg.exe',
@@ -54,7 +73,20 @@ class GameBridge {
     this.hashCache = new Map();
     this.disposed = false;
     this.quiescing = false;
-    this.revision = sha(fs.readFileSync(path.join(resources, 'main.lua')));
+    this.grantBinding = '';
+    if (timeline.data.enabled && timeline.data.nativeProtocol !== PROTOCOL) {
+      timeline.stop();
+      this.error = '接入协议已升级，请保护存档并重新明确开启时间线；原历史副本已保留';
+    }
+    const script = fs.readFileSync(path.join(resources, 'main.lua'));
+    this.revision = sha(script);
+    this.script = Buffer.from(
+      script
+        .toString('utf8')
+        .replace('__JOURNAL_ROOT__', JSON.stringify(slash(this.root) + '/'))
+        .replace('__JOURNAL_REVISION__', JSON.stringify(this.revision)),
+    );
+    this.scriptHash = sha(this.script);
     const keyFile = path.join(this.root, 'token.txt');
     if (fs.existsSync(keyFile)) this.token = readStable(keyFile).toString('utf8');
     else {
@@ -66,10 +98,14 @@ class GameBridge {
       try {
         this.connect(timeline.data.source);
       } catch (e) {
-        this.error = e.message;
-        try {
-          timeline.stop();
-        } catch {}
+        // Passive save reading can use legacy or manually selected directories.
+        // Their native compatibility is checked when automatic saving is enabled.
+        if (timeline.data.enabled || timeline.data.pending) {
+          this.error = e.message;
+          try {
+            timeline.stop();
+          } catch {}
+        }
       }
     }
   }
@@ -87,8 +123,19 @@ class GameBridge {
     this.hashCache.set(file, { stamp, hash });
     return hash;
   }
-  location() {
+  nativePathIssue(source = this.timeline.data.source) {
+    try {
+      assertNativePath(this.root, '手札数据目录');
+      assertNativePath(source, '存档目录');
+      return '';
+    } catch (e) {
+      return e.message;
+    }
+  }
+  location(source = this.timeline.data.source) {
     if (this.test) throw Error('测试环境不接入实际游戏');
+    const pathIssue = this.nativePathIssue(source);
+    if (pathIssue) throw Error(pathIssue);
     const game = this.getGame();
     if (!game?.installed || game.build !== provenance.gameBuild)
       throw Error('原生存读档只支持已验证的游戏 Build ' + provenance.gameBuild + '；更新后请先停用接入组件');
@@ -102,7 +149,7 @@ class GameBridge {
       const s = json(path.join(this.root, 'state.json')),
         age = this.now() / 1000 - s.at;
       if (
-        s.protocol !== 1 ||
+        s.protocol !== PROTOCOL ||
         !Number.isSafeInteger(s.at) ||
         age < -2 ||
         age > 3 ||
@@ -115,9 +162,24 @@ class GameBridge {
       return null;
     }
   }
-  connected() {
-    const s = this.heartbeat();
-    return !!s && s.token === this.token;
+  connected(s = this.heartbeat()) {
+    return (
+      !!s &&
+      s.token === this.token &&
+      s.revision === this.revision &&
+      typeof s.source === 'string' &&
+      same(s.source, this.timeline.data.source)
+    );
+  }
+  hintQuiet() {
+    if (this.busy || this.loadQueued || this.timeline.data.pending || this.quiescing) return true;
+    const state = this.heartbeat();
+    if (!this.connected(state)) return false;
+    if (this.disposed || this.blocked()) return true;
+    if (!state.ready) return true;
+    const now = performance.now();
+    if (!this.hintAvailability || now - this.hintAvailability.at >= 5000) this.summary();
+    return !this.hintAvailability.available;
   }
   canStop() {
     return !this.busy && !this.heartbeat() && this.stopped();
@@ -134,15 +196,70 @@ class GameBridge {
         !same(m.root, this.root)
       )
         throw Error('已有组件属于其他数据目录，请使用原来的手札');
+      if (m.protocol !== PROTOCOL || m.nativeMod !== NATIVE_MOD)
+        throw Error('接入协议需要更新，请退出游戏后更新组件并重新开启时间线');
+      const native = provenance.nativeIO;
+      if (
+        native?.protocol !== PROTOCOL ||
+        !/^[a-f0-9]{64}$/.test(native.sha256) ||
+        native.mod !== NATIVE_MOD ||
+        this.checkedHash(path.join(bin, 'ue4ss', 'Mods', NATIVE_MOD, 'dlls', 'main.dll')) !== native.sha256
+      )
+        throw Error('Unicode 接入组件校验失败，请退出游戏后更新组件');
       for (const [name, hash] of Object.entries(provenance.files))
         if (this.checkedHash(path.join(bin, name)) !== hash) throw Error('游戏接入组件校验失败');
+      const mods = path.join(bin, 'ue4ss', 'Mods');
+      const script = path.join(mods, m.mod, 'Scripts', 'main.lua');
+      if (!fs.existsSync(script) || this.checkedHash(script) !== this.scriptHash)
+        throw Error('游戏接入脚本需要更新，请退出游戏后更新组件');
+      const control = path.join(mods, 'yijian-mods.txt');
+      try {
+        if (readStable(control).toString('utf8').trim() !== NATIVE_MOD + ' : 1\n' + m.mod + ' : 1')
+          throw Error();
+        const settings = readStable(path.join(bin, 'ue4ss', 'UE4SS-settings.ini')).toString('utf8');
+        const paths = [...settings.matchAll(/^ControllingModsTxt\s*=\s*([^\r\n]*)$/gm)];
+        if (paths.length !== 1 || paths[0][1].trim() !== 'Mods/yijian-mods.txt') throw Error();
+      } catch {
+        throw Error('游戏接入配置需要更新，请退出游戏后更新组件');
+      }
       return { installed: true, mod: m.mod, bin };
     } catch (e) {
       return { installed: false, reason: e.message };
     }
   }
+  assertLaunchSafe() {
+    if (this.test) throw Error('测试环境不接入实际游戏');
+    const game = this.getGame();
+    if (!game?.installed) return;
+    const bin = path.join(game.path, 'Wandering_Sword', 'Binaries', 'Win64');
+    const proxy = path.join(bin, 'dwmapi.dll');
+    if (!fs.existsSync(proxy)) return;
+    let marker;
+    try {
+      marker = json(path.join(bin, '.yijian-component.json'));
+    } catch {
+      return;
+    }
+    // Ordinary launches do not require native setup. Only a recognized active
+    // project proxy needs the game's pinned compatibility check before Steam.
+    if (marker?.schema !== 1 || !['YijianJournalBridge', 'YijianSaveProbe'].includes(marker.mod)) return;
+    if (this.checkedHash(proxy) !== provenance.files['dwmapi.dll'])
+      throw Error('游戏接入加载文件已变化，请先核对接入组件，再开始游戏');
+    if (
+      game.build !== provenance.gameBuild ||
+      this.checkedHash(path.join(bin, 'JH-Win64-Shipping.exe')) !== provenance.gameExeSha256
+    )
+      throw Error(
+        '游戏版本与接入组件不兼容，请先在原手札的存档匣中停用接入，再开始游戏；查询和完整备份仍可使用',
+      );
+  }
   install() {
     if (this.busy || !this.canStop()) throw Error('请先退出游戏，再安装或更新接入组件');
+    const native = provenance.nativeIO;
+    if (native?.protocol !== PROTOCOL || native.mod !== NATIVE_MOD || !/^[a-f0-9]{64}$/.test(native.sha256))
+      throw Error('Unicode 原生组件缺少已固定的构建来源，已停止安装');
+    const nativeBytes = fs.readFileSync(path.join(resources, 'runtime', 'unicode', 'main.dll'));
+    if (sha(nativeBytes) !== native.sha256) throw Error('Unicode 内置组件校验失败，已停止安装');
     const bin = this.location(),
       marker = path.join(bin, '.yijian-component.json');
     let mod = 'YijianJournalBridge';
@@ -161,6 +278,9 @@ class GameBridge {
         fs.readdirSync(realDirectory(path.join(bin, 'ue4ss'))).some((name) => name !== 'YijianJournal'))
     )
       throw Error('已有其他游戏接入文件，已保留原组件；不能自动覆盖');
+    const nativeTarget = path.join(bin, 'ue4ss', 'Mods', NATIVE_MOD, 'dlls', 'main.dll');
+    if (fs.existsSync(nativeTarget) && this.checkedHash(nativeTarget) !== native.sha256)
+      throw Error('已有 Unicode 接入文件不匹配，已保留原组件');
     for (const [name, hash] of Object.entries(provenance.files)) {
       const bytes = fs.readFileSync(path.join(resources, 'runtime', name));
       if (sha(bytes) !== hash) throw Error('内置组件校验失败');
@@ -178,19 +298,21 @@ class GameBridge {
     fs.mkdirSync(scripts, { recursive: true });
     realDirectory(path.dirname(scripts));
     realDirectory(scripts);
+    const nativeModRoot = path.join(mods, NATIVE_MOD);
+    fs.mkdirSync(nativeModRoot, { recursive: true });
+    realDirectory(nativeModRoot);
+    const dlls = path.join(nativeModRoot, 'dlls');
+    fs.mkdirSync(dlls, { recursive: true });
+    realDirectory(dlls);
+    if (!fs.existsSync(nativeTarget)) writeBytes(nativeTarget, nativeBytes);
     if (/[\r\n\x00]/.test(this.root)) throw Error('手札目录包含不支持的字符');
-    const literal = JSON.stringify(slash(this.root) + '/');
-    const lua = fs
-      .readFileSync(path.join(resources, 'main.lua'), 'utf8')
-      .replace('__JOURNAL_ROOT__', literal)
-      .replace('__JOURNAL_REVISION__', JSON.stringify(this.revision));
-    writeBytes(path.join(scripts, 'main.lua'), Buffer.from(lua));
+    writeBytes(path.join(scripts, 'main.lua'), this.script);
     writeBytes(
       path.join(ue, 'LICENSE'),
       fs.readFileSync(path.join(resources, 'runtime', 'ue4ss', 'LICENSE')),
     );
     const control = path.join(mods, 'yijian-mods.txt');
-    writeBytes(control, Buffer.from(mod + ' : 1\n'));
+    writeBytes(control, Buffer.from(NATIVE_MOD + ' : 1\n' + mod + ' : 1\n'));
     let settings = fs.readFileSync(path.join(resources, 'runtime', 'ue4ss', 'UE4SS-settings.ini'), 'utf8');
     const values = {
       MajorVersion: '4',
@@ -201,7 +323,7 @@ class GameBridge {
       bUseUObjectArrayCache: 'false',
       EnableHotReloadSystem: '0',
       EnableAutoReloadingLuaMods: '0',
-      ControllingModsTxt: slash(control),
+      ControllingModsTxt: 'Mods/yijian-mods.txt',
     };
     for (const [key, value] of Object.entries(values)) {
       const regex = new RegExp('^' + key + '\\s*=.*$', 'm');
@@ -218,6 +340,9 @@ class GameBridge {
             mod,
             root: this.root,
             version: provenance.version,
+            protocol: PROTOCOL,
+            nativeMod: NATIVE_MOD,
+            unicodeSha256: native.sha256,
             installedAt: new Date(this.now()).toISOString(),
           },
           null,
@@ -252,10 +377,28 @@ class GameBridge {
       path.basename(directory) !== 'SaveGames'
     )
       throw Error('请选择 Steam 账户下的 SaveGames 目录');
-    writeBytes(path.join(this.root, 'config.txt'), Buffer.from(this.token + '\n' + slash(directory) + '\n'));
+    const pathIssue = this.nativePathIssue(directory);
+    if (pathIssue) throw Error(pathIssue);
+    if (this.timeline.data.nativeProtocol !== PROTOCOL) {
+      writeBytes(path.join(this.root, 'config.txt'), Buffer.from('disabled\n'));
+      this.grantBinding = '';
+      return;
+    }
+    const grant = grantFrame({
+      token: this.token,
+      source: directory,
+      root: this.root,
+      revision: this.revision,
+      build: provenance.gameBuild,
+      epoch: crypto.randomUUID(),
+    });
+    writeBytes(path.join(this.root, 'config.txt'), grant.bytes);
+    this.grantBinding = grant.binding;
   }
   assertReady() {
     if (this.disposed || this.blocked()) throw Error('请先完成未处理的完整存档恢复');
+    if (this.timeline.data.nativeProtocol !== PROTOCOL || !this.grantBinding)
+      throw Error('请保护存档并重新明确开启时间线自动保存');
     const installed = this.installation();
     if (!installed.installed) throw Error(installed.reason);
     const source = this.timeline.data.source;
@@ -287,7 +430,34 @@ class GameBridge {
       throw e;
     }
     const command = `${this.token}\t${s.session}\t${id}\t${verb}\t${Math.floor(this.now() / 1000) + 8}\t${expected ? 'owned' : 'empty'}\n`;
-    writeBytes(path.join(this.root, 'command.txt'), Buffer.from(command));
+    for (let attempt = 0; ; attempt++) {
+      try {
+        writeBytes(path.join(this.root, 'command.txt'), commandFrame(this.token, command, this.grantBinding));
+        break;
+      } catch (e) {
+        if (!e.notReplaced) throw e;
+        // The Windows CRT briefly denies replacement while Lua reads the file.
+        // Retry only an unpublished command, with a fresh readiness guard.
+        if (attempt < 3 && e.syscall === 'rename' && ['EPERM', 'EACCES'].includes(e.code)) {
+          await delay(50);
+          try {
+            const current = this.assertReady();
+            if (current.session !== s.session) {
+              const changed = Error('游戏连接已变化，请进入存档后再试');
+              changed.waiting = true;
+              throw changed;
+            }
+          } catch (guard) {
+            guard.notDispatched = true;
+            throw guard;
+          }
+        } else {
+          const unavailable = Error('无法发送游戏接入指令，已保留存档；请稍后重试', { cause: e });
+          unavailable.notDispatched = true;
+          throw unavailable;
+        }
+      }
+    }
     const deadline = performance.now() + (verb === 'load' ? 31000 : 14000);
     while (!this.disposed && performance.now() < deadline) {
       try {
@@ -445,6 +615,23 @@ class GameBridge {
   start() {
     if (!this.timer && !this.test) this.timer = setInterval(() => this.check(), 250);
   }
+  reconcileEnvironment() {
+    if (
+      this.test ||
+      this.busy ||
+      this.loadQueued ||
+      this.disposed ||
+      this.quiescing ||
+      !this.timeline.data.enabled ||
+      this.timeline.data.pending ||
+      this.blocked()
+    )
+      return false;
+    const installed = this.installation();
+    if (installed.installed) return false;
+    this.fail(Error(installed.reason || '游戏接入组件暂不可用'));
+    return true;
+  }
   async check() {
     if (
       this.busy ||
@@ -453,7 +640,8 @@ class GameBridge {
       this.quiescing ||
       !this.timeline.data.enabled ||
       this.now() < this.nextSaveAt ||
-      this.timeline.data.pending
+      this.timeline.data.pending ||
+      this.blocked()
     )
       return;
     const pulse = this.heartbeat();
@@ -487,11 +675,13 @@ class GameBridge {
           ? '存档目录与当前 Steam 账户不一致，已停止存读档'
           : '');
     }
-    const connected =
-      !!s &&
-      s.token === this.token &&
-      s.revision === this.revision &&
-      same(s.source || '', this.timeline.data.source);
+    // Only presentation uses this short-lived availability snapshot. Every
+    // native save, load, installation and launch keeps its own fresh guards.
+    this.hintAvailability = {
+      at: performance.now(),
+      available: installed.installed && !unavailable,
+    };
+    const connected = this.connected(s);
     return {
       ...this.timeline.summary(),
       installed: installed.installed,
@@ -509,6 +699,7 @@ class GameBridge {
               ? s.reason || '游戏已连接，可保存进度'
               : '等待游戏连接，请重启游戏并进入存档'),
       error: this.error || this.timeline.error,
+      pathIssue: this.nativePathIssue(),
       componentVersion: provenance.version,
     };
   }
@@ -525,4 +716,4 @@ class GameBridge {
     }
   }
 }
-module.exports = { GameBridge, activeSteamId };
+module.exports = { GameBridge, activeSteamId, bridgeStateRoot };

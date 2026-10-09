@@ -30,16 +30,24 @@ function readStable(file) {
   return bytes;
 }
 function writeBytes(file, bytes) {
-  const temp = file + '.' + crypto.randomUUID() + '.tmp',
-    fd = fs.openSync(temp, 'wx');
+  let replaced = false;
   try {
-    fs.writeFileSync(fd, bytes);
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
+    const temp = file + '.' + crypto.randomUUID() + '.tmp',
+      fd = fs.openSync(temp, 'wx');
+    try {
+      fs.writeFileSync(fd, bytes);
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(temp, file);
+    replaced = true;
+    if (sha(readStable(file)) !== sha(bytes)) throw Error('时间线文件写入后校验失败');
+  } catch (e) {
+    // A command may already be visible when its read-back verification fails.
+    e.notReplaced = !replaced;
+    throw e;
   }
-  fs.renameSync(temp, file);
-  if (sha(readStable(file)) !== sha(bytes)) throw Error('时间线文件写入后校验失败');
 }
 class Timeline {
   constructor(root, { now = Date.now } = {}) {
@@ -59,14 +67,17 @@ class Timeline {
       ownerHash: '',
       records: [],
       pending: null,
+      nativeProtocol: 0,
       retired: [],
     };
     this.error = '';
+    this.diagnostic = '';
     if (fs.existsSync(this.file)) {
       try {
         this.data = this.validate(JSON.parse(readStable(this.file).toString('utf8')));
       } catch (e) {
-        this.error = '时间线记录损坏，已停止自动保存；原文件保留。' + e.message;
+        this.error = '时间线记录损坏，已停止自动存读档；原文件和历史副本保留。';
+        this.diagnostic = e.message;
       }
     }
     if (this.data.pending || this.error) this.data.enabled = false;
@@ -77,6 +88,7 @@ class Timeline {
       typeof d.enabled !== 'boolean' ||
       !INTERVALS.includes(d.interval) ||
       typeof d.source !== 'string' ||
+      !(d.nativeProtocol === undefined || d.nativeProtocol === 0 || d.nativeProtocol === 2) ||
       !(d.ownerHash === '' || safeHash(d.ownerHash)) ||
       !Array.isArray(d.records) ||
       d.records.length > 100000
@@ -129,17 +141,22 @@ class Timeline {
     atomicWrite(this.file, next);
     this.data = next;
   }
-  configure(source, enabled, interval) {
-    if (typeof enabled !== 'boolean' || !INTERVALS.includes(interval)) throw Error('保存间隔无效');
+  validateSource(source) {
     const target = realDirectory(source);
     if (isWithin(this.root, target) || isWithin(target, this.root))
       throw Error('历史目录与游戏存档不能互相包含');
+    return target;
+  }
+  configure(source, enabled, interval) {
+    if (typeof enabled !== 'boolean' || !INTERVALS.includes(interval)) throw Error('保存间隔无效');
+    const target = this.validateSource(source);
     if (this.data.pending) throw Error('请先核对上次中断的时间线操作');
     const changed = this.data.source.toLowerCase() !== target.toLowerCase();
     const next = {
       ...this.data,
       source: target,
       ownerHash: changed ? '' : this.data.ownerHash,
+      nativeProtocol: enabled ? 2 : changed ? 0 : this.data.nativeProtocol || 0,
       enabled,
       interval,
     };
@@ -148,6 +165,48 @@ class Timeline {
   }
   stop() {
     this.commit({ ...this.data, enabled: false });
+  }
+  // Only the confirmed quick-start flow calls this, after verifying a complete backup.
+  // Preserve an occupied slot as a permanent bookmark before explicitly reserving it.
+  enableProtected(source, protectedSlot) {
+    if (this.error) throw Error(this.error);
+    if (this.data.pending) throw Error('请先核对上次中断的时间线操作');
+    const target = realDirectory(source);
+    if (isWithin(this.root, target) || isWithin(target, this.root))
+      throw Error('历史目录与游戏存档不能互相包含');
+    const next = {
+      ...this.data,
+      source: target,
+      ownerHash: this.data.source.toLowerCase() === target.toLowerCase() ? this.data.ownerHash : '',
+      enabled: true,
+      nativeProtocol: 2,
+      interval: 10,
+    };
+    const file = path.join(target, SLOT);
+    let retained;
+    if (fs.existsSync(file)) {
+      if (!Buffer.isBuffer(protectedSlot) || sha(readStable(file)) !== sha(protectedSlot))
+        throw Error('29 号槽与保护副本不一致，请重新开启助手');
+      if (next.ownerHash !== sha(protectedSlot)) {
+        const { hash, meta } = this.blob(protectedSlot);
+        retained = {
+          id: crypto.randomUUID(),
+          hash,
+          at: this.now(),
+          source: target,
+          kind: 'manual',
+          bookmarked: true,
+          label: '启用助手前的 29 号槽',
+          map: meta.map,
+          playSeconds: meta.playSeconds,
+        };
+        next.records = [...next.records, retained];
+        next.ownerHash = hash;
+      }
+    } else if (protectedSlot || next.ownerHash) throw Error('29 号槽与保护副本不一致，请重新开启助手');
+    this.assertOwned(next);
+    this.commit(next);
+    return retained;
   }
   assertOwned(data = this.data) {
     if (this.error) throw Error(this.error);
@@ -419,6 +478,9 @@ class Timeline {
         : null,
       nodes: this.nodes(),
       error: this.error,
+      indexError: !!this.error,
+      diagnostic: this.diagnostic,
+      recordPath: this.error ? this.file : '',
       pending: this.data.pending,
       retention: 'bounded-sampling',
       maxAutomaticRecords: MAX_AUTOMATIC,

@@ -79,7 +79,7 @@ function encyclopedia() {
     entries: [...new Map([...data.entries, ...world.people].map((e) => [e.id, e])).values()],
     images: images.entries,
     merchants: data.merchants || [],
-    world,
+    world: { ...world, placeAliases: require('../data/world-place-aliases.json') },
   };
 }
 function recipePlan(id, quantity, inventory = null) {

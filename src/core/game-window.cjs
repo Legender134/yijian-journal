@@ -16,34 +16,58 @@ class GameWindow extends EventEmitter {
   constructor(executable, target, ownerPid = process.pid) {
     super();
     this.executable = executable;
-    this.target = target;
+    this.target = target || '';
     this.ownerPid = ownerPid;
     this.state = null;
     this.error = '';
     this.at = 0;
+    this.active = false;
+  }
+  setTarget(target) {
+    const next = target || '';
+    if (next === this.target) {
+      if (this.active && !this.child) this.start();
+      return false;
+    }
+    const active = this.active;
+    this.dispose();
+    this.target = next;
+    this.error = '';
+    this.at = 0;
+    this.emit('change', null);
+    if (active) this.start();
+    return true;
   }
   start() {
+    this.active = true;
     if (this.child) return;
     const child = (this.child = spawn(this.executable, [this.target || '', String(this.ownerPid)], {
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     }));
     let buffer = '';
-    const fail = (e) => {
+    const clearState = (e) => {
       this.error = e?.message || '游戏窗口组件已停止';
       this.state = null;
+      this.focusResult?.(false);
       this.emit('change', null);
     };
-    child.on('error', fail);
+    const fail = (e) => {
+      if (this.child === child) clearState(e);
+    };
+    const stopped = (e) => {
+      if (this.child !== child) return;
+      this.child = null;
+      clearInterval(this.timer);
+      this.timer = null;
+      clearState(e);
+    };
+    child.on('error', stopped);
     child.stdin.on('error', () => {});
-    child.on('exit', () => {
-      if (this.child === child) {
-        this.child = null;
-        fail();
-      }
-    });
+    child.on('exit', () => stopped());
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk) => {
+      if (this.child !== child) return;
       buffer += chunk;
       if (buffer.length > 16384) {
         buffer = '';
@@ -67,7 +91,7 @@ class GameWindow extends EventEmitter {
       }
     });
     this.timer = setInterval(() => {
-      if (this.state && Date.now() - this.at > 1500) {
+      if (this.child === child && this.state && Date.now() - this.at > 1500) {
         this.state = null;
         this.emit('change', null);
       }
@@ -88,7 +112,9 @@ class GameWindow extends EventEmitter {
     });
   }
   dispose() {
+    this.active = false;
     clearInterval(this.timer);
+    this.timer = null;
     this.focusResult?.(false);
     const child = this.child;
     this.child = null;

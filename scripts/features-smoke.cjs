@@ -2,9 +2,7 @@
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
-const {
-  _electron,
-} = require('playwright');
+const { _electron } = require('playwright');
 const { Store } = require('../src/core/store.cjs'),
   { sha } = require('../src/core/saves.cjs'),
   { syntheticSave } = require('../tests/fixtures.cjs');
@@ -182,7 +180,7 @@ const shot = async (name) => {
     await win.locator('#craft-search').focus();
     await win.locator('#craft-save').selectOption('1.sav');
     await win.locator('[data-action="craft-calculate"]').click();
-    await win.locator('.craft-totals').waitFor();
+    await win.locator('.craft-totals').first().waitFor();
     const list = [
         { id: 'fusion-1002', quantity: 2 },
         { id: 'fusion-1003', quantity: 1 },
@@ -191,20 +189,24 @@ const shot = async (name) => {
     const actual = await win.evaluate((list) => window.journal.materialPlan(list, '1.sav'), list);
     assert.equal(actual.data.missing, expected.missing);
     assert.equal(actual.data.materials.find((m) => m.ids.includes(10226)).allocated, 3);
-    assert.ok((await win.locator('.craft-totals').innerText()).includes(expected.money.toLocaleString()));
+    assert.ok(
+      (await win.locator('.craft-totals').first().innerText()).includes(expected.money.toLocaleString()),
+    );
     await shot('16-materials');
     await win.locator('[data-action="craft-missing"]').click();
     assert.ok((await win.locator('.craft-materials').innerText()).includes('还缺'));
     await win.locator('[data-action="craft-goal"]').click();
+    await win.locator('#craft-plan-name').fill('打包验收制作计划');
+    await win.locator('[data-action="craft-plan-save"]').click();
     await nav('goals');
     await win.locator('.goal-row [data-action="goal-source"]').first().click();
-    await win.locator('.craft-totals').waitFor();
+    await win.locator('.craft-totals').first().waitFor();
     await win.locator('.craft-line [data-id="fusion-1002"]').first().click();
     await win.locator('#recipe-quantity').fill('3');
     await win.locator('.drawer [data-action="craft-add"]').click();
     await win.locator('[data-action="craft-open"]').click();
     assert.equal(await win.locator('#craft-qty-fusion-1002').inputValue(), '5');
-    await win.locator('.craft-totals').waitFor();
+    await win.locator('.craft-totals').first().waitFor();
     await win.locator('#craft-qty-fusion-1002').fill('0');
     await win.locator('#craft-search').focus();
     assert.equal(await win.locator('#craft-qty-fusion-1002').inputValue(), '5');
@@ -230,7 +232,7 @@ const shot = async (name) => {
     );
     await win.locator('#craft-save').selectOption('');
     await win.locator('[data-action="craft-calculate"]').click();
-    await win.locator('.craft-totals').filter({ hasText: '未核对' }).waitFor();
+    await win.locator('.craft-totals').first().filter({ hasText: '未核对' }).waitFor();
     assert.ok(!(await win.locator('.craft-materials').innerText()).includes('还缺'));
     assert.ok(
       await win.locator('.craft-material').count(),
@@ -265,11 +267,11 @@ const shot = async (name) => {
     await win.locator('.world-reference').filter({ hasText: '已不存在' }).waitFor();
     await nav('materials');
     await win.locator('.craft-result-card').filter({ hasText: '已不存在' }).waitFor();
-    assert.equal(await win.locator('.craft-totals').count(), 0);
+    assert.equal(await win.locator('.craft-totals').first().count(), 0);
     assert.equal(await win.locator('#craft-save').inputValue(), '1.sav');
     fs.renameSync(path.join(data, 'held-1.sav'), path.join(source, '1.sav'));
     await win.locator('[data-action="craft-calculate"]').click();
-    await win.locator('.craft-totals').waitFor();
+    await win.locator('.craft-totals').first().waitFor();
     report.checks.push(
       'missing pinned reference never silently selects another slot; restored slot can be reread',
     );
@@ -297,7 +299,7 @@ const shot = async (name) => {
     await win.locator('#world-search').fill('武当');
     assert.ok(await win.locator('.world-quest-card').count());
     await nav('materials');
-    await win.locator('.craft-totals').waitFor();
+    await win.locator('.craft-totals').first().waitFor();
     report.checks.push('global task/place search, Chinese composition and offline restart');
     // A deliberately delayed IPC fixture exercises UI cancellation without touching real files.
     await app.evaluate(
@@ -322,7 +324,7 @@ const shot = async (name) => {
     await win.locator('[data-action="craft-calculate"]').click();
     await win.locator('#craft-save').selectOption('2.sav');
     await win.waitForTimeout(350);
-    assert.equal(await win.locator('.craft-totals').count(), 0);
+    assert.equal(await win.locator('.craft-totals').first().count(), 0);
     assert.ok(!(await win.locator('.craft-result-card').innerText()).includes('正在核对'));
     await win.locator('[data-action="craft-calculate"]').click();
     await win.locator('[data-action="profiles"]').click();
@@ -330,7 +332,7 @@ const shot = async (name) => {
     await win.locator('[data-action="profile-create"]').click();
     await win.waitForTimeout(350);
     assert.equal(await win.locator('.craft-line').count(), 0);
-    assert.equal(await win.locator('.craft-totals').count(), 0);
+    assert.equal(await win.locator('.craft-totals').first().count(), 0);
     report.checks.push('late material response discarded after reference or profile changes');
     await app.evaluate(
       ({ ipcMain }, { base, source, data }) => {

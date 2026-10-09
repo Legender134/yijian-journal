@@ -307,6 +307,12 @@ test('corrupt timeline state is preserved and disables all mutation', (t) => {
   fs.writeFileSync(timeline.file, '{broken');
   const bad = new Timeline(timeline.root);
   assert.match(bad.error, /记录损坏/);
+  assert.equal(bad.summary().indexError, true);
+  assert.ok(bad.summary().diagnostic);
+  assert.equal(bad.validateSource(timeline.data.source), fs.realpathSync(timeline.data.source));
+  assert.throws(() => bad.validateSource(timeline.root), /不能互相包含/);
+  assert.equal(bad.data.source, '');
+  assert.equal(bad.data.enabled, false);
   assert.throws(() => bad.configure(timeline.data.source, true, 10), /记录损坏/);
   assert.equal(fs.readFileSync(timeline.file, 'utf8'), '{broken');
 });

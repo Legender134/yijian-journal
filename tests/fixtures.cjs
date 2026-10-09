@@ -20,6 +20,8 @@ function syntheticSave({
   fusionRecipes = [1002],
   cookingRecipes = [100],
   alchemyRecipes = [100],
+  trackingQuest = 11077,
+  trackingMainQuest = 5200,
 } = {}) {
   const png = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z4n8AAAAASUVORK5CYII=',
@@ -33,8 +35,8 @@ function syntheticSave({
         prop('CookingRecipes', 'ArrayProperty', ints(cookingRecipes), s('IntProperty')),
         prop('AlchemyRecipes', 'ArrayProperty', ints(alchemyRecipes), s('IntProperty')),
         prop('Money', 'IntProperty', n(money)),
-        prop('CurrentTrackingQuestId', 'IntProperty', n(11077)),
-        prop('CurrentTrackingPrimeQuestId', 'IntProperty', n(5200)),
+        prop('CurrentTrackingQuestId', 'IntProperty', n(trackingQuest)),
+        prop('CurrentTrackingPrimeQuestId', 'IntProperty', n(trackingMainQuest)),
         prop('DifficultyMode', 'EnumProperty', s('EDifficultyMode::Hell'), s('EDifficultyMode')),
       ]
     : [];

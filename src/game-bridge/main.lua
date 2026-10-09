@@ -2,19 +2,21 @@
 -- No arbitrary commands: only the reserved manual slot 29 is accessible.
 local root = __JOURNAL_ROOT__
 local revision = __JOURNAL_REVISION__
+-- These functions are registered by the hash-pinned YijianJournalUnicode C++ mod.
+-- Never fall back to narrow CRT disk I/O or inherit a protocol-1 source grant.
+if type(YijianNativeInitialize) ~= 'function' then error('unicode_component_missing') end
+local bound, bindError = YijianNativeInitialize(root, revision)
+if bound ~= 'unicode-v2' then error('unicode_component_binding: '..tostring(bindError)) end
 local session = tostring(os.time()) .. '-' .. tostring(math.random(100000, 999999))
 local last, loading, saving, queued = '', nil, nil, false
 local boundSource = nil
 local function valid(o) return o and o:IsValid() end
 local function read(file, limit)
-    local f, err, code = io.open(file, 'rb'); if not f then return nil, code == 2 and 'missing' or 'invalid' end
-    local size = f:seek('end'); f:seek('set', 0)
-    if not size or size > limit then f:close(); return nil, 'invalid' end
-    local b = f:read('*a'); f:close(); return b, b and 'ok' or 'invalid'
+    return YijianNativeRead(file, limit)
 end
 local function write(file, bytes)
-    local f, err = io.open(file, 'wb'); if not f then error('bridge_write_failed: '..tostring(err)) end
-    f:write(bytes); f:flush(); f:close()
+    local ok, err = YijianNativeWrite(file, bytes)
+    if ok ~= 'ok' then error('bridge_write_failed: '..tostring(err)) end
 end
 local function quote(s)
     return '"' .. tostring(s):gsub('[%z\1-\31\\"]', function(c)
@@ -42,7 +44,7 @@ local function state()
     return s
 end
 local function tick()
-    local config = read(root .. 'config.txt', 2048) or ''
+    local config = read(root .. 'config.txt', 131072) or ''
     local token, source = config:match('^([a-f0-9]+)\n([^\r\n]+)\n$')
     local s = state()
     if not token or #token ~= 64 then s.ready=false; s.reason='等待手札连接'; token=''; source='' end
@@ -64,8 +66,8 @@ local function tick()
             respond(saving.id,saving.token,'uncertain','游戏保存尚未写入稳定文件，已停止后续操作'); saving=nil
         else saving.lastBytes=bytes end
     end
-    write(root .. 'state.json', '{"protocol":1,"revision":' .. quote(revision) .. ',"session":' .. quote(session) .. ',"token":' .. quote(token) .. ',"source":' .. quote(source or '') .. ',"at":' .. os.time() .. ',"ready":' .. tostring(s.ready == true and loading == nil and saving == nil) .. ',"reason":' .. quote(loading and '正在读档' or saving and '正在保存' or s.reason) .. ',"world":' .. quote(s.world or '') .. ',"pawn":' .. quote(s.pawn or '') .. ',"autoSaveIndex":' .. (valid(s.sm) and tostring(s.sm.AutoSaveIndex) or 'null') .. '}')
-    local cmd = read(root .. 'command.txt', 512)
+    write(root .. 'state.json', '{"protocol":2,"revision":' .. quote(revision) .. ',"session":' .. quote(session) .. ',"token":' .. quote(token) .. ',"source":' .. quote(source or '') .. ',"at":' .. os.time() .. ',"ready":' .. tostring(s.ready == true and loading == nil and saving == nil) .. ',"reason":' .. quote(loading and '正在读档' or saving and '正在保存' or s.reason) .. ',"world":' .. quote(s.world or '') .. ',"pawn":' .. quote(s.pawn or '') .. ',"autoSaveIndex":' .. (valid(s.sm) and tostring(s.sm.AutoSaveIndex) or 'null') .. '}')
+    local cmd = read(root .. 'command.txt', 1024)
     if not cmd or not token or loading or saving then return end
     local ct, cs, id, verb, expiry, mode = cmd:match('^([a-f0-9]+)\t([%d-]+)\t([a-f0-9-]+)\t([a-z]+)\t(%d+)\t([a-z]+)\n$')
     if not id or id == last or id == read(root .. 'last-command.txt',64) or #id ~= 36 or ct ~= token or cs ~= session then return end
@@ -103,7 +105,7 @@ LoopAsync(1000,function()
     local scheduled, scheduleError = pcall(function() ExecuteInGameThread(function()
         local ok, err=pcall(tick); queued=false
         if not ok then
-            pcall(function() write(root .. 'state.json','{"protocol":1,"session":'..quote(session)..',"at":'..os.time()..',"ready":false,"reason":'..quote('接入异常：'..tostring(err))..'}') end)
+            pcall(function() write(root .. 'state.json','{"protocol":2,"session":'..quote(session)..',"at":'..os.time()..',"ready":false,"reason":'..quote('接入异常：'..tostring(err))..'}') end)
         end
     end) end)
     if not scheduled then queued=false; write(root .. 'schedule-error.txt',tostring(scheduleError)) end

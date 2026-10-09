@@ -8,5 +8,33 @@
     "ue4ss/UE4SS.dll": "680a026890abb4d0df2211251f8defc1681a584275f1521dcc0fe30af480006f"
   },
   "gameBuild": "21798996",
-  "gameExeSha256": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c"
+  "gameExeSha256": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c",
+  "nativeIO": {
+    "protocol": 2,
+    "version": "unicode-v2.0.0",
+    "license": "MIT",
+    "ue4ssCommit": "e3ba1016562d6c0868c410d0a71e88bfcdbf691b",
+    "ue4ssDllSha256": "680a026890abb4d0df2211251f8defc1681a584275f1521dcc0fe30af480006f",
+    "sha256": "f632791ed6fce524a49d068de3f5f175eff99f932973bbc562d9f1a48433f6ae",
+    "sourceSha256": "61b51ef1305cc9c263bcc0afe23a978a56656eb740b3152ce7ad6f24be9f1623",
+    "sources": [
+      "UnicodeBridge.cpp",
+      "UnicodeIo.hpp",
+      "NativeChannel.hpp",
+      "LuaApi.hpp",
+      "ue4ss-pinned-abi.hpp"
+    ],
+    "architecture": "x64",
+    "cppStandard": "C++23",
+    "crt": "/MD",
+    "toolchain": "MSVC-19.43.34810-x64-MD-WinSDK-10.0.26100.0",
+    "mod": "YijianJournalUnicode",
+    "buildScriptSha256": "3074e7b44f47c6636202bfdde5261a696adef57038c5b0680f037dee03c15bac",
+    "reproducible": {
+      "compiler": "/experimental:deterministic /pathmap:<build-root>=X:\\YijianUnicodeBuild /Brepro",
+      "librarian": "/Brepro",
+      "linker": "/Brepro /INCREMENTAL:NO",
+      "input": "verified five-file source copy; fixed relative source/UnicodeBridge.cpp, obj/lib/dll names"
+    }
+  }
 }
