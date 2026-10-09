@@ -444,6 +444,9 @@ test('a transient unreadable heartbeat after save intent cancels only the unissu
   const assertReady = s.bridge.assertReady.bind(s.bridge);
   let guards = 0;
   s.bridge.assertReady = () => {
+    // This case injects its own unreadable guard. Keep the otherwise healthy
+    // synthetic game fresh even when synchronous CI disk work delays its timer.
+    s.pulse();
     if (++guards === 2) {
       const e = Error('等待游戏连接');
       e.waiting = true;
