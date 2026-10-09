@@ -45,7 +45,9 @@ store.mutate({ type: 'goal-toggle', id: goalId });
 store.mutate({
   type: 'journal-entry-put',
   title: '误删前的手写内容',
-  body: '这是要逐条恢复的重要正文',
+  body:
+    '这是要逐条恢复的重要正文\n' +
+    Array.from({ length: 45 }, (_, i) => '第 ' + (i + 1) + ' 段：记住采集路线与人物的约定。').join('\n'),
   occurredAt: '2026-10-08T10:00:00.000Z',
   tags: ['人物'],
   links: [{ type: 'goal', id: goalId }],
@@ -92,10 +94,11 @@ async function nav(id) {
   await page.locator('.nav-btn[data-id="' + id + '"]').click();
 }
 async function remove(target, id, confirm = true) {
-  await target
-    .locator('[data-action="journal-entry-open"][data-id="' + id + '"]')
-    .first()
-    .click();
+  if (!(await target.locator('.drawer-body[data-journal-id="' + id + '"]').count()))
+    await target
+      .locator('[data-action="journal-entry-open"][data-id="' + id + '"]')
+      .first()
+      .click();
   await target.locator('#overlay [data-action="journal-entry-remove"]').click();
   if (confirm) await target.locator('[data-action="journal-entry-remove-confirm"]').click();
   else await target.keyboard.press('Escape');
@@ -126,6 +129,55 @@ async function written(file, parse = false) {
     await nav('journal');
     await remove(page, recordId, false);
     assert((await current()).journalEntries.some((entry) => entry.id === recordId));
+    const reading = page.locator('.drawer-body[data-journal-id="' + recordId + '"]');
+    await reading.waitFor();
+    const beforeCancel = await current();
+    for (const cancel of ['button', 'close', 'escape', 'backdrop']) {
+      const scroll = await reading.evaluate((node) => {
+        node.scrollTop = 260;
+        return node.scrollTop;
+      });
+      assert(scroll > 100, 'Long record must actually scroll');
+      await page.locator('#overlay [data-action="journal-entry-remove"]').click();
+      await page.locator('[data-action="journal-entry-remove-confirm"]').waitFor();
+      if (cancel === 'escape') await page.keyboard.press('Escape');
+      else if (cancel === 'backdrop')
+        await page.locator('[data-backdrop]').click({ position: { x: 2, y: 2 } });
+      else
+        await page
+          .locator('.modal [data-action="close-overlay"]')
+          .nth(cancel === 'close' ? 0 : 1)
+          .click();
+      await reading.waitFor();
+      assert.equal(
+        await page
+          .locator('#overlay [data-action="journal-entry-remove"]')
+          .evaluate((node) => node === document.activeElement),
+        true,
+        cancel,
+      );
+      assert.equal(await reading.evaluate((node) => node.scrollTop), scroll, cancel);
+      assert.match(await reading.innerText(), /第 45 段/);
+      assert.deepEqual(
+        await current(),
+        beforeCancel,
+        cancel + ' must not change records, drafts or other intent',
+      );
+    }
+    await page.keyboard.press('Escape');
+    assert.equal(
+      await page
+        .locator('[data-action="journal-entry-open"][data-id="' + recordId + '"]')
+        .first()
+        .evaluate((node) => node === document.activeElement),
+      true,
+    );
+    checks.push('取消、关闭、Esc与背景均返回原记录、保留阅读位置与焦点，关闭详情返回原记录入口');
+    await page.locator('[data-action="journal-remove-filtered"]').click();
+    await page.locator('[data-action="journal-remove-filtered-confirm"]').waitFor();
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('#overlay [role="dialog"]').count(), 0);
+    assert.deepEqual(await current(), beforeCancel);
     await remove(page, recordId);
     await until((p) => p.journalTrash?.some((row) => row.entry.id === recordId));
     const newer = await record(page, '删除后新写的内容', '后来的内容必须保留');
@@ -182,6 +234,15 @@ async function written(file, parse = false) {
     await companion.keyboard.press('Control+k');
     await companion.locator('#global-search').fill(newer.title);
     await companion.locator('.search-result[data-action="journal-entry-open"]').click();
+    await companion.locator('[data-action="journal-entry-remove"]').click();
+    await companion.keyboard.press('Escape');
+    assert.equal(await companion.locator('.drawer-body').getAttribute('data-journal-id'), newer.id);
+    assert.equal(
+      await companion
+        .locator('[data-action="journal-entry-remove"]')
+        .evaluate((node) => node === document.activeElement),
+      true,
+    );
     await companion.keyboard.press('Escape');
     // Open the journal route through a normal result; editing and saving retains the existing text.
     await companion.keyboard.press('Control+k');

@@ -2318,7 +2318,28 @@ function showOverlay(html, drawer = false, preserve = false) {
     nodeControlsDisabled(currentDrawer.data.record.id, true);
   if (currentDrawer?.type === 'timeline') updateHealth(environment.health);
 }
+function dismissOverlay() {
+  const draft = journalRemoveDraft;
+  if (
+    draft?.mode === 'single' &&
+    draft.returnToRecord &&
+    overlay.querySelector('[data-action="journal-entry-remove-confirm"]')
+  ) {
+    journalRemoveDraft = null;
+    if (
+      draft.profileId === profile().id &&
+      profile().journalEntries?.some((entry) => entry.id === draft.id)
+    ) {
+      showOverlay(eventJournalViews.detail(profile(), draft.id), true);
+      overlay.querySelector('[data-action="journal-entry-remove"]')?.focus({ preventScroll: true });
+      overlay.querySelector('.drawer-body').scrollTop = draft.scroll;
+      return;
+    }
+  }
+  closeOverlay();
+}
 function closeOverlay() {
+  journalRemoveDraft = null;
   journeyTrashConfirmation = null;
   itineraryClearConfirmation = null;
   craftCompletionDraft = null;
@@ -3283,12 +3304,16 @@ async function handle(action, id, target) {
       await saveNote();
       openJournalEditor();
       break;
-    case 'journal-entry-open':
+    case 'journal-entry-open': {
       closeOverlay();
       route = 'journal';
       render();
       showOverlay(eventJournalViews.detail(profile(), id), true);
+      lastFocus =
+        root.querySelector('[data-action="journal-entry-open"][data-id="' + CSS.escape(id) + '"]') ||
+        root.querySelector('.nav-btn.active, .compact-tab.active');
       break;
+    }
     case 'journal-entry-edit': {
       const entry = profile().journalEntries?.find((e) => e.id === id);
       if (!entry || entry.kind !== 'manual') throw Error('这条手写记录已不存在');
@@ -3332,7 +3357,15 @@ async function handle(action, id, target) {
     case 'journal-entry-remove': {
       const entry = profile().journalEntries?.find((e) => e.id === id);
       if (!entry) throw Error('这条记录已不存在');
-      journalRemoveDraft = { mode: 'single', profileId: profile().id, id, entry: structuredClone(entry) };
+      const reading = overlay.querySelector('.drawer-body[data-journal-id]');
+      journalRemoveDraft = {
+        mode: 'single',
+        profileId: profile().id,
+        id,
+        entry: structuredClone(entry),
+        returnToRecord: reading?.dataset.journalId === id,
+        scroll: reading?.scrollTop || 0,
+      };
       modal(
         '删除这条记录？',
         '移入已删除记录，可逐条恢复；目标、行程和游戏存档保持。',
@@ -4438,7 +4471,7 @@ async function handle(action, id, target) {
       break;
     }
     case 'close-overlay':
-      closeOverlay();
+      dismissOverlay();
       break;
     case 'reveal':
       revealed = true;
@@ -5429,7 +5462,7 @@ document.addEventListener('submit', async (event) => {
 document.addEventListener('click', async (event) => {
   const target = event.target.closest('[data-action]');
   if (!target) {
-    if (event.target.dataset.backdrop) closeOverlay();
+    if (event.target.dataset.backdrop) dismissOverlay();
     return;
   }
   if (target.disabled) return;
@@ -5836,7 +5869,7 @@ document.addEventListener('keydown', (event) => {
       escapeCollapse = true;
       return;
     }
-    closeOverlay();
+    dismissOverlay();
     return;
   }
   if (overlay.querySelector('#global-search')) {
