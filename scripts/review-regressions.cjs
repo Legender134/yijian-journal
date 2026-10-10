@@ -94,9 +94,48 @@ async function referenceAndPolling() {
   store.mutate({ type: 'stage', value: 0 });
   store.mutate({ type: 'goal-add', title: '小窗撤销目标' });
   const goalId = store.get().profiles[0].goals[0].id;
+  const otherTitle = '另一目标 <铜锭> & "药材"';
+  store.mutate({ type: 'goal-add', title: otherTitle });
+  const otherId = store.get().profiles[0].goals.find((g) => g.title === otherTitle).id;
+  const untouchedGoal = structuredClone(store.get().profiles[0].goals.find((g) => g.id === goalId));
   running = await launch(data);
   const { app, win } = running;
   try {
+    await nav(win, 'goals');
+    for (const title of ['小窗撤销目标', otherTitle]) {
+      for (const action of ['置顶目标 ', '编辑目标 ', '删除目标 ']) {
+        const button = win.getByRole('button', { name: action + title, exact: true });
+        assert.equal(await button.count(), 1);
+        assert.equal(await button.getAttribute('title'), action + title);
+      }
+    }
+    const edit = win.getByRole('button', { name: '编辑目标 ' + otherTitle, exact: true });
+    await edit.focus();
+    await win.keyboard.press('Enter');
+    assert.equal(await win.locator('#goal-title').inputValue(), otherTitle);
+    await close(win);
+    await win.getByRole('button', { name: '删除目标 ' + otherTitle, exact: true }).click();
+    assert(
+      (await win.getByRole('dialog', { name: '从行囊中移除这件事？', exact: true }).innerText()).includes(
+        otherTitle,
+      ),
+    );
+    await close(win);
+    assert.equal(journal(data).profiles[0].goals.find((g) => g.id === otherId).title, otherTitle);
+    await win.getByRole('button', { name: '置顶目标 ' + otherTitle, exact: true }).click();
+    await win.getByRole('button', { name: '取消置顶目标 ' + otherTitle, exact: true }).waitFor();
+    assert.equal(journal(data).profiles[0].goals.find((g) => g.id === otherId).pinned, true);
+    assert.deepEqual(
+      journal(data).profiles[0].goals.find((g) => g.id === goalId),
+      untouchedGoal,
+    );
+    await win.getByRole('button', { name: '取消置顶目标 ' + otherTitle, exact: true }).click();
+    await nav(win, 'home');
+    assert.equal(await win.getByRole('button', { name: '编辑目标 ' + otherTitle, exact: true }).count(), 1);
+    check(
+      'main goal actions name their exact target, escape user text, and keyboard edit/delete cancellation preserve it',
+      { otherTitle, otherId },
+    );
     const initial = await stateSummary(win);
     assert.equal(initial.timeline.enabled, false);
     assert.equal(journal(data).settings.autoBackup, true);
@@ -245,6 +284,24 @@ async function referenceAndPolling() {
     await win.locator('[data-action="compact"]').first().click();
     const companion = app.windows().find((w) => w !== win) || (await app.waitForEvent('window'));
     await companion.locator('.compact-shell').waitFor();
+    for (const title of ['小窗撤销目标', otherTitle])
+      assert.equal(
+        await companion.getByRole('button', { name: '优先提示 ' + title, exact: true }).count(),
+        1,
+      );
+    const otherPin = companion.getByRole('button', { name: '优先提示 ' + otherTitle, exact: true });
+    await otherPin.focus();
+    await companion.keyboard.press('Enter');
+    await companion.getByRole('button', { name: '取消优先提示 ' + otherTitle, exact: true }).waitFor();
+    await win.getByRole('button', { name: '取消置顶目标 ' + otherTitle, exact: true }).waitFor();
+    assert.equal(journal(data).profiles[0].goals.find((g) => g.id === otherId).pinned, true);
+    await companion.getByRole('button', { name: '取消优先提示 ' + otherTitle, exact: true }).click();
+    await companion.getByRole('button', { name: '优先提示 ' + otherTitle, exact: true }).waitFor();
+    assert.equal(journal(data).profiles[0].goals.find((g) => g.id === otherId).pinned, false);
+    check(
+      'companion goal priority names target and state, changes only the selected goal and synchronizes the main view',
+      { otherTitle, otherId },
+    );
     const goal = companion.locator(`[data-action="goal-toggle"][data-id="${goalId}"]`);
     await goal.click();
     const undo = companion.locator('[data-action="compact-undo"]');
