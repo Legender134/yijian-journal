@@ -75,10 +75,13 @@ let companion, windowMonitor;
 let protectionArchives,
   protectionJobPromise = null;
 async function protectionJob(label, work) {
-  if (protectionJobPromise) throw Error('正在处理保护资料，请等待当前操作完成');
+  if (protectionJobPromise)
+    throw Object.assign(Error('正在处理保护资料，请等待当前操作完成'), { code: 'PROTECTION_NOT_STARTED' });
   if (bridge?.busy || bridge?.loadQueued || bridge?.quiescing)
-    throw Error('游戏存读档操作正在进行，请稍后再处理保护资料');
-  if (quitRequested) throw Error('手札正在退出');
+    throw Object.assign(Error('游戏存读档操作正在进行，请稍后再处理保护资料'), {
+      code: 'PROTECTION_NOT_STARTED',
+    });
+  if (quitRequested) throw Object.assign(Error('手札正在退出'), { code: 'PROTECTION_NOT_STARTED' });
   broadcast('event', { type: 'protection', busy: true, label });
   const task = Promise.resolve().then(work);
   protectionJobPromise = task;

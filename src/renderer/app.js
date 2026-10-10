@@ -5886,6 +5886,10 @@ async function handle(action, id, target, navigationFocused = false) {
       try {
         result = await call('importProtection', mode);
       } catch (error) {
+        if (error.code === 'PROTECTION_NOT_STARTED') {
+          toast(error.message, true);
+          break;
+        }
         const checksum = error.code === 'PROTECTION_CHECKSUM_MISMATCH';
         const failure = {
           message: checksum

@@ -84,6 +84,31 @@ test('a failed protection operation releases the command barrier', async () => {
   assert.deepEqual(s.commands, ['save']);
 });
 
+test('protection preconditions identify that selection and work have not started, while work failures keep their own code', async () => {
+  for (const flag of ['busy', 'loadQueued', 'quiescing', 'other-job', 'quitting']) {
+    const s = setup({ [flag]: true });
+    if (flag === 'other-job') s.context.protectionJobPromise = Promise.resolve();
+    if (flag === 'quitting') s.context.quitRequested = true;
+    let selected = false;
+    await assert.rejects(
+      s.context.job('合成导入', () => {
+        selected = true;
+      }),
+      (error) => error.code === 'PROTECTION_NOT_STARTED',
+    );
+    assert.equal(selected, false);
+    assert.deepEqual(s.messages, []);
+  }
+  const s = setup();
+  await assert.rejects(
+    s.context.job('合成校验', () => {
+      throw Object.assign(Error('synthetic checksum failure'), { code: 'PROTECTION_CHECKSUM_MISMATCH' });
+    }),
+    (error) => error.code === 'PROTECTION_CHECKSUM_MISMATCH',
+  );
+  assert.equal(s.context.protectionJobPromise, null);
+});
+
 function restoreSetup({ answer = 1, failPrepare = false, failRestore = false, local = false } = {}) {
   const { Activity } = require('../src/core/activity.cjs');
   const parent = path.join(__dirname, '..', '.test-data', 'restore-receipt');
@@ -466,6 +491,72 @@ test('late restore success, cancellation and failure leave a newer search or reo
       assert.equal(markup(), expected, `${result}/${next}`);
       assert.equal(u.overlay.firstChild, owner);
       assert.equal(u.backupRestorePending, false);
+    }
+  }
+});
+
+test('an import rejected before selection preserves its page and prior package diagnosis, while real package failures still show recovery guidance', async () => {
+  for (const action of ['protection-import', 'protection-import-volumes']) {
+    for (const code of [
+      'PROTECTION_NOT_STARTED',
+      'PROTECTION_CHECKSUM_MISMATCH',
+      'PROTECTION_FORMAT_UNSUPPORTED',
+    ]) {
+      const previous = { message: '上次已选择保护包的真实校验失败', mode: 'files' },
+        notices = [];
+      let listReads = 0,
+        rejected = true;
+      const context = {
+        action,
+        route: 'saves',
+        protectionView: { importFailure: previous },
+        saveNote: async () => {},
+        call: async () => {
+          if (rejected) throw Object.assign(Error('合成当前操作仍在进行'), { code });
+          return { cancelled: true };
+        },
+        loadProtectionList: async () => {
+          listReads++;
+        },
+        toast: (message, error) => notices.push({ message, error }),
+      };
+      vm.createContext(context);
+      vm.runInContext(
+        'async function runImport() { switch(action) {' +
+          rendererSection(
+            "    case 'protection-import-volumes':",
+            "    case 'protection-import-error-dismiss':",
+          ) +
+          '} }',
+        context,
+      );
+      await context.runImport();
+      if (code === 'PROTECTION_NOT_STARTED') {
+        assert.equal(context.route, 'saves');
+        assert.equal(context.protectionView.importFailure, previous);
+        assert.equal(listReads, 0);
+        assert.deepEqual(notices, [{ message: '合成当前操作仍在进行', error: true }]);
+        rejected = false;
+        await context.runImport();
+        assert.equal(
+          context.protectionView.importFailure,
+          previous,
+          'retry cancellation does not erase a previous real diagnosis',
+        );
+        assert.equal(context.route, 'saves');
+      } else {
+        assert.equal(context.route, 'archives');
+        assert.notEqual(context.protectionView.importFailure, previous);
+        assert.equal(
+          context.protectionView.importFailure.mode,
+          action.endsWith('volumes') ? 'directory' : 'files',
+        );
+        assert.match(
+          context.protectionView.importFailure.message,
+          code === 'PROTECTION_CHECKSUM_MISMATCH' ? /校验失败/ : /不是逸剑手札保护包/,
+        );
+        assert.equal(listReads, 1);
+      }
     }
   }
 });

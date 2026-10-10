@@ -70,7 +70,7 @@ export function createCompanionViews({ esc, icon, act, iconButton, picture, qual
               )
               .join('')}</details>`
           : ''
-      }${trip.status === 'ended' ? `<p class="small muted">个人已处理 ${trip.summary.handled} · 个人已完成 ${trip.summary['user-done']} · 本次跳过 ${trip.summary.skipped} · 待核对 ${trip.summary.unavailable}。游戏完成 ${trip.summary['game-complete']} 和材料已齐 ${trip.summary.prepared} 来自当前参照，不是本次新增进度。</p>${act('journey-itinerary-journal', '写入江湖记录', 'btn soft', '', 'feather')}` : act('journey-itinerary-status', '结束并回顾', 'text-btn', 'ended')}${act('navigate', '查看与调整完整行程', 'btn soft', 'journey', 'book')}</section>`;
+      }${trip.status === 'ended' ? `<p class="small muted">个人已处理 ${trip.summary.handled} · 个人已完成 ${trip.summary['user-done']} · 本次跳过 ${trip.summary.skipped} · 待核对 ${trip.summary.unavailable}。游戏完成 ${trip.summary['game-complete']} 和材料已齐 ${trip.summary.prepared} 来自当前参照，不是本次新增进度。</p>` : ''}<div class="row wrap mt">${trip.status === 'ended' ? act('journey-itinerary-journal', '写入江湖记录', 'btn soft', '', 'feather') : act('journey-itinerary-status', '结束并回顾', 'text-btn', 'ended')}${act('navigate', '查看与调整完整行程', 'btn soft', 'journey', 'book')}</div></section>`;
     }
     if (!data?.nextActions?.length) return '';
     return `<h3 class="companion-section">这一程做什么 · ${data.journeySummary.pending} 件待处理</h3>${data.nextActions
