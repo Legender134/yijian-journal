@@ -203,3 +203,80 @@ test('several gift intents and crafting share physical stock, and a handled gift
   assert.equal(resourceBudget(p, ref).gifts.length, 1);
   assert.equal(resourceBudget(p, ref).totals['10216'], 8);
 });
+
+function rendererReservations(p, index = { world: { quests: [] } }) {
+  const fs = require('node:fs'),
+    path = require('node:path'),
+    vm = require('node:vm');
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const section = (start, end) => {
+    const a = source.indexOf(start),
+      b = source.indexOf(end, a);
+    assert(a >= 0 && b > a);
+    return source.slice(a, b);
+  };
+  const context = { profile: () => p, gameIndex: index };
+  vm.createContext(context);
+  vm.runInContext(
+    "'use strict';\n" +
+      section('function planningTotals(', '\nconst latestReference') +
+      section('function reservableReference(', '\nfunction backupPreviewScope(') +
+      '\nthis.available = reservableReference;',
+    context,
+  );
+  return context.available;
+}
+
+test('repeated recipe previews keep cached reservations and shortage calculations intact', () => {
+  const p = { id: 'one' },
+    ref = reference();
+  ref.planning = { profileId: p.id, totals: { 10216: 9, 10246: 3, 10205: 3 } };
+  const before = JSON.stringify(ref),
+    available = rendererReservations(p),
+    { recipePlan } = require('../src/core/game-data.cjs');
+  Object.freeze(ref.planning.totals);
+  for (const quantity of [1, 3, 1, 4, 3]) {
+    const projected = available(ref),
+      coal = recipePlan('fusion-1000', quantity, projected.metadata.inventory).materials.find(
+        (m) => m.id === 10205,
+      );
+    assert.equal(coal.owned, 2);
+    assert.equal(coal.missing, Math.max(0, quantity - 2));
+    assert.equal(JSON.stringify(ref), before);
+    assert.equal(ref.planning.totals[10205], 3);
+    assert.notEqual(projected.metadata.inventory, ref.metadata.inventory);
+  }
+});
+
+test('renderer reservation fallback retains completed-task filtering and unknown stock', () => {
+  const p = {
+      id: 'one',
+      reservations: { 10205: 1 },
+      allocations: [
+        { questId: 'active', items: { 10205: 2 } },
+        { questId: 'done', items: { 10205: 99 } },
+      ],
+    },
+    ref = reference();
+  ref.metadata.quests = [
+    { id: 1, step: 1 },
+    { id: 2, step: 4 },
+  ];
+  ref.planning = { profileId: 'other', totals: { 10205: 99 } };
+  const index = {
+      world: {
+        quests: [
+          { id: 'active', gameId: 1 },
+          { id: 'done', gameId: 2 },
+        ],
+      },
+    },
+    available = rendererReservations(p, index),
+    before = JSON.stringify({ p, ref });
+  for (let i = 0; i < 3; i++)
+    assert.equal(available(ref).metadata.inventory.find((item) => item.id === 10205).count, 2);
+  assert.equal(JSON.stringify({ p, ref }), before);
+  const unknown = { metadata: {} };
+  assert.equal(available(unknown), unknown);
+  assert.equal(available(null), null);
+});
