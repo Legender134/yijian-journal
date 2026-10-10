@@ -134,6 +134,73 @@ async function allPersonal(win) {
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.showInactive()));
     for (const page of ['checklist', 'library', 'database', 'goals', 'saves', 'settings', 'home'])
       await win.locator(`.nav-btn[data-id="${page}"]`).click();
+    await win.locator('.nav-btn[data-id="materials"]').click();
+    await win.locator(`[data-action="craft-plan-open"][data-id="${planId}"]`).click();
+    await win.locator('#craft-search').fill('');
+    const recipes = await win.locator('.craft-suggestions [data-action="craft-add"]').evaluateAll((buttons) =>
+      buttons.map((button) => ({
+        id: button.dataset.id,
+        name: button.parentElement.querySelector('strong').textContent.trim(),
+      })),
+    );
+    assert(recipes.length > 2);
+    report.craftAccessibility = { suggestions: await win.locator('.craft-suggestions').ariaSnapshot() };
+    for (const recipe of recipes) {
+      const button = win.getByRole('button', { name: '加入备料清单：' + recipe.name, exact: true });
+      assert.equal(await button.count(), 1, 'recipe-specific accessible add name: ' + recipe.name);
+      assert.equal(await button.getAttribute('data-id'), recipe.id);
+      assert.equal(await button.getAttribute('title'), '加入备料清单：' + recipe.name);
+    }
+    const selectedRecipes = recipes.filter((recipe) => recipe.id !== 'fusion-1000').slice(0, 2);
+    const addedQuantities = {};
+    for (const recipe of [selectedRecipes[0], ...selectedRecipes]) {
+      const quantity = (addedQuantities[recipe.id] || 0) + 1;
+      addedQuantities[recipe.id] = quantity;
+      await win.getByRole('button', { name: '加入备料清单：' + recipe.name, exact: true }).focus();
+      await win.keyboard.press('Enter');
+      await win.waitForFunction(
+        ({ id, quantity }) => document.querySelector('#craft-qty-' + id)?.value === String(quantity),
+        { id: recipe.id, quantity },
+      );
+    }
+    const craftList = async () =>
+      (await win.evaluate(() => window.journal.bootstrap())).data.state.profiles[0].craftList;
+    assert.deepEqual(await craftList(), [
+      { id: 'fusion-1000', quantity: 1 },
+      { id: selectedRecipes[0].id, quantity: 2 },
+      { id: selectedRecipes[1].id, quantity: 1 },
+    ]);
+    report.craftAccessibility.selected = await win.locator('.craft-layout').ariaSnapshot();
+    for (const recipe of selectedRecipes) {
+      const button = win.getByRole('button', { name: '移出备料清单：' + recipe.name, exact: true });
+      assert.equal(await button.count(), 1);
+      assert.equal(await button.getAttribute('data-id'), recipe.id);
+      assert.equal(await button.getAttribute('title'), '移出备料清单：' + recipe.name);
+      await button.focus();
+      await win.keyboard.press('Enter');
+      await win.waitForFunction(
+        (id) => !document.querySelector(`[data-action="craft-remove"][data-id="${id}"]`),
+        recipe.id,
+      );
+      assert.equal(
+        (await craftList()).some((line) => line.id === recipe.id),
+        false,
+      );
+      assert.deepEqual(
+        (await craftList()).find((line) => line.id === 'fusion-1000'),
+        { id: 'fusion-1000', quantity: 1 },
+      );
+      if (recipe === selectedRecipes[0])
+        assert.deepEqual(
+          (await craftList()).find((line) => line.id === selectedRecipes[1].id),
+          { id: selectedRecipes[1].id, quantity: 1 },
+        );
+    }
+    await win.locator(`[data-action="craft-plan-open"][data-id="${completedPlan.id}"]`).click();
+    await win.locator('.nav-btn[data-id="home"]').click();
+    report.checks.push(
+      'recipe-specific accessible add/remove names select the intended recipe by keyboard and preserve other quantities',
+    );
     await win.locator('.search-trigger').focus();
     await win.keyboard.press('Enter');
     await win.locator('#global-search').fill('清灵丹');
