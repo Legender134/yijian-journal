@@ -1653,6 +1653,14 @@ kbd {
   color: var(--muted);
   margin-top: 4px;
 }
+.backup-row[data-craft-plan-id] {
+  flex-wrap: wrap;
+}
+.backup-row[data-craft-plan-id] > .spacer {
+  flex: 1 1 320px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .setting-row {
   display: flex;
   align-items: center;

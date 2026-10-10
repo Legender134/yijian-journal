@@ -1050,6 +1050,14 @@ function resetPlanningViews() {
 function worldPage() {
   return worldViews.page(gameIndex, worldView, readableSaves());
 }
+function craftRecipeSummary(list) {
+  return list
+    .map((line) => {
+      const recipe = gameIndex.entries.find((entry) => entry.id === line.id);
+      return `${recipe?.name || line.id} × ${line.quantity} 次`;
+    })
+    .join(' · ');
+}
 function materialPage() {
   const p = profile(),
     selected = p.craftPlans?.find((x) => x.id === p.activeCraftPlanId);
@@ -1063,10 +1071,13 @@ function materialPage() {
         'shield',
       );
   const rows = (p.craftPlans || [])
-    .map(
-      (plan) =>
-        `<div class="backup-row" data-craft-plan-id="${esc(plan.id)}"><div class="spacer"><h3>${esc(plan.name)}</h3><p>${plan.list.length} 种配方 · ${plan.done ? '个人已制作完成 · 用料已释放' : plan.reserved === false ? '尚未预留材料' : '按本周目规则预留'} · ${when(plan.updatedAt)}</p></div>${act('craft-plan-open', '打开', 'btn', plan.id, 'book')}${act('craft-plan-complete', plan.done ? '重新打开计划' : '完成整份计划…', 'btn soft', plan.id, plan.done ? 'refresh' : 'check')}${act('craft-plan-copy', '另存一份', 'text-btn', plan.id, 'plus')}${!plan.done ? act('craft-plan-reserve', plan.reserved === false ? '保留材料' : '释放计划用量', 'text-btn', plan.id, 'shield') : ''}${iconButton('craft-plan-remove', 'trash', '移除制作计划 ' + plan.name, plan.id)}</div>`,
-    )
+    .map((plan) => {
+      const contents = craftRecipeSummary(plan.list),
+        context = plan.name + '，' + contents,
+        button = (action, label, cls, glyph) =>
+          act(action, label, cls, plan.id, glyph, label + '：' + context);
+      return `<div class="backup-row" data-craft-plan-id="${esc(plan.id)}"><div class="spacer"><h3>${esc(plan.name)}</h3><p data-craft-plan-contents>${esc(contents)}</p><p>${plan.list.length} 种配方 · ${plan.done ? '个人已制作完成 · 用料已释放' : plan.reserved === false ? '尚未预留材料' : '按本周目规则预留'} · ${when(plan.updatedAt)}</p></div>${button('craft-plan-open', '打开', 'btn', 'book')}${button('craft-plan-complete', plan.done ? '重新打开计划' : '完成整份计划…', 'btn soft', plan.done ? 'refresh' : 'check')}${button('craft-plan-copy', '另存一份', 'text-btn', 'plus')}${!plan.done ? button('craft-plan-reserve', plan.reserved === false ? '保留材料' : '释放计划用量', 'text-btn', 'shield') : ''}${iconButton('craft-plan-remove', 'trash', '移除制作计划：' + context, plan.id)}</div>`;
+    })
     .join('');
   const plans = `<section class="card mb"><div class="card-header"><h2>我的制作计划</h2>${(p.craftList || []).length ? act('craft-plan-dialog', selected ? '保存为新计划' : '保存当前清单', 'btn soft', '', 'plus') + (selected ? act('craft-plan-dialog', '更新「' + selected.name + '」', 'btn', selected.id, 'edit') : '') : ''}</div><p class="save-note">每份计划独立保存配方和次数；核对库存时使用所选存档。完成整份计划后释放它的用料，可重新打开；不会修改游戏库存或独立勾选的目标。</p>${draftReservation}${rows || '<p class="small muted">先添加配方，再保存第一份计划。</p>'}${p.previousCraftList ? act('craft-draft-restore', '找回上一次编辑清单 · ' + p.previousCraftList.length + ' 种配方', 'text-btn', '', 'refresh') : ''}</section>`;
   return (
@@ -1167,7 +1178,7 @@ function craftPlanModal(
   modal(
     plan ? '更新制作计划' : '保存制作计划',
     '配方和制作次数会独立保存，修改编辑清单不会改变其他计划。',
-    `<div class="field"><label for="craft-plan-name">计划名称</label><input id="craft-plan-name" maxlength="80" value="${esc(name || plan?.name || '出发前的制作计划')}" placeholder="例如：武当山出发前的装备"></div><p>${list.length} 种配方</p><label><input id="craft-plan-goal" type="checkbox" ${addGoal ? 'checked' : ''}> 同时加入行囊目标</label><label><input id="craft-plan-reserved" type="checkbox" ${(plan ? plan.reserved !== false : profile().reserveCraftDraft !== false) ? 'checked' : ''}> 为计划保留材料，赠礼时扣除</label>`,
+    `<div class="field"><label for="craft-plan-name">计划名称</label><input id="craft-plan-name" maxlength="80" value="${esc(name || plan?.name || '出发前的制作计划')}" placeholder="例如：武当山出发前的装备"></div><p>${list.length} 种配方</p><p data-craft-plan-contents>${esc(craftRecipeSummary(list))}</p><label><input id="craft-plan-goal" type="checkbox" ${addGoal ? 'checked' : ''}> 同时加入行囊目标</label><label><input id="craft-plan-reserved" type="checkbox" ${(plan ? plan.reserved !== false : profile().reserveCraftDraft !== false) ? 'checked' : ''}> 为计划保留材料，赠礼时扣除</label>`,
     act('craft-plan-save', '保存计划', 'btn primary', '', 'check'),
   );
   document.querySelector('#craft-plan-name')?.focus();
