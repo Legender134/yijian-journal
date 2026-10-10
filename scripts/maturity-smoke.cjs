@@ -395,8 +395,10 @@ async function multiPlanFlow(page) {
     checks.push('使用历史手札前保留当前副本，保持本机路径并重新导出可校验保护包');
     await page.screenshot({ path: path.join(data, 'imported-history.png') });
     await nav(page, 'saves');
-    await page.locator('[data-action="backup-preview"][data-id="' + safety.id + '"]').click();
-    await page.waitForSelector('[aria-label="备份预览"]');
+    await page
+      .locator('.backup-row [data-action="backup-preview"][data-id="' + safety.id + '"]')
+      .click();
+    await page.locator('[data-backup-preview-state="verified"]').waitFor();
     const beforeLocalEvents = JSON.parse(fs.readFileSync(activityFile, 'utf8')).events;
     const beforeLocalBackupIds = liveBackups
       .list()
@@ -404,7 +406,12 @@ async function multiPlanFlow(page) {
       .sort();
     await dialogAnswer(0);
     await page.locator('[data-action="restore"]').click();
+    await page.locator('[data-backup-preview-state="invalid"]').waitFor();
     assert.equal((await app.evaluate(() => globalThis.maturityDialogResponses)).length, 1);
+    assert.equal(await page.locator('[data-action="restore"]').count(), 0);
+    assert(
+      (await page.locator('[aria-label="备份预览"]').innerText()).includes('已取消恢复，旧预览已失效'),
+    );
     assert((await page.evaluate(() => window.journal.bootstrap())).ok);
     assert.deepEqual(JSON.parse(fs.readFileSync(activityFile, 'utf8')).events, beforeLocalEvents);
     assert.deepEqual(
@@ -416,6 +423,10 @@ async function multiPlanFlow(page) {
     );
     assert.equal(hash(path.join(currentGame, '1.sav')), oldHash);
     for (const [n, digest] of Object.entries(foreign)) assert.equal(hash(path.join(currentGame, n)), digest);
+    await page
+      .locator('[data-backup-preview-state="invalid"] [data-action="backup-preview"][data-id="' + safety.id + '"]')
+      .click();
+    await page.locator('[data-backup-preview-state="verified"]').waitFor();
     await dialogAnswer(1);
     await page.locator('[data-action="restore"]').click();
     await page.locator('.toast').filter({ hasText: '已恢复 4 个文件，恢复前副本已保留' }).waitFor();
@@ -465,7 +476,7 @@ async function multiPlanFlow(page) {
       '历史完整恢复留下目标与安全副本的持久成功回执，取消不记成功，冷重启后操作结果与恢复字节可核对',
     );
     checks.push(
-      '本机完整恢复取消保留全部字节且不记成功，确认后核对4个文件、安全副本与外来28/29槽，冷重启显示两类恢复回执',
+      '本机完整恢复取消后旧预览失效且保留全部字节、不记成功；重新校验确认后核对4个文件、安全副本与外来28/29槽，冷重启显示两类恢复回执',
     );
     assert.deepEqual(errors, []);
     assert.equal(await restarted.locator('.toast.error').count(), 0);

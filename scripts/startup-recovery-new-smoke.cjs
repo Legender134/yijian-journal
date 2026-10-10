@@ -182,6 +182,9 @@ async function closeNormal(win) {
     await win.locator('#confirm').click();
     await win.waitForSelector('#error:not([hidden])');
     assert.match(await win.locator('#error').innerText(), /磁盘空间/);
+    assert.equal(await win.locator('#preview').isVisible(), false);
+    assert.equal(await win.locator('#ack').isChecked(), false);
+    assert.equal(await win.locator('#confirm').isEnabled(), false);
     verifyOriginals();
     verifyUnrelated();
     await win.screenshot({
@@ -189,11 +192,13 @@ async function closeNormal(win) {
       fullPage: true,
     });
     facts.scenarios.push(
-      'actual atomic rename failure shown in UI; both broken originals and unrelated files retained; same explicit confirmation can retry',
+      'actual atomic rename failure shown in UI; both broken originals and unrelated files retained; stale preview and confirmation revoked',
     );
-    const nextWindow = app.waitForEvent('window');
-    await win.locator('#confirm').click();
-    win = await nextWindow;
+    await newPreview(win);
+    verifyOriginals();
+    verifyUnrelated();
+    await win.locator('#ack').check();
+    [win] = await Promise.all([app.waitForEvent('window'), win.locator('#confirm').click()]);
     win.on('pageerror', (error) => errors.push(error.message));
     await win.waitForSelector('.layout');
     let bootstrap = await win.evaluate(async () => (await window.journal.bootstrap()).data);
