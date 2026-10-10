@@ -1511,7 +1511,7 @@ async function showDatabaseDetail(id, quantity = 1, giftPage) {
       }
   }
   if (token !== detailRequest || profileId !== profile().id) return;
-  if (e.kind === '物品' && planningSignature !== planningIntentSignature())
+  if (['物品', '人物', '配方'].includes(e.kind) && planningSignature !== planningIntentSignature())
     return showDatabaseDetail(id, quantity, giftPage);
   const quantityField = sameDrawer && e.kind === '配方' ? document.querySelector('#recipe-quantity') : null;
   const rawQuantity = quantityField?.value;
@@ -1571,7 +1571,7 @@ function recipeQuantity() {
 }
 function reservableReference(ref) {
   if (!Array.isArray(ref?.metadata.inventory)) return ref;
-  const remaining = planningTotals(ref);
+  const remaining = { ...planningTotals(ref) };
   return {
     ...ref,
     metadata: {
@@ -3201,10 +3201,10 @@ async function refresh() {
   }
   if (
     currentDrawer?.type === 'database' &&
-    gameViews.byId(gameIndex, currentDrawer.id)?.kind === '物品' &&
+    ['物品', '人物', '配方'].includes(gameViews.byId(gameIndex, currentDrawer.id)?.kind) &&
     currentDrawer.planningSignature !== planningIntentSignature()
   )
-    await showDatabaseDetail(currentDrawer.id);
+    await showDatabaseDetail(currentDrawer.id, currentDrawer.quantity || 1, currentDrawer.giftPage);
   if (currentDrawer?.type === 'search' && !composing) showSearchResults(currentDrawer.query);
 }
 async function handle(action, id, target, navigationFocused = false) {

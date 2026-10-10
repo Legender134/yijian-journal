@@ -83,6 +83,146 @@ const stateSummary = (win) =>
   });
 let running;
 
+async function recipeReservationConsistency() {
+  const data = makeData('recipeReservationConsistency'),
+    source = path.join(data, 'synthetic-SaveGames');
+  fs.mkdirSync(source);
+  const files = {
+    '0.sav': syntheticSave({
+      full: true,
+      seconds: 19000,
+      quests: [],
+      fusionRecipes: [1000],
+      inventory: [
+        { id: 10216, count: 100 },
+        { id: 10246, count: 100 },
+        { id: 10205, count: 5 },
+      ],
+      money: 100000,
+    }),
+    '29.sav': Buffer.from('synthetic-foreign-slot-29'),
+    'JHSaveConfig.sav': Buffer.from('synthetic-reservation-index'),
+  };
+  for (const [name, bytes] of Object.entries(files)) fs.writeFileSync(path.join(source, name), bytes);
+  const store = new Store(data, catalog);
+  store.setPath('savePath', source);
+  store.mutate({ type: 'settings', value: { autoBackup: false } });
+  store.mutate({ type: 'save-slot', value: '0.sav', mode: 'slot' });
+  store.mutate({
+    type: 'craft-plan-save',
+    name: '其他计划预留三份煤炭',
+    list: [{ id: 'fusion-1000', quantity: 3 }],
+    reserved: true,
+  });
+  const plans = structuredClone(store.get().profiles[0].craftPlans);
+  running = await launch(data);
+  const { app, win } = running;
+  try {
+    await app.context().setOffline(true);
+    await nav(win, 'database');
+    await win.locator('[data-action="database-kind"][data-id="配方"]').click();
+    await win.locator('#list-search').fill(gameIndex.entries.find((e) => e.id === 'fusion-1000').name);
+    await win.locator('.database-card[data-id="fusion-1000"]').click();
+    await win.locator('#recipe-quantity').waitFor();
+    const coal = win.locator('#recipe-materials .material-row').filter({
+      has: win.locator('[data-action="database-detail"][data-id="item-10205"]'),
+    });
+    assert.match(await coal.innerText(), /已有 2/);
+    assert.match(await win.locator('.recipe-box').innerText(), /已扣除本周目预留/);
+    const samples = [];
+    for (const quantity of [3, 1, 4, 3]) {
+      await win.locator('#recipe-quantity').fill(String(quantity));
+      const text = await coal.innerText();
+      const response = await win.evaluate(
+        (quantity) => window.journal.recipePlan('fusion-1000', quantity, '0.sav'),
+        quantity,
+      );
+      assert(response.ok, response.error);
+      const material = response.data.materials.find((m) => m.id === 10205);
+      assert.equal(material.owned, 2);
+      assert.equal(material.missing, Math.max(0, quantity - 2));
+      assert.match(text, /已有 2/);
+      assert.match(text, quantity > 2 ? new RegExp('还缺 ' + (quantity - 2)) : /已备齐/);
+      samples.push({ quantity, text, owned: material.owned, missing: material.missing });
+    }
+    check(
+      'repeated recipe quantity edits retain other-plan reservations and match the real backend shortage',
+      { samples },
+    );
+    await close(win);
+    await win.locator('.database-card[data-id="fusion-1000"]').click();
+    await win.locator('#recipe-quantity').waitFor();
+    assert.match(await coal.innerText(), /已有 2/);
+    await select(win, '#recipe-save', '');
+    assert.equal(await win.locator('#recipe-materials .material-owned').count(), 0);
+    await select(win, '#recipe-save', '0.sav');
+    assert.match(await coal.innerText(), /已有 2/);
+    assert.deepEqual(journal(data).profiles[0].craftPlans, plans);
+    for (const [name, bytes] of Object.entries(files))
+      assert.deepEqual(fs.readFileSync(path.join(source, name)), bytes);
+    check(
+      'reopening and switching between unknown and fixed stock preserve reservations, personal plans and every synthetic save',
+      { files: Object.keys(files) },
+    );
+    await win.locator('#recipe-quantity').fill('3');
+    let companion = app.windows().find((page) => page.url().includes('compact=1'));
+    if (!companion) {
+      const created = app.waitForEvent('window', { timeout: 15000 });
+      const shown = await win.evaluate(() => window.journal.compact());
+      assert(shown.ok, shown.error);
+      companion = await created;
+      await companion.waitForURL(/compact=1/);
+    } else {
+      const shown = await win.evaluate(() => window.journal.compact());
+      assert(shown.ok, shown.error);
+    }
+    await companion.locator('.companion-tabs [data-action="navigate"][data-id="materials"]').click();
+    const toggle = () =>
+      companion.locator(
+        '.backup-row[data-craft-plan-id="' + plans[0].id + '"] [data-action="craft-plan-reserve"]',
+      );
+    await toggle().click();
+    await toggle().filter({ hasText: '保留材料' }).waitFor();
+    await coal.filter({ hasText: '已有 5' }).waitFor();
+    assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
+    assert.equal(await win.locator('#recipe-save').inputValue(), '0.sav');
+    const released = await win.evaluate(() => window.journal.recipePlan('fusion-1000', 3, '0.sav'));
+    assert(released.ok, released.error);
+    assert.equal(released.data.materials.find((m) => m.id === 10205).owned, 5);
+    assert.match(await coal.innerText(), /已备齐/);
+    await toggle().click();
+    await toggle().filter({ hasText: '释放计划用量' }).waitFor();
+    await coal.filter({ hasText: '已有 2' }).waitFor();
+    assert.match(await coal.innerText(), /还缺 1/);
+    assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
+    check(
+      'open recipe follows actual companion plan release and reservation without losing quantity or fixed reference',
+    );
+    await close(win);
+    await win.locator('.database-tab[data-id="人物"]').click();
+    await win.locator('#list-search').fill('道玄');
+    await win.locator('.database-card[data-id="npc-5014"]').click();
+    const giftCoal = win.locator('.person-gifts [data-action="database-detail"][data-id="item-10205"]');
+    await giftCoal.filter({ hasText: '2 件' }).waitFor();
+    await toggle().click();
+    await toggle().filter({ hasText: '保留材料' }).waitFor();
+    await giftCoal.filter({ hasText: '5 件' }).waitFor();
+    await toggle().click();
+    await toggle().filter({ hasText: '释放计划用量' }).waitFor();
+    await giftCoal.filter({ hasText: '2 件' }).waitFor();
+    assert.equal(await win.locator('#person-save').inputValue(), '0.sav');
+    assert.deepEqual(journal(data).profiles[0].craftPlans, plans);
+    for (const [name, bytes] of Object.entries(files))
+      assert.deepEqual(fs.readFileSync(path.join(source, name)), bytes);
+    check(
+      'open person gift stock follows companion reservation changes and leaves all synthetic saves and original plans intact',
+    );
+  } finally {
+    await app.close();
+    running = null;
+  }
+}
+
 async function importBusyFeedback() {
   const data = makeData('importBusyFeedback'),
     source = path.join(data, 'synthetic-SaveGames');
@@ -2270,6 +2410,7 @@ async function customOpacityImport() {
 (async () => {
   try {
     const groups = {
+      recipeReservationConsistency,
       importBusyFeedback,
       detailReadability,
       searchReadability,
