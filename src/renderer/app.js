@@ -1555,14 +1555,18 @@ async function showDatabaseDetail(id, quantity = 1, giftPage) {
     showOverlay(html, true, sameDrawer);
     if (quantityField && !validQuantity) {
       document.querySelector('#recipe-quantity').value = rawQuantity || '';
-      document.querySelector('#recipe-materials').innerHTML =
-        notice('填写 1 至 999 的整数制作次数后核对材料。');
+      document.querySelector('#recipe-materials').innerHTML = notice(
+        '填写 1 至 999 的整数制作次数后查看材料与预计总产物。',
+      );
+      document.querySelector('#recipe-quantity').setCustomValidity('制作次数须为 1 至 999');
     }
   }
 }
 function recipeQuantity() {
-  const n = Number(document.querySelector('#recipe-quantity')?.value ?? '1');
-  if (!Number.isSafeInteger(n) || n < 1 || n > 999) throw Error('制作次数须为 1 至 999');
+  const field = document.querySelector('#recipe-quantity'),
+    n = Number(field?.value ?? '1');
+  if (field?.validity.badInput || !Number.isSafeInteger(n) || n < 1 || n > 999)
+    throw Error('制作次数须为 1 至 999');
   return n;
 }
 function reservableReference(ref) {
@@ -6188,6 +6192,7 @@ document.addEventListener('input', (event) => {
     return;
   }
   if (event.target.id === 'recipe-quantity') {
+    event.target.setCustomValidity('');
     try {
       const e = gameViews.byId(gameIndex, databaseId);
       const n = recipeQuantity();
@@ -6200,6 +6205,9 @@ document.addEventListener('input', (event) => {
       event.target.setCustomValidity('');
     } catch (e) {
       event.target.setCustomValidity(e.message);
+      document.querySelector('#recipe-materials').innerHTML = notice(
+        '填写 1 至 999 的整数制作次数后查看材料与预计总产物。',
+      );
     }
     return;
   }

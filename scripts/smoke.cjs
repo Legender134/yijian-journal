@@ -195,7 +195,9 @@ async function attach() {
         (await window.journal.bootstrap()).data.gameIndex.entries.find((e) => e.id === 'cooking-102'),
       )
     ).results[0];
-    await win.locator(`.drawer [data-action="database-detail"][data-id="item-${fishResult.id}"]`).click();
+    await win
+      .locator(`#recipe-materials [data-recipe-output-id="${fishResult.id}"] [data-action="database-detail"]`)
+      .click();
     await win.locator('.item-produced [data-id="cooking-102"]').click();
     assert.equal(await win.locator('.recipe-learning').count(), 1);
     await win.locator('[data-action="drawer-back"]').click();

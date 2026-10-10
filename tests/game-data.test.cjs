@@ -197,3 +197,145 @@ test('save detail filename validation and scan cache invalidation', (t) => {
   for (const name of ['../2.sav', 'JHSaveConfig.sav', '2.sav:stream', '2.SAV\\x'])
     assert.throws(() => saves.details(dir, name));
 });
+
+test('encyclopedia projects single-execution output facts without altering recipe results or other entry fields', () => {
+  const raw = require('../src/data/game-index.json'),
+    before = structuredClone(raw),
+    projected = encyclopedia(),
+    entry = (id) => projected.entries.find((e) => e.id === id);
+  for (const id of ['fusion-9501', 'fusion-1002', 'fusion-1100']) {
+    const { outputReference, ...originalFields } = entry(id);
+    assert.deepEqual(
+      originalFields,
+      raw.entries.find((e) => e.id === id),
+    );
+    assert.ok(outputReference.length > 0);
+    assert.notEqual(
+      entry(id),
+      raw.entries.find((e) => e.id === id),
+    );
+  }
+  assert.deepEqual(entry('fusion-9501').outputReference, [
+    {
+      id: 10217,
+      name: '铜锭',
+      quality: '绿',
+      minimumCount: 1,
+      maximumCount: 3,
+      weights: [5, 3, 2],
+      guaranteedItem: true,
+    },
+  ]);
+  assert.deepEqual(entry('fusion-1002').outputReference, [
+    {
+      id: 1008,
+      name: '长虹剑',
+      quality: '金',
+      minimumCount: 1,
+      maximumCount: 1,
+      weights: [1],
+      guaranteedItem: true,
+    },
+  ]);
+  assert.deepEqual(
+    entry('fusion-1100').outputReference.map((o) => [o.id, o.quality, o.guaranteedItem]),
+    [
+      [1000, '白', false],
+      [1001, '绿', false],
+      [1002, '蓝', false],
+    ],
+  );
+  assert.deepEqual(
+    recipePlan('fusion-9501', 4).results,
+    before.entries.find((e) => e.id === 'fusion-9501').results,
+  );
+  assert.equal(entry('item-10217').outputReference, undefined);
+  assert.deepEqual(raw, before);
+});
+
+test('recipe detail shows chosen total ranges and separate quality candidates before a craft-list action, with unknown inventory intact', async () => {
+  const { pathToFileURL } = require('node:url'),
+    { createGameViews } = await import(
+      pathToFileURL(path.join(__dirname, '../src/renderer/game-views.js')).href
+    ),
+    index = encyclopedia();
+  const esc = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch],
+    );
+  const views = createGameViews({
+    esc,
+    icon: () => '',
+    act: (action, label, cls, id) =>
+      '<button data-action="' + esc(action) + '" data-id="' + esc(id) + '">' + label + '</button>',
+    pill: esc,
+    empty: esc,
+    notice: esc,
+    bytes: esc,
+    when: esc,
+    hours: esc,
+    iconButton: () => '',
+    picture: () => '',
+    qualityText: { name: (_, name) => esc(name), label: () => '' },
+  });
+  const entry = (id) => index.entries.find((e) => e.id === id);
+  for (const [id, quantity, outputs] of [
+    ['fusion-9501', 4, [[10217, '铜锭', '绿', '4–12']]],
+    ['fusion-1002', 3, [[1008, '长虹剑', '金', '3']]],
+    [
+      'fusion-1100',
+      2,
+      [
+        [1000, '纯钢剑', '白', '0–2'],
+        [1001, '纯钢剑', '绿', '0–2'],
+        [1002, '纯钢剑', '蓝', '0–2'],
+      ],
+    ],
+  ]) {
+    const recipe = entry(id),
+      before = structuredClone(recipe),
+      html = views.detail(index, id, quantity),
+      totals = html.slice(
+        html.indexOf('data-recipe-total-outputs'),
+        html.indexOf('<div class="material-row"'),
+      );
+    assert.ok(totals.includes('制作 ' + quantity + ' 次的预计总产物'));
+    for (const [itemId, name, quality, count] of outputs) {
+      assert.ok(totals.includes('data-recipe-output-id="' + itemId + '"'));
+      assert.ok(
+        totals.includes('data-id="item-' + itemId + '">' + name + '</button> · ' + quality + '色 × ' + count),
+      );
+    }
+    assert.match(totals, /尚未计入背包/);
+    assert.doesNotMatch(totals, /NaN|Infinity|概率|%|已有|缺 0/);
+    assert.equal((totals.match(/data-recipe-output-id=/g) || []).length, outputs.length);
+    assert.ok(html.indexOf('data-recipe-total-outputs') < html.indexOf('data-action="craft-add"'));
+    assert.match(html, /每次产出参考/);
+    assert.doesNotMatch(html, /material-owned|缺 0/);
+    assert.equal(totals.includes('不会同时得到全部最大数量'), id === 'fusion-1100');
+    assert.deepEqual(recipe, before);
+  }
+  const copper = entry('fusion-9501');
+  for (const outputReference of [
+    [],
+    [{ ...copper.outputReference[0], minimumCount: null, maximumCount: null, guaranteedItem: false }],
+    [{ ...copper.outputReference[0], minimumCount: null, maximumCount: 3, guaranteedItem: false }],
+    [
+      {
+        ...copper.outputReference[0],
+        minimumCount: Number.MAX_SAFE_INTEGER,
+        maximumCount: Number.MAX_SAFE_INTEGER,
+      },
+    ],
+  ]) {
+    const recipe = { ...copper, outputReference },
+      html = views.recipeMaterials(recipe, 4, index),
+      totals = html.slice(0, html.indexOf('<div class="material-row"'));
+    assert.match(totals, /游戏内确认/);
+    assert.doesNotMatch(totals, / × |NaN|Infinity|0–/);
+  }
+  const unreadable = views.recipeMaterials(copper, 4, index, { metadata: {} });
+  assert.match(unreadable, /绿色 × 4–12/);
+  assert.doesNotMatch(unreadable, /material-owned|缺 0/);
+});

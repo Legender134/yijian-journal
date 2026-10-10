@@ -331,6 +331,45 @@ async function recipeOutputUnits() {
     fs.writeFileSync(path.join(data, name + '.png'), Buffer.from(png, 'base64'));
   };
   try {
+    await win.context().setOffline(true);
+    const window = await app.browserWindow(win);
+    await window.evaluate((w) => w.setBounds({ width: 980, height: 660 }));
+    const fits = async (selector) => {
+      const node = win.locator(selector).first();
+      await node.scrollIntoViewIfNeeded();
+      const geometry = await node.evaluate((element) => {
+        const rect = element.getBoundingClientRect(),
+          body = document.querySelector('.drawer-body');
+        return {
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+          width: innerWidth,
+          height: innerHeight,
+          scroll: body.scrollWidth,
+          available: body.clientWidth,
+        };
+      });
+      assert.ok(
+        geometry.left >= -0.5 &&
+          geometry.right <= geometry.width + 0.5 &&
+          geometry.top >= -0.5 &&
+          geometry.bottom <= geometry.height + 0.5 &&
+          geometry.scroll <= geometry.available + 1,
+        selector + ': ' + JSON.stringify(geometry),
+      );
+    };
+    const zoom = async (value) => {
+      await win.keyboard.press('Control+0');
+      if (value === 150) for (let i = 0; i < 3; i++) await win.keyboard.press('Control+=');
+      await win.waitForFunction(
+        (expected) => innerWidth < 1000 / (expected / 100) + 2 && innerWidth > 900 / (expected / 100),
+        value,
+      );
+      assert.equal(await window.evaluate((w) => w.webContents.getZoomFactor()), value / 100);
+      assert.equal(journal(data).settings.readingScale || 100, value);
+    };
     await nav(win, 'database');
     await win.locator('[data-action="database-kind"][data-id="配方"]').click();
     await win.locator('#list-search').fill('铜锭');
@@ -353,7 +392,94 @@ async function recipeOutputUnits() {
       [true, true, false],
     );
     assert.deepEqual(await counts(), ['× 1', '× 2', '× 3']);
+    // Read the actual launched application's detail before depending on any new locator.
+    // The same driver must fail an older executable on the missing selected total itself.
+    assert.match(
+      await win.locator('#recipe-materials').innerText(),
+      /制作 4 次的预计总产物[\s\S]*预计产物：[\s\S]*铜锭[\s\S]*绿色 × 4–12/,
+      'Selected recipe detail must directly display copper total4-12 before adding a craft-list item',
+    );
+    const totals = win.locator('#recipe-materials [data-recipe-total-outputs]');
+    assert.equal(await totals.locator('[data-recipe-output-id]').count(), 1);
+    assert.match(await totals.innerText(), /尚未计入背包/);
+    assert.deepEqual(journal(data).profiles[0].craftList || [], []);
+    for (const selector of [
+      '#recipe-quantity',
+      '[data-recipe-total-outputs] h3',
+      '[data-recipe-output-id="10217"]',
+      '.drawer [data-action="craft-add"]',
+    ])
+      await fits(selector);
     await capture('random-four-executions');
+    check(
+      'offline selected copper totals appear before any craft-list add with per-execution values intact',
+      { executions: 4, minimum: 4, maximum: 12, craftListEmpty: true, offline: true },
+    );
+    const quantity = win.locator('#recipe-quantity'),
+      originalInput = await quantity.elementHandle();
+    for (const raw of ['', '0', '-1', '1.5', '1000']) {
+      await quantity.fill(raw);
+      assert.equal(await quantity.inputValue(), raw);
+      assert.equal(await totals.count(), 0, 'Stale selected total remained for invalid input ' + raw);
+      assert.match(await win.locator('#recipe-materials').innerText(), /填写 1 至 999/);
+      assert.deepEqual(
+        await quantity.evaluate((field) => ({
+          valid: field.checkValidity(),
+          custom: field.validity.customError,
+          focused: document.activeElement === field,
+        })),
+        { valid: false, custom: true, focused: true },
+      );
+      await quantity.fill('4');
+      assert.match(await totals.innerText(), /绿色 × 4–12/);
+      assert.equal(await quantity.evaluate((field) => field.checkValidity()), true);
+      assert.equal(await quantity.evaluate((field, original) => field === original, originalInput), true);
+    }
+    await quantity.fill('');
+    await quantity.press('e');
+    assert.equal(await quantity.evaluate((field) => field.validity.badInput), true);
+    assert.equal(await totals.count(), 0);
+    assert.equal(await quantity.evaluate((field) => field.validity.customError), true);
+    await quantity.fill('4');
+    assert.match(await totals.innerText(), /绿色 × 4–12/);
+    check(
+      'empty zero negative decimal overflow and browser badInput immediately clear totals, preserve input focus and recover on legal input',
+      { invalid: ['', '0', '-1', '1.5', '1000', 'badInput:e'], recovered: 4, inputNodePreserved: true },
+    );
+    for (const mode of ['@latest', '', '1.sav']) {
+      await select(win, '#recipe-save', mode);
+      await win.waitForFunction(
+        (value) =>
+          document.querySelector('#recipe-save')?.value === value &&
+          document.querySelector('[data-recipe-total-outputs]')?.textContent.includes('绿色 × 4–12'),
+        mode,
+      );
+      assert.equal(await quantity.inputValue(), '4');
+      assert.deepEqual(await counts(), ['× 1', '× 2', '× 3']);
+      if (!mode) assert.equal(await win.locator('#recipe-materials .material-owned').count(), 0);
+    }
+    await totals.locator('[data-action="database-detail"][data-id="item-10217"]').click();
+    await win.locator('[data-action="drawer-back"]').click();
+    assert.equal(await quantity.inputValue(), '4');
+    assert.equal(await win.locator('#recipe-save').inputValue(), '1.sav');
+    assert.match(await totals.innerText(), /绿色 × 4–12/);
+    await zoom(150);
+    assert.equal(await quantity.inputValue(), '4');
+    assert.equal(await win.locator('#recipe-save').inputValue(), '1.sav');
+    assert.match(await totals.innerText(), /绿色 × 4–12/);
+    for (const selector of [
+      '#recipe-quantity',
+      '[data-recipe-total-outputs] h3',
+      '[data-recipe-output-id="10217"]',
+      '.drawer [data-action="craft-add"]',
+    ])
+      await fits(selector);
+    await capture('selected-copper-150');
+    check(
+      'fixed latest and absent reference, item link-back and real150percent zoom at980x660 preserve selected total and quantity',
+      { modes: ['1.sav', '@latest', ''], executions: 4, zoom: 1.5, window: { width: 980, height: 660 } },
+    );
+    await zoom(100);
     assert.equal(
       await output.getByRole('heading').innerText(),
       '每次产出参考',
@@ -380,6 +506,58 @@ async function recipeOutputUnits() {
     await win.locator('#recipe-quantity').fill('3');
     assert.equal(await output.getByRole('heading').innerText(), '每次产出参考');
     assert.deepEqual(await counts(), ['× 1']);
+    assert.match(
+      await win.locator('#recipe-materials').innerText(),
+      /制作 3 次的预计总产物[\s\S]*长虹剑[\s\S]*金色 × 3/,
+    );
+    assert.doesNotMatch(await totals.innerText(), /× 3–3|NaN|Infinity/);
+    await capture('fixed-three-executions');
+    check('fixed output total is three golden swords for three selected executions', {
+      executions: 3,
+      total: 3,
+    });
+    await close(win);
+    await win.locator('#list-search').fill('纯钢剑图纸');
+    await win.locator('[data-action="database-detail"][data-id="fusion-1100"]').click();
+    await win.locator('#recipe-quantity').fill('2');
+    assert.equal(await totals.locator('[data-recipe-output-id]').count(), 3);
+    for (const [id, quality] of [
+      [1000, '白'],
+      [1001, '绿'],
+      [1002, '蓝'],
+    ]) {
+      const candidate = totals.locator('[data-recipe-output-id="' + id + '"]');
+      assert.match(
+        await candidate.innerText(),
+        new RegExp('可能产物：[\\s\\S]*纯钢剑[\\s\\S]*' + quality + '色 × 0–2'),
+      );
+      assert.equal(await candidate.locator('[data-id="item-' + id + '"]').count(), 1);
+    }
+    assert.match(await totals.innerText(), /不会同时得到全部最大数量/);
+    assert.doesNotMatch(await totals.innerText(), /NaN|Infinity|概率|%/);
+    await zoom(150);
+    for (const selector of [
+      '#recipe-quantity',
+      '[data-recipe-total-outputs] h3',
+      '[data-recipe-output-id="1000"]',
+      '[data-recipe-output-id="1001"]',
+      '[data-recipe-output-id="1002"]',
+      '[data-recipe-total-outputs] .save-note',
+      '.drawer [data-action="craft-add"]',
+    ])
+      await fits(selector);
+    await capture('quality-candidates-150');
+    check(
+      'three actual steel-sword quality IDs stay mutually exclusive0-2 candidates and remain reachable at real150percent zoom',
+      {
+        recipe: 'fusion-1100',
+        executions: 2,
+        ids: [1000, 1001, 1002],
+        minimumEach: 0,
+        maximumEach: 2,
+        zoom: 1.5,
+      },
+    );
     assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), bytes);
     check('fixed-output recipe also labels output per execution and synthetic source save stays unchanged', {
       executions: 3,
@@ -438,6 +616,7 @@ async function referenceRefreshEdges() {
     await select(win, '#recipe-save', '1.sav');
     assert.match(await win.locator('.drawer').innerText(), /还没有此配方/);
     await win.locator('#recipe-quantity').fill('');
+    assert.equal(await win.locator('[data-recipe-total-outputs]').count(), 0);
     fs.writeFileSync(path.join(source, '1.sav'), sample(0, 4, true, 3001));
     await win.waitForFunction(
       () => document.querySelector('.drawer')?.textContent.includes('已记录此配方'),
@@ -446,12 +625,16 @@ async function referenceRefreshEdges() {
     );
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '');
     assert.match(await win.locator('#recipe-materials').innerText(), /填写 1 至 999/);
+    assert.equal(await win.locator('[data-recipe-total-outputs]').count(), 0);
+    assert.equal(await win.locator('#recipe-quantity').evaluate((field) => field.validity.customError), true);
     assert.equal(await win.locator('#recipe-save').inputValue(), '1.sav');
     await win.locator('#recipe-quantity').fill('3');
     await win.waitForFunction(() =>
       document.querySelector('#recipe-materials')?.textContent.includes('已有 0'),
     );
+    assert.match(await win.locator('[data-recipe-total-outputs]').innerText(), /制作 3 次/);
     await win.locator('#recipe-quantity').fill('0');
+    assert.equal(await win.locator('[data-recipe-total-outputs]').count(), 0);
     fs.writeFileSync(path.join(source, '1.sav'), sample(8, 1, false, 3002));
     await win.waitForFunction(
       () => document.querySelector('.drawer')?.textContent.includes('还没有此配方'),
@@ -460,10 +643,13 @@ async function referenceRefreshEdges() {
     );
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '0');
     assert.match(await win.locator('#recipe-materials').innerText(), /填写 1 至 999/);
+    assert.equal(await win.locator('[data-recipe-total-outputs]').count(), 0);
+    assert.equal(await win.locator('#recipe-quantity').evaluate((field) => field.validity.customError), true);
     await win.locator('#recipe-quantity').fill('2');
     await win.waitForFunction(() =>
       document.querySelector('#recipe-materials')?.textContent.includes('已有 8'),
     );
+    assert.match(await win.locator('[data-recipe-total-outputs]').innerText(), /制作 2 次/);
     check(
       'invalid empty and zero recipe quantities preserve input while external inventory and learned status refresh',
       { quantities: ['', '0'], refreshedOwned: [0, 8] },
@@ -485,6 +671,8 @@ async function referenceRefreshEdges() {
     );
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '');
     assert.match(await win.locator('#recipe-materials').innerText(), /填写 1 至 999/);
+    assert.equal(await win.locator('[data-recipe-total-outputs]').count(), 0);
+    assert.equal(await win.locator('#recipe-quantity').evaluate((field) => field.validity.customError), true);
     check(
       'recipe reference changes from fixed slot through latest to reference-free with invalid quantity intact',
       { modes: ['1.sav', '@latest', ''], invalidQuantity: '' },
