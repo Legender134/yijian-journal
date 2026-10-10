@@ -974,12 +974,12 @@ function shortcutSettings() {
     active: {},
   };
   return `<section class="card"><h2 class="mb">后台与快捷键</h2><div class="setting-row"><div><h3>关闭窗口后继续自动保存</h3><p>${environment.health?.background ? '关闭主窗口后留在系统托盘。双击托盘图标可打开手札；正常退出会等待正在进行的存读档完成。' : '托盘未启用，关闭主窗口将退出。自动保存需要手札运行。'}</p></div>${act('window-quit', '退出手札', 'btn', '', 'close')}</div><p class="small muted mb">保存快捷键静默保存并收藏当前进度；历史快捷键打开存档匣。读档仍需预览和确认。Ctrl+Alt+J 开关随行小窗。</p><div class="shortcut-fields">${[
-    ['save', '保存进度'],
-    ['history', '打开历史'],
+    ['save', '保存进度', 'Ctrl+Alt+S'],
+    ['history', '打开历史', 'Ctrl+Alt+H'],
   ]
     .map(
-      ([key, title]) =>
-        `<label>${title}<input id="shortcut-${key}" data-persist="true" class="input" maxlength="40" value="${esc(shortcutDrafts[key] ?? s.values[key])}" placeholder="Ctrl+Alt+S"><span class="small muted">${esc(s.errors[key] || (s.active[key] ? '已启用' : s.values[key] ? '未注册' : '已停用'))}</span></label>`,
+      ([key, title, example]) =>
+        `<label>${title}<input id="shortcut-${key}" data-persist="true" class="input" maxlength="40" value="${esc(shortcutDrafts[key] ?? s.values[key])}" placeholder="${esc(example)}"><span class="small muted">${esc(s.errors[key] || (s.active[key] ? '已启用' : s.values[key] ? '未注册' : '已停用'))}</span></label>`,
     )
     .join(
       '',
