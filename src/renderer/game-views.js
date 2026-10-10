@@ -1,4 +1,4 @@
-import { compileSearch } from './search-query.js';
+import { compileSearch, compareSearchTitles } from './search-query.js';
 // Rendering helpers for the local game index. All game strings remain plain text.
 export function createGameViews({
   esc,
@@ -27,18 +27,19 @@ export function createGameViews({
     const types = [...new Set(all.map((e) => e.type))];
     const q = query.trim();
     let match,
+      compareTitles = () => 0,
       searchError = '';
     try {
       match = compileSearch(query);
+      compareTitles = compareSearchTitles(query);
     } catch (e) {
       searchError = e.message;
       match = () => false;
     }
-    const filtered = all.filter(
-      (e) =>
-        (type === '全部' || e.type === type) &&
-        match({ ...e, quality: qualityText?.quality(e) || e.quality }),
-    );
+    const filtered = all
+      .map((e) => ({ ...e, quality: qualityText?.quality(e) || e.quality }))
+      .filter((e) => (type === '全部' || e.type === type) && match(e))
+      .sort(compareTitles);
     const pages = Math.max(1, Math.ceil(filtered.length / 24)),
       current = Math.min(pageNumber, pages - 1);
     const list = filtered.slice(current * 24, current * 24 + 24);
