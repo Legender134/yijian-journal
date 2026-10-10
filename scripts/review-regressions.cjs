@@ -83,6 +83,166 @@ const stateSummary = (win) =>
   });
 let running;
 
+async function searchReadability() {
+  const data = makeData('searchReadability');
+  new Store(data, catalog);
+  running = await launch(data);
+  const { app, win } = running;
+  await win.emulateMedia({ reducedMotion: 'reduce' });
+  const ratios = [];
+  const contrast = async (locator, state) => {
+    const colors = await locator.evaluate((el) => {
+      const rgb = (value) => value.match(/[\d.]+/g)?.map(Number);
+      const style = getComputedStyle(el);
+      let background;
+      for (let node = el; node; node = node.parentElement) {
+        const value = rgb(getComputedStyle(node).backgroundColor);
+        if (value?.length === 3 || (value?.length === 4 && value[3] === 1)) {
+          background = value.slice(0, 3);
+          break;
+        }
+        if (value?.length === 4 && value[3] !== 0)
+          throw Error('Composite background needs explicit measurement');
+      }
+      if (!background) throw Error('No opaque text background found');
+      return {
+        foreground: rgb(style.color).slice(0, 3),
+        background,
+        fontSize: style.fontSize,
+        text: el.textContent,
+      };
+    });
+    const luminance = (color) =>
+      color
+        .map((value) => value / 255)
+        .map((value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4))
+        .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+    const values = [luminance(colors.foreground), luminance(colors.background)].sort((a, b) => b - a);
+    const ratio = (values[0] + 0.05) / (values[1] + 0.05);
+    assert(ratio >= 4.5, 'Search explanatory text contrast below4.5:1: ' + ratio);
+    ratios.push({ state, ...colors, ratio });
+  };
+  const search = async (value) => {
+    if (!(await win.locator('#global-search').count())) await win.keyboard.press('Control+k');
+    await win.locator('#global-search').fill(value);
+  };
+  const qualityRows = async () => {
+    for (const [id, quality] of [
+      ['item-1000', '白'],
+      ['item-1001', '绿'],
+      ['item-1002', '蓝'],
+    ]) {
+      const row = win.locator('.search-result[data-id="' + id + '"]');
+      await row.waitFor();
+      assert((await row.locator('small').innerText()).includes(quality + '色品质'));
+      const accessible = win.getByRole('button', { name: new RegExp('^纯钢剑 .*' + quality + '色品质$') });
+      assert.equal(
+        await accessible.count(),
+        1,
+        'Same-name results must expose their actual quality in the accessible name',
+      );
+      assert.equal(await accessible.getAttribute('data-id'), id);
+      assert.equal(await row.locator('strong .quality-text').getAttribute('data-quality'), quality);
+    }
+  };
+  const contrastStates = async (scale) => {
+    const row = win.locator('.search-result[data-id="item-1002"]');
+    await win.locator('.search-input').hover();
+    await contrast(row.locator('small'), scale + '-normal');
+    await row.hover();
+    await contrast(row.locator('small'), scale + '-hover');
+    await win.locator('.search-input').hover();
+    await row.focus();
+    await contrast(row.locator('small'), scale + '-keyboard-focus');
+    await contrast(win.locator('.search-foot'), scale + '-search-instructions');
+  };
+  try {
+    await app.context().setOffline(true);
+    await search('纯钢剑');
+    await qualityRows();
+    check(
+      'offline same-name search results expose exact white green and blue quality in visible metadata and accessible button names',
+      { ids: ['item-1000', 'item-1001', 'item-1002'] },
+    );
+    await contrastStates('100');
+    await win.screenshot({
+      path: path.join(
+        base,
+        'test-results',
+        'search-readability-100-' + version + (process.env.YIJIAN_REVIEW_REPORT_SUFFIX || '') + '.png',
+      ),
+      animations: 'disabled',
+    });
+    await win.locator('.search-result[data-id="item-1002"]').focus();
+    await win.keyboard.press('Enter');
+    await win.locator('.drawer .tag-row .quality-label').waitFor();
+    assert.equal(await win.locator('.drawer .tag-row .quality-label').innerText(), '蓝色品质');
+    await win.locator('[data-action="drawer-back"]').click();
+    await win.locator('#global-search').waitFor();
+    assert.equal(await win.locator('#global-search').inputValue(), '纯钢剑');
+    assert.equal(await win.evaluate(() => document.activeElement.dataset.id), 'item-1002');
+    await search('种类:物品 品质:绿 纯钢剑');
+    await win.locator('.search-result[data-id="item-1001"]').waitFor();
+    assert.equal(await win.locator('.search-result').count(), 1);
+    assert((await win.locator('.search-result small').innerText()).includes('绿色品质'));
+    check(
+      'keyboard search opens the exact selected quality, returns focus and query, and the existing quality filter retains only its exact item',
+      { opened: 'item-1002', filtered: 'item-1001' },
+    );
+    await search('纯钢剑精良图纸');
+    await win.locator('.search-result[data-id="fusion-1000"]').waitFor();
+    assert(
+      (await win.locator('.search-result[data-id="fusion-1000"] small').innerText()).includes('蓝色品质'),
+    );
+    await search('纯钢剑图纸');
+    await win.locator('.search-result[data-id="fusion-1100"]').waitFor();
+    assert(!/色品质/.test(await win.locator('.search-result[data-id="fusion-1100"] small').innerText()));
+    await search('种类:人物 卫霍');
+    await win.locator('.search-result[data-action="database-detail"]').first().waitFor();
+    assert(
+      !/色品质/.test(
+        await win
+          .locator('.search-result[data-action="database-detail"]')
+          .first()
+          .locator('small')
+          .innerText(),
+      ),
+    );
+    check(
+      'fixed-quality recipe retains its known quality while mixed-quality recipe and person results do not invent a quality',
+      { fixed: 'fusion-1000', mixed: 'fusion-1100' },
+    );
+    await win.keyboard.press('Escape');
+    await win.locator('#global-search').waitFor({ state: 'detached' });
+    await nav(win, 'settings');
+    await win.locator('#reading-scale').selectOption('150');
+    const native = await app.browserWindow(win);
+    const geometry = await native.evaluate((window) => {
+      window.setBounds({ width: 980, height: 660 });
+      return {
+        bounds: window.getBounds(),
+        content: window.getContentSize(),
+        zoom: window.webContents.getZoomFactor(),
+      };
+    });
+    assert.equal(geometry.zoom, 1.5);
+    await search('纯钢剑');
+    await qualityRows();
+    await contrastStates('150-small-window');
+    assert.equal(
+      await win.locator('#global-results').evaluate((node) => node.scrollWidth <= node.clientWidth),
+      true,
+    );
+    check(
+      'search metadata and instructions meet normal-text contrast in normal hover and keyboard states at100percent and real150percent small-window reading',
+      { ratios, geometry },
+    );
+  } finally {
+    await app.close();
+    running = null;
+  }
+}
+
 async function referenceAndPolling() {
   const data = makeData('references');
   const source = path.join(data, 'SaveGames');
@@ -1832,6 +1992,7 @@ async function customOpacityImport() {
 (async () => {
   try {
     const groups = {
+      searchReadability,
       references: referenceAndPolling,
       firstSave: firstSaveAppears,
       recipeOutputs: recipeOutputUnits,
