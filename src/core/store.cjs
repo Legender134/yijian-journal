@@ -34,7 +34,7 @@ const {
   detachRevisionLinks,
 } = require('./journal-revisions.cjs');
 const { validateJourneyTrash, applyJourneyTrashCommand } = require('./journey-trash.cjs');
-const { validateNoteRevisions, retainNote } = require('./note-revisions.cjs');
+const { MAX_NOTE_REVISIONS, validateNoteRevisions, retainNote } = require('./note-revisions.cjs');
 const world = require('../data/world-index.json');
 const questIds = new Set(world.quests.map((q) => q.id));
 const placeIds = new Set(world.maps.map((p) => p.id));
@@ -456,12 +456,27 @@ class Store {
         p.journalTrash = result.trash;
         break;
       }
-      case 'note':
+      case 'note': {
         text(command.value, 20000);
+        const cleared = command.clearedValues === undefined ? [] : command.clearedValues;
+        if (!Array.isArray(cleared) || cleared.length > MAX_NOTE_REVISIONS)
+          throw Error('待保留的随手记清空内容格式无效');
+        for (const body of cleared) {
+          if (!text(body, 20000)) throw Error('待保留的随手记清空内容不能为空');
+        }
         if (p.notes !== command.value && p.notes.trim())
-          p.noteRevisions = retainNote(p.notes, command.value, p.noteRevisions);
+          p.noteRevisions = retainNote(p.notes, command.value, p.noteRevisions, {
+            force: cleared.length > 0,
+          });
+        for (const body of cleared) {
+          const existing = p.noteRevisions?.find((row) => row.body === body);
+          p.noteRevisions = existing
+            ? [existing, ...p.noteRevisions.filter((row) => row !== existing)]
+            : retainNote(body, '', p.noteRevisions, { force: true });
+        }
         p.notes = command.value;
         break;
+      }
       case 'note-restore': {
         const row = p.noteRevisions?.find((row) => row.id === command.id);
         if (!row || command.expectedValue !== p.notes)

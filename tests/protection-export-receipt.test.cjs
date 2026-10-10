@@ -150,6 +150,7 @@ function rendererHarness() {
     flushJournalDrafts: async () => {},
     captureIntentDrafts() {},
     flushIntentDrafts: async () => {},
+    drafts: new Map([['synthetic-note-profile', 'pending note']]),
     saveNote: async () => {},
     render() {},
     toast() {},

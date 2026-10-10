@@ -498,6 +498,9 @@ let noteTimer,
   mutationQueue = Promise.resolve(),
   composing = false;
 const drafts = new Map();
+const noteVersions = new Map();
+const pendingNoteClears = new Map();
+const noteSaves = new Map();
 let currentDrawer = null;
 let comparisonState = null;
 let worldView = {
@@ -1643,21 +1646,39 @@ function mutation(command) {
 }
 function saveNote(id = profile().id) {
   clearTimeout(noteTimer);
+  if (noteSaves.has(id)) return noteSaves.get(id);
   if (!drafts.has(id)) return Promise.resolve();
-  const value = drafts.get(id);
-  return mutation({ type: 'note', value, profileId: id })
-    .then(() => {
-      const current = drafts.get(id) === value;
-      if (current) drafts.delete(id);
-      const el = profile().id === id && document.querySelector('#note-status');
-      if (el && current) el.textContent = '已保存到本机';
+  const task = Promise.resolve()
+    .then(async () => {
+      while (drafts.has(id)) {
+        const value = drafts.get(id);
+        const version = noteVersions.get(id);
+        const cleared = pendingNoteClears.get(id) || [];
+        try {
+          await mutation({
+            type: 'note',
+            value,
+            clearedValues: cleared.map((row) => row.body),
+            profileId: id,
+          });
+        } catch (e) {
+          const el = profile().id === id && document.querySelector('#note-status');
+          if (el) el.textContent = '保存失败，内容仍在编辑区；清空前的文字会在重试时保留';
+          toast(e.message, true);
+          throw e;
+        }
+        const remaining = (pendingNoteClears.get(id) || []).filter((row) => !cleared.includes(row));
+        if (remaining.length) pendingNoteClears.set(id, remaining);
+        else pendingNoteClears.delete(id);
+        const current = noteVersions.get(id) === version && drafts.get(id) === value;
+        if (current) drafts.delete(id);
+        const el = profile().id === id && document.querySelector('#note-status');
+        if (el && current) el.textContent = '已保存到本机';
+      }
     })
-    .catch((e) => {
-      const el = profile().id === id && document.querySelector('#note-status');
-      if (el && drafts.get(id) === value) el.textContent = '保存失败，内容仍在编辑区';
-      toast(e.message, true);
-      throw e;
-    });
+    .finally(() => noteSaves.delete(id));
+  noteSaves.set(id, task);
+  return task;
 }
 function noteBlock() {
   return `<div class="note-paper"><div class="row between wrap"><h3>江湖随手记</h3>${act('navigate', '逐条记录与回顾', 'text-btn', 'journal', 'feather')}</div><textarea id="note" data-persist="note" data-profile-id="${esc(profile().id)}" maxlength="20000" aria-label="江湖随手记" placeholder="上次停在何处？下次想做什么？\n给未来的自己留句话。">\n${esc(drafts.get(profile().id) ?? profile().notes)}</textarea><div id="note-status" class="note-footer">${drafts.has(profile().id) ? '正在保存…' : '只存在这台电脑 · 自动保存'}</div>${act('note-history', '找回旧内容 · ' + (profile().noteRevisions?.length || 0), 'text-btn', '', 'archive')}<details class="small"><summary>旧内容保留规则</summary><p class="save-note">自动保留最近 20 份非空旧内容；连续编辑每隔 5 分钟留一份，清空或恢复前立即保留。更早的内容可通过导出手札备份另行保存。</p></details></div>`;
@@ -5621,7 +5642,7 @@ async function handle(action, id, target, navigationFocused = false) {
       captureIntentDrafts();
       await flushJournalDrafts();
       await flushIntentDrafts();
-      await saveNote();
+      await Promise.all([...drafts.keys()].map(saveNote));
       const r = await call('exportJournal');
       if (!r.cancelled) toast('全部周目已导出');
       break;
@@ -5690,7 +5711,7 @@ async function handle(action, id, target, navigationFocused = false) {
       captureIntentDrafts();
       await flushJournalDrafts();
       await flushIntentDrafts();
-      await saveNote();
+      await Promise.all([...drafts.keys()].map(saveNote));
       if (request !== protectionExportRequest) break;
       const attemptAt = Date.now();
       protectionView.exportResultOverride = {
@@ -5800,7 +5821,7 @@ async function handle(action, id, target, navigationFocused = false) {
       captureIntentDrafts();
       await flushJournalDrafts();
       await flushIntentDrafts();
-      await saveNote();
+      await Promise.all([...drafts.keys()].map(saveNote));
       const result = await call('useHistoricalJournal', id);
       if (!result.cancelled) {
         state = result.state;
@@ -5825,7 +5846,7 @@ async function handle(action, id, target, navigationFocused = false) {
       captureIntentDrafts();
       await flushJournalDrafts();
       await flushIntentDrafts();
-      await saveNote();
+      await Promise.all([...drafts.keys()].map(saveNote));
       const r = await call('importJournal');
       if (!r.cancelled) {
         state = r.state;
@@ -6073,12 +6094,27 @@ document.addEventListener('input', (event) => {
     return;
   }
   if (event.target.id === 'note') {
-    const id = profile().id;
-    drafts.set(id, event.target.value);
+    const id = event.target.dataset.profileId;
+    const owner = state.profiles.find((row) => row.id === id);
+    if (!owner) return;
+    const previous = drafts.get(id) ?? owner.notes;
+    const value = event.target.value;
+    const cleared = previous.trim() && !value.trim();
+    if (cleared)
+      pendingNoteClears.set(
+        id,
+        [
+          ...(pendingNoteClears.get(id) || []).filter((row) => row.body !== previous),
+          { body: previous },
+        ].slice(-20),
+      );
+    noteVersions.set(id, (noteVersions.get(id) || 0) + 1);
+    drafts.set(id, value);
     const status = document.querySelector('#note-status');
     if (status) status.textContent = '正在保存…';
     clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => saveNote(id).catch(() => {}), 700);
+    if (cleared) saveNote(id).catch(() => {});
+    else noteTimer = setTimeout(() => saveNote(id).catch(() => {}), 700);
   }
   if (event.target.id === 'list-search' && !event.isComposing && !composing) {
     query = event.target.value;

@@ -128,3 +128,130 @@ test('note history survives full protection export, read-only history and startu
   recovered.mutate({ type: 'note-restore', id: previous[0].id, expectedValue: '' });
   assert.equal(recovered.get().profiles[0].notes, previous[0].body);
 });
+
+test('rapid clears retain exact unsaved full texts and the saved baseline in one cold-recoverable write', (t) => {
+  const { store, root, p } = fixture(t);
+  const baseline = 'saved baseline';
+  const first = '  saved baseline\n刚输入 <script>literal</script>  ';
+  const second = '\n第二次尚未自动保存的全文\n';
+  store.mutate({ type: 'note', value: baseline });
+  const previous = fs.readFileSync(path.join(root, 'journal.json'));
+  store.mutate({ type: 'note', value: 'clear 后续写', clearedValues: [first, second] });
+  assert.equal(p().notes, 'clear 后续写');
+  assert.deepEqual(
+    p().noteRevisions.map((row) => row.body),
+    [second, first, baseline],
+  );
+  assert.deepEqual(fs.readFileSync(path.join(root, 'journal.json.previous')), previous);
+  const cold = new Store(root, catalog);
+  assert.deepEqual(cold.get().profiles[0], p());
+  cold.mutate({ type: 'note-restore', id: p().noteRevisions[1].id, expectedValue: p().notes });
+  assert.equal(cold.get().profiles[0].notes, first);
+});
+
+test('unsaved clear history is retained even without a saved baseline or a changed final body', (t) => {
+  const { store, p } = fixture(t);
+  store.mutate({ type: 'note', value: '', clearedValues: ['never saved first draft'] });
+  assert.equal(p().notes, '');
+  assert.equal(p().noteRevisions[0].body, 'never saved first draft');
+  store.mutate({
+    type: 'note',
+    value: 'undo restored exact text',
+    clearedValues: ['undo restored exact text'],
+  });
+  assert.equal(p().notes, 'undo restored exact text');
+  assert.equal(p().noteRevisions[0].body, p().notes);
+});
+
+test('a late clear followed by new text also protects the latest saved text from another window', (t) => {
+  const { store, p } = fixture(t);
+  store.mutate({ type: 'note', value: 'old history' });
+  store.mutate({ type: 'note', value: '' });
+  store.mutate({ type: 'note', value: 'other window latest saved text' });
+  store.mutate({ type: 'note', value: 'later continuation', clearedValues: ['local unsaved clear text'] });
+  assert.equal(p().notes, 'later continuation');
+  assert.deepEqual(
+    p().noteRevisions.map((row) => row.body),
+    ['local unsaved clear text', 'other window latest saved text', 'old history'],
+  );
+});
+
+test('clear snapshots follow their explicit profile while active profile and its text remain unchanged', (t) => {
+  const { store, p } = fixture(t);
+  const one = p().id;
+  store.mutate({ type: 'note', value: 'profile one saved' });
+  store.mutate({ type: 'profile-add', name: 'second' });
+  store.mutate({ type: 'note', value: 'profile two saved' });
+  const before = store.get(),
+    two = before.activeProfileId;
+  store.mutate({ type: 'note', profileId: one, value: '', clearedValues: ['profile one unsaved'] });
+  const after = store.get();
+  assert.equal(after.activeProfileId, two);
+  assert.deepEqual(
+    after.profiles.find((row) => row.id === two),
+    before.profiles.find((row) => row.id === two),
+  );
+  assert.deepEqual(
+    p().noteRevisions.map((row) => row.body),
+    ['profile one unsaved', 'profile one saved'],
+  );
+});
+
+test('invalid clear batches are rejected without changing disk, memory or recoverable history', (t) => {
+  const { store, root } = fixture(t);
+  store.mutate({ type: 'note', value: 'valid saved text' });
+  const before = store.get(),
+    raw = fs.readFileSync(path.join(root, 'journal.json'));
+  for (const clearedValues of [
+    null,
+    {},
+    'text',
+    ['', 'valid'],
+    ['  '],
+    [7],
+    ['x'.repeat(20001)],
+    Array(21).fill('x'),
+  ]) {
+    assert.throws(() => store.mutate({ type: 'note', value: '', clearedValues }));
+    assert.deepEqual(store.get(), before);
+    assert.deepEqual(fs.readFileSync(path.join(root, 'journal.json')), raw);
+  }
+});
+
+test('clear retries retain stable revision identities, distinct order and the existing twenty-version limit', (t) => {
+  const { store, p } = fixture(t);
+  const batch = Array.from({ length: 20 }, (_, i) => 'unsaved clear ' + i);
+  store.mutate({ type: 'note', value: '', clearedValues: batch });
+  const rows = p().noteRevisions;
+  store.mutate({ type: 'note', value: '', clearedValues: batch });
+  assert.deepEqual(p().noteRevisions, rows);
+  store.mutate({ type: 'note', value: '', clearedValues: [batch[5], 'x'.repeat(20000)] });
+  assert.equal(p().noteRevisions.length, 20);
+  assert.equal(new Set(p().noteRevisions.map((row) => row.body)).size, 20);
+  assert.equal(p().noteRevisions[0].body.length, 20000);
+  assert.equal(p().noteRevisions[1].id, rows.find((row) => row.body === batch[5]).id);
+  assert(!p().noteRevisions.some((row) => row.body === batch[0]));
+});
+
+test('atomic replacement failure leaves clear history uncommitted and the whole batch can be retried', (t) => {
+  const { store, root, p } = fixture(t);
+  store.mutate({ type: 'note', value: 'protected saved baseline' });
+  const before = store.get(),
+    raw = fs.readFileSync(path.join(root, 'journal.json'));
+  const original = fs.renameSync;
+  const blocked = t.mock.method(fs, 'renameSync', function (from, to) {
+    if (to === path.join(root, 'journal.json')) throw Error('synthetic atomic replacement blocked');
+    return original.call(this, from, to);
+  });
+  const command = { type: 'note', value: '', clearedValues: ['unsaved clear one', 'unsaved clear two'] };
+  assert.throws(() => store.mutate(command), /synthetic atomic replacement blocked/);
+  assert.deepEqual(store.get(), before);
+  assert.deepEqual(fs.readFileSync(path.join(root, 'journal.json')), raw);
+  blocked.mock.restore();
+  store.mutate(command);
+  assert.equal(p().notes, '');
+  assert.deepEqual(
+    p().noteRevisions.map((row) => row.body),
+    ['unsaved clear two', 'unsaved clear one', 'protected saved baseline'],
+  );
+});
