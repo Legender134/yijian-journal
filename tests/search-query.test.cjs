@@ -6,6 +6,62 @@ const fs = require('node:fs'),
 const source = fs.readFileSync(path.join(__dirname, '../src/renderer/search-query.js'), 'utf8');
 const modulePromise = import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const entries = require('../src/data/game-index.json').entries;
+async function catalogueView() {
+  const { pathToFileURL } = require('node:url');
+  const [{ createGameViews }, { createQualityText }] = await Promise.all([
+    import(pathToFileURL(path.join(__dirname, '../src/renderer/game-views.js')).href),
+    import(pathToFileURL(path.join(__dirname, '../src/renderer/quality.js')).href),
+  ]);
+  const index = require('../src/data/game-index.json'),
+    esc = (value) =>
+      String(value ?? '').replace(
+        /[&<>"']/g,
+        (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+      ),
+    qualityText = createQualityText({ index: () => index, esc });
+  const view = createGameViews({
+    esc,
+    icon: () => '',
+    act: () => '',
+    pill: esc,
+    empty: esc,
+    notice: esc,
+    picture: () => '',
+    qualityText,
+  });
+  const render = (query, kind = '配方', page = 0, type = '全部') => view.page(index, query, kind, type, page);
+  const ids = (html) => [...html.matchAll(/class="database-card"[^>]*data-id="([^"]+)"/g)].map((m) => m[1]);
+  return { render, ids, index };
+}
+
+test('catalogue name matches reach the first page while all ingredient matches remain reachable exactly once', async () => {
+  const { render, ids } = await catalogueView();
+  assert.equal(ids(render('铁锭'))[0], 'fusion-9500');
+  assert.equal(ids(render('铜锭'))[0], 'fusion-9501');
+  assert.deepEqual(ids(render('铁锭', '全部')).slice(0, 2), ['item-10216', 'fusion-9500']);
+  const pages = Array.from({ length: 5 }, (_, page) => ids(render('铁锭', '配方', page))).flat();
+  assert.equal(pages.length, 104);
+  assert.equal(new Set(pages).size, 104);
+  assert(pages.includes('fusion-1000'), 'recipes using the searched ingredient remain available');
+  assert.equal(ids(render(''))[0], 'fusion-1000', 'an empty query keeps the original catalogue order');
+});
+
+test('catalogue ranking uses the same derived recipe quality and matching Boolean branches as filtering', async () => {
+  const { render, ids, index } = await catalogueView();
+  assert.equal(index.entries.find((e) => e.id === 'fusion-9500').quality, undefined);
+  for (const query of [
+    '种类:配方 铁锭',
+    '种类：配方 "铁锭"',
+    '名称:铁锭',
+    '(名称:铁锭 品质:绿) or 名称:纯钢剑',
+  ])
+    assert.equal(ids(render(query))[0], 'fusion-9500', query);
+  assert.equal(ids(render('(名称:铁锭 品质:红) or 种类:配方'))[0], 'fusion-1000');
+  assert(!ids(render('品质:绿 -名称:铁锭')).includes('fusion-9500'));
+  assert.equal(ids(render('铁锭', '配方', 0, '矿石'))[0], 'fusion-9500');
+  assert.deepEqual(ids(render('名称:')), []);
+  assert.match(render('名称:'), /请在冒号后填写筛选内容/);
+});
 test('global and catalogue matching share effects, descriptions, ingredients and personal target text', async () => {
   const { compileSearch } = await modulePromise;
   const results = entries.filter(compileSearch('永久增加气血'));

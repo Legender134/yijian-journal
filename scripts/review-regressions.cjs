@@ -83,6 +83,79 @@ const stateSummary = (win) =>
   });
 let running;
 
+async function catalogueNameOrder() {
+  const data = makeData('catalogueNameOrder'),
+    launched = (running = await launch(data)),
+    { app, win } = launched;
+  try {
+    await app.context().setOffline(true);
+    await app.evaluate(({ dialog }) => {
+      for (const name of [
+        'showOpenDialog',
+        'showOpenDialogSync',
+        'showSaveDialog',
+        'showSaveDialogSync',
+        'showMessageBox',
+        'showMessageBoxSync',
+      ])
+        dialog[name] = () => {
+          throw Error('Unexpected native dialog in catalogue search: ' + name);
+        };
+    });
+    await nav(win, 'database');
+    await win.locator('.database-tab[data-id="配方"]').click();
+    await win.locator('#list-search').fill('铁锭');
+    const firstId = () => win.locator('.database-card').first().getAttribute('data-id');
+    assert.equal(await firstId(), 'fusion-9500');
+    const ids = [];
+    for (let page = 0; page < 5; page++) {
+      assert.match(await win.locator('.pagination').innerText(), new RegExp(`第 ${page + 1} / 5 页`));
+      ids.push(
+        ...(await win.locator('.database-card').evaluateAll((nodes) => nodes.map((n) => n.dataset.id))),
+      );
+      if (page < 4) await win.locator('[data-action="database-page"]').last().click();
+    }
+    assert.equal(ids.length, 104);
+    assert.equal(new Set(ids).size, 104);
+    assert(ids.includes('fusion-1000'));
+    check(
+      'ordinary catalogue search puts the exact iron recipe first and retains all104 related matches once',
+      { data },
+    );
+    for (const query of ['种类:配方 铁锭', '种类：配方 "铁锭"', '(名称:铁锭 品质:绿) or 名称:纯钢剑']) {
+      await win.locator('#list-search').fill(query);
+      assert.equal(await firstId(), 'fusion-9500', query);
+    }
+    await win.locator('#list-search').fill('(名称:铁锭 品质:红) or 种类:配方');
+    assert.equal(await firstId(), 'fusion-1000');
+    await win.locator('.database-tab[data-id="全部"]').click();
+    await win.locator('#list-search').fill('铁锭');
+    assert.deepEqual(
+      await win.locator('.database-card').evaluateAll((nodes) => nodes.slice(0, 2).map((n) => n.dataset.id)),
+      ['item-10216', 'fusion-9500'],
+    );
+    check('catalogue order respects recipe output quality and matching Boolean branches across categories', {
+      data,
+    });
+    await win.locator('.database-tab[data-id="配方"]').click();
+    await win.locator('#list-search').fill('铁锭');
+    await win.locator('.database-card').first().click();
+    assert.equal(await win.locator('.drawer h1').innerText(), '铁锭');
+    await win.locator('#recipe-quantity').fill('2');
+    await win.locator('[data-action="craft-add"]').click();
+    await close(win);
+    await nav(win, 'materials');
+    assert.equal(await win.locator('#craft-qty-fusion-9500').inputValue(), '2');
+    check(
+      'the first ordinary name result opens the intended recipe and adds the chosen runs to the material list',
+      { data },
+    );
+  } finally {
+    await app.close();
+    running = null;
+  }
+}
+
 async function recipeReservationConsistency() {
   const data = makeData('recipeReservationConsistency'),
     source = path.join(data, 'synthetic-SaveGames');
@@ -2410,6 +2483,7 @@ async function customOpacityImport() {
 (async () => {
   try {
     const groups = {
+      catalogueNameOrder,
       recipeReservationConsistency,
       importBusyFeedback,
       detailReadability,
