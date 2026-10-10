@@ -3102,7 +3102,7 @@ function showSearchResults(value) {
               '</span><span class="spacer"><strong>' +
               (e.action === 'database-detail' ? qualityText.name(e.id, e.title) : esc(e.title)) +
               '</strong><small>' +
-              esc(e.sub) +
+              esc(e.sub + (e.action === 'database-detail' && e.quality ? ' · ' + e.quality + '色品质' : '')) +
               '</small></span>' +
               icon('chevron') +
               '</button>',
