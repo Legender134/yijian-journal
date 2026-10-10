@@ -1112,8 +1112,8 @@ kbd {
   margin-top: 4px;
 }
 .save-note {
-  font-size: 11px;
-  color: var(--muted);
+  font-size: 12px;
+  color: var(--green);
   margin-top: 11px;
   line-height: 1.8;
 }
@@ -1735,13 +1735,13 @@ kbd {
 }
 .drawer-body .intro {
   font-size: 13px;
-  color: #7a8c71;
+  color: var(--green);
   line-height: 1.9;
   margin: 16px 0 20px;
 }
 .detail-label {
-  font-size: 10px;
-  color: #9aa68b;
+  font-size: 12px;
+  color: var(--green);
   letter-spacing: 1px;
   margin-bottom: 8px;
 }
@@ -1763,7 +1763,7 @@ kbd {
   gap: 12px;
   font-size: 12px;
   line-height: 1.9;
-  color: #62765a;
+  color: var(--green);
   margin-bottom: 14px;
 }
 .steps li:before {
@@ -1791,8 +1791,8 @@ kbd {
   margin-bottom: 8px;
 }
 .spoiler-box p {
-  font-size: 11px;
-  color: #8c987e;
+  font-size: 12px;
+  color: var(--green);
   margin: 5px 0 14px;
 }
 .drawer-actions {
@@ -2820,8 +2820,8 @@ kbd {
   color: #5b744a;
 }
 .comparison-grid span {
-  font-size: 10px;
-  color: #859575;
+  font-size: 12px;
+  color: var(--green);
 }
 .backup-file-list > div {
   display: flex;
@@ -2837,8 +2837,8 @@ kbd {
 }
 .backup-file-list small {
   display: block;
-  color: #929d85;
-  font-size: 10px;
+  color: var(--green);
+  font-size: 12px;
   margin-top: 4px;
 }
 .backup-file-list .pill {

@@ -83,6 +83,284 @@ const stateSummary = (win) =>
   });
 let running;
 
+async function importBusyFeedback() {
+  const data = makeData('importBusyFeedback'),
+    source = path.join(data, 'synthetic-SaveGames');
+  fs.mkdirSync(source);
+  fs.writeFileSync(path.join(source, '0.sav'), save(2));
+  fs.writeFileSync(path.join(source, '29.sav'), Buffer.from('synthetic-foreign-slot-29'));
+  fs.writeFileSync(path.join(source, 'unrelated.txt'), Buffer.from('synthetic-unrelated-target'));
+  const hash = (file) =>
+    require('node:crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  const before = Object.fromEntries(
+    fs.readdirSync(source).map((name) => [name, hash(path.join(source, name))]),
+  );
+  const store = new Store(data, catalog);
+  store.setPath('savePath', source);
+  store.mutate({ type: 'settings', value: { autoBackup: false } });
+  const saves = new Saves(path.join(data, 'save-backups')),
+    backup = saves.capture(source, '忙时反馈历史副本');
+  const file = path.join(data, 'synthetic-protection.yijian-protection');
+  await require('../src/core/migration.cjs').exportProtection({
+    dataRoot: data,
+    file,
+    backupIds: [backup.id],
+    includeTimeline: false,
+  });
+  const { ProtectionArchives } = require('../src/core/protection-archives.cjs');
+  const imported = await new ProtectionArchives(data, () => source).import(file);
+  running = await launch(data);
+  const { app, win } = running;
+  try {
+    await nav(win, 'saves');
+    await win.locator('[data-action="protection-open"]').click();
+    await win.locator('[data-action="protection-history"][data-id="' + imported.id + '"]').click();
+    await win.locator('[data-action="protection-backup-select"][data-id="' + backup.id + '"]').click();
+    await win.evaluate(() => {
+      window.importBusyEvents = [];
+      window.journal.onEvent((event) => window.importBusyEvents.push(event));
+    });
+    await app.evaluate(({ app, dialog }, id) => {
+      const nodePath = process.mainModule.require('node:path');
+      const { ProtectionArchives } = process.mainModule.require(
+        nodePath.join(app.getAppPath(), 'src/core/protection-archives.cjs'),
+      );
+      const original = ProtectionArchives.prototype.history;
+      global.importBusyProbe = { pickerCalls: 0, confirmations: [], entered: false };
+      ProtectionArchives.prototype.history = async function (archiveId, ...args) {
+        if (archiveId === id && !global.importBusyProbe.entered) {
+          global.importBusyProbe.entered = true;
+          await new Promise((resolve) => {
+            global.importBusyProbe.release = resolve;
+          });
+        }
+        return original.call(this, archiveId, ...args);
+      };
+      dialog.showMessageBox = async (_window, options) => {
+        global.importBusyProbe.confirmations.push(options.title);
+        return { response: 1 };
+      };
+      dialog.showOpenDialog = async () => {
+        global.importBusyProbe.pickerCalls++;
+        return { canceled: true, filePaths: [] };
+      };
+    }, imported.id);
+    await win.locator('[data-action="protection-restore"]').click();
+    await win.waitForFunction(() =>
+      window.importBusyEvents.some((event) => event.type === 'protection' && event.busy),
+    );
+    const held = await app.evaluate(() => global.importBusyProbe.entered);
+    assert(held, 'history verification must be pending before the second user action');
+    await win.locator('[data-action="protection-import"]').click();
+    await win.getByText('正在处理保护资料，请等待当前操作完成', { exact: true }).last().waitFor();
+    const early = {
+      text: await win.locator('body').innerText(),
+      files: await app.evaluate(() => global.importBusyProbe.pickerCalls),
+    };
+    await app.evaluate(() => global.importBusyProbe.release());
+    await win.waitForFunction(() =>
+      window.importBusyEvents.some((event) => event.type === 'protection' && event.busy === false),
+    );
+    const late = {
+      text: await win.locator('body').innerText(),
+      details: await app.evaluate(() => ({
+        pickerCalls: global.importBusyProbe.pickerCalls,
+        confirmations: global.importBusyProbe.confirmations,
+      })),
+      events: await win.evaluate(() => window.importBusyEvents),
+    };
+    report.importBusyFeedback = {
+      early,
+      late,
+      limits:
+        'Only archive history verification is deliberately paused to expose the real asynchronous pre-confirmation window. Dialog choices use synthetic paths and are stubbed; actual sandboxed renderer, preload, job barrier, verification and protection-backed restore execute from the selected EXE.',
+    };
+    const native = await app.browserWindow(win),
+      png = await native.evaluate(async (w) => (await w.capturePage()).toPNG().toString('base64'));
+    fs.writeFileSync(
+      path.join(
+        base,
+        'test-results',
+        'import-busy-feedback-' + version + (process.env.YIJIAN_REVIEW_REPORT_SUFFIX || '') + '.png',
+      ),
+      Buffer.from(png, 'base64'),
+    );
+    assert.equal(early.files, 0);
+    assert.equal(late.details.pickerCalls, 0);
+    assert(
+      !/重新复制完好的原包|导入未完成/.test(early.text),
+      'Busy rejection before selection must not diagnose a damaged package',
+    );
+    assert(
+      !/重新复制完好的原包|导入未完成/.test(late.text),
+      'Completed restore must not leave a false package diagnosis',
+    );
+    assert(late.details.confirmations.includes('将历史备份恢复到本机'));
+    assert(late.events.some((event) => event.type === 'operation' && event.result.level === 'success'));
+    check(
+      'import rejected during history verification opens no file picker and leaves no false package-failure guidance after successful protection-backed restore',
+      { events: late.events, pickerCalls: 0 },
+    );
+    await win.locator('[data-action="protection-import"]').click();
+    await win.waitForFunction(
+      () =>
+        window.importBusyEvents.filter((event) => event.type === 'protection' && event.busy === false)
+          .length >= 2,
+    );
+    assert.equal(await app.evaluate(() => global.importBusyProbe.pickerCalls), 1);
+    assert.equal(await win.locator('[aria-label="保护资料导入未完成"]').count(), 0);
+    const after = Object.fromEntries(
+      fs.readdirSync(source).map((name) => [name, hash(path.join(source, name))]),
+    );
+    assert.deepEqual(after, before);
+    check(
+      'retry after the active operation ends opens the picker, cancellation keeps the page and all saves including foreign29 and unrelated files remain byte-identical',
+      { files: Object.keys(after), pickerCalls: 1 },
+    );
+  } finally {
+    await app.evaluate(() => global.importBusyProbe?.release?.()).catch(() => {});
+    await app.close();
+    running = null;
+  }
+}
+
+async function detailReadability() {
+  const data = makeData('detailReadability'),
+    source = path.join(data, 'synthetic-SaveGames');
+  fs.mkdirSync(source);
+  fs.writeFileSync(path.join(source, '0.sav'), save(2));
+  fs.writeFileSync(path.join(source, 'JHSaveConfig.sav'), Buffer.from('synthetic-readability-index'));
+  fs.writeFileSync(path.join(source, '29.sav'), Buffer.from('synthetic-foreign-slot-29'));
+  const sourceHashes = Object.fromEntries(
+    fs.readdirSync(source).map((name) => [
+      name,
+      require('node:crypto')
+        .createHash('sha256')
+        .update(fs.readFileSync(path.join(source, name)))
+        .digest('hex'),
+    ]),
+  );
+  const store = new Store(data, catalog);
+  store.setPath('savePath', source);
+  store.mutate({ type: 'settings', value: { autoBackup: false } });
+  const backup = new Saves(path.join(data, 'save-backups')).capture(source, '阅读核对副本');
+  running = await launch(data);
+  const { app, win } = running,
+    ratios = [];
+  report.detailReadability = { ratios, sourceHashes };
+  const measure = async (selector, state) => {
+    const locator = win.locator(selector).first();
+    await locator.scrollIntoViewIfNeeded();
+    const colors = await locator.evaluate((el) => {
+      const rgb = (value) => value.match(/[\d.]+/g).map(Number),
+        style = getComputedStyle(el);
+      let background;
+      for (let node = el; node; node = node.parentElement) {
+        const computed = getComputedStyle(node),
+          value = rgb(computed.backgroundColor);
+        if (Number(computed.opacity) !== 1 || computed.backgroundImage !== 'none')
+          throw Error('Text contrast needs explicit compositing');
+        if (value.length === 3 || value[3] === 1) {
+          background = value.slice(0, 3);
+          break;
+        }
+        if (value[3] !== 0) throw Error('Text contrast needs explicit compositing');
+      }
+      if (!background) throw Error('No opaque text background found');
+      return {
+        text: el.textContent.trim(),
+        foreground: rgb(style.color).slice(0, 3),
+        background,
+        fontSize: parseFloat(style.fontSize),
+      };
+    });
+    const luminance = (color) =>
+      color
+        .map((value) => value / 255)
+        .map((value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4))
+        .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+    const values = [luminance(colors.foreground), luminance(colors.background)].sort((a, b) => b - a);
+    ratios.push({ state, selector, ...colors, ratio: (values[0] + 0.05) / (values[1] + 0.05) });
+  };
+  const capture = async (name) => {
+    const native = await app.browserWindow(win),
+      png = await native.evaluate(async (w) => (await w.capturePage()).toPNG().toString('base64'));
+    fs.writeFileSync(
+      path.join(
+        base,
+        'test-results',
+        name + '-' + version + (process.env.YIJIAN_REVIEW_REPORT_SUFFIX || '') + '.png',
+      ),
+      Buffer.from(png, 'base64'),
+    );
+  };
+  try {
+    await app.context().setOffline(true);
+    await win.emulateMedia({ reducedMotion: 'reduce' });
+    const native = await app.browserWindow(win);
+    await native.evaluate((w) => w.setBounds({ width: 1000, height: 720 }));
+    for (const zoom of [1, 1.5]) {
+      await app.evaluate(
+        ({ BrowserWindow }, factor) =>
+          BrowserWindow.getAllWindows().forEach((w) => w.webContents.setZoomFactor(factor)),
+        zoom,
+      );
+      await nav(win, 'library');
+      await win
+        .locator('[data-action="detail"]')
+        .nth(zoom === 1 ? 0 : 1)
+        .click();
+      await win.locator('.drawer').waitFor();
+      for (const selector of ['.drawer-body .intro', '.detail-label', '.spoiler-box p'])
+        await measure(selector, zoom + '-index-before-reveal');
+      await capture('detail-readability-index-' + zoom);
+      await win.locator('[data-action="reveal"]').click();
+      await measure('.steps li', zoom + '-index-actionable-step');
+      await close(win);
+      await nav(win, 'goals');
+      const rule = win.locator('.note-paper details');
+      if ((await rule.getAttribute('open')) === null) await rule.locator('summary').click();
+      await measure('.note-paper .save-note', zoom + '-note-retention-rule');
+      await nav(win, 'saves');
+      await win.locator('[data-action="backup-preview"][data-id="' + backup.id + '"]').click();
+      await win.locator('[data-backup-preview-state="verified"]').waitFor();
+      await measure('.comparison-grid span', zoom + '-backup-comparison-label');
+      await measure('.backup-file-list small', zoom + '-backup-file-date-size');
+      await capture('detail-readability-backup-' + zoom);
+      assert(await win.locator('.drawer-body').evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
+      await close(win);
+    }
+    for (const row of ratios) {
+      assert(row.ratio >= 4.5, 'Actionable explanatory text below4.5:1: ' + JSON.stringify(row));
+      assert(row.fontSize >= 12, 'Actionable explanatory text is too small: ' + JSON.stringify(row));
+    }
+    assert.equal(ratios.length, 14);
+    check('index hints stage labels spoiler warnings and revealed steps remain readable at100 and150', {
+      measurements: ratios.filter((row) => row.state.includes('index')),
+    });
+    check(
+      'note retention guidance and backup comparison/file timestamps remain readable at100 and150 without horizontal overflow',
+      { measurements: ratios.filter((row) => !row.state.includes('index')) },
+    );
+    const current = Object.fromEntries(
+      fs.readdirSync(source).map((name) => [
+        name,
+        require('node:crypto')
+          .createHash('sha256')
+          .update(fs.readFileSync(path.join(source, name)))
+          .digest('hex'),
+      ]),
+    );
+    assert.deepEqual(current, sourceHashes);
+    check(
+      'reading details and backup metadata leaves every synthetic save and foreign slot29 byte-identical',
+      { files: Object.keys(current) },
+    );
+  } finally {
+    await app.close();
+    running = null;
+  }
+}
 async function searchReadability() {
   const data = makeData('searchReadability');
   new Store(data, catalog);
@@ -1992,6 +2270,8 @@ async function customOpacityImport() {
 (async () => {
   try {
     const groups = {
+      importBusyFeedback,
+      detailReadability,
       searchReadability,
       references: referenceAndPolling,
       firstSave: firstSaveAppears,
