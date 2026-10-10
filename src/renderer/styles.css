@@ -2048,6 +2048,14 @@ kbd {
 .search-result:hover {
   background: #e8eedf;
 }
+.search-result .spacer {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.search-result > svg,
+.search-result .result-icon {
+  flex-shrink: 0;
+}
 .search-result .result-icon {
   color: #869b73;
   background: #e8eddc;

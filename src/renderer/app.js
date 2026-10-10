@@ -66,8 +66,13 @@ function applySearchSuggestion(suggestion) {
     toast('搜索内容最多 200 字，请先简化条件', true);
     return;
   }
-  input.value = suggestion.query;
   input.focus();
+  input.setSelectionRange(0, input.value.length);
+  // Preserve Chromium's edit history when accepting a filter completion.
+  if (!document.execCommand('insertText', false, suggestion.query)) {
+    toast('未能补全，请直接输入筛选条件', true);
+    return;
+  }
   input.setSelectionRange(suggestion.caret, suggestion.caret);
   showSearchResults(input.value);
 }
@@ -2941,8 +2946,8 @@ function showSearchResults(value) {
       ...p,
       kind: '计划',
       title: p.name,
-      description: p.list.map((line) => gameViews.byId(gameIndex, line.id)?.name).join(' '),
-      sub: '制作计划 · ' + p.list.length + ' 种配方',
+      description: craftRecipeSummary(p.list),
+      sub: '制作计划 · ' + craftRecipeSummary(p.list),
       action: 'craft-plan-open',
       glyph: 'leaf',
       group: 'personal',

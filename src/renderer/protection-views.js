@@ -59,7 +59,7 @@ export function createProtectionViews({
     )
       .map(
         (plan) =>
-          `<details><summary>${esc(plan.name)} · ${plan.list.length} 种配方</summary>${plan.list.map((line) => `<p class="small">${label(line.id)} × ${line.quantity}</p>`).join('')}${Object.entries(
+          `<details data-historical-craft-plan="${esc(plan.id)}"><summary>${esc(plan.name)} · ${plan.list.length} 种配方</summary><p class="small">当时记录：${plan.done === true ? '个人已制作完成 · 用料已释放' : plan.done === false ? '未标记制作完成' : '完成状态未记录'}</p><p class="small">保存的预留偏好：${plan.reserved === true ? '保留材料' : plan.reserved === false ? '不预留材料' : '预留设置未记录'}。只读回顾，不影响当前库存。</p>${plan.list.map((line) => `<p class="small">${label(line.id)} × ${line.quantity}</p>`).join('')}${Object.entries(
             plan.choices || {},
           )
             .map(([id, recipeId]) => `<p class="small">加工 ${label('item-' + id)}：${label(recipeId)}</p>`)

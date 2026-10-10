@@ -8,6 +8,8 @@ Copyright (c) 2018 Destiny Item Manager，MIT License。完整许可保留于 [s
 
 筛选补全的当前词替换及光标保留结构还参考并改写了相同提交中的 [autocomplete.ts](https://github.com/DestinyItemManager/DIM/blob/d7c02e5cf9ba19e750bc626f497a7a069be23b08/src/app/search/autocomplete.ts)。本地筛选字段、中文帮助、候选值与界面交互由本项目实现，沿用上述 MIT 许可声明。
 
+筛选补全通过浏览器原生编辑命令保留撤销记录的处理参考相同提交中的 [SearchBar.tsx](https://github.com/DestinyItemManager/DIM/blob/d7c02e5cf9ba19e750bc626f497a7a069be23b08/src/app/search/SearchBar.tsx)，沿用上述 MIT 许可声明。
+
 ## 《逸剑风云决》/ Wandering Sword
 
 游戏名称、角色、游戏图片、物品与任务文字等属于各自权利人。`src/assets/game/`、`src/data/game-images.json`、`src/data/game-index.json` 与 `src/data/world-index.json` 是以游戏 Build 21798996 为参考的辅助展示资料，不包含完整游戏、玩家存档、音频或视频，不纳入原创代码的 MIT 授权。本项目不授予这些内容的再分发许可，也不声称拥有其权利。
