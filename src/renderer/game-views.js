@@ -167,7 +167,31 @@ export function createGameViews({
   function recipeMaterials(e, quantity, index, reference = null) {
     const inventory = reference?.metadata.inventory,
       owned = new Map((inventory || []).map((i) => [i.id, i.count]));
-    return `${e.materials
+    const outputs = e.outputReference || [];
+    const totalOutputs = `<div class="detail-block" data-recipe-total-outputs><h3>制作 ${quantity} 次的预计总产物</h3>${
+      outputs.length
+        ? outputs
+            .map((output) => {
+              const scale = (count) => {
+                const total = count * quantity;
+                return Number.isSafeInteger(count) && count > 0 && Number.isSafeInteger(total) ? total : null;
+              };
+              const lower = scale(output.minimumCount),
+                upper = scale(output.maximumCount),
+                minimum = output.guaranteedItem ? lower : 0;
+              const count =
+                lower === null || upper === null || lower > upper
+                  ? ' · 数量待游戏内确认'
+                  : ` × ${minimum.toLocaleString()}${minimum !== upper ? '–' + upper.toLocaleString() : ''}`;
+              const name = byId(index, 'item-' + output.id)
+                ? act('database-detail', esc(output.name), 'text-btn', 'item-' + output.id)
+                : esc(output.name);
+              return `<p class="small" data-recipe-output-id="${esc(output.id)}"><strong>${output.guaranteedItem ? '预计产物' : '可能产物'}：${name}${output.quality ? ' · ' + esc(output.quality) + '色' : ''}${count}</strong></p>`;
+            })
+            .join('')
+        : '<p class="save-note">资料未提供可计算产物数量，请在游戏内确认。</p>'
+    }${outputs.some((output) => !output.guaranteedItem) ? '<p class="save-note">不同结果为候选，可能未得到其中某项，不会同时得到全部最大数量；实际物品、品质与数量请在游戏内确认。</p>' : ''}<p class="save-note">按资料中的每次产出范围计算；实际数量请在游戏内确认，尚未计入背包。</p></div>`;
+    return `${totalOutputs}${e.materials
       .map((m) => {
         const have = (m.alternatives || [m.id]).reduce((sum, id) => sum + (owned.get(id) || 0), 0),
           need = m.count * quantity,

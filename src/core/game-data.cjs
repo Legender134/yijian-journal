@@ -2,6 +2,7 @@
 const data = require('../data/game-index.json');
 const world = require('../data/world-index.json');
 const images = require('../data/game-images.json');
+const { recipeOutputs } = require('./recipe-outputs.cjs');
 const entries = new Map(data.entries.map((e) => [e.id, e]));
 const difficulty = {
   Easy: '简单',
@@ -76,7 +77,14 @@ function encyclopedia() {
     build: data.build,
     source: data.source,
     notice: data.notice,
-    entries: [...new Map([...data.entries, ...world.people].map((e) => [e.id, e])).values()],
+    entries: [
+      ...new Map(
+        [...data.entries, ...world.people].map((e) => [
+          e.id,
+          e.kind === '配方' ? { ...e, outputReference: recipeOutputs(e, 1) } : e,
+        ]),
+      ).values(),
+    ],
     images: images.entries,
     merchants: data.merchants || [],
     world: { ...world, placeAliases: require('../data/world-place-aliases.json') },
