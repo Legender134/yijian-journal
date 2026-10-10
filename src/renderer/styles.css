@@ -1553,6 +1553,37 @@ kbd {
   font-size: 11px;
   margin-left: 5px;
 }
+.save-connection-header,
+.save-connection-path {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.save-connection-description {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.save-connection-description > .save-icon {
+  flex: 0 0 45px;
+}
+.save-connection-description > div:last-child {
+  min-width: 0;
+}
+.save-connection .save-stats {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+.save-connection .save-stats > div:first-child {
+  white-space: nowrap;
+}
+.save-connection-path > span {
+  flex: 1 1 260px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.save-connection-path > .text-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .save-table {
   width: 100%;
   border-collapse: collapse;
