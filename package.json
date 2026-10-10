@@ -1,7 +1,7 @@
 {
   "name": "yijian-journal",
   "productName": "逸剑手札",
-  "version": "1.12.46",
+  "version": "1.12.47",
   "description": "逸剑风云决个人桌面助手：原生自动存读档、历史时间线、任务地点、图鉴与备料",
   "main": "src/main.cjs",
   "private": true,

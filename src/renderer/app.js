@@ -80,6 +80,8 @@ let databaseKind = '物品',
   referenceSave = null,
   detailRequest = 0;
 let refreshRequest = 0;
+let backupPreviewRequest = 0,
+  backupRestorePending = false;
 let protectionExportRequest = 0;
 let startingAssistance = false;
 let assistanceError = '';
@@ -1578,14 +1580,109 @@ function reservableReference(ref) {
     },
   };
 }
-function showBackupPreview(b) {
-  rememberDrawer({ type: 'backup', data: b });
+function backupPreviewScope() {
+  return JSON.stringify([route, state.activeProfileId, state.settings.savePath]);
+}
+function backupPreviewCurrent(view, request, owner, scope) {
+  return (
+    request === backupPreviewRequest &&
+    currentDrawer === view &&
+    overlay.firstChild === owner &&
+    scope === backupPreviewScope()
+  );
+}
+function showBackupPreview(view, replace = false, preserve = false) {
+  rememberDrawer(view, replace);
+  const b = view.data;
+  if (view.status !== 'verified') {
+    const busy = view.status === 'checking' || view.status === 'restoring';
+    showOverlay(
+      `<section class="drawer save-drawer" role="dialog" aria-modal="true" aria-label="备份预览" data-backup-preview-state="${view.status}"><div class="drawer-head"><span class="small muted">存档匣 / 备份预览</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><h1>${esc(b.label || '完整备份')}</h1>${b.createdAt ? `<p class="small muted">创建于 ${when(b.createdAt)}</p>` : ''}<div role="status">${notice(view.error || (view.status === 'checking' ? '正在重新校验副本并比较当前存档…' : '正在核对恢复请求。旧预览已失效，请等待本次结果。'), busy)}</div><p class="save-note">重新校验与预览成功后，才可再次恢复。</p>${act('backup-folder', '打开这份副本', 'btn', b.id, 'folder')}</div><div class="drawer-actions">${busy ? '' : act('backup-preview', '重新校验并预览', 'btn primary', b.id, 'refresh')}${act('close-overlay', '关闭预览', 'btn')}</div></section>`,
+      true,
+      preserve,
+    );
+    return;
+  }
   const c = b.comparison,
     status = { unchanged: '一致', changed: '将覆盖', missing: '将补回', unknown: '未对照' };
   showOverlay(
-    `<section class="drawer save-drawer" role="dialog" aria-modal="true" aria-label="备份预览"><div class="drawer-head"><span class="small muted">存档匣 / 备份预览</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${pill('校验已通过', 'green')}${pill(`${b.files.length} 个文件`)}</div><h1>${esc(b.label)}</h1><p class="small muted">创建于 ${when(b.createdAt)}</p><div class="detail-block"><h3>与当前存档的区别</h3>${c.available ? `<div class="comparison-grid"><div><strong>${c.changed}</strong><span>内容不同</span></div><div><strong>${c.missing}</strong><span>当前缺少</span></div><div><strong>${c.unchanged}</strong><span>完全一致</span></div></div><p class="save-note">恢复会覆盖备份中的同名文件；当前目录中额外的 ${c.extra} 个文件会保留。比较基于打开此预览时的文件内容。</p>` : notice(c.error || '连接对应存档目录后，可以比较文件差异。', true)}</div><div class="detail-block"><h3>这份副本里的存档</h3><div class="backup-file-list">${b.files.map((f) => `<div><span class="spacer"><strong>${esc(f.name)}${f.metadata ? ` · ${esc(f.metadata.mapName)}` : ''}</strong><small>${f.metadata ? hours(f.metadata.playSeconds) + ' · ' : ''}${when(f.modifiedAt)} · ${bytes(f.bytes)}</small></span>${pill(status[f.status], f.status === 'changed' ? 'orange' : f.status === 'unchanged' ? 'green' : '')}</div>`).join('')}</div></div><p class="small muted mono">原目录：${esc(b.source)}</p><div class="row mt">${act('backup-rename', '修改备份名称', 'btn', b.id, 'edit')}${act('backup-folder', '打开这份副本', 'btn', b.id, 'folder')}</div></div><div class="drawer-actions">${c.sameSource ? act('restore', '恢复这份存档', 'btn primary', b.id, 'refresh') : act('close-overlay', '关闭预览', 'btn primary')}${act('close-overlay', '先不恢复', 'btn')}</div></section>`,
+    `<section class="drawer save-drawer" role="dialog" aria-modal="true" aria-label="备份预览" data-backup-preview-state="verified"><div class="drawer-head"><span class="small muted">存档匣 / 备份预览</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${pill('校验已通过', 'green')}${pill(`${b.files.length} 个文件`)}</div><h1>${esc(b.label)}</h1><p class="small muted">创建于 ${when(b.createdAt)}</p><div class="detail-block"><h3>与当前存档的区别</h3>${c.available ? `<div class="comparison-grid"><div><strong>${c.changed}</strong><span>内容不同</span></div><div><strong>${c.missing}</strong><span>当前缺少</span></div><div><strong>${c.unchanged}</strong><span>完全一致</span></div></div><p class="save-note">恢复会覆盖备份中的同名文件；当前目录中额外的 ${c.extra} 个文件会保留。比较基于打开此预览时的文件内容。</p>` : notice(c.error || '连接对应存档目录后，可以比较文件差异。', true)}</div><div class="detail-block"><h3>这份副本里的存档</h3><div class="backup-file-list">${b.files.map((f) => `<div><span class="spacer"><strong>${esc(f.name)}${f.metadata ? ` · ${esc(f.metadata.mapName)}` : ''}</strong><small>${f.metadata ? hours(f.metadata.playSeconds) + ' · ' : ''}${when(f.modifiedAt)} · ${bytes(f.bytes)}</small></span>${pill(status[f.status], f.status === 'changed' ? 'orange' : f.status === 'unchanged' ? 'green' : '')}</div>`).join('')}</div></div><p class="small muted mono">原目录：${esc(b.source)}</p><div class="row mt">${act('backup-rename', '修改备份名称', 'btn', b.id, 'edit')}${act('backup-folder', '打开这份副本', 'btn', b.id, 'folder')}</div></div><div class="drawer-actions">${c.sameSource && !backupRestorePending ? act('restore', '恢复这份存档', 'btn primary', b.id, 'refresh') : act('close-overlay', '关闭预览', 'btn primary')}${act('close-overlay', '先不恢复', 'btn')}</div></section>`,
     true,
+    preserve,
   );
+}
+function invalidateBackupPreview(message) {
+  ++backupPreviewRequest;
+  if (currentDrawer?.type !== 'backup') return;
+  const view = currentDrawer;
+  view.data = { id: view.data.id, label: view.data.label, createdAt: view.data.createdAt };
+  view.status = 'invalid';
+  view.error = message;
+  showBackupPreview(view, true, true);
+}
+async function inspectBackupPreview(id) {
+  const previous = currentDrawer?.type === 'backup' && currentDrawer.data.id === id;
+  const b = (previous && currentDrawer.data) || environment.backups.find((b) => b.id === id) || { id };
+  const view = {
+    type: 'backup',
+    data: { id, label: b.label, createdAt: b.createdAt },
+    status: 'checking',
+  };
+  showBackupPreview(view, previous, previous);
+  const request = backupPreviewRequest,
+    owner = overlay.firstChild,
+    scope = backupPreviewScope();
+  try {
+    const inspected = await call('inspectBackup', id);
+    if (!backupPreviewCurrent(view, request, owner, scope)) return;
+    if (backupRestorePending) {
+      invalidateBackupPreview('恢复请求仍在处理。请等待本次结果后重新校验并预览。');
+      return;
+    }
+    view.data = inspected;
+    view.status = 'verified';
+    view.scope = scope;
+    showBackupPreview(view, true, true);
+  } catch (error) {
+    if (!backupPreviewCurrent(view, request, owner, scope)) return;
+    invalidateBackupPreview('无法校验这份副本：' + error.message);
+  }
+}
+async function restoreBackupPreview(id) {
+  const view = currentDrawer;
+  if (
+    backupRestorePending ||
+    view?.type !== 'backup' ||
+    view.status !== 'verified' ||
+    view.scope !== backupPreviewScope() ||
+    view.data.id !== id ||
+    !view.data.comparison.sameSource
+  )
+    return;
+  backupRestorePending = true;
+  view.data = { id, label: view.data.label, createdAt: view.data.createdAt };
+  view.status = 'restoring';
+  showBackupPreview(view, true, true);
+  const request = backupPreviewRequest,
+    owner = overlay.firstChild,
+    scope = backupPreviewScope();
+  try {
+    const result = await call('restore', id);
+    if (result.cancelled) {
+      if (backupPreviewCurrent(view, request, owner, scope))
+        invalidateBackupPreview('已取消恢复，旧预览已失效。请重新校验后再恢复。');
+      return;
+    }
+    if (scope === backupPreviewScope()) environment = result.environment;
+    if (backupPreviewCurrent(view, request, owner, scope)) closeOverlay();
+    render(true);
+    toast(`已恢复 ${result.restored} 个文件，恢复前副本已保留`);
+  } catch (error) {
+    if (!backupPreviewCurrent(view, request, owner, scope)) return;
+    invalidateBackupPreview('恢复未完成，旧预览已失效：' + error.message);
+  } finally {
+    backupRestorePending = false;
+  }
 }
 async function call(method, ...args) {
   const result = await api[method](...args);
@@ -2463,6 +2560,7 @@ function intentDraftBanner() {
   return `<div class="notice mb">${act('intent-drafts', `继续未完成安排 · ${availableIntentDrafts().length} 份草稿`, 'text-btn')}</div>`;
 }
 function showOverlay(html, drawer = false, preserve = false) {
+  ++backupPreviewRequest;
   if (resourcePriorityDraft && !html.includes('class="resource-priority-editor"')) {
     resourcePriorityRequest++;
     resourcePriorityDraft = null;
@@ -2512,17 +2610,29 @@ function dismissOverlay() {
   const backup = backupRenameDraft;
   if (backup && overlay.querySelector('[data-action="backup-rename-save"]')) {
     backupRenameDraft = null;
-    const previousOverlay = overlay.firstChild;
+    const previousOverlay = overlay.firstChild,
+      request = ++backupPreviewRequest,
+      scope = backupPreviewScope();
     call('inspectBackup', backup.id)
       .then((current) => {
-        if (overlay.firstChild !== previousOverlay) return;
+        if (
+          overlay.firstChild !== previousOverlay ||
+          request !== backupPreviewRequest ||
+          scope !== backupPreviewScope()
+        )
+          return;
         drawerHistory.splice(0, drawerHistory.length, ...backup.history);
-        showBackupPreview(current);
+        showBackupPreview({ type: 'backup', data: current, status: 'verified', scope });
         overlay.querySelector('[data-action="backup-rename"]')?.focus({ preventScroll: true });
         overlay.querySelector('.drawer-body').scrollTop = backup.scroll;
       })
       .catch((error) => {
-        if (overlay.firstChild !== previousOverlay) return;
+        if (
+          overlay.firstChild !== previousOverlay ||
+          request !== backupPreviewRequest ||
+          scope !== backupPreviewScope()
+        )
+          return;
         closeOverlay();
         toast('无法重新打开备份预览：' + error.message, true);
       });
@@ -2573,6 +2683,7 @@ function dismissOverlay() {
   closeOverlay();
 }
 function closeOverlay() {
+  ++backupPreviewRequest;
   backupRenameDraft = null;
   noteRestoreConfirmation = null;
   journalRemoveDraft = null;
@@ -4026,7 +4137,7 @@ async function handle(action, id, target, navigationFocused = false) {
         await showDatabaseDetail(view.id, view.quantity || 1, view.giftPage);
       } else if (view.type === 'search') searchModal(view);
       else if (view.type === 'guide') showDetail(view.id);
-      else if (view.type === 'backup') showBackupPreview(view.data);
+      else if (view.type === 'backup') await inspectBackupPreview(view.data.id);
       else if (view.type === 'timeline') {
         rememberDrawer(view);
         showOverlay(timelineViews.preview(view.data), true);
@@ -4045,6 +4156,8 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     }
     case 'navigate': {
+      if (currentDrawer?.type === 'backup') closeOverlay();
+      else ++backupPreviewRequest;
       if (id !== 'archives') ++protectionRequest;
       await saveNote();
       const returnToNavigation =
@@ -5456,7 +5569,7 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     }
     case 'backup-preview':
-      showBackupPreview(await call('inspectBackup', id));
+      await inspectBackupPreview(id);
       break;
     case 'backup-folder':
       await call('openBackup', id);
@@ -5488,13 +5601,7 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     }
     case 'restore': {
-      const result = await call('restore', id);
-      if (!result.cancelled) {
-        environment = result.environment;
-        closeOverlay();
-        render(true);
-        toast(`已恢复 ${result.restored} 个文件，恢复前副本已保留`);
-      }
+      await restoreBackupPreview(id);
       break;
     }
     case 'recover-restore': {
@@ -5510,6 +5617,7 @@ async function handle(action, id, target, navigationFocused = false) {
       const result = await call('useDetectedSaves', id);
       state = result.state;
       environment = result.environment;
+      invalidateBackupPreview('存档来源已改变，旧预览已失效。请重新校验后再恢复。');
       referenceSaveName = undefined;
       referenceSave = null;
       render(true);
@@ -5521,6 +5629,7 @@ async function handle(action, id, target, navigationFocused = false) {
       if (!result.cancelled) {
         state = result.state;
         environment = result.environment;
+        invalidateBackupPreview('存档来源已改变，旧预览已失效。请重新校验后再恢复。');
         referenceSaveName = undefined;
         referenceSave = null;
         render(true);
@@ -5533,6 +5642,7 @@ async function handle(action, id, target, navigationFocused = false) {
       toast('已刷新本机存档');
       break;
     case 'backup-page':
+      invalidateBackupPreview('列表页已改变，旧预览已失效。请重新校验后再恢复。');
       backupView.page = Math.max(0, Number(id) || 0);
       render(true);
       break;
@@ -6334,6 +6444,7 @@ document.addEventListener('change', async (event) => {
       const r = await call('useDetectedSaves', event.target.value);
       state = r.state;
       environment = r.environment;
+      invalidateBackupPreview('存档来源已改变，旧预览已失效。请重新校验后再恢复。');
       referenceSaveName = undefined;
       referenceSave = null;
       render();
@@ -6519,6 +6630,7 @@ try {
       currentMode !== profile().referenceMode ||
       currentPath !== state.settings.savePath
     ) {
+      invalidateBackupPreview('存档来源或回顾选择已改变，旧预览已失效。请重新校验后再恢复。');
       resetPlanningViews();
       if (currentId !== state.activeProfileId) {
         closeOverlay();
