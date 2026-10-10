@@ -306,6 +306,94 @@ async function firstSaveAppears() {
   }
 }
 
+async function recipeOutputUnits() {
+  const data = makeData('recipe-output-units'),
+    source = path.join(data, 'SaveGames');
+  fs.mkdirSync(source);
+  const bytes = syntheticSave({
+    full: true,
+    money: 300,
+    inventory: [
+      { id: 10202, count: 5 },
+      { id: 10205, count: 5 },
+    ],
+    fusionRecipes: [9501],
+  });
+  fs.writeFileSync(path.join(source, '1.sav'), bytes);
+  const store = new Store(data, catalog);
+  store.setPath('savePath', source);
+  store.mutate({ type: 'settings', value: { autoBackup: false } });
+  running = await launch(data);
+  const { app, win } = running;
+  const capture = async (name) => {
+    const window = await app.browserWindow(win);
+    const png = await window.evaluate(async (w) => (await w.capturePage()).toPNG().toString('base64'));
+    fs.writeFileSync(path.join(data, name + '.png'), Buffer.from(png, 'base64'));
+  };
+  try {
+    await nav(win, 'database');
+    await win.locator('[data-action="database-kind"][data-id="配方"]').click();
+    await win.locator('#list-search').fill('铜锭');
+    await win.locator('[data-action="database-detail"][data-id="fusion-9501"]').click();
+    await select(win, '#recipe-save', '1.sav');
+    const output = win
+      .locator('.drawer .detail-block')
+      .filter({ has: win.getByRole('heading', { name: /产出参考/ }) });
+    const counts = () => output.locator('.material-row > span:last-child').allTextContents();
+    assert.deepEqual(await counts(), ['× 1', '× 2', '× 3']);
+    await win.locator('#recipe-quantity').fill('4');
+    await win.waitForFunction(() =>
+      document.querySelector('#recipe-materials')?.textContent.includes('200 文'),
+    );
+    assert.deepEqual(
+      await win
+        .locator('#recipe-materials .material-row')
+        .allTextContents()
+        .then((rows) => rows.map((s) => /需 4/.test(s))),
+      [true, true, false],
+    );
+    assert.deepEqual(await counts(), ['× 1', '× 2', '× 3']);
+    await capture('random-four-executions');
+    assert.equal(
+      await output.getByRole('heading').innerText(),
+      '每次产出参考',
+      'Recipe detail must explicitly identify per-execution output when execution count is4',
+    );
+    check(
+      'random recipe distinguishes four-execution materials/money from explicitly labelled per-execution outputs',
+      { executions: 4, materialCountEach: 4, money: 200, perExecution: [1, 2, 3] },
+    );
+    await win.locator('.drawer [data-action="craft-add"]').click();
+    await win.locator('.drawer [data-action="craft-open"]').click();
+    const stage = win.locator('[data-craft-stage="fusion-9501"]');
+    await stage.waitFor();
+    assert.match(await stage.innerText(), /× 4 次[\s\S]*预计产物：[\s\S]*铜锭[\s\S]*× 4–12/);
+    assert.equal(await win.locator('#craft-qty-fusion-9501').inputValue(), '4');
+    await capture('random-total-range');
+    check(
+      'four chosen executions carry into material plan with expected total output4-12, not existing inventory',
+      { executions: 4, minimum: 4, maximum: 12 },
+    );
+    await nav(win, 'database');
+    await win.locator('#list-search').fill('长虹剑精良图纸');
+    await win.locator('[data-action="database-detail"][data-id="fusion-1002"]').click();
+    await win.locator('#recipe-quantity').fill('3');
+    assert.equal(await output.getByRole('heading').innerText(), '每次产出参考');
+    assert.deepEqual(await counts(), ['× 1']);
+    assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), bytes);
+    check('fixed-output recipe also labels output per execution and synthetic source save stays unchanged', {
+      executions: 3,
+      perExecution: 1,
+    });
+  } catch (error) {
+    await capture('failure').catch(() => {});
+    throw error;
+  } finally {
+    await app.close().catch(() => {});
+    running = null;
+  }
+}
+
 async function referenceRefreshEdges() {
   const data = makeData('reference-edges');
   const source = path.join(data, 'SaveGames');
@@ -1501,6 +1589,7 @@ async function customOpacityImport() {
     const groups = {
       references: referenceAndPolling,
       firstSave: firstSaveAppears,
+      recipeOutputs: recipeOutputUnits,
       referenceEdges: referenceRefreshEdges,
       draftCapacity: fullDraftCapacity,
       interleavedNode: interleavedNodeSave,
