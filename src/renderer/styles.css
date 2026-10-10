@@ -2114,8 +2114,8 @@ kbd {
 .compact-foot {
   padding: 12px 20px;
   border-top: 1px solid var(--line);
-  font-size: 10px;
-  color: #8c997c;
+  font-size: 12px;
+  color: var(--muted);
   display: flex;
   justify-content: space-between;
   align-items: center;
