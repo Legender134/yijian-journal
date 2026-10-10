@@ -91,10 +91,155 @@ async function savedUndo(editor, value) {
   await waitNote(value);
   await acknowledged();
 }
+async function waitHistory(...bodies) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const p = await current();
+    if (bodies.every((body) => p.noteRevisions?.some((row) => row.body === body))) return p;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw Error('Rapid clear full text must remain recoverable, including unsaved input');
+}
+async function rapidClear() {
+  const suffix = ' · 刚新增去碗子山路线';
+  await page.locator('#note').focus();
+  await page.keyboard.press('Control+End');
+  await page.evaluate(() => {
+    globalThis.noteClearInputs = [];
+    document.querySelector('#note').addEventListener('input', (event) => {
+      globalThis.noteClearInputs.push({ at: performance.now(), value: event.target.value });
+    });
+  });
+  await page.keyboard.type(suffix);
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Backspace');
+  const inputs = await page.evaluate(() => globalThis.noteClearInputs);
+  const previous = inputs.at(-2),
+    cleared = inputs.at(-1);
+  assert.equal(previous.value, original + suffix);
+  assert.equal(cleared.value, '');
+  assert(cleared.at - previous.at < 700, 'Clear must precede the normal autosave debounce');
+  await waitNote('');
+  await waitHistory(original + suffix, original);
+  await page.keyboard.press('Control+z');
+  assert.equal(await page.locator('#note').inputValue(), original + suffix);
+  await waitNote(original + suffix);
+  await page.keyboard.press('Control+Shift+z');
+  assert.equal(await page.locator('#note').inputValue(), '');
+  await waitNote('');
+  await quit();
+  await launch();
+  const p = await waitHistory(original + suffix);
+  assert.equal(p.notes, '');
+  await page.locator('[data-action="note-history"]').click();
+  const row = page.locator(
+    '[data-note-revision="' + p.noteRevisions.find((row) => row.body === original + suffix).id + '"]',
+  );
+  await row.locator('summary').click();
+  await row.locator('[data-action="note-restore-preview"]').click();
+  assert.equal(await page.locator('[data-note-restore-preview] > p').textContent(), original + suffix);
+  await page.locator('[data-action="note-restore-confirm"]').click();
+  await page.locator('[role="dialog"]').waitFor({ state: 'detached' });
+  assert.equal(await page.locator('#note').inputValue(), original + suffix);
+  checks.push('真实键盘在700ms自动保存前清空新增全文，原生撤销/重做有效，冷启动后可预览和恢复完整未落盘文字');
+  await page.locator('#note').fill(original);
+  await waitNote(original);
+}
+async function pendingClearChecks(companion) {
+  const first = '  第一轮尚未自动保存\n<script>literal</script>  ';
+  const second = '\n第二轮尚未自动保存\n';
+  const remote = '另一窗口已保存的新正文';
+  await app.evaluate(({ ipcMain }) => {
+    const channel = 'journal:mutate',
+      original = ipcMain._invokeHandlers.get(channel);
+    globalThis.noteClearGate = { original, held: false, release: null, commands: [] };
+    ipcMain.removeHandler(channel);
+    ipcMain.handle(channel, async (event, command) => {
+      if (command.type === 'note') {
+        globalThis.noteClearGate.commands.push(structuredClone(command));
+        if (!globalThis.noteClearGate.held) {
+          globalThis.noteClearGate.held = true;
+          await new Promise((resolve) => {
+            globalThis.noteClearGate.release = resolve;
+          });
+        }
+      }
+      return original(event, command);
+    });
+  });
+  try {
+    await page.locator('#note').fill(first);
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Backspace');
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (await app.evaluate(() => !!globalThis.noteClearGate.release)) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert(await app.evaluate(() => !!globalThis.noteClearGate.release));
+    await companion.locator('#note').fill(remote);
+    await waitNote(remote);
+    await page.locator('#note').fill(second);
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Backspace');
+    await page.locator('#note').fill('最后继续输入的正文');
+    await app.evaluate(() => globalThis.noteClearGate.release());
+    await waitNote('最后继续输入的正文');
+    const p = await waitHistory(first, second, remote);
+    assert(
+      p.noteRevisions.findIndex((row) => row.body === second) <
+        p.noteRevisions.findIndex((row) => row.body === first),
+    );
+    checks.push(
+      '第一轮清空回执延后时再次输入/清空并续写，旧回执不消费新草稿；双窗口较新正文与两份清空全文均保留',
+    );
+  } finally {
+    await app.evaluate(({ ipcMain }) => {
+      globalThis.noteClearGate.release?.();
+      ipcMain.removeHandler('journal:mutate');
+      ipcMain.handle('journal:mutate', globalThis.noteClearGate.original);
+    });
+  }
+  await page.locator('#note').fill(original);
+  await waitNote(original);
+  const before = fs.readFileSync(path.join(userData, 'journal.json'));
+  await app.evaluate((_electron, directory) => {
+    const filesystem = process.getBuiltinModule('node:fs');
+    const journal = process.getBuiltinModule('node:path').join(directory, 'journal.json');
+    globalThis.noteClearRename = filesystem.renameSync;
+    filesystem.renameSync = function (from, to) {
+      if (to === journal) throw Error('synthetic note clear replacement refused');
+      return globalThis.noteClearRename.call(this, from, to);
+    };
+  }, userData);
+  try {
+    for (const body of [first + ' failed', second + ' failed']) {
+      await page.locator('#note').fill(body);
+      await page.keyboard.press('Control+a');
+      await page.keyboard.press('Backspace');
+      await page
+        .locator('#note-status')
+        .getByText(/保存失败/)
+        .waitFor();
+      assert.deepEqual(fs.readFileSync(path.join(userData, 'journal.json')), before);
+    }
+  } finally {
+    await app.evaluate(() => {
+      process.getBuiltinModule('node:fs').renameSync = globalThis.noteClearRename;
+    });
+  }
+  await page.locator('[data-action="note-history"]').click();
+  const p = await waitHistory(first + ' failed', second + ' failed');
+  assert.equal(p.notes, '');
+  assert.equal(await page.locator('#note').inputValue(), '');
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  checks.push('两次原子写入故意失败时磁盘原件不变，重试找回旧内容后两份未保存全文与空正文一起持久保存');
+  await page.locator('#note').fill(original);
+  await waitNote(original);
+}
 (async () => {
   try {
     await launch();
     assert.equal(await page.locator('#note').inputValue(), original);
+    await rapidClear();
     await savedUndo(page, original);
     checks.push('主窗自动保存及其他安排刷新后，原生撤销和重做仍有效，撤销后的文字继续持久保存');
     const created = app.waitForEvent('window');
@@ -112,6 +257,7 @@ async function savedUndo(editor, value) {
     await savedUndo(companion, original);
     assert.equal(await page.locator('#note').inputValue(), original);
     checks.push('小窗自动保存后仍能原生撤销和重做，跨窗口刷新保留编辑器且主窗得到同一已保存正文');
+    await pendingClearChecks(companion);
     await page.locator('#note').fill('');
     await waitNote('');
     await companion.waitForFunction(() => document.querySelector('#note')?.value === '');

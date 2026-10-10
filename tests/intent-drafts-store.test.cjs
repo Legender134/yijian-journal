@@ -41,6 +41,11 @@ function rendererDraftBoundary(action) {
   // Rejection is consumed by the real boundary when it waits for the draft.
   // Keep a handler in the old-code red test too, so it cannot become unhandled.
   write.catch(() => {});
+  let resolveNotes;
+  const noteWrite = new Promise((resolve) => {
+    resolveNotes = resolve;
+  });
+  const savedNotes = [];
   const snapshots = [];
   const context = {
     action,
@@ -56,7 +61,14 @@ function rendererDraftBoundary(action) {
       await write;
       persisted = captured;
     },
-    saveNote: async () => {},
+    drafts: new Map([
+      ['profile-one', 'pending clear'],
+      ['profile-two', 'pending note'],
+    ]),
+    saveNote: async (id) => {
+      await noteWrite;
+      savedNotes.push(id);
+    },
     render: () => {},
     toast: () => {},
     refresh: async () => {},
@@ -67,7 +79,7 @@ function rendererDraftBoundary(action) {
   };
   vm.createContext(context);
   const run = () => vm.runInContext('(async () => { switch (action) { ' + body + ' } })()', context);
-  return { run, snapshots, resolveWrite, rejectWrite };
+  return { run, snapshots, resolveWrite, rejectWrite, resolveNotes, savedNotes };
 }
 
 for (const [action, method] of [
@@ -84,7 +96,11 @@ for (const [action, method] of [
       await new Promise(setImmediate);
       assert.deepEqual(s.snapshots, []);
       s.resolveWrite();
+      await new Promise(setImmediate);
+      assert.deepEqual(s.snapshots, [], 'All profile note writes must complete before the operation');
+      s.resolveNotes();
       await task;
+      assert.deepEqual(s.savedNotes, ['profile-one', 'profile-two']);
       assert.deepEqual(s.snapshots, [{ method, persisted: true }]);
     },
   );
