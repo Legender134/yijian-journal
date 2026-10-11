@@ -1044,6 +1044,8 @@ app.whenReady().then(async () => {
       return accepted;
     });
     handle('ready', (event) => {
+      // Recreated windows may inherit Chromium's previous page zoom after navigation.
+      event.sender.setZoomFactor((store.get().settings.readingScale || 100) / 100);
       rendererReady.add(event.sender.id);
       if (owner(event) === companion.window) companion.rendererReady();
       const action = pendingActions.get(event.sender.id);

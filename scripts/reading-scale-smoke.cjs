@@ -105,6 +105,9 @@ async function noHorizontal(win) {
   assert(geometry.scroll <= geometry.width + 1 && geometry.left <= 1, JSON.stringify(geometry));
 }
 async function capture(win, name) {
+  await win.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
   const w = await app.browserWindow(win),
     file = path.join(out, name);
   const png = await w.evaluate(async (window) =>
@@ -192,6 +195,38 @@ async function capture(win, name) {
       BrowserWindow.getAllWindows()
         .find((w) => !w.getTitle().includes('随行'))
         .show(),
+    );
+    report.reopenedScales = [];
+    for (const size of [100, 110, 125, 150]) {
+      await page.locator('#reading-scale').selectOption('125');
+      await scale(125);
+      const closed = compact.waitForEvent('close');
+      await compact.evaluate(() => window.journal.window('close'));
+      await closed;
+      await page.locator('#reading-scale').selectOption(String(size));
+      await scale(size);
+      const reopened = app.waitForEvent('window');
+      await page.locator('[data-action="compact"]').first().click();
+      compact = await reopened;
+      compact.on('pageerror', (error) => report.errors.push(error.message));
+      await compact.locator('.compact-body').waitFor();
+      const recreated = await app.browserWindow(compact);
+      const actual = await recreated.evaluate((win) => win.webContents.getZoomFactor());
+      report.reopenedScales.push({
+        previous: 125,
+        selectedWhileClosed: size,
+        actualFactor: actual,
+        savedScale: JSON.parse(fs.readFileSync(path.join(userdata, 'journal.json'))).settings.readingScale,
+      });
+      await capture(compact, `compact-reopened-${size}.png`);
+      assert(Math.abs(actual - size / 100) < 0.001, JSON.stringify(report.reopenedScales));
+      await fits(compact, '[data-action="search"]');
+      await noHorizontal(compact);
+    }
+    await page.locator('#reading-scale').selectOption('100');
+    await scale(100);
+    report.checks.push(
+      'closing the small window, changing each supported size in the main window and reopening applies the current saved size immediately',
     );
     await page.locator('.sidebar-nav [data-id="goals"]').click();
     await page.locator('[data-action="goal-add"]').first().click();
