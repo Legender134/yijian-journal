@@ -32,6 +32,7 @@ import { createGameImages } from './game-images.js';
 import { createQualityText } from './quality.js';
 import { createTimelineViews } from './timeline-views.js';
 import { createCompanionViews } from './companion-view.js';
+import { createFlowViews } from './flow-views.js';
 const api = window.journal;
 const compact = new URLSearchParams(location.search).has('compact');
 const root = document.querySelector('#app'),
@@ -843,7 +844,7 @@ const notice = (message, info = false) =>
   `<div class="notice ${info ? 'info' : ''}">${icon('info')}<span>${esc(message)}</span></div>`;
 const headings = {
   home: '江湖总览',
-  checklist: '流程防漏',
+  checklist: '流程任务',
   library: '江湖索引',
   database: '百物图鉴',
   world: '任务与地点',
@@ -882,6 +883,11 @@ const comparisonViews = createComparisonViews({
   picture,
 });
 const worldViews = createWorldViews({ esc, act, pill, notice, icon, iconButton, when, empty, picture });
+const flowViews = createFlowViews({ esc, act, icon, pill, when });
+function currentFlow() {
+  const flow = compact ? companionData?.flow : environment?.flow;
+  return flow?.profileId === profile().id ? flow : null;
+}
 const materialViews = createMaterialViews({ esc, act, pill, notice, icon, iconButton, when, empty });
 const searchHelpViews = createSearchHelpViews({ esc, fields: searchFilterFields });
 const backupViews = createBackupViews({ esc, act, pill, icon, iconButton, empty, when, bytes });
@@ -1366,20 +1372,22 @@ async function loadWorldReference(name) {
     }
   }
 }
-async function showWorldDetail(id, type = 'quest', replace = false) {
+async function showWorldDetail(id, type = 'quest', replace = false, flowReference = null) {
   const token = ++detailRequest;
-  if (currentDrawer?.type === 'database' && referenceSaveName !== undefined) {
+  const view = flowReference || worldView;
+  if (!flowReference && currentDrawer?.type === 'database' && referenceSaveName !== undefined) {
     worldView.referenceName = referenceSaveName;
     worldView.follow = referenceFollow;
     worldView.reference = referenceSave;
     worldView.error = '';
   }
-  if (currentDrawer?.type === 'save' && selectedSave) {
+  if (!flowReference && currentDrawer?.type === 'save' && selectedSave) {
     worldView.referenceName = selectedSave.name;
     worldView.follow = false;
     worldView.reference = selectedSave;
   }
-  if (worldView.referenceName === undefined || worldView.loading) await loadWorldReference();
+  if (!flowReference && (worldView.referenceName === undefined || worldView.loading))
+    await loadWorldReference();
   if (token !== detailRequest) return;
   const canonical = type === 'quest' && !String(id).startsWith('quest-') ? `quest-${id}` : id;
   const html =
@@ -1387,23 +1395,23 @@ async function showWorldDetail(id, type = 'quest', replace = false) {
       ? worldViews.questDetail(
           gameIndex,
           canonical,
-          worldView,
+          view,
           state.settings.spoiler === 'details',
           profile().allocations?.find((a) => a.questId === canonical)?.items,
         )
-      : worldViews.placeDetail(gameIndex, canonical, worldView);
+      : worldViews.placeDetail(gameIndex, canonical, view);
   if (!html) throw Error('这条任务或地点资料不可用');
-  referenceSaveName = worldView.referenceName;
-  referenceFollow = worldView.follow;
-  referenceSave = worldView.reference;
+  referenceSaveName = view.referenceName;
+  referenceFollow = view.follow;
+  referenceSave = view.reference;
   rememberDrawer(
     {
       type: `world-${type}`,
       id: canonical,
-      referenceName: worldView.referenceName,
-      follow: worldView.follow,
-      reference: worldView.reference,
-      error: worldView.error,
+      referenceName: view.referenceName,
+      follow: view.follow,
+      reference: view.reference,
+      error: view.error,
     },
     replace,
   );
@@ -1916,10 +1924,9 @@ function homePage() {
   const p = profile(),
     done = Object.values(p.checks).filter((v) => v === 'done').length,
     list = pending().slice(0, 4),
-    recent = environment.saves.files.find((f) => f.metadata),
-    chosenItinerary = environment.journey?.profileId === p.id && environment.journey.itinerary?.steps.length;
-  return `${recoveryConnectionNotice()}${pageHeader('A PERSONAL JIANGHU JOURNAL', '少侠，别来无恙。', '把琐事交给手札，把心思留给江湖。')}
-    ${chosenItinerary ? homeJourney() + startPanel() : startPanel() + homeJourney()}${recipeDiscoveryViews.entry()}${intentDraftViews.panel(availableIntentDrafts(), gameIndex)}
+    recent = environment.saves.files.find((f) => f.metadata);
+  return `${recoveryConnectionNotice()}<h1 class="flow-home-title">接着上次的进度</h1>
+    ${startPanel()}${flowViews.panel(currentFlow(), { summary: true })}${homeJourney()}${recipeDiscoveryViews.entry()}${intentDraftViews.panel(availableIntentDrafts(), gameIndex)}
     ${environment.preferredSaveMissing ? notice(`当前周目指定的 ${environment.preferredSave} 暂时不可读。请重新选择默认回顾存档；不会自动改用其他槽位。`, true) : ''}
     ${homeHero()}
     <div class="home-save-choice"><span class="small muted">${profile().referenceMode === 'none' ? '本周目仅查资料，尚未绑定游戏存档' : profile().saveSlot ? '本周目默认回顾：' + esc(profile().saveSlot) : '默认回顾：最近修改的可读存档'}</span><div class="row">${act('save-slot', '选择回顾存档', 'text-btn', '', 'edit')}${act('refresh', '刷新存档', 'text-btn', '', 'refresh')}</div></div>
@@ -1942,6 +1949,9 @@ function stageStrip() {
   return `<div class="stage-strip">${catalog.stages.map((s) => `<button class="stage-step ${s.id === profile().stage && profile().stageConfirmed !== false ? 'active' : s.id < profile().stage ? 'past' : ''}" data-action="stage-change" data-id="${s.id}" title="${esc(s.sub)}"><span class="stage-dot">${s.id + 1}</span><span>${s.short}</span></button>`).join('')}</div>`;
 }
 function checklistPage() {
+  return `${pageHeader('QUEST PROGRESS', '流程任务', '跟随已保存的进度，先看下一步与推进前需要核对的事。')}${flowViews.panel(currentFlow())}<details class="card flow-legacy" data-persist-detail="flow-legacy"><summary>手动精选清单与旧阶段记录</summary>${legacyChecklistPage()}</details>`;
+}
+function legacyChecklistPage() {
   const selectedFilter = filter === 'current' && profile().stageConfirmed === false ? 'all' : filter;
   let list = catalog.entries.filter((e) => e.checklist);
   if (selectedFilter === 'current')
@@ -2360,6 +2370,8 @@ function compactPage() {
       timelineViews.chip(environment.health),
     );
   if (route === 'journey') return companionViews.frame(journeyPage(), timelineViews.chip(environment.health));
+  if (route === 'checklist')
+    return companionViews.frame(checklistPage(), timelineViews.chip(environment.health));
   if (route === 'journal') return companionViews.frame(journalPage(), timelineViews.chip(environment.health));
   if (route === 'world') return companionViews.frame(worldPage(), timelineViews.chip(environment.health));
   if (route === 'goals') return companionViews.frame(goalsPage(), timelineViews.chip(environment.health));
@@ -2368,16 +2380,7 @@ function compactPage() {
     compactUndo?.profileId === profile().id
       ? `<div class="notice"><span>已完成：${esc(compactUndo.title)}</span>${act('compact-undo', '撤销这次完成', 'text-btn')}</div>`
       : '';
-  const questList = companionData?.quests?.length
-    ? `<h3 class="companion-section">存档里的进行中任务</h3>${companionData.quests
-        .slice(0, 4)
-        .map(
-          (q) =>
-            `<div class="compact-goal"><strong>${esc(q.name)}</strong>${q.steps.length ? `<p class="small muted">${q.steps.map(esc).join('、')}</p>` : ''}${act('save-quest-jump', '查看已保存记录', 'text-btn', q.id, 'book')}</div>`,
-        )
-        .join('')}`
-    : '';
-  const body = `<div class="eyebrow">${esc(profile().name)} · 我的追踪</div>${sourceLine}${companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${undo}${questList}<h3 class="companion-section">我的目标</h3>${
+  const body = `<div class="eyebrow">${esc(profile().name)} · 流程任务</div>${sourceLine}${flowViews.panel(currentFlow(), { compact: true })}<details class="flow-personal" data-compact-detail="flow-personal"><summary>个人目标、行程与备料</summary>${companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${undo}<h3 class="companion-section">我的目标</h3>${
     orderedGoals()
       .filter((g) => !goalDone(g))
       .map(
@@ -2385,7 +2388,7 @@ function compactPage() {
           `<div class="compact-goal"><div class="row"><button class="check" data-action="goal-toggle" data-id="${g.id}" aria-label="完成目标 ${esc(g.title)}"></button><strong>${esc(g.title)}</strong>${iconButton('goal-pin', 'pin', (g.pinned ? '取消优先提示 ' : '优先提示 ') + g.title, g.id)}</div>${g.source ? act('goal-source', '查看当前详情', 'text-btn', g.id, 'book') : ''}${g.detail ? `<details data-compact-detail="${esc(g.id)}"><summary>添加时的备忘（不自动更新）</summary><p class="preserve-text">${esc(g.detail)}</p></details>` : ''}</div>`,
       )
       .join('') || '<p class="small muted">在图鉴或完整手札中添加目标，游玩时会优先提示置顶目标。</p>'
-  }${!companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${companionViews.materials(companionData)}<h3 class="companion-section">${esc(stageTitle())}</h3><p class="small muted">手动阶段的精选清单</p>${list.map(checkRow).join('')}${profile().notes ? `<details class="compact-note" data-compact-detail="note"><summary>江湖随手记</summary><p class="preserve-text">${esc(profile().notes)}</p></details>` : ''}`;
+  }${!companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${companionViews.materials(companionData)}<h3 class="companion-section">${esc(stageTitle())}</h3><p class="small muted">手动阶段的精选清单</p>${list.map(checkRow).join('')}${profile().notes ? `<details class="compact-note" data-compact-detail="note"><summary>江湖随手记</summary><p class="preserve-text">${esc(profile().notes)}</p></details>` : ''}</details>`;
   return companionViews.frame(
     body,
     `<span data-save-health>${timelineViews.chip(environment.health)}</span>`,
@@ -4584,6 +4587,28 @@ async function handle(action, id, target, navigationFocused = false) {
     case 'world-quest':
       await showWorldDetail(id, 'quest');
       break;
+    case 'flow-quest': {
+      const profileId = profile().id;
+      const flow = currentFlow();
+      const name = flow?.reference?.name || '';
+      const view = { referenceName: name, follow: false, reference: null, error: '' };
+      if (name) {
+        try {
+          view.reference = await call('saveDetails', name);
+          if (view.reference?.hash !== flow.reference.hash) {
+            view.reference = null;
+            view.error = '这份存档已变化，请刷新流程后重新查看。';
+          }
+        } catch (e) {
+          view.error = e.message;
+        }
+      }
+      if (profile().id !== profileId) break;
+      worldRequest++;
+      Object.assign(worldView, view, { loading: false });
+      await showWorldDetail(id, 'quest', false, view);
+      break;
+    }
     case 'world-person': {
       const person = gameViews.byId(gameIndex, id);
       if (!person) throw Error('人物资料不存在');
@@ -6782,7 +6807,16 @@ try {
         .then(updateHealth)
         .catch(() => {});
     if (
-      ['home', 'saves', 'world', 'materials', 'database', 'journey', 'recipe-discovery'].includes(route) &&
+      [
+        'home',
+        'checklist',
+        'saves',
+        'world',
+        'materials',
+        'database',
+        'journey',
+        'recipe-discovery',
+      ].includes(route) &&
       (!compact || route !== 'home') &&
       !document.hidden &&
       (currentDrawer || !document.activeElement?.matches('select,input,textarea'))

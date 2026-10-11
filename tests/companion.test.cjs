@@ -372,8 +372,8 @@ test('saved tracked tasks and child steps lead automatic hints without changing 
   for (const choice of [
     { trackingQuest: 11077, trackingMainQuest: 5200, ids: ['quest-11077', 'quest-5200'] },
     { trackingQuest: 5372, trackingMainQuest: 5200, ids: ['quest-5368', 'quest-5200'], title: '与莫弃交谈' },
-    { trackingQuest: 987654321, trackingMainQuest: 5200, ids: ['quest-5200', 'quest-11077'] },
-    { trackingQuest: 0, trackingMainQuest: 5372, ids: ['quest-5368', 'quest-11077'], title: '与莫弃交谈' },
+    { trackingQuest: 987654321, trackingMainQuest: 5200, ids: ['quest-5200', 'quest-5368'] },
+    { trackingQuest: 0, trackingMainQuest: 5372, ids: ['quest-5368', 'quest-5200'], title: '与莫弃交谈' },
     { trackingQuest: 11077, trackingMainQuest: 5200, completed: true, ids: ['quest-5200', 'quest-5368'] },
   ]) {
     const bytes = syntheticSave({
@@ -382,7 +382,7 @@ test('saved tracked tasks and child steps lead automatic hints without changing 
       trackingMainQuest: choice.trackingMainQuest,
       quests: [
         { id: 11077, step: choice.completed ? 4 : 1 },
-        { id: 5200, step: 4 },
+        { id: 5200, step: 1 },
         { id: 5201, step: 1 },
         { id: 5368, step: 1 },
         { id: 5371, step: 1 },
@@ -394,13 +394,16 @@ test('saved tracked tasks and child steps lead automatic hints without changing 
     const originalMetadata = structuredClone(reference.metadata);
     const snapshot = companionSnapshot(state, catalog, reference);
     assert.deepEqual(
-      snapshot.hints.map((hint) => hint.id),
+      snapshot.quests.slice(0, 2).map((quest) => `quest-${quest.id}`),
       choice.ids,
     );
-    if (choice.title) assert.equal(snapshot.hints[0].title, choice.title);
+    const currentHint = snapshot.hints.find((hint) => hint.type === 'quest');
+    assert.equal(currentHint.id, choice.ids[0]);
+    if (snapshot.flow.warnings.length) assert.equal(snapshot.hints[0].type, 'flow-warning');
+    if (choice.title) assert.equal(currentHint.title, choice.title);
     assert.deepEqual(reference.metadata, originalMetadata);
     assert.deepEqual(bytes, originalBytes);
-    assert.equal(reference.metadata.quests.find((quest) => quest.id === 5200).status, '已完成');
+    assert.equal(reference.metadata.quests.find((quest) => quest.id === 5200).status, '进行中');
   }
   assert.equal(state.profiles[0].stageConfirmed, false);
   assert.deepEqual(state.profiles[0].goals, []);

@@ -37,6 +37,10 @@ function enrich(metadata) {
       name: entries.get(`item-${item.id}`)?.name || `物品 #${item.id}`,
       type: entries.get(`item-${item.id}`)?.type || '其他',
     }));
+  // Keep validated native states, including hidden story gates. The named
+  // quest list remains filtered for presentation; absence there is not absence
+  // in the save and must not leave a known deadline window open.
+  if (metadata.quests) result.questStates = metadata.quests.map(({ id, step }) => ({ id, step }));
   if (metadata.quests)
     result.quests = metadata.quests
       .filter((q) => data.quests[q.id])

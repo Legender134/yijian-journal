@@ -26,6 +26,10 @@ fs.writeFileSync(
       { id: 5200, step: 1 },
       { id: 5201, step: 1 },
       { id: 11077, step: 1 },
+      { id: 14073, step: 1 },
+      { id: 14082, step: 1 },
+      { id: 999999, step: 1 },
+      { id: 11942, step: 4 },
       { id: 5176, step: 4, finished: 1781822869 },
     ],
   }),
@@ -58,6 +62,39 @@ async function attach() {
     app = await launch();
     let win = await attach();
     assert.equal(await win.locator('.start-panel').count(), 1);
+    assert.equal(await win.locator('[data-flow]').count(), 1);
+    assert.match(await win.locator('[data-flow-unindexed]').innerText(), /1 条进行中记录待识别/);
+    await win.locator('[data-flow-unindexed] summary').click();
+    assert.match(await win.locator('[data-flow-unindexed]').innerText(), /#999999/);
+    await win.locator('[data-flow-quest="quest-5200"]').waitFor();
+    assert.match(await win.locator('[data-flow-quest="quest-5200"]').innerText(), /当前行动/);
+    const flowProgress = win.locator('[data-flow-quest="quest-5200"] .flow-task-progress');
+    assert.match(await flowProgress.locator('summary').innerText(), /进行中 1/);
+    await flowProgress.locator('summary').click();
+    assert.match(await flowProgress.innerText(), /只列本次已保存的步骤记录/);
+    assert.equal(await win.locator('[data-flow-quest="quest-11077"] .flow-step h4').count(), 0);
+    assert.match(
+      await win.locator('[data-flow-quest="quest-11077"] .flow-next-action').innerText(),
+      /具体步骤.*核对游戏任务栏/,
+    );
+    const flowFirst = await win.evaluate(() => {
+      const flow = document.querySelector('[data-flow]');
+      const personal = document.querySelector('.home-journey, [data-home-itinerary]');
+      return !personal || !!(flow.compareDocumentPosition(personal) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    assert.equal(flowFirst, true, 'saved quest guidance must precede personal journey planning');
+    const flowMaterials = win.locator('[data-flow-quest="quest-14073"] .flow-materials');
+    assert.match(await flowMaterials.innerText(), /茯苓.*川芎/s);
+    await flowMaterials.locator('summary').first().click();
+    await win.locator('[data-action="refresh"]').click();
+    assert.equal(await flowProgress.evaluate((el) => el.open), true);
+    assert.equal(
+      await flowMaterials
+        .locator('details')
+        .first()
+        .evaluate((el) => el.open),
+      true,
+    );
     assert.equal(await win.locator('.start-panel details').evaluate((el) => el.open), false);
     assert.equal(await win.locator('[data-persist-detail="home-stage"]').evaluate((el) => el.open), false);
     await win.locator('.start-panel summary').click();
@@ -117,6 +154,11 @@ async function attach() {
     await win.locator('#goal-detail').fill('目标说明 & 特殊字符');
     await win.locator('[data-action="goal-save"]').click();
     await win.locator('.nav-btn[data-id="checklist"]').click();
+    await win.locator('.flow-guide > summary').click();
+    const completedGuide = win.locator('.flow-guide [data-flow-rule="lotus-meeting"]');
+    assert.equal(await completedGuide.locator('.pill').first().innerText(), '已完成');
+    assert.match(await completedGuide.innerText(), /存档已记录完成/);
+    await win.locator('[data-persist-detail="flow-legacy"] > summary').click();
     assert.equal(await win.locator('.entry-row').count(), catalog.entries.filter((e) => e.checklist).length);
     assert.equal(await win.locator('[data-action="filter"].active').getAttribute('data-id'), 'all');
     assert.equal(await win.locator('.stage-step.active').count(), 0);
@@ -275,11 +317,11 @@ async function attach() {
     assert.ok(automaticTasks.length);
     assert.equal(automaticTasks[0].id, 11077);
     assert.equal(
-      await quick.locator('.compact-goal [data-action="save-quest-jump"]').first().getAttribute('data-id'),
-      '11077',
+      await quick.locator('[data-flow-quest] [data-action="flow-quest"]').first().getAttribute('data-id'),
+      'quest-11077',
     );
-    await quick.locator('.compact-goal [data-action="save-quest-jump"]').first().click();
-    await quick.locator('.save-recorded-quests').waitFor();
+    await quick.locator('[data-flow-quest] [data-action="flow-quest"]').first().click();
+    await quick.locator('.world-drawer').waitFor();
     await quick.locator('[data-action="close-overlay"]').click();
     // Renderer presentation under a synthetic passive-mode event; controller focus/input
     // and native identity boundaries are separately tested without any game access.

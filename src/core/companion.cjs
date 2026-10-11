@@ -2,6 +2,7 @@
 const { goalProgress, selectedReference } = require('./goal-progress.cjs');
 const { resourceBudget, recipeGoalList, materialReport } = require('./resource-budget.cjs');
 const { journeyPlan } = require('./journey-plan.cjs');
+const { flowSnapshot } = require('./flow.cjs');
 function companionSnapshot(state, catalog, reference, error = '') {
   const profile = state.profiles.find((p) => p.id === state.activeProfileId);
   reference = selectedReference(profile, reference, error);
@@ -55,8 +56,27 @@ function companionSnapshot(state, catalog, reference, error = '') {
   } catch (e) {
     error = e.message;
   }
+  const flow = flowSnapshot(profile, reference, error);
   const hints = [];
-  if (itinerary?.status === 'active' && itinerary.next)
+  if (flow.warnings[0]) {
+    const warning = flow.warnings[0];
+    hints.push({
+      type: 'flow-warning',
+      id: warning.questId ? `quest-${warning.questId}` : null,
+      title: warning.message,
+      label: '推进前留意 · ' + warning.name,
+    });
+  }
+  for (const quest of flow.active) {
+    if (hints.length >= 2) break;
+    hints.push({
+      type: 'quest',
+      id: quest.id,
+      title: quest.steps[0]?.nextAction || quest.name,
+      label: '当前任务下一步',
+    });
+  }
+  if (hints.length < 2 && itinerary?.status === 'active' && itinerary.next)
     hints.push({
       type: 'journey',
       id: itinerary.next.actionId,
@@ -120,8 +140,9 @@ function companionSnapshot(state, catalog, reference, error = '') {
     (q.id === id || (q.activeSteps || []).some((step) => step.id === id));
   const questPriority = (q) =>
     includesTracked(q, metadata?.trackingQuest) ? 0 : includesTracked(q, metadata?.trackingMainQuest) ? 1 : 2;
-  const quests =
-    !error && profile.referenceMode !== 'none'
+  const quests = flow.available
+    ? flow.active.map((q) => ({ id: q.gameId, name: q.name, steps: q.steps.map((s) => s.name) }))
+    : !error && profile.referenceMode !== 'none'
       ? [...(metadata?.activeQuestFamilies || [])]
           .sort((a, b) => questPriority(a) - questPriority(b))
           .map((q) => ({
@@ -134,6 +155,7 @@ function companionSnapshot(state, catalog, reference, error = '') {
       : [];
   for (const quest of quests) {
     if (hints.length >= 2) break;
+    if (hints.some((h) => h.id === `quest-${quest.id}`)) continue;
     hints.push({
       type: 'quest',
       id: `quest-${quest.id}`,
@@ -149,6 +171,7 @@ function companionSnapshot(state, catalog, reference, error = '') {
     goalProgress: progress,
     allocations,
     hints: hints.slice(0, 2),
+    flow,
     quests,
     materials,
     materialsLabel: selectedPlan ? selectedPlan.name : '当前制作清单与制作目标',

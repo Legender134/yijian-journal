@@ -18,6 +18,166 @@
   --shadow: 0 12px 42px #263d3210;
   --serif: JournalSerif, 'Microsoft YaHei', serif;
 }
+.flow-panel {
+  margin-bottom: 22px;
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.flow-home-title {
+  margin: 0 0 16px;
+  font-size: 24px;
+  font-weight: 600;
+}
+.flow-panel h2 {
+  font-size: 18px;
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.flow-panel h3 {
+  font-size: 16px;
+  margin: 0;
+}
+.flow-panel h4 {
+  font-size: 14px;
+  margin: 10px 0 6px;
+}
+.flow-panel p {
+  margin: 6px 0;
+}
+.flow-panel > section,
+.flow-heading {
+  margin-bottom: 20px;
+}
+.flow-rule,
+.flow-task {
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  margin: 10px 0;
+}
+.flow-risk {
+  background: var(--orange-soft);
+  border-left: 4px solid var(--orange);
+}
+.flow-warning-message {
+  color: #754322;
+  font-weight: 600;
+}
+.flow-next-action {
+  color: var(--ink);
+  font-size: 14px;
+}
+.flow-step + .flow-step {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.flow-step .flow-people,
+.flow-places {
+  margin: 7px 0;
+}
+.flow-panel details > summary,
+.flow-personal > summary,
+.flow-legacy > summary {
+  cursor: pointer;
+  color: var(--green);
+  padding: 8px 0;
+  font-size: 14px;
+}
+.flow-panel ul,
+.flow-panel ol {
+  padding-left: 22px;
+}
+.flow-panel li + li {
+  margin-top: 6px;
+}
+.flow-conditions li,
+.flow-progress-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.flow-progress-list .pill {
+  flex-shrink: 0;
+}
+.flow-panel .row {
+  flex-wrap: wrap;
+}
+.flow-panel .row h3 {
+  flex: 1 1 180px;
+}
+.flow-materials,
+.flow-shared-materials,
+.flow-unindexed {
+  background: var(--paper);
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+.flow-material + .flow-material {
+  border-top: 1px solid var(--line);
+  margin-top: 7px;
+  padding-top: 7px;
+}
+.flow-material .row > span {
+  font-size: 13px;
+}
+.flow-choices dt {
+  font-weight: 600;
+  margin-top: 10px;
+}
+.flow-choices dd {
+  margin: 3px 0 10px 14px;
+}
+.flow-guide,
+.flow-main-index {
+  border-top: 1px solid var(--line);
+  padding-top: 7px;
+  margin-top: 12px;
+}
+.flow-index-chapter li {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.flow-coverage {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.flow-legacy {
+  margin-top: 20px;
+}
+.flow-summary .flow-main-index {
+  display: none;
+}
+@media (min-width: 1200px) {
+  .flow-summary.flow-has-risks {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    gap: 0 22px;
+    align-items: start;
+  }
+  .flow-summary.flow-has-risks > :not(.flow-risks, .flow-active) {
+    grid-column: 1 / -1;
+  }
+  .flow-summary:not(.flow-has-risks) .flow-active {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 16px;
+    align-items: start;
+  }
+  .flow-summary:not(.flow-has-risks) .flow-active > :not(.flow-task) {
+    grid-column: 1 / -1;
+  }
+}
 .game-picture {
   position: relative;
   display: inline-grid;
