@@ -601,12 +601,26 @@ function portableJournal(input) {
     'Invalid journal settings',
   );
   checked(input.updatedAt === undefined || dateOK(input.updatedAt), 'Invalid journal timestamp');
+  const display = {};
+  for (const [key, valid] of [
+    ['readingScale', (value) => [100, 110, 125, 150].includes(value)],
+    ['compactOpacity', (value) => Number.isFinite(value) && value >= 0.65 && value <= 1],
+    [
+      'companionPosition',
+      (value) => ['top-right', 'bottom-right', 'top-left', 'bottom-left'].includes(value),
+    ],
+  ]) {
+    if (input.settings[key] === undefined) continue;
+    checked(valid(input.settings[key]), 'Invalid journal display setting');
+    display[key] = input.settings[key];
+  }
   return {
     schema: 1,
     activeProfileId: input.activeProfileId,
     profiles,
     settings: {
       spoiler: input.settings.spoiler,
+      ...display,
       autoBackup: false,
       savePath: '',
       steamPath: '',

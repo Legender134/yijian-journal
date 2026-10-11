@@ -120,6 +120,37 @@ test('wrong JSON, semantically invalid journal and invalid package are refused w
   assert.equal(recovery.pending, null);
   assert.equal(fs.existsSync(path.join(f.data, MARKER)), false);
 });
+
+test('older exports without display fields recover with current display defaults', async () => {
+  const f = fixture();
+  for (const key of ['readingScale', 'compactOpacity', 'companionPosition']) delete f.incoming.settings[key];
+  fs.writeFileSync(f.file, JSON.stringify(f.incoming));
+  const recovery = new StartupRecovery(f.data, catalog),
+    preview = await recovery.preview('json', f.file);
+  await recovery.confirm(preview.token);
+  const restored = new Store(f.data, catalog).get();
+  for (const key of ['readingScale', 'compactOpacity', 'companionPosition'])
+    assert.equal(restored.settings[key], defaults().settings[key]);
+  assert.equal(restored.settings.autoBackup, false);
+  assert.equal(restored.settings.companionEnabled, false);
+});
+
+test('invalid display preferences cannot enter JSON recovery or protection archives', async () => {
+  for (const [key, value] of [
+    ['readingScale', 900],
+    ['compactOpacity', 0.1],
+    ['companionPosition', 'external'],
+  ]) {
+    const f = fixture(),
+      recovery = new StartupRecovery(f.data, catalog);
+    f.incoming.settings[key] = value;
+    fs.writeFileSync(f.file, JSON.stringify(f.incoming));
+    await assert.rejects(recovery.preview('json', f.file));
+    await assert.rejects(protection(f), /Invalid journal display setting/);
+    unchanged(f);
+    assert.equal(fs.existsSync(path.join(f.data, MARKER)), false);
+  }
+});
 test('source changed after preview or local originals changed block replacement', async () => {
   const f = fixture(),
     recovery = new StartupRecovery(f.data, catalog);

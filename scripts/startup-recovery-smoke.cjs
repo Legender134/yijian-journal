@@ -56,6 +56,14 @@ sourceStore.mutate({
 });
 sourceStore.setPath('savePath', gameFiles);
 sourceStore.mutate({ type: 'save-slot', value: '29.sav', mode: 'slot' });
+sourceStore.mutate({
+  type: 'settings',
+  value: {
+    readingScale: 150,
+    compactOpacity: 0.88,
+    companionPosition: 'bottom-left',
+  },
+});
 sourceStore.mutate({ type: 'craft-set', id: 'fusion-1000', quantity: 2 });
 sourceStore.mutate({
   type: 'goal-add',
@@ -123,6 +131,13 @@ const preservedPersonal = Object.fromEntries(
 );
 function personalStatePreserved(profile) {
   for (const key of personalFields) assert.deepEqual(profile[key], preservedPersonal[key]);
+}
+function displayPreserved(settings) {
+  assert.equal(settings.readingScale, 150);
+  assert.equal(settings.compactOpacity, 0.88);
+  assert.equal(settings.companionPosition, 'bottom-left');
+  assert.equal(settings.companionEnabled, false);
+  assert.equal(settings.offerAutoSaveOnStart, false);
 }
 fs.writeFileSync(path.join(data, 'journal.json'), '{synthetic current broken');
 fs.writeFileSync(path.join(data, 'journal.json.previous'), '{synthetic previous broken');
@@ -304,6 +319,11 @@ async function closeNormally(window) {
     personalStatePreserved(profile);
     assert.equal(bootstrap.state.settings.savePath, '');
     assert.equal(bootstrap.state.settings.autoBackup, false);
+    displayPreserved(bootstrap.state.settings);
+    assert.equal(
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor()),
+      1.5,
+    );
     assert.equal(bootstrap.environment.timeline.enabled, false);
     const gate = isolation(data);
     for (const [name, bytes] of badBefore)
@@ -315,6 +335,8 @@ async function closeNormally(window) {
       'preview and explicit acknowledgement recover notes, goals and journal; verified original copies retained',
     );
     await closeNormally(window);
+    const immediateRaw = fs.readFileSync(path.join(data, 'journal.json'));
+    fs.writeFileSync(path.join(out, 'restored-immediate.raw.json'), immediateRaw);
     const env = { ...process.env, YIJIAN_TEST_DATA: data };
     delete env.ELECTRON_RUN_AS_NODE;
     app = await electron.launch({ executablePath, args: launchArgs, cwd: base, env, timeout: 30000 });
@@ -328,6 +350,12 @@ async function closeNormally(window) {
     assert.equal(bootstrap.state.profiles[0].journalRevisions[0].entry.body, '原始正文完整保留');
     personalStatePreserved(bootstrap.state.profiles[0]);
     assert.equal(bootstrap.state.settings.savePath, '');
+    displayPreserved(bootstrap.state.settings);
+    assert.deepEqual(fs.readFileSync(path.join(data, 'journal.json')), immediateRaw);
+    fs.writeFileSync(
+      path.join(out, 'restored-cold.raw.json'),
+      fs.readFileSync(path.join(data, 'journal.json')),
+    );
     assert.equal(bootstrap.environment.timeline.enabled, false);
     assert.deepEqual(isolation(data), gate);
     assert.deepEqual(fs.readFileSync(oldTimeline.file), oldTimelineBytes);
@@ -338,6 +366,9 @@ async function closeNormally(window) {
     );
     facts.scenarios.push(
       'recovery preview counts record versions; cold restart preserves old and current text, arrangement drafts, both trash collections and explicit resource priority',
+    );
+    facts.scenarios.push(
+      'nondefault reading scale and compact position/opacity survive package recovery and byte-exact cold restart; machine permissions remain disabled',
     );
     facts.gameBytesUnchanged = true;
     facts.gameWriteCount = (await app.evaluate(() => global.__recoveryGameWrites)).length;
