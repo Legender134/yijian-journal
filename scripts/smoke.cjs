@@ -30,12 +30,27 @@ fs.writeFileSync(
       { id: 14082, step: 1 },
       { id: 999999, step: 1 },
       { id: 11942, step: 4 },
+      { id: 5535, step: 4 },
       { id: 5176, step: 4, finished: 1781822869 },
     ],
   }),
 );
 fs.writeFileSync(path.join(fakeSaves, 'JHSaveConfig.sav'), 'fake config');
-fs.writeFileSync(path.join(fakeSaves, '2.sav'), syntheticSave({ full: true, seconds: 7200 }));
+fs.writeFileSync(
+  path.join(fakeSaves, '2.sav'),
+  syntheticSave({
+    full: true,
+    seconds: 7200,
+    trackingMainQuest: 5780,
+    trackingQuest: 11005,
+    quests: [
+      { id: 11002, step: 1 },
+      { id: 11005, step: 1 },
+      { id: 5780, step: 1 },
+      { id: 5700, step: 4 },
+    ],
+  }),
+);
 fs.utimesSync(path.join(fakeSaves, '2.sav'), new Date('2025-01-01'), new Date('2025-01-01'));
 new Store(data, catalog).setPath('savePath', fakeSaves);
 const originalSave = fs.readFileSync(path.join(fakeSaves, '1.sav'));
@@ -134,10 +149,48 @@ async function attach() {
     await win.locator('[data-action="save-slot-save"]').click();
     assert.equal(await win.evaluate(async () => (await window.journal.refresh()).data.recent.name), '2.sav');
     assert.ok((await win.locator('.hero').innerText()).includes('2 时 0 分'));
+    const currentChoice = win.locator('[data-flow-decision="early-woodcutter-axe-choice"]');
+    assert.equal(await currentChoice.isVisible(), true);
+    assert.match(await currentChoice.innerText(), /700.*2000/s);
+    assert.equal(
+      await currentChoice.locator('.flow-choices').evaluate((el) => !!el.closest('details')),
+      false,
+    );
+    const choiceWindowReady = app.waitForEvent('window');
+    await win.locator('[data-action="compact"]').first().click();
+    const choiceCompact = await choiceWindowReady;
+    await choiceCompact.waitForSelector('.compact-shell');
+    await choiceCompact.locator('[data-flow-decision="early-woodcutter-axe-choice"]').waitFor();
+    const compactRisk = choiceCompact.locator('.flow-compact-risks');
+    assert.equal(await compactRisk.evaluate((el) => el.open), false);
+    const currentPosition = await choiceCompact
+      .locator('[data-flow-quest="quest-11002"] .flow-next-action')
+      .evaluate((el) => ({
+        top: el.getBoundingClientRect().top,
+        bottom: el.getBoundingClientRect().bottom,
+        viewport: innerHeight,
+      }));
+    assert(
+      currentPosition.top >= 0 && currentPosition.bottom <= currentPosition.viewport,
+      JSON.stringify(currentPosition),
+    );
+    assert.match(await compactRisk.locator('summary').first().innerText(), /7 项推进提醒/);
+    await compactRisk.locator('summary').first().click();
+    assert.equal(await compactRisk.locator('.flow-risk').first().isVisible(), true);
+    await compactRisk.locator('summary').first().click();
+    await choiceCompact.screenshot({
+      animations: 'disabled',
+      path: path.join(results, '01-compact-current-choice.png'),
+    });
+    await win.locator('[data-action="compact"]').first().click();
     fs.renameSync(path.join(fakeSaves, '2.sav'), path.join(data, 'held-2.sav'));
     await win.locator('[data-action="refresh"]').click();
     assert.ok((await win.locator('.content').innerText()).includes('不会自动改用其他槽位'));
     assert.equal(await win.evaluate(async () => (await window.journal.refresh()).data.recent), null);
+    assert.match(await win.locator('.flow-empty').innerText(), /固定参照「2.sav」/);
+    await win.locator('.flow-empty [data-action="save-slot"]').click();
+    assert.equal(await win.locator('#save-slot-select').inputValue(), '2.sav');
+    await win.locator('[data-action="close-overlay"]').first().click();
     fs.renameSync(path.join(data, 'held-2.sav'), path.join(fakeSaves, '2.sav'));
     await win.locator('[data-action="refresh"]').click();
     await win.locator('[data-action="save-slot"]').click();
@@ -154,6 +207,11 @@ async function attach() {
     await win.locator('#goal-detail').fill('目标说明 & 特殊字符');
     await win.locator('[data-action="goal-save"]').click();
     await win.locator('.nav-btn[data-id="checklist"]').click();
+    assert.match(
+      await win.locator('[data-flow-rule="conditions-13408"]').innerText(),
+      /部分条件满足 · 仍待核对/,
+    );
+    assert.equal(await win.locator('[data-flow-rule="conditions-11442"]').count(), 0);
     await win.locator('.flow-guide > summary').click();
     const completedGuide = win.locator('.flow-guide [data-flow-rule="lotus-meeting"]');
     assert.equal(await completedGuide.locator('.pill').first().innerText(), '已完成');

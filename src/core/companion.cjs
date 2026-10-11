@@ -66,6 +66,14 @@ function companionSnapshot(state, catalog, reference, error = '') {
       title: warning.message,
       label: '推进前留意 · ' + warning.name,
     });
+  } else if (flow.decisions[0]) {
+    const decision = flow.decisions[0];
+    hints.push({
+      type: 'flow-choice',
+      id: `quest-${decision.questId}`,
+      title: decision.warning,
+      label: '当前步骤的选择 · ' + decision.name,
+    });
   }
   for (const quest of flow.active) {
     if (hints.length >= 2) break;

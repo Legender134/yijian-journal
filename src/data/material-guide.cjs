@@ -181,6 +181,30 @@ module.exports = {
     },
   },
   items: {
+    10261: {
+      name: '白芍',
+      routes: [
+        {
+          kind: 'gather',
+          label: '碗子山采集（旧版区域资料）',
+          detail:
+            '2023-10-07社区资源表列碗子山产出白芍；武当「外丹一途」任务说明也将碗子山列为两味药材的采集线索。具体点位与当前产出请到游戏中核对。',
+          efficiency: '这项委托需白芍1株；地区已开放时可顺路采集。刷新间隔、单次数量与单位时间产量未知。',
+          placeId: 'place-14',
+          sourceIds: ['material-community-2023'],
+        },
+        {
+          kind: 'gather',
+          label: '野猪林采集（旧版区域资料）',
+          detail:
+            '2023-10-07社区资源表列野猪林产出白芍；武当「外丹一途」任务说明也提到该地区。具体点位与当前产出请到游戏中核对。',
+          efficiency:
+            '可与其他已接采集委托一同核对；这里只给顺路来源，不保证比购买更快，刷新与单次产量未知。',
+          placeId: 'place-22',
+          sourceIds: ['material-community-2023'],
+        },
+      ],
+    },
     10201: {
       routes: [
         {
