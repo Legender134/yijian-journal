@@ -86,6 +86,9 @@ function seed(store) {
   state.profiles[0].referenceMode = 'slot';
   state.settings.savePath = 'synthetic-old-machine/SaveGames';
   state.settings.steamPath = 'synthetic-old-machine/Steam';
+  state.settings.readingScale = 150;
+  state.settings.compactOpacity = 0.88;
+  state.settings.companionPosition = 'bottom-left';
   store.commit(state);
   return store.get();
 }
@@ -143,11 +146,20 @@ for (const mode of ['json', 'protection', 'volumes'])
     assert.equal(restored.settings.savePath, '');
     assert.equal(restored.settings.steamPath, '');
     assert.equal(restored.settings.autoBackup, false);
+    assert.deepEqual(restored.settings, {
+      ...original.settings,
+      savePath: '',
+      steamPath: '',
+      autoBackup: false,
+      offerAutoSaveOnStart: false,
+      companionEnabled: false,
+    });
     assert.equal(isolation(broken).disableAutoDiscovery, true);
     for (const [name, bytes] of bad)
       assert.deepEqual(fs.readFileSync(path.join(confirmed.retainedDirectory, name)), bytes);
     assert.deepEqual(fs.readFileSync(path.join(source, 'journal.json')), raw);
     const cold = new Store(broken, catalog);
+    assert.deepEqual(cold.get().settings, restored.settings);
     const p = cold.get().profiles[0];
     for (const row of p.journeyTrash)
       cold.mutate({ type: 'journey-trash-restore', id: row.id, expectedTrash: row });

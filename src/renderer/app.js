@@ -27,7 +27,7 @@ import {
   intentTarget,
 } from './intent-draft-views.js';
 import { createGiftPicker, giftStock } from './gift-picker.js';
-import { createPlacePicker } from './place-picker.js';
+import { createPlacePicker, placeChoiceLabel } from './place-picker.js';
 import { createGameImages } from './game-images.js';
 import { createQualityText } from './quality.js';
 import { createTimelineViews } from './timeline-views.js';
@@ -2944,16 +2944,29 @@ function showSearchResults(value) {
       glyph: 'map',
       group: 'places',
     })),
-    ...profile().goals.map((g) => ({
-      ...g,
-      kind: '目标',
-      name: g.title,
-      status: goalDone(g) ? '已完成' : '未完成',
-      sub: '我的目标 · ' + (goalDone(g) ? '已完成' : '未完成'),
-      action: 'search-goal',
-      glyph: 'bag',
-      group: 'personal',
-    })),
+    ...profile().goals.map((g) => {
+      const status = goalDone(g) ? '已完成' : '未完成',
+        place = gameIndex.world.maps.find((p) => p.id === g.placeId),
+        location = place ? placeChoiceLabel(place, gameIndex.world.maps) : '',
+        context =
+          g.source?.type === 'quest' && state.settings.spoiler === 'hints' && g.detail
+            ? '任务备忘 · 可能涉及剧情'
+            : g.detail,
+        sub = ['我的目标', status, location].filter(Boolean).join(' · ');
+      return {
+        ...g,
+        kind: '目标',
+        name: g.title,
+        status,
+        location,
+        context,
+        sub,
+        searchLabel: [g.title, sub, context].filter(Boolean).join(' · '),
+        action: 'search-goal',
+        glyph: 'bag',
+        group: 'personal',
+      };
+    }),
     ...(profile().craftPlans || []).map((p) => ({
       ...p,
       kind: '计划',
@@ -3125,13 +3138,24 @@ function showSearchResults(value) {
               e.action +
               '" data-id="' +
               esc(e.id) +
-              '"><span class="result-icon">' +
+              '"' +
+              (e.searchLabel
+                ? ' aria-label="' + esc(e.searchLabel) + '" title="' + esc(e.searchLabel) + '"'
+                : '') +
+              '><span class="result-icon">' +
               (e.action === 'database-detail' ? picture(e.id, 'search') : icon(e.glyph || 'book')) +
               '</span><span class="spacer"><strong>' +
               (e.action === 'database-detail' ? qualityText.name(e.id, e.title) : esc(e.title)) +
               '</strong><small>' +
               esc(e.sub + (e.action === 'database-detail' && e.quality ? ' · ' + e.quality + '色品质' : '')) +
-              '</small></span>' +
+              '</small>' +
+              (e.context
+                ? '<small>' +
+                  esc([...e.context].slice(0, 120).join('')) +
+                  ([...e.context].length > 120 ? '…' : '') +
+                  '</small>'
+                : '') +
+              '</span>' +
               icon('chevron') +
               '</button>',
           )

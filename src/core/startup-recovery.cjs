@@ -142,6 +142,8 @@ function localJournal(incoming, ids) {
     companionEnabled: false,
     spoiler: incoming.settings.spoiler,
   });
+  for (const key of ['readingScale', 'compactOpacity', 'companionPosition'])
+    if (incoming.settings[key] !== undefined) settings[key] = incoming.settings[key];
   const profiles = incoming.profiles.map((profile) => {
     const copy = Object.fromEntries(
       PROFILE_FIELDS.filter((key) => profile[key] !== undefined).map((key) => [key, clone(profile[key])]),

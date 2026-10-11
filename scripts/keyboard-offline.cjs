@@ -496,6 +496,158 @@ async function allPersonal(win) {
       'background state refresh preserves the active filter suggestion and does not redraw during IME composition',
     );
 
+    const sameName = '同名采药验收',
+      duplicateInputs = [
+        { title: sameName, detail: '清晨送药给卫霍，先到梧桐村入口', placeId: 'place-9' },
+        {
+          title: sameName,
+          detail: '暮色送药给白锦 <原文> & 保留引号“药”。' + '🌿'.repeat(130) + '末尾备注',
+          placeId: 'place-10',
+        },
+      ];
+    for (const goal of duplicateInputs) {
+      const response = await win.evaluate(
+        (value) => window.journal.mutate({ type: 'goal-add', ...value }),
+        goal,
+      );
+      assert(response.ok, response.error);
+    }
+    const questId = require('../src/data/world-index.json').quests[0].id;
+    const questAdded = await win.evaluate(
+      (id) =>
+        window.journal.mutate({
+          type: 'goal-add',
+          title: '剧情备忘验收',
+          detail: '尚未展开的剧情原文',
+          source: { type: 'quest', id },
+        }),
+      questId,
+    );
+    assert(questAdded.ok, questAdded.error);
+    const duplicateBefore = (
+      await win.evaluate(() => window.journal.bootstrap())
+    ).data.state.profiles[0].goals.filter((goal) => goal.title === sameName);
+    assert.equal(duplicateBefore.length, 2);
+    const enlarged = await win.evaluate(() =>
+      window.journal.mutate({ type: 'settings', value: { readingScale: 150 } }),
+    );
+    assert(enlarged.ok, enlarged.error);
+    for (const [name, window] of [
+      ['main', win],
+      ['compact', companion],
+    ]) {
+      await search(window, '种类:目标 ' + sameName);
+      await window.waitForFunction(
+        () => document.querySelectorAll('.search-result[data-action="search-goal"]').length === 2,
+      );
+      for (const goal of duplicateBefore) {
+        const row = window.locator(`.search-result[data-id="${goal.id}"]`),
+          input = duplicateInputs.find((value) => value.placeId === goal.placeId),
+          scene = goal.placeId === 'place-9' ? 9 : 10;
+        assert.match(await row.innerText(), new RegExp('梧桐村 · 资料场景 #' + scene));
+        assert((await row.innerText()).includes([...input.detail].slice(0, 120).join('')));
+        assert((await row.getAttribute('title')).includes(input.detail));
+        const accessible = await row.getAttribute('aria-label');
+        assert(accessible.includes(input.detail));
+        assert.equal(await window.getByRole('button', { name: accessible, exact: true }).count(), 1);
+      }
+      assert.equal(await window.locator('.search-result script').count(), 0);
+      await window.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      );
+      const geometry = await window.locator('#global-results').evaluate((element) => ({
+        viewport: {
+          width: innerWidth,
+          height: innerHeight,
+          clientWidth: document.documentElement.clientWidth,
+          clientHeight: document.documentElement.clientHeight,
+          devicePixelRatio,
+        },
+        modal: document.querySelector('.search-modal').getBoundingClientRect().toJSON(),
+        backdrop: document.querySelector('.overlay-backdrop').getBoundingClientRect().toJSON(),
+        width: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        rows: [...element.querySelectorAll('.search-result')].map((row) => ({
+          width: row.clientWidth,
+          scrollWidth: row.scrollWidth,
+        })),
+      }));
+      const capture = await app.evaluate(async ({ BrowserWindow }, url) => {
+        const owned = BrowserWindow.getAllWindows().find((entry) => entry.webContents.getURL() === url);
+        await owned.webContents.executeJavaScript(
+          'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))',
+        );
+        return {
+          contentBounds: owned.getContentBounds(),
+          zoomFactor: owned.webContents.getZoomFactor(),
+          image: (await owned.capturePage()).toPNG().toString('base64'),
+        };
+      }, window.url());
+      assert.equal(capture.zoomFactor, 1.5);
+      fs.writeFileSync(
+        path.join(data, name + '-duplicate-goal-search-150-native.png'),
+        Buffer.from(capture.image, 'base64'),
+      );
+      delete capture.image;
+      (report.duplicateGoalNative ||= []).push({ mode: name, geometry, capture });
+      fs.writeFileSync(
+        path.join(data, name + '-duplicate-goal-native-geometry.json'),
+        JSON.stringify({ geometry, capture }, null, 2),
+      );
+      assert(
+        geometry.modal.left >= -1 && geometry.modal.right <= geometry.viewport.clientWidth + 1,
+        JSON.stringify({ geometry, capture }),
+      );
+      assert(
+        geometry.scrollWidth <= geometry.width + 1 &&
+          geometry.rows.every((row) => row.scrollWidth <= row.width + 1),
+        JSON.stringify(geometry),
+      );
+      (report.duplicateGoalSearch ||= []).push({
+        mode: name,
+        geometry,
+        accessibility: await window.locator('#global-results').ariaSnapshot(),
+      });
+      for (const goal of duplicateBefore) {
+        await search(window, '种类:目标 ' + sameName);
+        await window.locator(`.search-result[data-id="${goal.id}"]`).focus();
+        await window.keyboard.press('Enter');
+        await window.waitForFunction((id) => document.activeElement.dataset.id === id, goal.id);
+        assert((await window.locator('#goal-' + goal.id).innerText()).includes(goal.detail));
+      }
+      await search(window, '种类:目标 地点:梧桐村 ' + sameName);
+      assert.equal(await window.locator('.search-result').count(), 2);
+      await search(window, '种类:目标 地点:#9 ' + sameName);
+      assert.equal(await window.locator('.search-result').count(), 1);
+      assert.equal(
+        await window.locator('.search-result').getAttribute('data-id'),
+        duplicateBefore.find((g) => g.placeId === 'place-9').id,
+      );
+      await search(window, '种类:目标 剧情备忘验收');
+      const questRow = window.locator('.search-result');
+      assert.match(await questRow.innerText(), /任务备忘 · 可能涉及剧情/);
+      for (const text of [
+        await questRow.innerText(),
+        await questRow.getAttribute('title'),
+        await questRow.getAttribute('aria-label'),
+      ])
+        assert(!text.includes('尚未展开的剧情原文'));
+      await window.keyboard.press('Escape');
+    }
+    assert.deepEqual(
+      (await win.evaluate(() => window.journal.bootstrap())).data.state.profiles[0].goals.filter(
+        (goal) => goal.title === sameName,
+      ),
+      duplicateBefore,
+    );
+    const resetSize = await win.evaluate(() =>
+      window.journal.mutate({ type: 'settings', value: { readingScale: 100 } }),
+    );
+    assert(resetSize.ok, resetSize.error);
+    report.checks.push(
+      'same-name goals expose distinct original notes and scene labels in main/compact search at 150%; accessible names, location filters and keyboard jumps select the intended unchanged goal; quest spoilers stay folded',
+    );
+
     await win.locator('[data-action="profiles"]').first().click();
     await win.locator('#profile-name').fill('输入中测试');
     await win.locator('#profile-name').dispatchEvent('compositionstart');
