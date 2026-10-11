@@ -168,6 +168,52 @@ async function searchHelp(target, size) {
     assert.equal(await page.evaluate(() => document.activeElement.id), 'world-search');
     assert.equal(await page.locator('#world-search').inputValue(), '武当');
     checks.push('任务与地点分别提示未完成语法并可原位纠正；保存搜索后关闭弹窗恢复原输入焦点');
+    await page.keyboard.press('Control+k');
+    await page.locator('.search-tools summary').click();
+    for (let i = 1; i <= 19; i++) {
+      const query = '名称:容量收藏' + i;
+      await page.locator('#global-search').fill(query);
+      await page.locator('[data-action="search-save"]').click();
+      await waitState((row) => row.savedSearches?.includes(query));
+    }
+    await page.waitForFunction(
+      () => document.querySelector('#saved-search-capacity')?.textContent === '已保存 20/20 个搜索',
+    );
+    const fullSearches = (await current()).savedSearches;
+    await page.locator('#global-search').fill('名称:第21个收藏');
+    await page.locator('[data-action="search-save"]').click();
+    await page.waitForFunction(() =>
+      document.querySelector('#toasts .error')?.textContent.includes('已保存20个搜索'),
+    );
+    assert.deepEqual((await current()).savedSearches, fullSearches);
+    assert.equal(await page.locator('#global-search').inputValue(), '名称:第21个收藏');
+    await page.locator('[data-action="search-manage"]').click();
+    assert.equal(await page.locator('#global-search').inputValue(), '名称:第21个收藏');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'global-search');
+    assert.equal(await page.locator('[data-action="search-forget"]').count(), 20);
+    assert.equal(await page.locator('[data-action="search-run"][data-id="名称:煤炭"]').count(), 1);
+    await page.waitForTimeout(5500); // Cross an ordinary refresh while managing with a pending query.
+    assert.equal(await page.locator('#global-search').inputValue(), '名称:第21个收藏');
+    assert.equal(await page.locator('[data-action="search-forget"]').count(), 20);
+    await page.locator('[data-action="search-forget"][data-id="名称:容量收藏7"]').click();
+    await waitState((row) => row.savedSearches?.length === 19);
+    await page.waitForFunction(
+      () => document.querySelector('#saved-search-capacity')?.textContent === '已保存 19/20 个搜索',
+    );
+    assert.equal(await page.locator('#global-search').inputValue(), '名称:第21个收藏');
+    await page.locator('[data-action="search-save"]').click();
+    await waitState((row) => row.savedSearches?.[0] === '名称:第21个收藏');
+    await page.locator('#global-search').fill('名称:煤炭');
+    await page.locator('[data-action="search-save"]').click();
+    await waitState((row) => row.savedSearches?.[0] === '名称:煤炭');
+    const keptSearches = (await current()).savedSearches;
+    assert.equal(keptSearches.length, 20);
+    assert(!keptSearches.includes('名称:容量收藏7'));
+    assert(keptSearches.includes('名称:第21个收藏'));
+    await page.keyboard.press('Escape');
+    checks.push(
+      '保存第21个搜索明确阻止且保留原收藏和输入；管理与自然刷新保留待保存查询，移除指定一项后可直接重试，满额重复收藏不丢失其他项',
+    );
     await nav('journey');
     const plan = await page.evaluate(() => window.journal.journeyPlan());
     assert(plan.ok, plan.error);
@@ -335,6 +381,22 @@ async function searchHelp(target, size) {
     await waitState((row) => row.resourcePriority?.[0] === 'b');
     checks.push('旧分配预览失效仍保留用途名、顺序和可访问标签，重新核对可确认');
     assert.equal(createHash('sha256').update(fs.readFileSync(saveFile)).digest('hex'), expectedHash);
+    await app.close();
+    app = await _electron.launch({
+      executablePath: override ? expectedExecutable : require('electron'),
+      args: override ? [] : [base],
+      cwd: base,
+      env,
+    });
+    page = await app.firstWindow();
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.locator('.layout').waitFor();
+    assert.deepEqual((await current()).savedSearches, keptSearches);
+    await page.keyboard.press('Control+k');
+    await page.locator('.search-tools summary').click();
+    await page.locator('[data-action="search-manage"]').click();
+    assert.equal(await page.locator('[data-action="search-forget"]').count(), 20);
+    checks.push('关闭并冷启动实际助手后20个指定收藏及管理入口完整保留');
     assert.deepEqual(errors, []);
     fs.writeFileSync(
       path.join(results, 'usability-continuity-result.json'),

@@ -11,6 +11,7 @@ import { createComparisonViews } from './comparison-views.js';
 import { createWorldViews } from './world-views.js';
 import { createMaterialViews, craftMoneyNotice } from './material-views.js';
 import { createResourcePriorityViews } from './resource-priority-views.js';
+import { renderNoteDifferences } from './note-diff.js';
 import { createRecipeDiscoveryViews } from './recipe-discovery-views.js';
 import { createProtectionViews } from './protection-views.js';
 import { createBackupViews } from './backup-views.js';
@@ -1257,7 +1258,12 @@ async function previewResourcePriority(order, initial = false, context = null) {
       profileId: profile().id,
       order: [...order],
       referenceName: context?.referenceName,
-      labels: Object.fromEntries((context?.summary?.priorityOwners || []).map((row) => [row.id, row.name])),
+      labels: Object.fromEntries(
+        (context?.summary?.priorityOwners || []).map((row) => [
+          row.id,
+          row.name + (row.description ? ' · ' + row.description : ''),
+        ]),
+      ),
       preview: null,
       loading: true,
       error: '',
@@ -1282,7 +1288,9 @@ async function previewResourcePriority(order, initial = false, context = null) {
     draft.preview = result;
     draft.labels = {
       ...draft.labels,
-      ...Object.fromEntries(result.changes.map((row) => [row.id, row.name])),
+      ...Object.fromEntries(
+        result.changes.map((row) => [row.id, row.name + (row.description ? ' · ' + row.description : '')]),
+      ),
     };
   } catch (e) {
     if (token !== resourcePriorityRequest || resourcePriorityDraft !== draft) return;
@@ -2853,12 +2861,13 @@ function searchModal(context) {
   detailRequest++;
   const value = context?.query ?? lastSearchQuery;
   showOverlay(
-    `<section class="modal search-modal" role="dialog" aria-modal="true" aria-label="搜索江湖索引"><label class="search-input">${icon('search')}<input id="global-search" role="combobox" aria-autocomplete="list" aria-controls="search-filter-options" aria-expanded="false" autofocus placeholder="找一位侠客，一本武学，一个地方……" maxlength="200" aria-label="全局搜索">${iconButton('close-overlay', 'close', '关闭搜索')}</label><details class="search-tools"><summary>全部 7 种筛选与语法 · 保存搜索</summary><div class="row wrap">${act('search-save', '保存当前搜索', 'text-btn', '', 'star')}${act('search-run', '绿色物品', 'chip', '种类:物品 品质:绿')}${act('search-run', '未完成目标', 'chip', '种类:目标 状态:未完成')}</div><div id="global-filter-help"></div></details><div id="global-filter-suggestions" class="search-filter-suggestions"></div><div id="global-results" class="search-results"></div><div class="search-foot">搜索效果、任务、地点与本周目记录 · Esc 关闭</div></section>`,
+    `<section class="modal search-modal" role="dialog" aria-modal="true" aria-label="搜索江湖索引"><label class="search-input">${icon('search')}<input id="global-search" role="combobox" aria-autocomplete="list" aria-controls="search-filter-options" aria-expanded="false" autofocus placeholder="找一位侠客，一本武学，一个地方……" maxlength="200" aria-label="全局搜索">${iconButton('close-overlay', 'close', '关闭搜索')}</label><details class="search-tools"><summary>全部 7 种筛选与语法 · 保存搜索</summary><div class="row wrap">${act('search-save', '保存当前搜索', 'text-btn', '', 'star')}${act('search-run', '绿色物品', 'chip', '种类:物品 品质:绿')}${act('search-run', '未完成目标', 'chip', '种类:目标 状态:未完成')}</div><p class="small muted"><span id="saved-search-capacity"></span> · ${act('search-manage', '管理已保存搜索', 'text-btn')}</p><div id="global-filter-help"></div></details><div id="global-filter-suggestions" class="search-filter-suggestions"></div><div id="global-results" class="search-results"></div><div class="search-foot">搜索效果、任务、地点与本周目记录 · Esc 关闭</div></section>`,
   );
   rememberDrawer({
     type: 'search',
     query: value,
     personalAll: !!context?.personalAll,
+    showSaved: !!context?.showSaved,
     selection: context?.selection,
   });
   const input = document.querySelector('#global-search');
@@ -2879,12 +2888,15 @@ function searchModal(context) {
 function showSearchResults(value) {
   const results = overlay.querySelector('#global-results');
   if (!results) return;
+  const capacity = overlay.querySelector('#saved-search-capacity');
+  if (capacity) capacity.textContent = `已保存 ${profile().savedSearches?.length || 0}/20 个搜索`;
   const search = currentDrawer?.type === 'search' ? currentDrawer : null;
   const changed = search && search.query !== value;
   const oldScroll = changed ? 0 : results.scrollTop;
   const focused = results.contains(document.activeElement) ? document.activeElement.dataset : null;
   if (changed) {
     search.personalAll = false;
+    search.showSaved = false;
     delete search.selection;
   }
   lastSearchQuery = value;
@@ -3102,7 +3114,7 @@ function showSearchResults(value) {
         })
         .join('') +
       '</div>' +
-      (q ? '' : searchHistory());
+      (q && !search?.showSaved ? '' : searchHistory());
   results.innerHTML =
     more +
     (list.length
@@ -3568,7 +3580,7 @@ async function handle(action, id, target, navigationFocused = false) {
       modal(
         '将旧内容放回随手记？',
         '确认后替换当前随手记；当前非空文字会先保留为一份旧内容。目标、逐条记录和游戏进度继续沿用。',
-        `<section data-note-restore-preview><h3>将找回的完整文字</h3><p class="preserve-text">${esc(row.body)}</p><details><summary>当前随手记 · ${profile().notes.length} 字</summary><p class="preserve-text">${esc(profile().notes) || '当前为空'}</p></details></section>`,
+        `<section data-note-restore-preview>${renderNoteDifferences(profile().notes, row.body, esc)}<h3>将找回的完整文字</h3><p class="preserve-text">${esc(row.body)}</p><details><summary>当前随手记 · ${profile().notes.length} 字</summary><p class="preserve-text">${esc(profile().notes) || '当前为空'}</p></details></section>`,
         act('note-restore-confirm', '确认放回随手记', 'btn primary', id, 'refresh'),
       );
       break;
@@ -5049,7 +5061,16 @@ async function handle(action, id, target, navigationFocused = false) {
       const value = document.querySelector('#global-search')?.value.trim();
       compileSearch(value);
       await mutation({ type: 'search-save', query: value });
+      showSearchResults(value);
       toast('搜索已保存，在空白搜索页可再次使用');
+      break;
+    }
+    case 'search-manage': {
+      const input = document.querySelector('#global-search');
+      if (!input) break;
+      currentDrawer.showSaved = true;
+      showSearchResults(input.value);
+      input.focus();
       break;
     }
     case 'search-run':
@@ -5059,11 +5080,11 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     case 'search-forget':
       await mutation({ type: 'search-forget', query: id });
-      showSearchResults('');
+      showSearchResults(document.querySelector('#global-search')?.value || '');
       break;
     case 'search-history-clear':
       await mutation({ type: 'search-history-clear' });
-      showSearchResults('');
+      showSearchResults(document.querySelector('#global-search')?.value || '');
       break;
     case 'search-goal': {
       closeOverlay();

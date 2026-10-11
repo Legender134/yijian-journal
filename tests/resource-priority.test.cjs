@@ -165,3 +165,70 @@ test('invalid or foreign owners and duplicates are rejected before computing a p
   assert.throws(() => resourcePriorityPreview(profile(), reference(), ['foreign', 'a']), /用途已变化/);
   assert.deepEqual(resourcePriorityPreview(profile(), reference(), []).order, []);
 });
+
+test('same-person same-item gift priorities keep each intent distinguishable before and after reordering', async () => {
+  const p = {
+      ...profile(),
+      craftList: [],
+      craftPlans: [],
+      journey: {
+        gifts: [
+          {
+            id: 'gift-a',
+            npcId: 'npc-1',
+            itemId: 'item-10216',
+            quantity: 1,
+            note: '今天告别时赠送 · 甲意图 <原样>',
+            done: false,
+          },
+          {
+            id: 'gift-b',
+            npcId: 'npc-1',
+            itemId: 'item-10216',
+            quantity: 1,
+            note: '下次探望时赠送 · 乙意图',
+            done: false,
+          },
+        ],
+      },
+    },
+    ref = reference();
+  ref.metadata.inventory = [{ id: 10216, count: 1 }];
+  const before = structuredClone(p),
+    order = ['@gift:gift-b', '@gift:gift-a'];
+  const preview = resourcePriorityPreview(p, ref, order);
+  const a = preview.changes.find((row) => row.id === '@gift:gift-a'),
+    b = preview.changes.find((row) => row.id === '@gift:gift-b');
+  assert.match(a.description, /第1份赠礼 · 1件 · 今天告别时赠送 · 甲意图 <原样>/);
+  assert.match(b.description, /第2份赠礼 · 1件 · 下次探望时赠送 · 乙意图/);
+  assert.equal(a.items[0].beforeDirect, 1);
+  assert.equal(a.items[0].afterDirect, 0);
+  assert.equal(b.items[0].afterDirect, 1);
+  assert.deepEqual(
+    resourceBudget({ ...p, resourcePriority: order }, ref).priorityOwners.map((row) => row.description),
+    [b.description, a.description],
+  );
+  const { createResourcePriorityViews } = await import(
+    'data:text/javascript;base64,' +
+      Buffer.from(
+        fs.readFileSync(path.join(__dirname, '../src/renderer/resource-priority-views.js'), 'utf8'),
+      ).toString('base64')
+  );
+  const esc = (value) =>
+    String(value).replace(
+      /[&<>"']/g,
+      (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char],
+    );
+  const views = createResourcePriorityViews({ esc, act: () => '', notice: String, when: String });
+  const html = views.editor({ order, preview }, { entries: [] });
+  for (const row of [a, b]) {
+    assert(html.includes('aria-label="上移 ' + esc(row.name + ' · ' + row.description) + '"'));
+    assert(html.includes('aria-label="下移 ' + esc(row.name + ' · ' + row.description) + '"'));
+    assert(
+      views.entry(resourceBudget({ ...p, resourcePriority: order }, ref)).includes(esc(row.description)),
+    );
+  }
+  assert(html.includes('&lt;原样&gt;'));
+  assert.equal(html.includes('<原样>'), false);
+  assert.deepEqual(p, before);
+});

@@ -800,7 +800,10 @@ class Store {
       case 'search-save': {
         const query = text(command.query, 200);
         if (!query) throw Error('搜索内容不能为空');
-        p.savedSearches = [query, ...(p.savedSearches || []).filter((q) => q !== query)].slice(0, 20);
+        const saved = p.savedSearches || [];
+        if (saved.length >= 20 && !saved.includes(query))
+          throw Error('已保存20个搜索，请先在“管理已保存搜索”移除一项，再保存新的搜索。');
+        p.savedSearches = [query, ...saved.filter((q) => q !== query)];
         break;
       }
       case 'search-forget':

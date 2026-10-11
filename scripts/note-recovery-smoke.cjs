@@ -299,6 +299,82 @@ async function pendingClearChecks(companion) {
     assert((await current()).noteRevisions.some((row) => row.body === '预览后新保存的合成文字'));
     checks.push('预览后的新文字拒绝被旧确认覆盖；重新预览恢复时先保留当前文字');
     await page.screenshot({ path: path.join(data, 'note-restored.png'), animations: 'disabled' });
+    const similarOld = Array.from(
+      { length: 24 },
+      (_, i) =>
+        `第 ${String(i + 1).padStart(2, '0')} 件：到梧桐村核对采集路线，铁矿石预留 ${i === 17 ? 2 : 1} 件；与卫霍交谈后再决定去处。`,
+    ).join('\n');
+    const similarCurrent = similarOld.replace('预留 2 件', '预留 8 件');
+    await page.locator('#note').fill(similarOld);
+    await waitNote(similarOld);
+    await page.locator('#note').fill('');
+    await waitNote('');
+    await page.locator('#note').fill(similarCurrent);
+    await waitNote(similarCurrent);
+    const similarRow = (await current()).noteRevisions.find((row) => row.body === similarOld);
+    assert(similarRow);
+    const smallWindow = await app.browserWindow(page);
+    await smallWindow.evaluate((win) => win.setSize(900, 650));
+    await smallWindow.dispose();
+    await page.locator('[data-action="note-history"]').click();
+    const similarDetail = page.locator(`[data-note-revision="${similarRow.id}"]`);
+    await similarDetail.locator('summary').click();
+    await similarDetail.locator('[data-action="note-restore-preview"]').click();
+    const difference = page.locator('[data-note-differences]');
+    assert.match(await difference.innerText(), /当前第 18 行/);
+    assert.match(await difference.innerText(), /恢复后第 18 行/);
+    assert.match(await difference.innerText(), /省略 23 行相同内容/);
+    assert.deepEqual(await difference.locator('mark').allTextContents(), ['8', '2']);
+    assert.equal(await page.locator('[data-note-restore-preview] > p').textContent(), similarOld);
+    await page.locator('[data-note-restore-preview] > details > summary').click();
+    assert.equal(
+      await page.locator('[data-note-restore-preview] > details > p').textContent(),
+      similarCurrent,
+    );
+    await page.locator('[data-note-restore-preview] > details > summary').click();
+    await difference.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(data, 'similar-note-differences.png'), animations: 'disabled' });
+    fs.writeFileSync(
+      path.join(data, 'similar-note-differences.json'),
+      JSON.stringify(
+        {
+          original: similarOld,
+          current: similarCurrent,
+          html: await difference.innerHTML(),
+        },
+        null,
+        2,
+      ),
+    );
+    await page.keyboard.press('Escape');
+    assert.equal((await current()).notes, similarCurrent);
+    assert.equal(
+      await similarDetail
+        .locator('[data-action="note-restore-preview"]')
+        .evaluate((el) => el === document.activeElement),
+      true,
+    );
+    checks.push(
+      '983字近似随手记直接显示第18行数量8→2，省略23行相同内容，保留两版完整文字；Esc取消保留正文和原焦点',
+    );
+    await similarDetail.locator('[data-action="note-restore-preview"]').click();
+    await page.locator('[data-action="note-restore-confirm"]').click();
+    await page.locator('[role="dialog"]').waitFor({ state: 'detached' });
+    let similarState = await current();
+    assert.equal(similarState.notes, similarOld);
+    assert(similarState.noteRevisions.some((row) => row.body === similarCurrent));
+    fs.copyFileSync(
+      path.join(userData, 'journal.json'),
+      path.join(data, 'similar-note-restored-immediate.json'),
+    );
+    checks.push('按变化预览确认恢复完整旧正文，替换前983字完整当前文字先进入旧内容保护');
+    await quit();
+    await launch();
+    similarState = await current();
+    assert.equal(similarState.notes, similarOld);
+    assert(similarState.noteRevisions.some((row) => row.body === similarCurrent));
+    fs.copyFileSync(path.join(userData, 'journal.json'), path.join(data, 'similar-note-restored-cold.json'));
+    checks.push('真实退出冷启后，恢复正文及替换前的完整文字保护继续存在');
     const long = 'x'.repeat(20000);
     await page.locator('#note').fill(long);
     await waitNote(long);
@@ -334,7 +410,7 @@ async function pendingClearChecks(companion) {
     const geometry = await page.locator('[data-note-restore-preview]').evaluate((el) => ({
       scroll: document.documentElement.scrollWidth,
       viewport: innerWidth,
-      paragraph: el.querySelector('p').textContent.length,
+      paragraph: el.querySelector(':scope > p').textContent.length,
     }));
     assert.equal(geometry.paragraph, 20000);
     assert(geometry.scroll <= geometry.viewport + 1);
