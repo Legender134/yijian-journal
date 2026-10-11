@@ -34,4 +34,6 @@ Windows 下载包包含 Electron 44.5.1 运行环境及其依赖。Electron 为 
 
 ## 社区攻略线索
 
-`src/data/catalog.cjs` 的线索卡片由项目独立整理；引用来源以该文件及应用内「来源」为准，包含原作者、链接、发布日期和参考版本。来源文章本身不纳入本项目许可。没有收录来源站点的全文、视频或评论区。
+`src/data/catalog.cjs` 的线索卡片、`src/data/flow-guide.cjs` 的流程规则及 `src/data/material-guide.cjs` 的材料路线由项目独立整理；引用来源以这些文件及应用内「来源」为准，包含链接、发布日期和参考版本。来源文章本身不纳入本项目许可。没有收录来源站点的全文、视频或评论区。社区整理与游戏资料不能替代当前周目实际条件的核对。
+
+流程界面研究了 Roundtable Elden Ring Cheat Sheet、Dark Souls 3 Cheat Sheet 与 Questie 的节点提醒、分支说明和条件追踪方式；本次流程实现没有复制这些项目的源码或攻略数据，其许可没有被当成本项目内容的授权。

@@ -49,7 +49,7 @@ test('manual completion and opting out retain user intention across save changes
 test('passive companion stops recommending a completed task and resumes on historical progress', () => {
   const p = profile(), s = { activeProfileId: p.id, profiles: [p] };
   assert(!companionSnapshot(s, catalog, reference(4)).hints.some((h) => h.type === 'goal'));
-  assert(companionSnapshot(s, catalog, reference(1)).hints.some((h) => h.id === 'task'));
+  assert(companionSnapshot(s, catalog, reference(1)).hints.some((h) => h.type === 'quest' && h.id === 'quest-5200'));
   assert(companionSnapshot(s, catalog, null).hints.some((h) => h.id === 'task'));
 });
 test('tracking preference survives atomic state reload and rejects invalid commands/imports', (t) => {

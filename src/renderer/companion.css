@@ -2,6 +2,37 @@
   font-size: 13px;
   overflow: hidden;
 }
+.companion .flow-panel {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  margin: 12px 0;
+}
+.companion .flow-panel h2 {
+  font-size: 16px;
+}
+.companion .flow-panel h3 {
+  font-size: 14px;
+}
+.companion .flow-rule,
+.companion .flow-task {
+  padding: 10px;
+}
+.companion .flow-panel .row h3 {
+  flex-basis: 140px;
+}
+.companion .flow-materials {
+  padding: 8px;
+}
+.companion .flow-reference {
+  font-size: 12px;
+}
+.companion .flow-personal {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 8px;
+}
 .companion.passive {
   background: #14291f;
   color: #f4f1df;

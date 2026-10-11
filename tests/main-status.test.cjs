@@ -8,6 +8,7 @@ const { protectionStatus } = require('../src/core/protection-status.cjs');
 const { goalProgress } = require('../src/core/goal-progress.cjs');
 const { resourceBudget } = require('../src/core/resource-budget.cjs');
 const { journeyPlan } = require('../src/core/journey-plan.cjs');
+const { flowSnapshot } = require('../src/core/flow.cjs');
 const main = fs.readFileSync(path.join(__dirname, '../src/main.cjs'), 'utf8');
 function section(start, end) {
   const a = main.indexOf(start),
@@ -76,6 +77,7 @@ test('overview shares one current timeline snapshot and retains fields and prote
     goalProgress,
     resourceBudget,
     journeyPlan,
+    flowSnapshot,
   };
   vm.createContext(context);
   vm.runInContext(code + '\nthis.overviewResult = overview();', context);

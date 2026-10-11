@@ -52,6 +52,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const catalog = require('./data/catalog.cjs');
+const flowGuide = require('./data/flow-guide.cjs');
+const materialGuide = require('./data/material-guide.cjs');
 const { Store, MAX_JOURNAL_BYTES } = require('./core/store.cjs');
 const { isolation: journalRecoveryIsolation } = require('./core/startup-recovery.cjs');
 const { showStartupRecovery } = require('./startup-recovery-window.cjs');
@@ -71,6 +73,7 @@ const { CompanionWindow } = require('./core/companion-window.cjs');
 const { QuitHandoff } = require('./core/quit-handoff.cjs');
 const quitHandoff = new QuitHandoff();
 const { companionSnapshot } = require('./core/companion.cjs');
+const { flowSnapshot } = require('./core/flow.cjs');
 let companion, windowMonitor;
 let protectionArchives,
   protectionJobPromise = null;
@@ -640,6 +643,7 @@ function overview() {
     goalProgress: goalProgress(profile, goalReference, goalError),
     allocations,
     journey,
+    flow: flowSnapshot(profile, goalReference, goalError),
     preferredSave: preferred,
     preferredSaveMissing: !!preferred && !latest,
     backups: saves.list(),
@@ -1840,7 +1844,16 @@ app.whenReady().then(async () => {
       return { state, resetReferences };
     });
     handle('source', async (_event, id) => {
-      const source = catalog.sources.find((x) => x.id === id);
+      const source =
+        catalog.sources.find((x) => x.id === id) ||
+        (typeof id === 'string' && id.startsWith('flow:') && Object.hasOwn(flowGuide.sources, id.slice(5))
+          ? flowGuide.sources[id.slice(5)]
+          : null) ||
+        (typeof id === 'string' &&
+        id.startsWith('material:') &&
+        Object.hasOwn(materialGuide.sources, id.slice(9))
+          ? materialGuide.sources[id.slice(9)]
+          : null);
       if (!source || new URL(source.url).protocol !== 'https:') throw new Error('资料来源不存在');
       await shell.openExternal(source.url);
       return true;
