@@ -136,6 +136,19 @@
 .flow-choices dd {
   margin: 3px 0 10px 14px;
 }
+.flow-decision {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--green-soft);
+  border-left: 3px solid var(--green);
+  border-radius: 5px;
+}
+.flow-decision h4 {
+  margin-top: 0;
+}
+.flow-compact-risks > summary {
+  font-weight: 600;
+}
 .flow-guide,
 .flow-main-index {
   border-top: 1px solid var(--line);

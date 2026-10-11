@@ -122,6 +122,7 @@ function createFlowProjector({
   }
   function snapshot(profile, reference, error = '') {
     const selected = selectedReference(profile, reference, error);
+    const referenceMode = profile.referenceMode || (profile.saveSlot ? 'slot' : 'latest');
     const metadata = selected?.metadata || {};
     const states = Array.isArray(metadata.questStates) ? metadata.questStates : metadata.quests;
     const available = Array.isArray(states);
@@ -351,6 +352,10 @@ function createFlowProjector({
       const anchorsMet = anchors.length > 0 && anchors.every((id) => step(id) === 4);
       const relevant = activeRule || (main && (rule.chapterRoots || []).includes(main.gameId)) || anchorsMet;
       const deadlineReached = (rule.untilAnyStarted || []).some((id) => [1, 2, 4].includes(step(id)));
+      const decisionActive = (rule.decisionSteps || []).some((id) => {
+        const task = quests.get(id);
+        return task && rootOf(task)?.gameId === rule.questId && step(id) === 1 && !blocked(task);
+      });
       return {
         ...rule,
         name: rule.title,
@@ -359,6 +364,7 @@ function createFlowProjector({
         failed,
         relevant,
         deadlineReached,
+        decisionActive,
         state: done
           ? 'done'
           : failed
@@ -419,9 +425,12 @@ function createFlowProjector({
       )
         continue;
       const conditions = q.requirements.map(requirement);
+      const unknownStoryPrerequisite = q.requirements.some(
+        (r, index) => r.type === 'PreQuest' && conditions[index].status === 'unknown',
+      );
       if (
         conditions.some((r) => r.status === 'unmet') ||
-        (step(q.gameId) !== 3 && !conditions.some((r) => r.status === 'met'))
+        (step(q.gameId) !== 3 && (unknownStoryPrerequisite || !conditions.some((r) => r.status === 'met')))
       )
         continue;
       const projected = projectStep(q);
@@ -429,7 +438,12 @@ function createFlowProjector({
         id: 'conditions-' + q.gameId,
         questId: root.gameId,
         name: cleanName(root.name),
-        state: step(q.gameId) === 3 || step(root.gameId) === 3 ? 'not-accepted' : 'conditions-match',
+        state:
+          step(q.gameId) === 3 || step(root.gameId) === 3
+            ? 'not-accepted'
+            : conditions.some((r) => r.status === 'unknown')
+              ? 'conditions-partial'
+              : 'conditions-match',
         pickup: {
           place: projected.places.map((p) => p.name).join('、') || '任务文字未提供明确地点',
           person: q.requestNPCs.map(npcName).join('、'),
@@ -459,10 +473,13 @@ function createFlowProjector({
       available,
       reason: available
         ? ''
-        : error ||
-          (profile.referenceMode === 'none'
-            ? '此周目暂不读取游戏进度；可以查看下方流程资料。'
-            : '游戏里保存一次后，自动按已保存进度整理任务。'),
+        : referenceMode === 'none'
+          ? '此周目暂不读取游戏进度；可以查看下方流程资料。'
+          : error ||
+            (referenceMode === 'slot'
+              ? `本周目固定参照「${profile.saveSlot || '尚未指定'}」暂不可读取。请检查该存档，或选择本周目的流程参照；保存到其他槽位不会更换固定参照。`
+              : '游戏里保存一次后，自动按已保存进度整理任务。'),
+      referenceNeedsSelection: !available && referenceMode === 'slot',
       reference: source,
       chapter,
       stageUncertainty,
@@ -472,6 +489,7 @@ function createFlowProjector({
       opportunities,
       warnings: [...warnings, ...windowChecks],
       advice: relevantRules.filter((r) => r.warning && r.severity === 'reminder' && !r.deadlineReached),
+      decisions: relevantRules.filter((r) => r.decisionActive && r.choices?.length),
       changes,
       coverage: {
         tasks: quests.size,

@@ -56,6 +56,84 @@ test('unindexed active records stay visible without inventing names, ownership o
   );
 });
 
+test('an unavailable fixed reference explains the actual recovery and never adopts another slot', () => {
+  const fixed = profile({ referenceMode: 'slot', saveSlot: '0.sav' });
+  const alternate = ref(
+    [
+      { id: 11002, step: 1 },
+      { id: 11005, step: 1 },
+    ],
+    {},
+    '1.sav',
+  );
+  for (const reference of [null, alternate]) {
+    const flow = flowSnapshot(fixed, reference);
+    assert.equal(flow.available, false);
+    assert.equal(flow.reference, null);
+    assert.equal(flow.active.length, 0);
+    assert.equal(flow.decisions.length, 0);
+    assert.equal(flow.referenceNeedsSelection, true);
+    assert.match(flow.reason, /固定参照「0.sav」.*选择.*流程参照/);
+    assert.doesNotMatch(flow.reason, /游戏里保存一次后/);
+  }
+  assert.match(
+    flowSnapshot(profile({ referenceMode: 'none' }), alternate, '目录暂不可读').reason,
+    /暂不读取游戏进度/,
+  );
+});
+
+test('decision prompts follow an actual active choice step and disappear after choosing or closing its family', () => {
+  const active = flowSnapshot(
+    profile(),
+    ref([
+      { id: 11002, step: 1 },
+      { id: 11005, step: 1 },
+    ]),
+  );
+  const axe = active.decisions.find((row) => row.id === 'early-woodcutter-axe-choice');
+  assert(axe);
+  assert.match(axe.choices.map((row) => row.effect).join(' '), /700.*2000/);
+  const state = defaults();
+  const passive = companionSnapshot(
+    state,
+    catalog,
+    ref([
+      { id: 11002, step: 1 },
+      { id: 11005, step: 1 },
+    ]),
+  );
+  assert.equal(passive.hints[0].type, 'flow-choice');
+  assert.match(passive.hints[0].title, /奖励不同/);
+  for (const records of [
+    [{ id: 11002, step: 1 }],
+    [
+      { id: 11002, step: 1 },
+      { id: 11005, step: 4 },
+      { id: 11007, step: 1 },
+    ],
+    [
+      { id: 11002, step: 4 },
+      { id: 11005, step: 1 },
+    ],
+    [
+      { id: 11002, step: 2 },
+      { id: 11005, step: 1 },
+    ],
+    [
+      { id: 11002, step: 1 },
+      { id: 11005, step: 3 },
+    ],
+  ]) {
+    assert(!flowSnapshot(profile(), ref(records)).decisions.some((row) => row.id === axe.id));
+  }
+  for (const rule of guide.rules.filter((row) => row.decisionSteps?.length)) {
+    for (const id of rule.decisionSteps) {
+      const task = world.quests.find((row) => row.gameId === id);
+      assert.equal(task?.parentId, rule.questId, rule.id);
+    }
+  }
+});
+
 test('a new profile gets actionable saved steps, NPCs, material deficits and acquisition routes without setup', () => {
   const bytes = syntheticSave({
     full: true,
@@ -228,7 +306,7 @@ test('public prerequisite leads expose unknown hidden exclusions and suppress po
   const flow = project(profile(), ref([{ id: 5535, step: 4 }]));
   const medicine = flow.opportunities.find((q) => q.questId === 13407);
   assert(medicine);
-  assert.equal(medicine.state, 'conditions-match');
+  assert.equal(medicine.state, 'conditions-partial');
   assert.equal(medicine.conditions.filter((c) => c.status === 'unknown').length, 2);
   assert.match(medicine.uncertainty, /隐藏条件/);
   assert(
@@ -241,6 +319,37 @@ test('public prerequisite leads expose unknown hidden exclusions and suppress po
     ).opportunities.some((q) => q.questId === 13407),
   );
   assert(!project(profile(), ref([])).opportunities.some((q) => q.questId === 13407));
+});
+
+test('money alone cannot recommend a later quest with an unknown explicit story prerequisite', () => {
+  const records = [
+    { id: 5020, step: 4 },
+    { id: 5053, step: 1 },
+    { id: 5054, step: 4 },
+    { id: 5057, step: 1 },
+  ];
+  const flow = flowSnapshot(profile(), ref(records, { money: 4000 }));
+  assert.equal(flow.chapter.name, '初入江湖');
+  assert(!flow.opportunities.some((row) => row.questId === 11441));
+  const confirmed = flowSnapshot(profile(), ref([...records, { id: 5406, step: 4 }], { money: 4000 }));
+  const festival = confirmed.opportunities.find((row) => row.questId === 11441);
+  assert(festival);
+  assert.equal(festival.state, 'conditions-match');
+  assert(festival.conditions.every((row) => row.status === 'met'));
+  for (const [step, money] of [
+    [1, 4000],
+    [4, 500],
+  ]) {
+    assert(
+      !flowSnapshot(profile(), ref([...records, { id: 5406, step }], { money })).opportunities.some(
+        (row) => row.questId === 11441,
+      ),
+    );
+  }
+  const unaccepted = flowSnapshot(profile(), ref([...records, { id: 11442, step: 3 }], { money: 4000 }));
+  const recorded = unaccepted.opportunities.find((row) => row.questId === 11441);
+  assert.equal(recorded.state, 'not-accepted');
+  assert(recorded.conditions.some((row) => row.status === 'unknown'));
 });
 
 test('explicit unaccepted step records can supply pickup leads without inventing prerequisite-free availability', () => {
@@ -345,6 +454,17 @@ test('Wudang onboarding tasks each respect their own completed or failed record'
   );
   assert(flow.opportunities.some((row) => row.id === 'early-wudang-alchemy' && row.state === 'not-accepted'));
   assert.match(flow.guide.find((row) => row.id === 'early-wudang-alchemy').steps.join(' '), /茯苓、白芍各1/);
+  const collecting = flowSnapshot(
+    profile(),
+    ref([
+      { id: 13802, step: 1 },
+      { id: 13803, step: 1 },
+    ]),
+  );
+  const herb = collecting.active[0].steps[0].materials.find((row) => row.id === 'item-10261');
+  assert.equal(herb.required, 1);
+  assert(herb.routes.some((row) => row.placeId === 'place-14' && row.sources.length));
+  assert(herb.routes.some((row) => row.placeId === 'place-22' && row.sources.length));
 });
 
 test('offline story index covers every non-demo main root once and distinguishes missing records from completion', () => {

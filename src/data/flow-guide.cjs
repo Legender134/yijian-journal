@@ -364,6 +364,7 @@ module.exports = {
     },
     {
       id: 'early-woodcutter-axe-choice',
+      decisionSteps: [11004, 11005],
       title: '樵夫的斧子：换新与重锻奖励不同',
       questId: 11002,
       chapterRoots: [5020, 5053, 5062, 5074, 5110, 5150, 5176],
@@ -458,6 +459,7 @@ module.exports = {
     },
     {
       id: 'early-sun-homesickness-choice',
+      decisionSteps: [11061],
       title: '孙老思乡：丹药与送花是不同答法',
       questId: 11060,
       chapterRoots: [5020, 5053, 5062, 5074, 5110, 5150, 5176],
@@ -547,6 +549,7 @@ module.exports = {
     },
     {
       id: 'early-rain-money-choice',
+      decisionSteps: [11301, 11303],
       title: '同情心：放过、安慰与吓唬有不同结算',
       questId: 11297,
       chapterRoots: [5150, 5246, 5275],
@@ -827,6 +830,7 @@ module.exports = {
     },
     {
       id: 'chenlinxi-critical-choice',
+      decisionSteps: [12078],
       title: '北山寒尸：对话与好感共同影响陈麟熙去留',
       questId: 12075,
       chapterRoots: [5246, 5275],
@@ -944,6 +948,7 @@ module.exports = {
     },
     {
       id: 'golden-scorpion-choice',
+      decisionSteps: [16006],
       title: '异种金蝎：交付对象改变后续路线',
       questId: 16000,
       chapterRoots: [5231, 5242, 5304, 5860],
@@ -977,6 +982,7 @@ module.exports = {
     },
     {
       id: 'kongliang-choice',
+      decisionSteps: [12293],
       title: '韶华轻掷：营救影响甘泉苦水合作',
       questId: 12280,
       chapterRoots: [5304, 5330, 5755, 5780],

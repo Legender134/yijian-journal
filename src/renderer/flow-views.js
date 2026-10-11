@@ -60,6 +60,7 @@ export function createFlowViews({ esc, act, icon, pill, when }) {
       'not-started': '存档记录尚未开始',
       'not-accepted': '存档记录未接取',
       unrecorded: '尚待核对',
+      'conditions-partial': '部分条件满足 · 仍待核对',
       'conditions-match': '已读取的条件匹配',
     }[row.state];
     const pickup = row.pickup || {};
@@ -119,7 +120,19 @@ export function createFlowViews({ esc, act, icon, pill, when }) {
       'step-' + row.id,
     );
   }
-  function activeTask(task) {
+  function decision(row) {
+    return persist(
+      `<aside class="flow-decision" data-flow-decision="${text(row.id)}"><h4>继续这一步前，先比较选择</h4><p>${text(row.warning || row.name)}</p><dl class="flow-choices">${list(
+        row.choices,
+      )
+        .map((choice) => `<dt>${text(choice.label)}</dt><dd>${text(choice.effect || '影响待核对')}</dd>`)
+        .join(
+          '',
+        )}</dl><details><summary>参考版本、来源与待核对之处</summary>${row.uncertainty ? `<p class="small save-note">${text(row.uncertainty)}</p>` : ''}${sources(row.sources)}</details></aside>`,
+      'decision-' + row.id,
+    );
+  }
+  function activeTask(task, decisions = []) {
     const steps = list(task.steps);
     const progress = list(task.progress);
     const counts = ['进行中', '已完成', '已失败', '尚未开始', '尚未接取']
@@ -128,7 +141,7 @@ export function createFlowViews({ esc, act, icon, pill, when }) {
       .map((row) => `${row.status} ${row.count}`)
       .join(' · ');
     return persist(
-      `<article class="flow-task" data-flow-quest="${text(task.id || '')}"><div class="row between"><h3>${text(task.name)}</h3>${pill(task.kind === 'Primary' ? '主线' : '支线', task.kind === 'Primary' ? 'green' : '')}</div>${steps.length ? steps.map((row) => step(row, task.id)).join('') : '<p class="small muted">这份存档只有任务记录，尚无可展示的当前步骤；请核对任务资料。</p>'}${progress.length ? `<details class="flow-task-progress"><summary>已记录的步骤 · ${text(counts)}</summary><ul class="flow-progress-list">${progress.map((row) => `<li>${questButton(row.id, row.name)}${pill(row.status, row.status === '已完成' ? 'green' : row.status === '已失败' ? 'orange' : '')}</li>`).join('')}</ul><p class="small save-note">只列本次已保存的步骤记录；列表不代表时间顺序或全部分支，未出现的步骤仍待核对。</p></details>` : ''}${questButton(task.id)}</article>`,
+      `<article class="flow-task" data-flow-quest="${text(task.id || '')}"><div class="row between"><h3>${text(task.name)}</h3>${pill(task.kind === 'Primary' ? '主线' : '支线', task.kind === 'Primary' ? 'green' : '')}</div>${steps.length ? steps.map((row) => step(row, task.id)).join('') : '<p class="small muted">这份存档只有任务记录，尚无可展示的当前步骤；请核对任务资料。</p>'}${decisions.map(decision).join('')}${progress.length ? `<details class="flow-task-progress"><summary>已记录的步骤 · ${text(counts)}</summary><ul class="flow-progress-list">${progress.map((row) => `<li>${questButton(row.id, row.name)}${pill(row.status, row.status === '已完成' ? 'green' : row.status === '已失败' ? 'orange' : '')}</li>`).join('')}</ul><p class="small save-note">只列本次已保存的步骤记录；列表不代表时间顺序或全部分支，未出现的步骤仍待核对。</p></details>` : ''}${questButton(task.id)}</article>`,
       'task-' + task.id,
     );
   }
@@ -167,6 +180,12 @@ export function createFlowViews({ esc, act, icon, pill, when }) {
     const warnings = list(flow.warnings);
     const advice = list(flow.advice).filter((row) => row.activeRule || row.kind === 'stage');
     const active = list(flow.active);
+    const decisions = list(flow.decisions);
+    const activeCard = (task) =>
+      activeTask(
+        task,
+        decisions.filter((row) => row.questId === task.gameId),
+      );
     const unindexed = list(flow.unindexedActive);
     const shared = list(flow.sharedMaterials);
     const warningIds = new Set(warnings.map((row) => row.id).filter(Boolean));
@@ -176,17 +195,20 @@ export function createFlowViews({ esc, act, icon, pill, when }) {
     const take = (rows) => (summary ? rows.slice(0, 3) : rows);
     const remaining = Math.max(0, active.length - 3);
     const activeBody = summary
-      ? take(active).map(activeTask).join('')
-      : `${active.slice(0, 3).map(activeTask).join('')}${remaining ? `<details class="flow-all-active"><summary>其余 ${remaining} 项进行中任务</summary>${active.slice(3).map(activeTask).join('')}</details>` : ''}`;
+      ? take(active).map(activeCard).join('')
+      : `${active.slice(0, 3).map(activeCard).join('')}${remaining ? `<details class="flow-all-active"><summary>其余 ${remaining} 项进行中任务</summary>${active.slice(3).map(activeCard).join('')}</details>` : ''}`;
+    const riskBody = warnings.length
+      ? take(warnings)
+          .map((warning) => rule(warning, true))
+          .join('')
+      : `<p class="small muted">${decisions.length ? '这一步的选择影响已列在任务内；其他已整理关键提醒暂未命中。' : '当前参照未命中已整理的关键提醒，覆盖范围见下方。'}</p>`;
+    const riskContent =
+      compact && active.length && warnings.length
+        ? `<details class="flow-compact-risks"><summary>${warnings.length} 项推进提醒 · ${text(warnings[0].name || warnings[0].title)}</summary>${riskBody}</details>`
+        : riskBody;
     const summaryMore = summary && (warnings.length > 3 || active.length > 3 || opportunities.length > 3);
     return persist(
-      `<section class="flow-panel${compact ? ' flow-compact' : ''}${summary ? ' flow-summary' : ''}${warnings.length ? ' flow-has-risks' : ''}" data-flow><div class="flow-heading"><div class="eyebrow">江湖流程</div><h2>这一阶段，先做什么</h2><p class="small flow-reference">${reference ? `${text(reference.mapName || '场景待核对')} · ${text(reference.name)} · ${text(when(reference.modifiedAt))}的已保存进度` : '离线攻略仍可查看'}</p>${flow.stageUncertainty ? `<p class="small save-note" data-flow-stage-uncertain>${text(flow.stageUncertainty)}</p>` : ''}${!flow.available ? `<div class="notice flow-empty"><strong>尚未对照可读存档</strong><p>${text(flow.reason || '选择本周目的存档参照后，可对照当前任务；现在也能浏览攻略与主线索引。')}</p></div>` : flow.reason ? `<p class="small save-note">${text(flow.reason)}</p>` : ''}</div><section class="flow-risks"><h2>${icon('pin')} 推进前请确认</h2>${
-        warnings.length
-          ? take(warnings)
-              .map((warning) => rule(warning, true))
-              .join('')
-          : '<p class="small muted">当前参照未命中已整理的关键提醒，覆盖范围见下方。</p>'
-      }</section><section class="flow-active"><h2>当前任务与下一行动${active.length ? ` · ${active.length} 项` : ''}</h2>${
+      `<section class="flow-panel${compact ? ' flow-compact' : ''}${summary ? ' flow-summary' : ''}${warnings.length ? ' flow-has-risks' : ''}" data-flow><div class="flow-heading"><div class="eyebrow">江湖流程</div><h2>这一阶段，先做什么</h2><p class="small flow-reference">${reference ? `${text(reference.mapName || '场景待核对')} · ${text(reference.name)} · ${text(when(reference.modifiedAt))}的已保存进度` : '离线攻略仍可查看'}</p>${flow.stageUncertainty ? `<p class="small save-note" data-flow-stage-uncertain>${text(flow.stageUncertainty)}</p>` : ''}${!flow.available ? `<div class="notice flow-empty"><strong>尚未对照可读存档</strong><p>${text(flow.reason || '选择本周目的存档参照后，可对照当前任务；现在也能浏览攻略与主线索引。')}</p>${flow.referenceNeedsSelection ? button('save-slot', '检查并选择流程参照', '') : ''}</div>` : flow.reason ? `<p class="small save-note">${text(flow.reason)}</p>` : ''}</div><section class="flow-risks"><h2>${icon('pin')} 推进前请确认</h2>${riskContent}</section><section class="flow-active"><h2>当前任务与下一行动${active.length ? ` · ${active.length} 项` : ''}</h2>${
         shared.length
           ? `<aside class="flow-shared-materials"><h3>这些步骤会共用材料</h3><p class="small save-note">若都要交付，请按合计量预留；未纳入未接任务和未显示的后续步骤。</p>${shared
               .map(
@@ -202,7 +224,7 @@ export function createFlowViews({ esc, act, icon, pill, when }) {
               )
               .join('')}</aside>`
           : ''
-      }${unindexed.length ? `<aside class="flow-unindexed" data-flow-unindexed><details><summary>另有 ${unindexed.length} 条进行中记录待识别</summary><p class="small save-note">这些记录尚未收录在任务资料中，可能是隐藏剧情或版本新增任务。请核对游戏任务栏中额外进行中的任务；这里暂不能判断名称与下一步。</p><p class="small">${unindexed.map((record) => `#${text(record.id)}${record.tracked ? '（当前追踪）' : ''}`).join('、')}</p></details></aside>` : ''}${activeBody || `<p class="small muted">${flow.available ? '这份存档暂无可展示的已识别进行中步骤；可在下方查找任务线索。' : '读取存档后在这里显示当前行动，无需先安排个人行程。'}</p>`}</section>${advice.length ? `<details class="flow-advice"><summary>任务选择、材料留用与额外收益 · ${advice.length} 项</summary>${advice.map((row) => rule(row)).join('')}</details>` : ''}<section class="flow-opportunities"><h2>本阶段未接取与待核对${opportunities.length ? ` · ${opportunities.length} 项` : ''}</h2><p class="small save-note">未出现在存档只表示尚待核对；条件匹配也不保证隐藏条件已经满足。</p>${
+      }${unindexed.length ? `<aside class="flow-unindexed" data-flow-unindexed><details><summary>另有 ${unindexed.length} 条进行中记录待识别</summary><p class="small save-note">这些记录尚未收录在任务资料中，可能是隐藏剧情或版本新增任务。请核对游戏任务栏中额外进行中的任务；这里暂不能判断名称与下一步。</p><p class="small">${unindexed.map((record) => `#${text(record.id)}${record.tracked ? '（当前追踪）' : ''}`).join('、')}</p></details></aside>` : ''}${activeBody || `<p class="small muted">${flow.available ? '这份存档暂无可展示的已识别进行中步骤；可在下方查找任务线索。' : '读取存档后在这里显示当前行动，无需先安排个人行程。'}</p>`}</section>${advice.length ? `<details class="flow-advice"><summary>任务选择、材料留用与额外收益 · ${advice.length} 项</summary>${advice.map((row) => rule(row)).join('')}</details>` : ''}<section class="flow-opportunities"><h2>未接取任务与接取线索${opportunities.length ? ` · ${opportunities.length} 项` : ''}</h2><p class="small save-note">按存档记录、已核对的前置与已整理阶段攻略列出；部分条件仍待核对，不保证当前可接。</p>${
         opportunities.length
           ? take(opportunities)
               .map((entry) => rule(entry))
