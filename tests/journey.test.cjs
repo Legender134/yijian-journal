@@ -397,6 +397,38 @@ test('the active Wudang root task retains its explicit destination alias and pha
   assert(plan.routes.some((r) => r.name === '武当派' && r.actionIds.includes(quest.id)));
 });
 
+test('a mining task cannot suggest a foreign cave merely nested in the named back mountain cave', () => {
+  const plan = journeyPlan(profile(), reference({ quests: [{ id: 11010, step: 1 }] }));
+  const places = actionForQuest(plan, 11010).places;
+  assert.deepEqual(places.find((p) => p.name === '后山山洞').mapIds, ['place-11', 'place-12']);
+  assert.equal(
+    places.some((p) => p.name === '山洞' || p.mapIds.includes('place-95')),
+    false,
+  );
+  assert(places.some((p) => p.source.type === 'database' && p.name === '梧桐村'));
+});
+
+test('itinerary place hints keep independent short names and aliases beside longer names', () => {
+  for (const [description, expected, alias] of [
+    ['后山山洞，再到后山山洞。', ['后山山洞'], false],
+    ['后山山洞，然后到山洞。', ['后山山洞', '山洞'], false],
+    ['山洞，然后到后山山洞。', ['后山山洞', '山洞'], false],
+    ['山洞。', ['山洞'], false],
+    ['到武当山，再去后山山洞。', ['后山山洞', '武当派'], true],
+  ]) {
+    const custom = clone(world),
+      quest = custom.quests.find((q) => q.id === 'quest-11010');
+    Object.assign(quest, { name: '地点关联测试', description, placements: [] });
+    const plan = createJourneyPlanner({ world: custom, game }).journeyPlan(
+      profile(),
+      reference({ quests: [{ id: 11010, step: 1 }] }),
+    );
+    const places = actionForQuest(plan, 11010).places.filter((p) => p.source.type === 'quest');
+    assert.deepEqual(places.map((p) => p.name).sort(), expected.sort(), description);
+    if (alias) assert.equal(places.find((p) => p.name === '武当派').mention, '武当山');
+  }
+});
+
 test('actual cooking recipe keeps fish alternatives as one group, accepts exact budget and links sourced fishing hints', () => {
   const p = profile({ craftList: [{ id: 'cooking-102', quantity: 1 }] });
   const r = reference({ inventory: [{ id: 10525, count: 1 }], cookingRecipes: [102] });
