@@ -45,6 +45,7 @@ export function createRecipeDiscoveryViews({ esc, act, pill, notice, empty, when
     const filters = `<section class="card mb"><div class="toolbar wrap"><label class="search-input"><input id="recipe-discovery-search" value="${esc(options.query)}" maxlength="100" placeholder="按配方名或说明搜索" aria-label="搜索余料配方"></label><label>工种 <select id="recipe-discovery-craft" aria-label="配方工种">${[
       ['', '全部工种'],
       ['fusion', '锻造'],
+      ['tailoring', '制衣'],
       ['alchemy', '炼丹'],
       ['cooking', '烹饪'],
     ]

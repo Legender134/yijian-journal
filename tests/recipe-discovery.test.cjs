@@ -34,6 +34,77 @@ const options = { craft: 'fusion', query: '纯钢剑', learned: 'all', view: 'al
 const discover = (p, ref, filters = options) => recipeDiscovery(p, ref, resourceBudget(p, ref), filters);
 const row = (p, ref, filters = options) =>
   discover(p, ref, filters).rows.find((r) => r.recipeId === 'fusion-1000');
+test('player craft filters partition the complete catalogue and never show tailoring under forging', () => {
+  const p = profile(),
+    ref = reference();
+  assert.equal(
+    discover(p, ref, { craft: 'fusion', query: '制衣', learned: 'all', view: 'all' }).pagination.total,
+    0,
+  );
+  const found = new Set();
+  for (const [craft, label, count] of [
+    ['fusion', '锻造', 120],
+    ['tailoring', '制衣', 80],
+    ['alchemy', '炼丹', 41],
+    ['cooking', '烹饪', 62],
+  ]) {
+    const filters = { craft, learned: 'all', view: 'all', pageSize: 12 };
+    const first = discover(p, ref, filters);
+    assert.equal(first.pagination.total, count, label);
+    let actual = 0;
+    for (let page = 1; page <= first.pagination.pageCount; page++) {
+      for (const candidate of discover(p, ref, { ...filters, page }).rows) {
+        assert.equal(candidate.craft, label);
+        assert.equal(found.has(candidate.recipeId), false, 'each recipe has exactly one player craft');
+        found.add(candidate.recipeId);
+        actual++;
+      }
+    }
+    assert.equal(actual, count);
+  }
+  assert.deepEqual(
+    [...found].sort(),
+    game.entries
+      .filter((entry) => entry.kind === '配方')
+      .map((entry) => entry.id)
+      .sort(),
+  );
+  assert.equal(
+    discover(p, ref, { craft: 'tailoring', query: '制衣', learned: 'all', view: 'all' }).pagination.total,
+    80,
+  );
+});
+
+test('tailoring and forging keep their actual fusion learning records and read-only shared resource checks', () => {
+  const p = profile(),
+    ref = reference();
+  const tailoring = game.entries.find((entry) => entry.kind === '配方' && entry.craft === '制衣');
+  ref.metadata.fusionRecipes = [1000, Number(tailoring.id.slice('fusion-'.length))];
+  const before = JSON.stringify({ p, ref });
+  for (const [craft, id] of [
+    ['fusion', 'fusion-1000'],
+    ['tailoring', tailoring.id],
+  ]) {
+    const result = discover(p, ref, { craft, learned: 'learned', view: 'all' });
+    assert.equal(result.pagination.total, 1);
+    assert.equal(result.rows[0].recipeId, id);
+    assert.equal(result.rows[0].recipeType, 'fusion');
+    assert.equal(result.rows[0].learned, true);
+    assert.equal(
+      assertDiscoveryScope(p, ref, resourceBudget(p, ref), {
+        scopeToken: result.scopeToken,
+        recipeId: id,
+        quantity: 1,
+      }).recipeId,
+      id,
+    );
+    const unknown = discover(p, null, { craft, learned: 'learned', view: 'all' });
+    assert.equal(unknown.rows[0].learned, null);
+    assert.equal(unknown.rows[0].supportsOne, null);
+  }
+  assert.equal(JSON.stringify({ p, ref }), before);
+});
+
 test('real fusion-1000 separates learning, direct material support, fees and unknown skill level', () => {
   const p = profile(),
     ref = reference(),

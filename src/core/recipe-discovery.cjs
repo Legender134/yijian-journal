@@ -8,6 +8,7 @@ const { selectedReference } = require('./goal-progress.cjs');
 const recipes = data.entries.filter((entry) => entry.kind === '配方');
 const byId = new Map(recipes.map((entry) => [entry.id, entry]));
 const learningKeys = { fusion: 'fusionRecipes', alchemy: 'alchemyRecipes', cooking: 'cookingRecipes' };
+const craftNames = { fusion: '锻造', tailoring: '制衣', alchemy: '炼丹', cooking: '烹饪' };
 const NEAR_UNITS = 2,
   NEAR_GROUPS = 2;
 // Inspired by Teamcraft's pinned recipe finder workflow (MIT, Flavien Normand):
@@ -44,7 +45,7 @@ function validateDiscoveryOptions(options = {}) {
   };
   if (typeof out.query !== 'string' || out.query.length > 100) throw Error('配方搜索最多 100 字');
   if (
-    !['', 'fusion', 'alchemy', 'cooking'].includes(out.craft) ||
+    !['', ...Object.keys(craftNames)].includes(out.craft) ||
     !['learned', 'all', 'unlearned', 'unknown'].includes(out.learned) ||
     !['supported', 'near', 'all'].includes(out.view)
   )
@@ -236,7 +237,7 @@ function recipeDiscovery(profile, reference, budget, options = {}) {
   let rows = recipes
     .filter(
       (recipe) =>
-        (!filters.craft || recipe.recipeType === filters.craft) &&
+        (!filters.craft || (recipe.craft || recipe.type) === craftNames[filters.craft]) &&
         (!query ||
           `${recipe.name} ${recipe.craft || recipe.type} ${recipe.description || ''}`
             .toLocaleLowerCase('zh-CN')
