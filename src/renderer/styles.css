@@ -1890,6 +1890,38 @@ kbd {
 .resource-priority-modal {
   width: min(700px, 92vw);
 }
+.resource-priority-order .spacer {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+[data-note-differences] {
+  margin-bottom: 1.5rem;
+}
+.note-diff-block {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 10px 0;
+}
+.note-diff-restored {
+  margin-top: 12px;
+}
+.note-diff-block pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  margin: 6px 0 0;
+  tab-size: 4;
+}
+.note-diff-block mark {
+  background: #efe1b5;
+  color: #332912;
+  box-decoration-break: clone;
+}
+.resource-priority-current .preserve-text,
+.resource-priority-changes .preserve-text {
+  overflow-wrap: anywhere;
+}
 .resource-priority-order,
 .resource-priority-changes {
   max-height: 210px;

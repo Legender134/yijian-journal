@@ -2,7 +2,7 @@ export function createResourcePriorityViews({ esc, act, notice, when }) {
   function entry(summary) {
     if (!summary?.priorityOwners?.length || summary.priorityOwners.length < 2) return '';
     if (!summary.explicitPriority && !(summary.directMissingTotal > 0)) return '';
-    return `<section class="card mt"><div class="card-header"><h2>这些打算怎样分配材料</h2>${act('resource-priority-open', '预览并调整顺序', 'btn', '', 'edit')}</div><p class="save-note">按当前核对参照${summary.referenceIdentity ? '「' + esc(summary.referenceIdentity.name) + '」' : '（库存待核对）'}核对。留用和任务预留先保留；制作与赠礼的直接材料按用途顺序分配，再用剩余库存安排加工。${summary.explicitPriority ? '已采用你确认的顺序，打开另一份计划不会改变它。' : '目前按编辑清单及保存顺序核对；材料争用时可选择先支持哪项打算。'}顺序只分配材料；全部制作费仍需共同支付。</p><ol class="resource-priority-current">${summary.priorityOwners.map((row) => `<li>${esc(row.name)}</li>`).join('')}</ol></section>`;
+    return `<section class="card mt"><div class="card-header"><h2>这些打算怎样分配材料</h2>${act('resource-priority-open', '预览并调整顺序', 'btn', '', 'edit')}</div><p class="save-note">按当前核对参照${summary.referenceIdentity ? '「' + esc(summary.referenceIdentity.name) + '」' : '（库存待核对）'}核对。留用和任务预留先保留；制作与赠礼的直接材料按用途顺序分配，再用剩余库存安排加工。${summary.explicitPriority ? '已采用你确认的顺序，打开另一份计划不会改变它。' : '目前按编辑清单及保存顺序核对；材料争用时可选择先支持哪项打算。'}顺序只分配材料；全部制作费仍需共同支付。</p><ol class="resource-priority-current">${summary.priorityOwners.map((row) => `<li>${esc(row.name)}${row.description ? `<p class="small preserve-text">${esc(row.description)}</p>` : ''}</li>`).join('')}</ol></section>`;
   }
   function editor(draft, index) {
     const result = draft.preview;
@@ -17,7 +17,8 @@ export function createResourcePriorityViews({ esc, act, notice, when }) {
       .map((id, i, all) => {
         const row = changes.find((o) => o.id === id);
         const label = row?.name || draft.labels?.[id] || '待核对的用途';
-        return `<div class="backup-row"><span class="spacer">${i + 1}. ${esc(label)}</span><button class="btn" data-action="resource-priority-move" data-id="${esc(id)}" data-direction="up" aria-label="上移 ${esc(label)}" ${i === 0 || draft.loading || !result ? 'disabled' : ''}>上移</button><button class="btn" data-action="resource-priority-move" data-id="${esc(id)}" data-direction="down" aria-label="下移 ${esc(label)}" ${i === all.length - 1 || draft.loading || !result ? 'disabled' : ''}>下移</button></div>`;
+        const fullLabel = row?.description ? label + ' · ' + row.description : label;
+        return `<div class="backup-row"><div class="spacer">${i + 1}. ${esc(label)}${row?.description ? `<p class="small preserve-text">${esc(row.description)}</p>` : ''}</div><button class="btn" data-action="resource-priority-move" data-id="${esc(id)}" data-direction="up" aria-label="上移 ${esc(fullLabel)}" ${i === 0 || draft.loading || !result ? 'disabled' : ''}>上移</button><button class="btn" data-action="resource-priority-move" data-id="${esc(id)}" data-direction="down" aria-label="下移 ${esc(fullLabel)}" ${i === all.length - 1 || draft.loading || !result ? 'disabled' : ''}>下移</button></div>`;
       })
       .join(
         '',
@@ -26,7 +27,7 @@ export function createResourcePriorityViews({ esc, act, notice, when }) {
         ? `<p class="save-note">${result.referenceIdentity ? `对照 ${esc(result.referenceIdentity.name)} · ${when(result.referenceIdentity.modifiedAt)} · SHA ${esc(result.referenceIdentity.hash.slice(0, 12))}` : '没有可读存档参照；可以保存顺序，分配变化待核对。'}</p><div class="resource-priority-changes" aria-label="确认前的材料分配变化">${!result.inventoryAvailable ? notice('库存未知，下面不把未核对的用量写成零。', true) : ''}${changes
             .map(
               (row) =>
-                `<details class="detail-block" open><summary>${esc(row.name)} · 直接材料缺口 ${missing(row.beforeMissing)} → ${missing(row.afterMissing)}</summary>${result.inventoryAvailable ? row.items.map((item) => `<p class="small">${esc(name(item.id))} · 直接分配 ${item.beforeDirect} → ${item.afterDirect}${item.beforeProcessing || item.afterProcessing ? ` · 加工另占 ${item.beforeProcessing} → ${item.afterProcessing}` : ''}</p>`).join('') || '<p class="small muted">未分配实际库存</p>' : '<p class="small muted">实际分配待核对</p>'}${row.kind === 'craft' ? `<p class="small muted">加工后原料缺口 ${row.beforeRawMissing ?? '待核对'} → ${row.afterRawMissing ?? '待核对'}</p>` : ''}${row.afterMissing
+                `<details class="detail-block" open><summary>${esc(row.name)} · 直接材料缺口 ${missing(row.beforeMissing)} → ${missing(row.afterMissing)}</summary>${row.description ? `<p class="small preserve-text">${esc(row.description)}</p>` : ''}${result.inventoryAvailable ? row.items.map((item) => `<p class="small">${esc(name(item.id))} · 直接分配 ${item.beforeDirect} → ${item.afterDirect}${item.beforeProcessing || item.afterProcessing ? ` · 加工另占 ${item.beforeProcessing} → ${item.afterProcessing}` : ''}</p>`).join('') || '<p class="small muted">未分配实际库存</p>' : '<p class="small muted">实际分配待核对</p>'}${row.kind === 'craft' ? `<p class="small muted">加工后原料缺口 ${row.beforeRawMissing ?? '待核对'} → ${row.afterRawMissing ?? '待核对'}</p>` : ''}${row.afterMissing
                   .filter((m) => m.count > 0)
                   .map(
                     (m) =>

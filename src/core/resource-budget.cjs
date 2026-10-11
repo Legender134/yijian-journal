@@ -165,6 +165,9 @@ function resourceBudget(
     ...giftPlans.map((gift) => ({
       id: '@gift:' + gift.id,
       kind: 'gift',
+      description:
+        `第${profile.journey.gifts.indexOf(gift) + 1}份赠礼 · ${gift.quantity}件` +
+        (gift.note ? ' · ' + gift.note : ''),
       name:
         '赠予' +
         giftPersonLabel(

@@ -110,6 +110,7 @@ function resourcePriorityPreview(profile, reference, order) {
       id: row.id,
       name: row.name,
       kind: row.kind,
+      description: row.description || '',
       items,
       beforeMissing: a.missing,
       afterMissing: b.missing,
