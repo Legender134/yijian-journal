@@ -216,6 +216,41 @@ async function staleAdd(scopeToken, quantity = 1) {
     await win.waitForSelector('.drawer');
     assert.match(await win.locator('.drawer').innerText(), /使用后可学习/);
     await win.locator('[data-action="close-overlay"]').click();
+    await win.locator('[data-action="recipe-discovery-view"][data-id="all"]').click();
+    await win.locator('#recipe-discovery-learned').selectOption('all');
+    await win.locator('#recipe-discovery-search').fill('制衣');
+    await win.locator('#recipe-discovery-craft').selectOption('tailoring');
+    await win.waitForFunction(() =>
+      document.querySelector('.recipe-discovery-pagination')?.textContent.includes('80 条结果'),
+    );
+    assert((await win.locator('[data-recipe-discovery-id]').count()) > 0);
+    for (const text of await win.locator('[data-recipe-discovery-id] .tag-row').allTextContents()) {
+      assert.match(text, /制衣 · 资料要求/);
+      assert.doesNotMatch(text, /锻造 · 资料要求/);
+    }
+    await win.locator('#recipe-discovery-craft').selectOption('fusion');
+    await win.waitForFunction(() =>
+      document.querySelector('.recipe-discovery-pagination')?.textContent.includes('0 条结果'),
+    );
+    assert.equal(await win.locator('[data-recipe-discovery-id]').count(), 0);
+    await win.locator('#recipe-discovery-search').fill('');
+    for (const [craft, count] of [
+      ['fusion', 120],
+      ['tailoring', 80],
+      ['alchemy', 41],
+      ['cooking', 62],
+      ['', 303],
+    ]) {
+      await win.locator('#recipe-discovery-craft').selectOption(craft);
+      await win.waitForFunction(
+        (expected) =>
+          document.querySelector('.recipe-discovery-pagination')?.textContent.includes(expected + ' 条结果'),
+        count,
+      );
+    }
+    checks.push(
+      'separate forging/tailoring filters, exact four craft totals and unchanged all-craft coverage',
+    );
     await filterAll();
     await awaitCandidate({ missing: 0 });
     const variants = win.locator('[data-recipe-discovery-id="fusion-1100"]');
