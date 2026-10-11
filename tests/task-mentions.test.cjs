@@ -28,3 +28,38 @@ test('literal task mentions open known people and places while retaining ambiguo
   assert.equal(unknown.people.length, 0);
   assert.equal(unknown.places.length, 0);
 });
+
+test('a task naming the back mountain cave does not link its nested name to a foreign cave', async () => {
+  const { taskMentions } = await loaded,
+    index = encyclopedia();
+  const result = taskMentions(
+    index,
+    index.world.quests.find((q) => q.id === 'quest-11010'),
+  );
+  const cave = result.places.find((p) => p.name === '后山山洞');
+  assert.deepEqual(new Set(cave.choices.map((p) => p.id)), new Set(['place-11', 'place-12']));
+  assert.equal(
+    result.places.some((p) => p.name === '山洞'),
+    false,
+  );
+});
+
+test('place mentions retain separate short occurrences, repeated long names and curated aliases', async () => {
+  const { taskMentions } = await loaded,
+    index = encyclopedia();
+  for (const [description, expected] of [
+    ['后山山洞，再到后山山洞。', ['后山山洞']],
+    ['后山山洞，然后到山洞。', ['后山山洞', '山洞']],
+    ['山洞，然后到后山山洞。', ['后山山洞', '山洞']],
+    ['山洞。', ['山洞']],
+  ]) {
+    const result = taskMentions(index, { description });
+    assert.deepEqual(result.places.map((p) => p.name).sort(), expected.sort(), description);
+  }
+  const aliased = taskMentions(index, { description: '到武当山，再去后山山洞。' });
+  assert.deepEqual(
+    aliased.places.map((p) => p.name),
+    ['后山山洞'],
+  );
+  assert.equal(aliased.aliases.find((p) => p.name === '武当派').mention, '武当山');
+});

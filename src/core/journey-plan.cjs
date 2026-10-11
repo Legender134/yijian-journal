@@ -36,6 +36,30 @@ function sameIdentity(a, b) {
   );
 }
 
+// Keep the same occurrence-based rule as renderer/task-mentions.js.
+// A short name can still occur independently beside a longer place name.
+function literalPlaceMentions(text, phrases) {
+  const matches = [];
+  for (const phrase of new Set(phrases)) {
+    if (phrase.length < 2) continue;
+    for (let start = text.indexOf(phrase); start !== -1; start = text.indexOf(phrase, start + 1))
+      matches.push({ phrase, start, end: start + phrase.length });
+  }
+  return new Set(
+    matches
+      .filter(
+        (match) =>
+          !matches.some(
+            (other) =>
+              other.phrase.length > match.phrase.length &&
+              other.start <= match.start &&
+              other.end >= match.end,
+          ),
+      )
+      .map((match) => match.phrase),
+  );
+}
+
 function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
   const quests = new Map(worldIndex.quests.map((q) => [q.id, q]));
   const byGameId = new Map(worldIndex.quests.map((q) => [q.gameId, q]));
@@ -128,8 +152,14 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
   }
   function mentionPlaces(text, source) {
     const found = [];
+    const mentions = literalPlaceMentions(text, [
+      ...placeNames.keys(),
+      ...placeAliases
+        .filter((alias) => placeNames.has(alias.name))
+        .flatMap((alias) => alias.mentions),
+    ]);
     for (const [name, variants] of placeNames)
-      if (name.length >= 2 && text.includes(name))
+      if (mentions.has(name))
         found.push({
           name,
           mapIds: variants.map((p) => p.id),
@@ -140,7 +170,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
     // Curated aliases are shared with task details. Keep the literal phrase
     // and phase ambiguity; these are text associations, not live locations.
     for (const alias of placeAliases) {
-      const mention = alias.mentions.find((phrase) => text.includes(phrase));
+      const mention = alias.mentions.find((phrase) => mentions.has(phrase));
       if (!mention || found.some((p) => p.name === alias.name) || !placeNames.has(alias.name)) continue;
       found.push({
         name: alias.name,
