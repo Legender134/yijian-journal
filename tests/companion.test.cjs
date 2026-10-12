@@ -5,7 +5,7 @@ const { EventEmitter } = require('node:events');
 const fs = require('node:fs'),
   os = require('node:os'),
   path = require('node:path');
-const { CompanionWindow, boundsFor } = require('../src/core/companion-window.cjs');
+const { CompanionWindow, boundsFor, edgeBounds } = require('../src/core/companion-window.cjs');
 const { validWindow } = require('../src/core/game-window.cjs');
 const { companionSnapshot } = require('../src/core/companion.cjs');
 const { Store, defaults } = require('../src/core/store.cjs');
@@ -16,7 +16,7 @@ const catalog = require('../src/data/catalog.cjs');
 const recipe = require('../src/data/game-index.json').entries.find(
   (e) => e.kind === '配方' && e.materials.every((m) => !m.alternatives),
 );
-function setup() {
+function setup({ layout } = {}) {
   const monitor = new EventEmitter();
   monitor.state = null;
   const actions = [];
@@ -61,6 +61,7 @@ function setup() {
     },
     settings: () => settings,
     quiet: () => quiet,
+    layout,
   });
   const set = (s) => {
     monitor.state = s;
@@ -82,6 +83,49 @@ function setup() {
     },
   };
 }
+test('manual companion geometry survives polling, passive mode and reopen while defaults remain selectable', async () => {
+  const { WindowLayout } = require('../src/core/window-layout.cjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-companion-layout-'));
+  try {
+    const layout = new WindowLayout(dir);
+    const f = setup({ layout });
+    f.set(game);
+    f.win.emit('ready-to-show');
+    f.controller.rendererReady();
+    f.controller.expand();
+    const chosen = { x: 125, y: 190, width: 590, height: 700 };
+    f.win.emit('will-move', {}, chosen);
+    f.win.setBounds(chosen);
+    // Monitoring during the native gesture must not snap the window back.
+    f.controller.update();
+    assert.deepEqual(f.win.getBounds(), chosen);
+    f.win.emit('moved');
+    for (let i = 0; i < 3; i++) f.set({ ...game, x: game.x + 100 * i });
+    assert.deepEqual(f.win.getBounds(), chosen);
+    await f.controller.collapse();
+    assert.equal(f.win.getBounds().width, 320);
+    assert.equal(f.win.getBounds().height, 112);
+    assert.deepEqual(new WindowLayout(dir).get('companion'), chosen);
+    f.controller.expand();
+    assert.deepEqual(f.win.getBounds(), chosen);
+    f.settings({ readingScale: 150 });
+    assert.deepEqual(f.win.getBounds(), chosen);
+    const reopened = setup({ layout: new WindowLayout(dir) });
+    reopened.set(game);
+    reopened.win.emit('ready-to-show');
+    reopened.controller.rendererReady();
+    reopened.controller.expand();
+    assert.deepEqual(reopened.win.getBounds(), chosen);
+    reopened.controller.resetLayout();
+    assert.equal(new WindowLayout(dir).get('companion'), null);
+    assert.deepEqual(
+      reopened.win.getBounds(),
+      boundsFor({ x: -960, y: 0, width: 960, height: 540 }, true, 'top-right'),
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 const game = {
   type: 'window',
   hwnd: '123',
@@ -93,6 +137,54 @@ const game = {
   width: 1920,
   height: 1080,
 };
+test('explicit edge tuck remains clickable without taking focus and restores the chosen layout', async () => {
+  const { WindowLayout } = require('../src/core/window-layout.cjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-companion-edge-'));
+  try {
+    const layout = new WindowLayout(dir);
+    const f = setup({ layout });
+    f.set(game);
+    f.win.emit('ready-to-show');
+    f.controller.rendererReady();
+    f.controller.expand();
+    const chosen = { x: 120, y: 160, width: 520, height: 620 };
+    f.win.emit('will-resize', {}, chosen);
+    f.win.setBounds(chosen);
+    f.win.emit('resized');
+    const focusCount = f.actions.filter((a) => a[0] === 'focus').length;
+    await f.controller.tuck();
+    assert.equal(f.controller.mode, 'tucked');
+    assert.equal(f.controller.status().edge, 'left');
+    assert.equal(f.win.getBounds().x, 0);
+    assert.equal(f.win.getBounds().width, 44);
+    assert.equal(f.win.getBounds().height, 88);
+    assert.equal(f.actions.filter((a) => a[0] === 'focus').length, focusCount);
+    assert.deepEqual(
+      f.actions.filter((a) => a[0] === 'restore'),
+      [['restore', '123']],
+    );
+    assert.deepEqual(f.actions.filter((a) => a[0] === 'focusable').at(-1), ['focusable', false]);
+    assert.deepEqual(f.actions.filter((a) => a[0] === 'ignore').at(-1), ['ignore', false]);
+    f.settings({ readingScale: 150 });
+    assert.equal(f.win.getBounds().width, 66);
+    assert.deepEqual(new WindowLayout(dir).get('companion'), chosen);
+    f.set({ ...game, gameForeground: false, ownForeground: false });
+    assert.equal(f.win.isVisible(), false);
+    assert.equal(f.controller.mode, 'tucked');
+    f.set(game);
+    assert.equal(f.win.isVisible(), true);
+    f.controller.expand();
+    assert.deepEqual(f.win.getBounds(), chosen);
+    assert.equal(f.controller.mode, 'expanded');
+    await f.controller.tuck();
+    f.quiet(true);
+    assert.equal(f.win.isVisible(), false);
+    f.quiet(false);
+    assert.equal(f.win.isVisible(), true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 test('passive hints are nonfocusable, click-through, DPI anchored and hidden outside gameplay', () => {
   const f = setup();
   f.set(game);
@@ -152,6 +244,17 @@ test('bounds stay inside negative-coordinate and small client rectangles; helper
           b.y + b.height <= rect.y + rect.height,
       );
     }
+  for (const rect of [
+    { x: -1920, y: -50, width: 1920, height: 1080 },
+    { x: -30, y: -20, width: 24, height: 48 },
+  ])
+    for (const scale of [1, 1.5])
+      for (const x of [rect.x - 400, rect.x + rect.width + 400]) {
+        const { bounds: b, side } = edgeBounds(rect, { x, y: -200, width: 400, height: 600 }, scale);
+        assert(b.x >= rect.x && b.x + b.width <= rect.x + rect.width);
+        assert(b.y >= rect.y && b.y + b.height <= rect.y + rect.height);
+        assert.equal(side, x < rect.x ? 'left' : 'right');
+      }
   assert(validWindow(game));
   for (const s of [
     { ...game, hwnd: '../x' },

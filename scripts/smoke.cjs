@@ -56,6 +56,7 @@ new Store(data, catalog).setPath('savePath', fakeSaves);
 const originalSave = fs.readFileSync(path.join(fakeSaves, '1.sav'));
 const errors = [];
 let app;
+let savedWindowLayouts;
 async function launch() {
   const env = { ...process.env, YIJIAN_TEST_DATA: data };
   delete env.ELECTRON_RUN_AS_NODE;
@@ -81,6 +82,9 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
   await native.dispose();
   await page.bringToFront();
   await page.waitForFunction(() => document.hasFocus());
+  // Keyboard focus keeps the preview intentional if the user's desktop pointer
+  // moves during the polling check. Hover and transfer are checked below too.
+  if (throughRefresh) await trigger.focus();
   await trigger.hover();
   const preview = page.locator('#entity-preview');
   await preview.waitFor({ state: 'visible' });
@@ -93,7 +97,7 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
     assert.equal(
       await entry.evaluate((el) => el.isConnected),
       true,
-      'unchanged polling retains the hovered entry',
+      'unchanged polling retains the focused entry',
     );
     assert.equal(await preview.isVisible(), true, 'preview survives the background refresh');
     assert.equal(await scrollContainer.evaluate((el) => el.scrollTop), scroll);
@@ -1329,6 +1333,7 @@ async function companionHomeInventorySync(page) {
     // and native identity boundaries are separately tested without any game access.
     await app.evaluate(({ BrowserWindow }) => {
       const w = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));
+      w.setMinimumSize(200, 90);
       w.setBounds({ ...w.getBounds(), width: 320, height: 112 });
       w.webContents.send('journal:companion', { mode: 'hint', visible: true });
     });
@@ -1346,12 +1351,13 @@ async function companionHomeInventorySync(page) {
     await quick.screenshot({ animations: 'disabled', path: path.join(results, '05-passive-hints.png') });
     await app.evaluate(({ BrowserWindow }) => {
       const w = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));
+      w.setMinimumSize(360, 360);
       w.setBounds({ ...w.getBounds(), width: 460, height: 660 });
       w.webContents.send('journal:companion', { mode: 'expanded', visible: true });
     });
     await quick.locator('.compact-shell').waitFor();
     await quick.waitForFunction(() => innerWidth >= 450 && innerHeight >= 640);
-    await quick.locator('[data-action="companion-collapse"]').click();
+    await quick.keyboard.press('Escape');
     assert.equal(
       await quick.evaluate(async () => (await window.journal.companionSnapshot()).data.mode),
       'hint',
@@ -1391,10 +1397,135 @@ async function companionHomeInventorySync(page) {
     await win.locator('#profile-select').selectOption({ label: '我的江湖' });
     await win.locator('[data-action="profile-switch"]').click();
     assert.equal(await win.locator('#note').inputValue(), '测试随手记：下次去青木舫。');
+    await win.locator('[data-action="compact"]').first().click();
+    const layoutCompanion = app.windows().find((page) => page !== win);
+    await layoutCompanion.waitForSelector('.compact-shell');
+    await layoutCompanion.evaluate(() =>
+      window.journal.mutate({ type: 'settings', value: { companionPosition: 'bottom-left' } }),
+    );
+    // Exercise native geometry + the manual-gesture event contract without
+    // controlling the desktop mouse or opening any actual game window.
+    savedWindowLayouts = await app.evaluate(({ BrowserWindow, screen }) => {
+      const area = screen.getPrimaryDisplay().workArea;
+      const main = BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().includes('compact=1'));
+      const companion = BrowserWindow.getAllWindows().find((w) => w !== main);
+      const chosen = {
+        x: area.x + 35,
+        y: area.y + 35,
+        width: Math.min(1024, area.width - 70),
+        height: Math.min(700, area.height - 70),
+      };
+      main.setBounds(chosen);
+      main.emit('moved');
+      const compact = {
+        x: area.x + 90,
+        y: area.y + 80,
+        width: 520,
+        height: Math.min(600, area.height - 100),
+      };
+      companion.emit('will-resize', {}, compact);
+      companion.setBounds(compact);
+      companion.emit('resized');
+      return { main: main.getBounds(), companion: companion.getBounds() };
+    });
+    await layoutCompanion.evaluate(async () => window.journal.companionSnapshot());
+    assert.equal(
+      await layoutCompanion.locator('[data-action="window-layout-reset"]').getAttribute('title'),
+      '恢复随行默认布局',
+    );
     await app.close();
     app = await launch();
     win = await attach();
     assert.equal(await win.locator('#note').inputValue(), '测试随手记：下次去青木舫。');
+    const reopenedMain = await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => !w.webContents.getURL().includes('compact=1'))
+        .getBounds(),
+    );
+    for (const key of ['x', 'y', 'width', 'height'])
+      assert(
+        Math.abs(reopenedMain[key] - savedWindowLayouts.main[key]) <= 1,
+        'main layout persisted: ' + key,
+      );
+    const restoredCompanionReady = app.waitForEvent('window');
+    await win.locator('[data-action="compact"]').first().click();
+    const restoredCompanion = await restoredCompanionReady;
+    await restoredCompanion.waitForSelector('.compact-shell');
+    const reopenedCompanion = await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.webContents.getURL().includes('compact=1'))
+        .getBounds(),
+    );
+    for (const key of ['x', 'y', 'width', 'height'])
+      assert(
+        Math.abs(reopenedCompanion[key] - savedWindowLayouts.companion[key]) <= 1,
+        'companion layout persisted: ' + key,
+      );
+    await restoredCompanion.locator('.flow-personal > summary').click();
+    const tuckedScroll = await restoredCompanion.locator('.compact-body').evaluate((body) => {
+      body.scrollTop = Math.min(180, body.scrollHeight - body.clientHeight);
+      return body.scrollTop;
+    });
+    await restoredCompanion.locator('[data-action="companion-tuck"]').click();
+    await restoredCompanion.locator('[data-action="companion-untuck"]').waitFor();
+    const edgeState = await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));
+      return { bounds: w.getBounds(), focusable: w.isFocusable(), resizable: w.isResizable() };
+    });
+    assert(Math.abs(edgeState.bounds.width - 44) <= 1);
+    assert(Math.abs(edgeState.bounds.height - 88) <= 1);
+    assert.equal(edgeState.focusable, false);
+    assert.equal(edgeState.resizable, false);
+    await restoredCompanion.screenshot({ path: path.join(results, '05-companion-edge.png') });
+    await restoredCompanion.locator('[data-action="companion-untuck"]').click();
+    await restoredCompanion.locator('.compact-shell').waitFor();
+    const untuckedBounds = await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.webContents.getURL().includes('compact=1'))
+        .getBounds(),
+    );
+    for (const key of ['x', 'y', 'width', 'height'])
+      assert(Math.abs(untuckedBounds[key] - savedWindowLayouts.companion[key]) <= 1, 'edge restore: ' + key);
+    assert.equal(await restoredCompanion.locator('.flow-personal').evaluate((detail) => detail.open), true);
+    assert(
+      Math.abs(
+        (await restoredCompanion.locator('.compact-body').evaluate((body) => body.scrollTop)) - tuckedScroll,
+      ) <= 2,
+      'edge restore keeps the reading position within native DPI rounding',
+    );
+    await restoredCompanion.locator('[data-action="window-layout-reset"]').click();
+    await restoredCompanion.waitForFunction(
+      () => !document.querySelector('[data-action="window-layout-reset"]')?.disabled,
+    );
+    assert.equal(JSON.parse(fs.readFileSync(path.join(data, 'window-layout.json'))).companion, undefined);
+    assert.equal(
+      (await restoredCompanion.evaluate(async () => (await window.journal.bootstrap()).data)).state.settings
+        .companionPosition,
+      'top-right',
+    );
+    const resetCompanion = await app.evaluate(({ BrowserWindow, screen }) => ({
+      bounds: BrowserWindow.getAllWindows()
+        .find((w) => w.webContents.getURL().includes('compact=1'))
+        .getBounds(),
+      area: screen.getPrimaryDisplay().workArea,
+    }));
+    assert.equal(resetCompanion.bounds.width, 460);
+    assert.equal(resetCompanion.bounds.height, 660);
+    assert(
+      Math.abs(resetCompanion.bounds.x - (resetCompanion.area.x + resetCompanion.area.width - 472)) <= 1,
+    );
+    assert(Math.abs(resetCompanion.bounds.y - (resetCompanion.area.y + 12)) <= 1);
+    await restoredCompanion.keyboard.press('Escape');
+    await win.locator('.nav-btn[data-id="settings"]').click();
+    await win.locator('[data-action="window-layout-reset"]').click();
+    const resetMain = await app.evaluate(({ BrowserWindow, screen }) => ({
+      bounds: BrowserWindow.getAllWindows()
+        .find((w) => !w.webContents.getURL().includes('compact=1'))
+        .getBounds(),
+      area: screen.getPrimaryDisplay().workArea,
+    }));
+    assert(Math.abs(resetMain.bounds.width - Math.min(1340, resetMain.area.width)) <= 1);
+    assert(Math.abs(resetMain.bounds.height - Math.min(880, resetMain.area.height)) <= 1);
     await win.locator('.nav-btn[data-id="goals"]').click();
     assert.ok(
       (await win.locator('.goal-row').allInnerTexts()).some((s) => s.includes('<script>你好</script>')),

@@ -2,6 +2,13 @@
 // Community challenge and dialogue facts, with versioned sources.
 module.exports = {
   sources: {
+    npc057Pingkang: {
+      title: '全DLC流程攻略 V7：平康城与平康之行',
+      author: 'Ventulus；注明整理自满满REX与语文大师路线',
+      url: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3552565492',
+      date: '2025-08-20',
+      version: '全DLC V7路线，具体游戏构建未标；一份整理稿，不计作多位独立作者',
+    },
     npc051Early: {
       title: '全图鉴全成就流程：梧桐村',
       author: '力拔山兮气盖世呐',
@@ -459,6 +466,111 @@ module.exports = {
       uncertainty:
         '切磋和请教有境界/好感门槛；不能因拥有金剑就推断能打江吟风。旧文称交酒前互动，洞内临时入队又是另一途径；未硬写永久截止。',
       sourceIds: ['npc051Early', 'npc051Collect', 'npc051GoldClue', 'wikiJiang'],
+    },
+    {
+      id: 'npc057-zhanglao',
+      npcId: 10219,
+      name: '郎中-张老',
+      place: '平康城药铺；找乞丐买酒肉时可顺路核对',
+      level: 5,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5242, 5246, 5275],
+      rewards: [
+        {
+          name: '下品血灵丹丹方',
+          itemId: 100300,
+          method: '切磋私物',
+          condition: '官方ItemList模板为1份；丹方对应药物永久提升气血上限10点，先观察当前私物',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '模板等级5；比武前穿好当前装备并恢复气血、真气，先观察张老当前实力与丹方。',
+      recommendation: {
+        action: '经过药铺时优先观察张老；还没学会下品血灵丹、有炼丹需求且能战胜时再切磋。',
+        reason: '本地低阶丹方线索，能增加永久气血丹药的制作途径，避免先跑远路挑战高阶人物。',
+        tradeoff: '取得丹方之后仍需学会、材料和炼丹条件；不保证首胜，已学会或不准备炼丹可跳过。',
+      },
+      uncertainty:
+        '社区路线与官方初始私物一致；不代表当前仍持有或已满足比武条件，也没有证明推进主线后永久消失。',
+      sourceIds: ['npc057Pingkang'],
+    },
+    {
+      id: 'npc057-ehan',
+      npcId: 10240,
+      name: '恶汉',
+      place: '平康城客栈内；购买张记烧鸡、琼华泉时顺路观察',
+      level: 25,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5242, 5246, 5275],
+      rewards: [
+        {
+          name: '虬龙拳套精良图纸',
+          itemId: 100032,
+          method: '切磋私物',
+          condition: '官方ItemList模板为1份；七品上拳套的精良图纸，先观察当前私物',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '模板等级25，三项拳法模板等级8、8、5；穿好防具、恢复状态，再核对自身武学与游戏难度。',
+      recommendation: {
+        action: '拳掌流买酒肉经过客栈时，先查图纸与制作条件，再决定是否挑战恶汉。',
+        reason: '同一地点兼顾主线采购与拳套制作路线，可以减少另找装备来源的往返。',
+        tradeoff: '不是买酒肉的必做战斗；非拳掌流、已学图纸或当前打不过可继续主线。',
+      },
+      uncertainty: '社区在平康支线路线列出该切磋收益；不是幻紫任务奖励，不保证当前私物或首胜掉落。',
+      sourceIds: ['npc057Pingkang'],
+    },
+    {
+      id: 'npc057-zhangbu',
+      npcId: 10249,
+      name: '张捕快',
+      place: '平康城衙门；灭门之案调查路线顺路回访',
+      level: 45,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5242, 5246, 5275],
+      rewards: [
+        {
+          name: '银花镖精良图纸',
+          itemId: 100042,
+          method: '切磋私物',
+          condition: '官方ItemList模板为1份；七品上暗器的精良图纸，先观察当前私物',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '模板等级45；先完成现阶段武学与防具准备，观察招式后再挑战，不能单凭主线阶段判断打得过。',
+      recommendation: {
+        action: '暗器流调查灭门之案时先观察张捕快，实力足够且需要图纸再切磋。',
+        reason: '把调查任务与同地点的暗器图纸线索放在一起，方便后续制作。',
+        tradeoff: '切磋独立于调查交付；可先接任务，不必为图纸卡住流程。',
+      },
+      uncertainty: '作者将切磋放在调查回访段，不证明调查完成是硬前置；先核对人物是否在场与比武菜单。',
+      sourceIds: ['npc057Pingkang'],
+    },
+    {
+      id: 'npc057-libu',
+      npcId: 10250,
+      name: '李捕快',
+      place: '平康城衙门；灭门之案交付与调查回访处',
+      level: 45,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5242, 5246, 5275],
+      rewards: [
+        {
+          name: '紫铜刀精良图纸',
+          itemId: 100012,
+          method: '切磋私物',
+          condition: '官方ItemList模板为1份；七品上刀的精良图纸，先观察当前私物',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '模板等级45；先配好武学、防具并恢复状态，核对当前难度，打不过可先完成其他任务。',
+      recommendation: {
+        action: '刀法流到衙门交任务时，观察李捕快是否持有紫铜刀精良图纸，再量力挑战。',
+        reason: '提供可定位的七品刀制作路线，和张捕快的暗器图纸区分，按自己的流派选择。',
+        tradeoff: '切磋不是任务固定奖励；已有图纸或不走刀法时无需反复刷取。',
+      },
+      uncertainty: '作者在调查回访段列出该线索，未证实硬性前置或永久截止；当前人物、好感和私物仍须观察。',
+      sourceIds: ['npc057Pingkang'],
     },
     {
       id: 'npc051-daowei',

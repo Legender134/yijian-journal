@@ -81,6 +81,44 @@ test('challenge candidates require a recognized stage and do not turn unknown co
 });
 
 const projectCurated = createDuelProjector({ guide: curatedGuide, world, game });
+test('Pingkang guidance puts local medicine and equipment recipe leads ahead of distant masters', () => {
+  const facts = require('../src/data/npc-facts.json');
+  const expected = [
+    ['npc057-zhanglao', 10219, 5, 100300, '下品血灵丹丹方'],
+    ['npc057-ehan', 10240, 25, 100032, '虬龙拳套精良图纸'],
+    ['npc057-zhangbu', 10249, 45, 100042, '银花镖精良图纸'],
+    ['npc057-libu', 10250, 45, 100012, '紫铜刀精良图纸'],
+  ];
+  for (const mainQuestId of [5242, 5246, 5275]) {
+    const result = projectCurated({ available: true, states: [], mainQuestId });
+    assert.deepEqual(
+      result.candidates.slice(0, 4).map((row) => row.id),
+      expected.map((row) => row[0]),
+    );
+    for (const [id, npcId, level, itemId, name] of expected) {
+      const row = result.candidates.find((entry) => entry.id === id);
+      assert.equal(row.personId, `npc-${npcId}`);
+      assert.equal(row.level, level);
+      assert.equal(facts.people[npcId].level, level);
+      assert(facts.people[npcId].fixedItems.some((item) => item.id === itemId && item.count === 1));
+      assert.deepEqual(
+        row.rewards.map((reward) => [reward.itemId, reward.name]),
+        [[itemId, name]],
+      );
+      assert.equal(game.entries.find((entry) => entry.id === `item-${itemId}`).name, name);
+      assert.match(row.place, /平康城/);
+      assert.match(row.rewards[0].probability, /随机.*不保证首胜.*概率未知/);
+      assert.equal(row.sources[0].url, 'https://steamcommunity.com/sharedfiles/filedetails/?id=3552565492');
+      assert.ok(row.recommendation.action && row.recommendation.reason && row.recommendation.tradeoff);
+    }
+  }
+  for (const mainQuestId of [undefined, 5062, 5780])
+    assert(
+      !projectCurated({ available: true, states: [], mainQuestId }).candidates.some((row) =>
+        row.id.startsWith('npc057-'),
+      ),
+    );
+});
 test('Sunlao and Qinlie recipe leads preserve private-possession probability, exact items and distinct windows', () => {
   const project = (mainQuestId, states, available = true) =>
     projectCurated({ mainQuestId, states, available });

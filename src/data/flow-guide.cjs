@@ -1356,8 +1356,9 @@ module.exports = {
       questId: null,
       chapterRoots: [5755, 5780],
       afterAllComplete: [],
-      untilAnyStarted: [],
-      deadlineLabel: '天水祝寿相关剧情继续推进之前',
+      untilAnyStarted: [5801, 5803, 5806, 5810],
+      untilAnyComplete: [5790],
+      deadlineLabel: '寿宴入席前的可选路线',
       pickup: {
         place: '无名岛卧房与下棋处',
         person: '莫问；冷无情',
@@ -1368,7 +1369,7 @@ module.exports = {
       choices: [],
       sourceIds: ['gs36'],
       uncertainty:
-        '没有可靠的独立任务记录或精确失效步骤；只提示可选剧情，不据此判定已经看过、永久错过或结局改变。',
+        '入席完成或出现宴后追击记录后收起当前建议，仍可在全部攻略回看。没有可靠的独立任务记录或精确失效步骤，不据此判定已经看过、永久错过或结局改变。',
     },
     {
       id: 'qin-score-window',

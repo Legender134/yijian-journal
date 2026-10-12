@@ -1,4 +1,5 @@
 'use strict';
+const { fitBounds, applyBounds } = require('./window-layout.cjs');
 const POSITIONS = ['top-right', 'bottom-right', 'top-left', 'bottom-left'];
 function preferences(settings = {}) {
   return {
@@ -19,9 +20,27 @@ function boundsFor(rect, expanded, position, scale = 1) {
     height: Math.round(height),
   };
 }
+function edgeBounds(rect, anchor, scale = 1) {
+  const width = Math.min(Math.round(44 * scale), rect.width);
+  const height = Math.min(Math.round(88 * scale), rect.height);
+  const side = anchor.x + anchor.width / 2 < rect.x + rect.width / 2 ? 'left' : 'right';
+  return {
+    side,
+    bounds: fitBounds(
+      {
+        x: side === 'left' ? rect.x : rect.x + rect.width - width,
+        y: anchor.y + (anchor.height - height) / 2,
+        width,
+        height,
+      },
+      rect,
+      { width, height },
+    ),
+  };
+}
 class CompanionWindow {
-  constructor({ create, monitor, screen, settings, quiet, changed, test = false }) {
-    Object.assign(this, { create, monitor, screen, settings, quiet, changed, test });
+  constructor({ create, monitor, screen, settings, quiet, changed, layout, layoutError, test = false }) {
+    Object.assign(this, { create, monitor, screen, settings, quiet, changed, layout, layoutError, test });
     this.mode = 'hint';
     this.window = null;
     this.ready = false;
@@ -53,7 +72,31 @@ class CompanionWindow {
     win.on('blur', () => {
       if (!this.monitor?.state) this.update();
     });
+    for (const event of ['will-move', 'will-resize'])
+      win.on(event, (_event, rect) => {
+        if (this.mode !== 'expanded') return;
+        this.manualChange = true;
+        this.layout?.remember('companion', rect);
+      });
+    for (const event of ['moved', 'resized']) win.on(event, () => this.rememberLayout());
+    win.on('close', () => this.rememberLayout());
     return win;
+  }
+  rememberLayout() {
+    if (!this.manualChange || this.mode !== 'expanded' || this.window?.isDestroyed()) return;
+    this.manualChange = false;
+    this.layout?.remember('companion', this.window.getBounds());
+    try {
+      this.layout?.save();
+    } catch (error) {
+      this.layoutError?.(error);
+    }
+    this.update();
+  }
+  resetLayout() {
+    this.manualChange = false;
+    this.layout?.reset('companion');
+    this.update();
   }
   rendererReady() {
     this.uiReady = true;
@@ -67,6 +110,7 @@ class CompanionWindow {
       preferences: preferences(this.settings()),
       tracking: !!this.monitor?.state,
       windowError: this.monitor?.error || '',
+      edge: this.mode === 'tucked' ? this.edgeSide : null,
     };
   }
   publish() {
@@ -99,12 +143,25 @@ class CompanionWindow {
     this.update();
   }
   async collapse(restore = true) {
+    this.rememberLayout();
     const hwnd = this.returnHwnd;
     // Restore before disabling focus; the native helper checks the foreground again.
     if (hwnd && restore) await this.monitor?.restore(hwnd);
     this.returnHwnd = null;
     this.wantFocus = false;
     this.mode = 'hint';
+    this.update();
+    return false;
+  }
+  async tuck() {
+    if (this.mode !== 'expanded') return false;
+    this.rememberLayout();
+    this.tuckedFrom = this.window.getBounds();
+    const hwnd = this.returnHwnd;
+    if (hwnd) await this.monitor?.restore(hwnd);
+    this.returnHwnd = null;
+    this.wantFocus = false;
+    this.mode = 'tucked';
     this.update();
     return false;
   }
@@ -122,7 +179,9 @@ class CompanionWindow {
           (!s && this.window?.isFocused?.()) ||
           Date.now() <= this.grace ||
           (this.wantFocus && s?.gameForeground)
-        : p.enabled && s?.gameForeground && !this.quiet();
+        : this.mode === 'tucked'
+          ? !this.quiet() && (this.test || !s?.available || s.gameForeground || s.ownForeground)
+          : p.enabled && s?.gameForeground && !this.quiet();
     this.visible = !!visible;
     if (!visible) {
       this.wantFocus = false;
@@ -133,21 +192,43 @@ class CompanionWindow {
     const win = this.ensure();
     if (!this.ready) return;
     const expanded = this.mode === 'expanded';
+    const tucked = this.mode === 'tucked';
     const physical = s?.available && { x: s.x, y: s.y, width: s.width, height: s.height };
     const rect = physical
       ? this.screen.screenToDipRect(null, physical)
       : this.screen.getPrimaryDisplay().workArea;
-    const next = boundsFor(rect, expanded, p.position, (this.settings().readingScale || 100) / 100);
+    const scale = (this.settings().readingScale || 100) / 100;
+    const custom = this.layout?.get('companion');
+    const customArea =
+      custom && (this.screen.getDisplayMatching?.(custom) || this.screen.getPrimaryDisplay()).workArea;
+    const edge =
+      tucked && edgeBounds(customArea || rect, this.tuckedFrom || custom || win.getBounds(), scale);
+    if (edge) this.edgeSide = edge.side;
+    const next = edge
+      ? edge.bounds
+      : custom
+        ? fitBounds(
+            expanded ? custom : { ...custom, width: 320 * scale, height: 112 * scale },
+            customArea,
+            expanded ? { width: 360, height: 360 } : { width: 200, height: 90 },
+          )
+        : boundsFor(rect, expanded, p.position, scale);
     const previous = win.getBounds();
-    // Windows fractional scaling can round a native boundary by one DIP.
-    if (Object.keys(next).some((k) => Math.abs(next[k] - previous[k]) > 1)) win.setBounds(next);
-    const config = `${expanded}:${p.opacity}`;
+    const minWidth = Math.min(expanded ? 360 : tucked ? 32 : 200, next.width);
+    const minHeight = Math.min(expanded ? 360 : tucked ? 64 : 90, next.height);
+    const config = `${this.mode}:${p.opacity}:${minWidth}:${minHeight}`;
     if (this.lastConfig !== config) {
       this.lastConfig = config;
+      win.setMinimumSize?.(minWidth, minHeight);
+      win.setResizable?.(expanded);
       win.setFocusable(expanded);
-      win.setIgnoreMouseEvents(!expanded);
-      win.setOpacity(expanded ? 1 : p.opacity);
+      win.setIgnoreMouseEvents(!expanded && !tucked);
+      win.setOpacity(expanded || tucked ? 1 : p.opacity);
     }
+    // Windows fractional scaling can round a native boundary by one DIP.
+    // Lower the minimum before shrinking to passive hints.
+    if (!this.manualChange && Object.keys(next).some((k) => Math.abs(next[k] - previous[k]) > 1))
+      applyBounds(win, next);
     if (!win.isVisible()) win.showInactive();
     if (expanded && this.wantFocus) {
       this.wantFocus = false;
@@ -158,7 +239,8 @@ class CompanionWindow {
     this.publish();
   }
   dispose() {
+    this.rememberLayout();
     this.monitor?.dispose();
   }
 }
-module.exports = { CompanionWindow, preferences, boundsFor, POSITIONS };
+module.exports = { CompanionWindow, preferences, boundsFor, edgeBounds, POSITIONS };

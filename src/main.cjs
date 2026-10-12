@@ -70,11 +70,12 @@ const { Activity } = require('./core/activity.cjs');
 const { availableInventory } = require('./core/reservations.cjs');
 const { GameWindow } = require('./core/game-window.cjs');
 const { CompanionWindow } = require('./core/companion-window.cjs');
+const { WindowLayout, fitBounds, applyBounds } = require('./core/window-layout.cjs');
 const { QuitHandoff } = require('./core/quit-handoff.cjs');
 const quitHandoff = new QuitHandoff();
 const { companionSnapshot } = require('./core/companion.cjs');
 const { flowSnapshot } = require('./core/flow.cjs');
-let companion, windowMonitor;
+let companion, windowMonitor, windowLayout;
 let protectionArchives,
   protectionJobPromise = null;
 async function protectionJob(label, work) {
@@ -418,11 +419,23 @@ function broadcast(channel, data) {
   }
 }
 function makeWindow(compact = false) {
+  const savedLayout = !compact && windowLayout?.get('main');
+  const display = savedLayout ? screen.getDisplayMatching(savedLayout) : screen.getPrimaryDisplay();
+  const area = display.workArea;
+  const initial = fitBounds(
+    savedLayout || {
+      x: area.x + Math.round((area.width - Math.min(1340, area.width)) / 2),
+      y: area.y + Math.round((area.height - Math.min(880, area.height)) / 2),
+      width: 1340,
+      height: 880,
+    },
+    area,
+    { width: 760, height: 520 },
+  );
   const win = new BrowserWindow({
-    width: compact ? 460 : 1340,
-    height: compact ? 660 : 880,
-    minWidth: compact ? 200 : 980,
-    minHeight: compact ? 90 : 660,
+    ...(!compact ? initial : { width: 460, height: 660 }),
+    minWidth: compact ? 200 : Math.min(760, area.width),
+    minHeight: compact ? 90 : Math.min(520, area.height),
     frame: false,
     show: false,
     title: compact ? '逸剑手札 · 随行' : '逸剑手札',
@@ -430,7 +443,7 @@ function makeWindow(compact = false) {
     icon: path.join(__dirname, 'assets', 'icon.png'),
     autoHideMenuBar: true,
     skipTaskbar: compact,
-    resizable: !compact,
+    resizable: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -441,6 +454,18 @@ function makeWindow(compact = false) {
     },
   });
   win.setMenu(null);
+  if (!compact) {
+    const remember = () => {
+      if (win.isDestroyed() || win.isMinimized()) return;
+      windowLayout.remember('main', win.getNormalBounds(), win.isMaximized());
+      try {
+        windowLayout.save();
+      } catch (error) {
+        resultFeedback('error', '窗口布局暂未保存：' + error.message);
+      }
+    };
+    for (const event of ['moved', 'resized', 'maximize', 'unmaximize', 'close']) win.on(event, remember);
+  }
   if (!compact)
     win.on('close', (event) => {
       if (tray && !quitGranted) {
@@ -479,6 +504,8 @@ function makeWindow(compact = false) {
     win.setIgnoreMouseEvents(true);
   }
   win.once('ready-to-show', () => {
+    if (!compact) applyBounds(win, initial);
+    if (!compact && savedLayout?.maximized) win.maximize();
     if (!compact && (!isTest || !process.env.YIJIAN_TEST_HIDDEN)) win.show();
   });
   return win;
@@ -813,6 +840,7 @@ app.whenReady().then(async () => {
         '本机手札已重新建立，损坏原件另存保留。请在设置中重新确认本机存档目录；原生时间线需另外明确开启。';
     }
     recoveredIsolation = journalRecoveryIsolation(app.getPath('userData'));
+    windowLayout = new WindowLayout(app.getPath('userData'));
     activity = new Activity(app.getPath('userData'));
     saves = new Saves(path.join(app.getPath('userData'), 'save-backups'));
     protectionArchives = new ProtectionArchives(app.getPath('userData'), () => store.get().settings.savePath);
@@ -1004,6 +1032,8 @@ app.whenReady().then(async () => {
         saves.details(store.get().settings.savePath, command.saveSlot);
       const previousAutoBackup = store.get().settings.autoBackup;
       const state = store.mutate(intentDraftCommit || command, trustedContext);
+      if (command?.type === 'settings' && Object.hasOwn(command.value || {}, 'companionPosition'))
+        companion?.resetLayout();
       if (state.settings.autoBackup !== previousAutoBackup) {
         autoBackup?.reset();
         if (state.settings.autoBackup) autoBackup?.check();
@@ -1860,7 +1890,7 @@ app.whenReady().then(async () => {
     });
     handle('launch-game', launchGame);
     handle('compact', () => toggleCompact());
-    handle('window', (event, action) => {
+    handle('window', async (event, action) => {
       const w = owner(event);
       if (action === 'minimize') w.minimize();
       else if (action === 'maximize') w.isMaximized() ? w.unmaximize() : w.maximize();
@@ -1868,8 +1898,38 @@ app.whenReady().then(async () => {
       else if (action === 'main') {
         if (w === companion.window) companion.collapse(false);
         showMain();
+      } else if (action === 'tuck' || action === 'untuck') {
+        if (w !== companion.window) throw Error('只可收放随行面板');
+        if (action === 'tuck') {
+          releaseTimelinePreview(event.sender.id);
+          await companion.tuck();
+        } else if (companion.mode === 'tucked') companion.expand();
       } else if (action === 'quit') requestQuit();
-      else throw new Error('窗口操作无效');
+      else if (action === 'reset-layout') {
+        if (w === companion.window) {
+          const state = store.mutate({ type: 'settings', value: { companionPosition: 'top-right' } });
+          companion.resetLayout();
+          broadcast('state', state);
+        } else {
+          if (w.isMaximized()) w.unmaximize();
+          windowLayout.reset('main');
+          const area = screen.getPrimaryDisplay().workArea;
+          w.setMinimumSize(Math.min(760, area.width), Math.min(520, area.height));
+          applyBounds(
+            w,
+            fitBounds(
+              {
+                x: area.x + Math.round((area.width - Math.min(1340, area.width)) / 2),
+                y: area.y + Math.round((area.height - Math.min(880, area.height)) / 2),
+                width: 1340,
+                height: 880,
+              },
+              area,
+              { width: 760, height: 520 },
+            ),
+          );
+        }
+      } else throw new Error('窗口操作无效');
       return true;
     });
     windowMonitor = new GameWindow(
@@ -1885,9 +1945,22 @@ app.whenReady().then(async () => {
       monitor: windowMonitor,
       screen,
       settings: () => store.get().settings,
+      layout: windowLayout,
+      layoutError: (error) => resultFeedback('error', '随行布局暂未保存：' + error.message),
       test: isTest,
       quiet: () => bridge.hintQuiet(),
     });
+    const fitWindows = () => {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isMaximized()) {
+        const current = mainWindow.getNormalBounds();
+        const area = screen.getDisplayMatching(current).workArea;
+        mainWindow.setMinimumSize(Math.min(760, area.width), Math.min(520, area.height));
+        applyBounds(mainWindow, fitBounds(current, area, { width: 760, height: 520 }));
+      }
+      companion.update();
+    };
+    screen.on('display-removed', fitWindows);
+    screen.on('display-metrics-changed', fitWindows);
     showMain();
     startupRecoveryActive = false;
     if (!isTest) windowMonitor.start();

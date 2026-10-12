@@ -23,7 +23,11 @@ function readInventory(data, start) {
       const id = i32(),
         quantity = i32();
       if (id < 0 || id > 10000000 || quantity < 0 || quantity > 100000000) return null;
-      for (let group = 0; group < 3; group++) {
+      // The native item serializer writes a uint32 bool before TWO action
+      // arrays. Treating this bool as a third array only worked while it was 0.
+      const itemFlag = i32();
+      if (itemFlag !== 0 && itemFlag !== 1) return null;
+      for (let group = 0; group < 2; group++) {
         const actions = i32();
         if (actions < 0 || actions > 1000) return null;
         for (let j = 0; j < actions; j++) {
