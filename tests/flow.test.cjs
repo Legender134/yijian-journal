@@ -20,6 +20,211 @@ const ref = (quests, extra = {}, name = 'Synthetic.sav') => ({
   metadata: { quests, inventory: [], ...extra },
 });
 
+function lateSavedReference(quests, main = 24020, tracked = 24089) {
+  const bytes = syntheticSave({ full: true, quests, trackingMainQuest: main, trackingQuest: tracked });
+  const before = Buffer.from(bytes);
+  const metadata = enrich(readMetadata(bytes, { details: true }));
+  assert.deepEqual(bytes, before, 'guidance reads synthetic saves without modifying them');
+  return ref(metadata.quests, metadata);
+}
+
+test('late appointment or progression retires the earlier commitment instruction, retaining reference only', () => {
+  for (const id of [24011, 24012, 24013, 24014, 24015, 24016]) {
+    for (const step of [1, 4]) {
+      const reference = lateSavedReference(
+        [
+          { id: 24000, step: 1 },
+          { id, step },
+        ],
+        24000,
+        id,
+      );
+      const flow = flowSnapshot(profile(), reference);
+      for (const channel of ['warnings', 'decisions', 'advice', 'changes', 'opportunities'])
+        assert(!flow[channel].some((row) => row.id === 'ending-commitment'), `${id}:${step}:${channel}`);
+      assert(flow.guide.some((row) => row.id === 'ending-commitment' && row.deadlineReached));
+    }
+  }
+  for (const records of [
+    [{ id: 22000, step: 1 }],
+    [{ id: 22100, step: 1 }],
+    [{ id: 22170, step: 1 }],
+    [{ id: 24000, step: 1 }],
+    [
+      { id: 24000, step: 4 },
+      { id: 24011, step: 4 },
+      { id: 24020, step: 1 },
+      { id: 24089, step: 1 },
+    ],
+    [
+      { id: 24000, step: 4 },
+      { id: 24013, step: 4 },
+      { id: 24020, step: 1 },
+      { id: 24089, step: 1 },
+    ],
+    [
+      { id: 24020, step: 1 },
+      { id: 24089, step: 1 },
+    ],
+    [
+      { id: 22000, step: 1 },
+      { id: 24000, step: 4 },
+    ],
+  ]) {
+    const reference = lateSavedReference(
+      records,
+      records.length === 1 ? records[0].id : records[0].id === 22000 ? 22000 : 24020,
+    );
+    const flow = flowSnapshot(profile(), reference);
+    assert.equal(
+      flow.decisions.some((row) => row.id === 'ending-commitment'),
+      false,
+    );
+    assert.equal(
+      flow.warnings.some((row) => row.id === 'ending-commitment'),
+      false,
+    );
+    assert.equal(
+      flow.opportunities.some((row) => row.id === 'ending-commitment'),
+      false,
+    );
+    assert(flow.guide.some((row) => row.id === 'ending-commitment'));
+  }
+  const early = flowSnapshot(profile(), lateSavedReference([{ id: 20000, step: 1 }], 20000, 20004));
+  assert(early.warnings.some((row) => row.id === 'ending-commitment'));
+  assert(
+    !early.decisions.some((row) => row.id === 'ending-commitment'),
+    'initial hidden dialog is not invented',
+  );
+});
+
+test('Ouyang request has its own timely reconstruction recommendation and named tradeoffs', () => {
+  for (const id of [24062, 24069]) {
+    for (const step of [1, 4]) {
+      const reference = lateSavedReference(
+        [
+          { id: 24020, step: 1 },
+          { id, step },
+        ],
+        24020,
+        id,
+      );
+      const flow = flowSnapshot(profile(), reference);
+      const choice = flow.decisions.find((row) => row.id === 'tianji-rebuild-choice');
+      assert(choice, `${id}:${step}`);
+      assert.match(choice.recommendation.action, /先另存.*游戏提供.*重建天机宫.*任务栏/);
+      assert.match(choice.recommendation.reason, /两位独立作者.*贪狼枪法.*天机再现.*商颂/);
+      assert.match(choice.recommendation.tradeoff, /不能.*同一份.*另一份.*掌门承诺.*不能保证/);
+      assert.match(choice.pickup.place, /峋谷关.*换衣后/);
+      assert.match(choice.pickup.person, /欧阳衡.*叶飞/);
+      assert.match(choice.warning, /重建与回绝.*天机宫收集.*商颂后续.*保存选答/);
+      assert.equal(choice.sources.length, 2);
+      assert(choice.sources.every((row) => row.date && row.version && row.url));
+      assert.match(choice.affectedTasks[0].name, /重建天机宫.*天机再现.*贪狼枪法/);
+      assert.match(choice.affectedTasks[1].name, /玄火教.*商颂/);
+      assert.match(choice.uncertainty, /未保存.*不能识别.*初次掌门承诺.*当前游戏/);
+      assert(!flow.warnings.some((row) => row.id === 'ending-commitment'));
+      const companion = companionSnapshot(defaults(), catalog, reference);
+      assert.equal(companion.hints[0].type, 'flow-choice');
+      assert.match(companion.hints[0].title, /欧阳衡.*重建/);
+    }
+  }
+});
+
+test('reconstruction choice stays absent before request, after saved answers, and outside its reference', () => {
+  const root = [{ id: 24020, step: 1 }];
+  for (const records of [root, root.concat({ id: 24025, step: 1 }), [{ id: 24000, step: 1 }]])
+    assert(
+      !flowSnapshot(profile(), lateSavedReference(records, records[0].id)).decisions.some(
+        (row) => row.id === 'tianji-rebuild-choice',
+      ),
+    );
+  for (const outcome of [24063, 24064, 24065, 24066, 24067, 24068, 24070, 24071, 24072, 24073, 24074]) {
+    const reference = lateSavedReference(root.concat({ id: 24062, step: 4 }, { id: outcome, step: 4 }));
+    assert(
+      !flowSnapshot(profile(), reference).decisions.some((row) => row.id === 'tianji-rebuild-choice'),
+      String(outcome),
+    );
+  }
+  for (const outcome of [
+    { id: 24088, step: 1 },
+    { id: 24089, step: 1 },
+    { id: 24020, step: 4 },
+    { id: 24020, step: 2 },
+  ]) {
+    const reference = lateSavedReference([
+      { id: 24062, step: 4 },
+      ...root.filter((row) => row.id !== outcome.id),
+      outcome,
+    ]);
+    assert(!flowSnapshot(profile(), reference).decisions.some((row) => row.id === 'tianji-rebuild-choice'));
+  }
+  const reference = lateSavedReference(root.concat({ id: 24062, step: 1 }));
+  for (const scoped of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: 'Foreign.sav' }),
+  ])
+    assert(!flowSnapshot(scoped, reference).decisions.some((row) => row.id === 'tianji-rebuild-choice'));
+});
+
+test('saved reconstruction answers switch to branch-specific followup without inventing reward possession', () => {
+  for (const [step, accepted] of [
+    [24064, true],
+    [24071, true],
+    [24067, false],
+    [24074, false],
+  ]) {
+    const reference = lateSavedReference([
+      { id: 24020, step: 1 },
+      { id: 24062, step: 4 },
+      { id: step, step: 4 },
+      { id: 24089, step: 1 },
+    ]);
+    assert(reference.metadata.questStates.some((row) => row.id === step && row.step === 4));
+    assert(
+      !reference.metadata.quests.some((row) => row.id === step),
+      'hidden result remains outside named quest display',
+    );
+    const flow = flowSnapshot(profile(), reference);
+    const advice = flow.advice.filter((row) => row.id.startsWith('tianji-rebuild-saved-'));
+    assert.equal(advice.length, 1, String(step));
+    assert.equal(advice[0].id, `tianji-rebuild-saved-${step}`);
+    assert.match(
+      advice[0].recommendation.action,
+      accepted
+        ? /同意已经保存.*核对贪狼枪法.*不把同意当作商颂已获救/
+        : /回绝已经保存.*当前任务栏.*选择前的另一份记录/,
+    );
+    assert.match(advice[0].recommendation.tradeoff, /版本.*隐藏前置.*回读.*放弃.*不能同次兼得/);
+    assert.equal(advice[0].sources.length, 2);
+    assert.equal(
+      flow.decisions.some((row) => row.id === 'tianji-rebuild-choice'),
+      false,
+    );
+    assert.equal(
+      flow.warnings.some((row) => row.id === 'ending-commitment'),
+      false,
+    );
+    for (const state of [2, 4]) {
+      const closed = lateSavedReference([
+        { id: 24020, step: state },
+        { id: step, step: 4 },
+      ]);
+      assert(
+        !flowSnapshot(profile(), closed).advice.some((row) => row.id.startsWith('tianji-rebuild-saved-')),
+      );
+    }
+    const unknown = lateSavedReference([
+      { id: 24020, step: 1 },
+      { id: step, step: 1 },
+    ]);
+    assert(
+      !flowSnapshot(profile(), unknown).advice.some((row) => row.id.startsWith('tianji-rebuild-saved-')),
+      'active hidden result is not treated as completed',
+    );
+  }
+});
+
 test('Five Saints visit is surfaced before Tianfo and retires on saved resolution without inventing affinity', () => {
   const id = 'xiaotong-visit-before-tianfo';
   const snapshot = (quests, main = 22100, scoped = profile()) => {
@@ -1290,6 +1495,35 @@ test('an explicit interaction map can resolve a textual variant, while several i
   assert.equal(valley.places[0].id, 'place-3');
 });
 
+test('south-story milestones keep the nearby appointment and finale before the return to Central Plains', () => {
+  for (const [current, next] of [
+    [8499, 8800],
+    [8800, 8830],
+    [8830, 5920],
+  ]) {
+    const bytes = syntheticSave({
+      full: true,
+      quests: [{ id: current, step: 1 }],
+      trackingMainQuest: current,
+      trackingQuest: current,
+    });
+    const before = Buffer.from(bytes);
+    const metadata = enrich(readMetadata(bytes, { details: true }));
+    const flow = flowSnapshot(profile(), ref(metadata.quests, metadata));
+    assert.equal(flow.chapter.nextMilestone.questId, `quest-${next}`);
+    assert.equal(flow.chapter.nextMilestone.sources.length, 2);
+    assert.equal(new Set(flow.chapter.nextMilestone.sources.map((row) => row.author || row.title)).size, 2);
+    assert.match(flow.chapter.nextMilestone.note, /参考.*前置条件/);
+    assert(
+      !flow.active.some((row) => row.gameId === next),
+      'a next-node reference is not accepted or unlocked progress',
+    );
+    assert.deepEqual(bytes, before);
+    const closed = ref([{ id: current, step: 4 }], { trackingMainQuest: current });
+    assert.equal(flowSnapshot(profile(), closed).chapter, null);
+  }
+});
+
 test('original late-story milestones continue to Tian Shan without inventing an unlocked or post-finale quest', () => {
   const snapshot = (quests, main, trackingQuest = main) => {
     const bytes = syntheticSave({ full: true, quests, trackingMainQuest: main, trackingQuest });
@@ -1802,6 +2036,47 @@ test('critical recommendations state conditional goals and incompatible rewards 
     undefined,
     'no invented precise dialog binding',
   );
+});
+
+test('golden scorpion task material gives a sourced cave route and preserves unique delivery tradeoffs', () => {
+  const reference = (inventory) => {
+    const bytes = syntheticSave({
+      full: true,
+      quests: [
+        { id: 16000, step: 1 },
+        { id: 16006, step: 1 },
+      ],
+      trackingMainQuest: 16000,
+      trackingQuest: 16006,
+      inventory,
+    });
+    const before = Buffer.from(bytes);
+    const metadata = enrich(readMetadata(bytes, { details: true }));
+    assert.deepEqual(bytes, before);
+    return ref(metadata.quests, metadata);
+  };
+  const saved = reference([]);
+  const before = structuredClone(saved);
+  const material = flowSnapshot(profile(), saved)
+    .active.find((row) => row.gameId === 16000)
+    .steps.find((row) => row.id === 'quest-16006').materials[0];
+  assert.equal(material.id, 'item-10498');
+  assert.equal(material.missing, 1);
+  assert(!material.routes.some((row) => row.kind === 'unknown'));
+  const route = material.routes.find((row) => row.kind === 'combat');
+  assert.equal(route.placeId, 'place-75');
+  assert.match(route.label, /猴儿林.*无名岩洞/);
+  assert.match(route.detail, /拜师武当.*左上.*山洞.*击败.*娜乌.*柳麻衣/);
+  assert.match(route.efficiency, /已有.*初期可能打不过.*整备.*刷新.*不按普通蝎子/);
+  assert.match(route.uncertainty, /互斥.*不能.*多人/);
+  assert.equal(new Set(route.sources.map((row) => row.author)).size, 2);
+  assert(route.sources.every((row) => row.id.startsWith('material:') && row.date && row.version));
+  const owned = flowSnapshot(profile(), reference([{ id: 10498, count: 1 }]))
+    .active.find((row) => row.gameId === 16000)
+    .steps.find((row) => row.id === 'quest-16006').materials[0];
+  assert.equal(owned.missing, 0);
+  assert.equal(flowSnapshot(profile({ referenceMode: 'none' }), saved).active.length, 0);
+  assert.deepEqual(saved, before);
 });
 
 test('a new profile gets actionable saved steps, NPCs, material deficits and acquisition routes without setup', () => {
