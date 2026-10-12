@@ -1,6 +1,6 @@
 import { entityCatalog, questStatus } from './entity-catalog.js';
 
-export function createEntityDetailViews({ esc, act, pill, guide = () => [] }) {
+export function createEntityDetailViews({ esc, act, pill, guide = () => [], richText = esc }) {
   const link = (e) =>
     act(e.kind === '任务' ? 'world-quest' : 'database-detail', esc(e.name), 'text-btn', e.id);
   const folded = (rows, render, limit = 8) =>
@@ -38,10 +38,16 @@ export function createEntityDetailViews({ esc, act, pill, guide = () => [] }) {
         ids.has(Number(String(row.questId || '').replace('quest-', ''))) ||
         (row.affectedTasks || []).some((t) => ids.has(Number(String(t.questId || '').replace('quest-', '')))),
     );
+    const affectedName = (affected) => {
+      const id = 'quest-' + String(affected.questId || '').replace(/^quest-/, '');
+      return entityCatalog(index).entries.has(id)
+        ? act('world-quest', esc(affected.name), 'text-btn', id)
+        : richText(affected.name);
+    };
     const advice = curated
       .map(
         (row) =>
-          `<details class="entity-related-advice"><summary>${esc(row.name || row.title)}</summary>${row.recommendation?.action ? `<p><strong>推荐做法：</strong>${esc(row.recommendation.action)}</p><p><strong>为什么：</strong>${esc(row.recommendation.reason)}</p>` : ''}${row.recommendation?.goal ? `<p>适合：${esc(row.recommendation.goal)}</p>` : ''}${row.recommendation?.tradeoff ? `<p>取舍：${esc(row.recommendation.tradeoff)}</p>` : ''}${row.warning ? `<p>${esc(row.warning)}</p>` : ''}${(row.affectedTasks || []).map((affected) => `<p><strong>${esc(affected.name)}：</strong>${esc(affected.effect)}</p>`).join('')}${row.uncertainty ? `<p class="save-note">${esc(row.uncertainty)}</p>` : ''}${(row.sources || []).map((source) => act('source', esc(source.title), 'text-btn', source.id)).join(' · ')}</details>`,
+          `<details class="entity-related-advice"><summary>${esc(row.name || row.title)}</summary>${row.recommendation?.action ? `<p><strong>推荐做法：</strong>${richText(row.recommendation.action)}</p><p><strong>为什么：</strong>${richText(row.recommendation.reason)}</p>` : ''}${row.recommendation?.goal ? `<p>适合：${richText(row.recommendation.goal)}</p>` : ''}${row.recommendation?.tradeoff ? `<p>取舍：${richText(row.recommendation.tradeoff)}</p>` : ''}${row.warning ? `<p>${richText(row.warning)}</p>` : ''}${(row.affectedTasks || []).map((affected) => `<p><strong>${affectedName(affected)}：</strong>${richText(affected.effect)}</p>`).join('')}${row.uncertainty ? `<p class="save-note">${richText(row.uncertainty)}</p>` : ''}${(row.sources || []).map((source) => act('source', esc(source.title), 'text-btn', source.id)).join(' · ')}</details>`,
       )
       .join('');
     return `<section class="detail-block entity-relations" data-task-relations><h3>${q.parentId ? '本步骤与子步骤关联' : '整条任务关联汇总'}</h3><p class="save-note">汇总 ${related.group.length} 个资料步骤。分支不保证全部执行，任务提名与事件场景不是当前人物位置。</p><details open><summary>涉及人物 · ${related.people.length}</summary>${folded(related.people, personRow) || '<p class="small muted">资料未列出可识别的人物关系。</p>'}</details>${related.items.length ? `<details open><summary>步骤需要的物品 · ${related.items.length}</summary>${folded(related.items, itemRow)}<p class="save-note">按各步骤分别列用量，不合并互斥分支，也不推断任务奖励。</p></details>` : ''}${related.requirements.length ? `<details><summary>前置与排除任务 · ${related.requirements.length}</summary>${folded(related.requirements, requirementRow)}</details>` : ''}${advice ? `<details><summary>已整理的选择、收益与推进影响 · ${curated.length}</summary><p class="save-note">攻略供查询，不表示此提醒当前仍开放。及时提醒请以随行的已保存参照为准。</p>${advice}</details>` : ''}</section>`;

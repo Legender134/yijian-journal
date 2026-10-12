@@ -142,20 +142,38 @@ test('previews use saved-state and template numeric facts and disclose ambiguity
   assert.equal(refs.preview('npc-999'), '');
 });
 
+test('unresolved equipment names retain per-variant qualities without assigning the first quality to the group', async () => {
+  const [, { createEntityReferences }] = await loaded;
+  const index = fixture();
+  index.entries.push(
+    { id: 'item-21', gameId: 21, name: '亮银甲', kind: '物品', quality: '白' },
+    { id: 'item-22', gameId: 22, name: '亮银甲', kind: '物品', quality: '绿' },
+    { id: 'item-23', gameId: 23, name: '亮银甲', kind: '物品', quality: '蓝' },
+  );
+  const refs = factory(createEntityReferences, index);
+  const html = refs.preview('name:亮银甲');
+  assert.match(html, /<small>同名资料<\/small>/);
+  assert.match(html, /物品 · 白色 · #21/);
+  assert.match(html, /物品 · 绿色 · #22/);
+  assert.match(html, /物品 · 蓝色 · #23/);
+  assert.match(refs.preview('item-22'), /<small>物品 · 绿色<\/small>/);
+});
+
 test('detailed relations remain traversable, typed and escaped with per-step state and version-qualified advice', async () => {
-  const [{ entityCatalog }, , { createEntityDetailViews }] = await loaded,
+  const [{ entityCatalog }, { createEntityReferences }, { createEntityDetailViews }] = await loaded,
     index = fixture(),
     data = entityCatalog(index);
   const view = createEntityDetailViews({
     esc,
     act: (action, label, cls, id) => `<button data-action="${action}" data-id="${esc(id)}">${label}</button>`,
     pill: esc,
+    richText: factory(createEntityReferences, index).text,
     guide: () => [
       {
         questId: 100,
         name: '选择提醒',
-        recommendation: { action: '先存档', reason: '保留选择' },
-        affectedTasks: [{ name: '<旧任务>', effect: '待核对' }],
+        recommendation: { action: '先找孙老，备金疮药', reason: '保留选择' },
+        affectedTasks: [{ questId: 200, name: '<旧任务>', effect: '莫弃的同名身份待核对' }],
         uncertainty: '旧版社区资料',
       },
     ],
@@ -170,6 +188,11 @@ test('detailed relations remain traversable, typed and escaped with per-step sta
   assert.match(html, /不合并互斥分支/);
   assert.match(html, /&lt;旧任务&gt;/);
   assert.match(html, /旧版社区资料/);
+  const advice = html.match(/<details class="entity-related-advice">[\s\S]*?<\/details>/)[0];
+  assert.match(advice, /data-entity-id="npc-1"/);
+  assert.match(advice, /data-entity-id="item-11"/);
+  assert.match(advice, /data-action="entity-choice" data-id="name:莫弃"/);
+  assert.match(advice, /data-action="world-quest" data-id="quest-200">&lt;旧任务&gt;/);
   const person = view.person(index, data.entries.get('npc-1'), reference);
   assert.match(person, /data-person-relations/);
   assert.match(person, /data-id="quest-100"/);

@@ -97,3 +97,39 @@ test('reopening the same selected plan restores actionable demand and keeps inde
   assert.ok(reopened.allocations.missingTotal > 0);
   assert.ok(reopened.hints.some((h) => h.type === 'material'));
 });
+
+test('companion material summaries link exact items and expose every alternative without assigning the first identity to the group', async () => {
+  const { createCompanionViews } = await views;
+  const index = require('../src/data/game-index.json');
+  const calls = [];
+  const ui = createCompanionViews({
+    esc,
+    icon: () => '',
+    act: (action, label, _class, id) => {
+      calls.push({ action, label, id });
+      return `<button data-action="${action}" data-id="${id}">${label}</button>`;
+    },
+    picture: () => '',
+    qualityText: { name: (_id, text) => esc(text) },
+    index: () => index,
+  });
+  const { state, reference } = fixture();
+  ui.materials(companionSnapshot(state, catalog, reference));
+  for (const material of recipe.materials)
+    assert(calls.some((call) => call.action === 'database-detail' && call.id === `item-${material.id}`));
+  calls.length = 0;
+  const html = ui.materials({
+    materials: {
+      recipes: [],
+      money: 0,
+      materials: [{ ids: [10525, 10529], name: '<鱼类>', count: 3, missing: 3 }],
+    },
+  });
+  assert.match(html, /<summary>&lt;鱼类&gt; · 可替代材料<\/summary>/);
+  assert.doesNotMatch(html.match(/<summary>[\s\S]*?<\/summary>/)[0], /data-id/);
+  assert.match(html, /不需要备齐每一种/);
+  for (const id of [10525, 10529]) {
+    const item = index.entries.find((entry) => entry.id === `item-${id}`);
+    assert(calls.some((call) => call.id === item.id && call.label === item.name));
+  }
+});
