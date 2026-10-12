@@ -219,8 +219,10 @@ class CompanionWindow {
     const config = `${this.mode}:${p.opacity}:${minWidth}:${minHeight}`;
     if (this.lastConfig !== config) {
       this.lastConfig = config;
-      win.setMinimumSize?.(minWidth, minHeight);
       win.setResizable?.(expanded);
+      // Electron restores the old constraints when resizing is re-enabled.
+      // Apply this mode's minimum afterwards, including on untuck.
+      win.setMinimumSize?.(minWidth, minHeight);
       win.setFocusable(expanded);
       win.setIgnoreMouseEvents(!expanded && !tucked);
       win.setOpacity(expanded || tucked ? 1 : p.opacity);

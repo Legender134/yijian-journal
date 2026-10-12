@@ -20,6 +20,44 @@ const ref = (quests, extra = {}, name = 'Synthetic.sav') => ({
   metadata: { quests, inventory: [], ...extra },
 });
 
+test('conference rest warning names the relocated NPC collection window and retires only after saved rest', () => {
+  const id = 'npc059-conference-collection';
+  const records = [
+    { id: 5368, step: 1 },
+    { id: 5424, step: 4 },
+    { id: 5444, step: 1 },
+  ];
+  const project = (quests) => flowSnapshot(profile(), ref(quests, { trackingMainQuest: 5368 }));
+  const before = structuredClone(records);
+  const warning = project(records).warnings.find((row) => row.id === id);
+  assert(warning);
+  assert.match(warning.affectedTasks[0].name, /左江龙.*刘雄/);
+  assert.match(warning.affectedTasks[0].effect, /移离名剑山庄.*犀皮兽纹甲.*承影剑/);
+  assert.match(warning.uncertainty, /不会.*任务失败/);
+  assert.equal(
+    project([
+      { id: 5368, step: 1 },
+      { id: 5424, step: 1 },
+    ]).warnings.some((row) => row.id === id),
+    false,
+  );
+  const after = project([
+    { id: 5368, step: 1 },
+    { id: 5424, step: 4 },
+    { id: 5444, step: 4 },
+  ]);
+  assert.equal(
+    after.warnings.some((row) => row.id === id),
+    false,
+  );
+  assert(after.guide.find((row) => row.id === id).deadlineReached);
+  assert.equal(
+    flowSnapshot(profile(), ref(records, { trackingMainQuest: 5780 })).warnings.some((row) => row.id === id),
+    false,
+  );
+  assert.deepEqual(records, before);
+});
+
 test('optional pre-banquet island detour retires after seating or sparse saved pursuit records', () => {
   const project = (records) => flowSnapshot(profile(), ref(records, { trackingMainQuest: 5780 }));
   const main = { id: 5780, step: 1 };

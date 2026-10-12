@@ -185,6 +185,40 @@ test('explicit edge tuck remains clickable without taking focus and restores the
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+test('untucking restores the expanded minimum after native resizability restores old constraints', async () => {
+  const f = setup();
+  let resizable = true,
+    minimum = [360, 360],
+    previous = minimum;
+  f.win.setMinimumSize = (width, height) => {
+    minimum = [width, height];
+  };
+  f.win.setResizable = (enabled) => {
+    if (enabled === resizable) return;
+    resizable = enabled;
+    if (enabled) minimum = previous;
+    else {
+      previous = minimum;
+      const bounds = f.win.getBounds();
+      minimum = [bounds.width, bounds.height];
+    }
+  };
+  f.set(game);
+  f.win.emit('ready-to-show');
+  f.controller.rendererReady();
+  f.controller.expand();
+  assert.deepEqual(minimum, [360, 360]);
+  for (let i = 0; i < 2; i++) {
+    await f.controller.tuck();
+    assert.equal(resizable, false);
+    f.controller.expand();
+    assert.equal(resizable, true);
+    assert.deepEqual(minimum, [360, 360]);
+  }
+  await f.controller.collapse();
+  f.controller.expand();
+  assert.deepEqual(minimum, [360, 360]);
+});
 test('passive hints are nonfocusable, click-through, DPI anchored and hidden outside gameplay', () => {
   const f = setup();
   f.set(game);

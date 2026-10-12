@@ -22,6 +22,151 @@ const guide = {
   ],
 };
 const project = createDuelProjector({ guide, world, game });
+
+test('midgame collection follows conference, Xungu, Linchang and beggar saved windows', () => {
+  const current = createDuelProjector({ guide: curatedGuide, world, game });
+  const mids = (mainQuestId, states) =>
+    current({ available: true, states, mainQuestId }).candidates.filter((row) =>
+      row.id.startsWith('npc059-'),
+    );
+  const conference = [17100, 5006, 7500, 17102];
+  assert.deepEqual(
+    mids(5368, [{ id: 5424, step: 4 }]).map((row) => row.npcId),
+    conference,
+  );
+  for (const step of [0, 1, 2, 3])
+    assert.equal(mids(5368, [{ id: 5424, step }]).length, 0, 'winning must be saved first');
+  assert.equal(
+    mids(5368, [
+      { id: 5424, step: 4 },
+      { id: 5444, step: 1 },
+    ]).length,
+    4,
+  );
+  assert.equal(
+    mids(5368, [
+      { id: 5424, step: 4 },
+      { id: 5444, step: 4 },
+    ]).length,
+    0,
+  );
+  assert(mids(5368, []).every((row) => row.conditions.some((condition) => condition.status === 'unknown')));
+
+  const monastery = [
+    { id: 5368, step: 4 },
+    { id: 5532, step: 3 },
+  ];
+  assert.deepEqual(
+    mids(5500, monastery).map((row) => row.npcId),
+    [5501, 5502, 5503],
+  );
+  for (const step of [1, 2, 4])
+    assert.equal(
+      mids(5500, [...monastery, { id: 5509, step }]).length,
+      0,
+      'detour guidance retires on audience',
+    );
+  for (const step of [0, 1, 2, 3])
+    assert.equal(
+      mids(5500, [
+        { id: 5368, step },
+        { id: 5532, step: 3 },
+      ]).length,
+      0,
+    );
+
+  const afterNight = [
+    { id: 5509, step: 4 },
+    { id: 5532, step: 4 },
+  ];
+  assert.deepEqual(
+    mids(5500, afterNight).map((row) => row.npcId),
+    [19103],
+  );
+  assert.deepEqual(
+    mids(5550, [...afterNight, { id: 5500, step: 4 }]).map((row) => row.npcId),
+    [19103, 19510],
+  );
+  assert.equal(
+    mids(5550, [
+      { id: 5532, step: 3 },
+      { id: 5500, step: 3 },
+    ]).length,
+    0,
+  );
+  assert.equal(mids(5550, [...afterNight, { id: 5500, step: 4 }, { id: 5580, step: 1 }]).length, 0);
+
+  assert.deepEqual(
+    mids(5750, [{ id: 12609, step: 4 }]).map((row) => row.npcId),
+    [16017],
+  );
+  assert.equal(mids(5750, [{ id: 12609, step: 1 }]).length, 0);
+  assert.equal(
+    mids(5750, [
+      { id: 12609, step: 4 },
+      { id: 12661, step: 1 },
+    ]).length,
+    0,
+  );
+  assert.equal(mids(5780, []).length, 0, 'unrelated banquet should not be flooded with midgame detours');
+  assert.equal(
+    current({ available: false, states: [{ id: 5424, step: 4 }], mainQuestId: 5368 }).candidates.length,
+    0,
+  );
+  const reference = current({ available: true, states: [{ id: 5444, step: 4 }], mainQuestId: 5368 }).guide;
+  assert.equal(
+    reference.filter((row) => row.id.startsWith('npc059-')).length,
+    10,
+    'retired routes remain available for reference',
+  );
+});
+
+test('midgame rewards bind comparable NPC instances and current-build private items, not boss pools or teaching', () => {
+  const facts = require('../src/data/npc-facts.json');
+  const items = new Map(
+    game.entries.filter((row) => row.id.startsWith('item-')).map((row) => [row.gameId, row]),
+  );
+  const current = createDuelProjector({ guide: curatedGuide, world, game })({ available: false, states: [] });
+  const rows = current.guide.filter((row) => row.id.startsWith('npc059-'));
+  const low = {
+    format: 14,
+    player: {
+      id: 0,
+      level: 25,
+      healthRatio: 0.3,
+      manaRatio: 0.2,
+      equipment: [],
+      skills: [],
+      skillPoints: 720,
+      meridianPoints: 35,
+    },
+    opponents: [],
+  };
+  const before = structuredClone(low);
+  for (const row of rows) {
+    const person = world.people.find((p) => p.gameId === row.npcId);
+    assert(person.functions.includes('Compare'), row.name);
+    assert.equal(row.level, facts.people[row.npcId].level);
+    assert.equal(row.personId, 'npc-' + row.npcId);
+    assert(row.sources.length >= 2);
+    for (const reward of row.rewards) {
+      assert.equal(reward.method, '切磋私物');
+      assert.equal(items.get(reward.itemId)?.name, reward.name, 'item namespace identity must be exact');
+      assert(facts.people[row.npcId].fixedItems.some((item) => item.id === reward.itemId));
+      assert.match(reward.probability, /不保证首胜.*概率未知/);
+    }
+    const prepared = createDuelProjector({ guide: { ...curatedGuide, duels: [row] }, world, game })({
+      available: true,
+      states: [],
+      combat: low,
+    }).guide[0].readiness;
+    assert.equal(prepared.status, 'defer');
+    assert(prepared.checks.some((check) => check.id === 'weapon' && check.status === 'unmet'));
+    assert.match(prepared.growth, /720.*35/);
+    assert(prepared.opponentSkills.length > 0);
+  }
+  assert.deepEqual(low, before, 'preparation remains a read-only projection');
+});
 test('challenge leads keep the return-for-wine window open until actual hand-in completion', () => {
   const states = [
     { id: 5063, step: 4 },

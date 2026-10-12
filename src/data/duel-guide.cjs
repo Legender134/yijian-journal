@@ -2,6 +2,55 @@
 // Community challenge and dialogue facts, with versioned sources.
 module.exports = {
   sources: {
+    npc059Masters: {
+      title: '流程提示：品剑大会后的掌门请教与中原回访',
+      author: '星1辰2之3羽',
+      url: 'https://www.bilibili.com/opus/1013648290866003991',
+      date: '编辑于2025-01-20 18:43',
+      version: '正文未标具体构建；按人物、地点和路线顺序交叉核对，不采用横行中原等战力保证',
+    },
+    npc059Blueprints: {
+      title: '全二品、一品图纸收集攻略',
+      author: 'YYFShiki',
+      url: 'https://www.gamersky.com/handbook/202309/1647165.shtml',
+      date: '2023-09-19 10:28:31',
+      version: '2023正式版；旧地名、成品简称和概率不能直接套用当前构建',
+    },
+    npc059BlueprintsOther: {
+      title: '部分高级图纸出处一览',
+      author: 'mapking',
+      url: 'https://360game.360.cn/article/content?id=650e73bf1d6fd4f2f197a284',
+      date: '2023-09-23 10:34:23',
+      version: '2023正式版，具体构建未标；只交叉核对图纸来源，不采用作者估算掉率与战力结论',
+    },
+    npc059Conference: {
+      title: '全图鉴全成就流程：品剑大会后的图纸与请教路线',
+      author: '力拔山兮气盖世呐',
+      url: 'https://www.gamersky.com/handbook/202608/2188490_28.shtml',
+      date: '2026-08-13 16:28:27',
+      version: '同系列ver1.24.25；分开山庄内人物与离庄后的少林回访，不把继承配装当成普通新档门槛',
+    },
+    npc059Xungu: {
+      title: '全图鉴全成就流程：峋谷关事后的黄宗政',
+      author: '力拔山兮气盖世呐',
+      url: 'https://www.gamersky.com/handbook/202608/2188490_29.shtml',
+      date: '2026-08-13 16:28:27',
+      version: '同系列ver1.24.25；返将军府面见黄将军后列三清铃精良图纸',
+    },
+    npc059Linchang: {
+      title: '全图鉴全成就流程：出关后的临昌回访',
+      author: '力拔山兮气盖世呐',
+      url: 'https://www.gamersky.com/handbook/202608/2188490_30.shtml',
+      date: '2026-08-13 16:28:27',
+      version: '同系列ver1.24.25；重回辽城阶段绕道临昌，未证实之后永久不能切磋',
+    },
+    npc059Items: {
+      title: 'NPC道具汇总：乌天瘤清心护符图纸',
+      author: '游侠网，正文未署独立玩家作者',
+      url: 'https://gl.ali213.net/html/2023-9/1161803.html',
+      date: '2023-09-25 11:24:13',
+      version: '2023正式版；用于与本地私物表核对图纸名称，不计作独立玩家作者',
+    },
     npc058WudangPreparation: {
       title: '全剧情流程攻略：拜师武当与请教路径',
       author: '木林风',
@@ -963,8 +1012,478 @@ module.exports = {
         '所引为出手相救后的回访路线；其他分支、在场位置、好感、当前私物与切磋条件仍需核对。静态模板未标漫游地图；返回武当后退出本次线索，不声称永久失去收益。',
       sourceIds: ['npc053Changsheng'],
     },
+    {
+      id: 'npc059-ouyangheng',
+      npcId: 17100,
+      name: '欧阳衡',
+      place: '名剑山庄泰阿堂；品剑大会获胜后、约好同行回客房休息前',
+      level: 80,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5368],
+      afterAllComplete: [5424],
+      untilAnyStarted: [],
+      untilAnyComplete: [5444],
+      rewards: [
+        {
+          name: '阮师刀精良图纸',
+          itemId: 100018,
+          method: '切磋私物',
+          condition: '三位独立作者交叉记载；同构建私物模板1份，先观察当前背包',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+        {
+          name: '龙泣剑法',
+          itemId: 13108,
+          method: '切磋私物',
+          condition: '私物秘籍与请教菜单分开；先核对是否已经学会或持有',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation:
+        '先核对湛卢是否已经装备、主修武学与经脉是否修炼；进泰阿堂先观察欧阳衡，不把社区高配路线当作必胜要求。',
+      preparationPlan: {
+        interaction:
+          '先在泰阿堂观察欧阳衡的私物与交互。赠礼需核对境界和有效好感；天外飞仙剑等请教另有条件与费用，不等于切磋必掉的秘籍。',
+        defaultDefer:
+          '建议暂缓硬打欧阳衡：先穿好现有装备、修炼主用武学与经脉，再观察私物和请教条件；高配攻略的掌门收集不是普通新档必做。',
+        unknown:
+          '先在泰阿堂观察欧阳衡，核对自身装备、主用武学与经脉；角色记录不足时，不把品剑大会获胜等同于能够打赢掌门。',
+        growth:
+          '先检查品剑大会所得湛卢是否适合主修兵器，再使用已有武学点与经脉点；想走剑系可核对欧阳衡的请教菜单与费用，其他流派不必为这条可选收集重练。',
+      },
+      recommendation: {
+        action: '品剑大会获胜后，先到泰阿堂看欧阳衡的阮师刀图纸与龙泣剑法；有需求且准备充分再挑战。',
+        reason: '刀系高级图纸和剑法秘籍有独立作者与同构建私物表支持，顺路观察可确定是否值得投入。',
+        tradeoff: '切磋私物随机，赠礼与请教有成本；收集结束或决定跳过后再约同行休息。',
+      },
+      uncertainty:
+        '这里整理山庄内的收集顺序，不声称休息后欧阳衡永久消失。新版流程把血气丹写作一转，本地表为二转，故不把该丹的旧新说法混作确定奖励。',
+      sourceIds: ['npc059Masters', 'npc059Blueprints', 'npc059BlueprintsOther', 'npc059Conference'],
+    },
+    {
+      id: 'npc059-qingxiao',
+      npcId: 5006,
+      name: '清霄道长',
+      place: '名剑山庄；品剑大会获胜后先观察，后续武当回访另行核对',
+      level: 85,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5368],
+      afterAllComplete: [5424],
+      untilAnyStarted: [],
+      untilAnyComplete: [5444],
+      rewards: [
+        {
+          name: '泰阿剑精良图纸',
+          itemId: 100008,
+          method: '切磋私物',
+          condition: '同构建固定私物1份；这里是图纸，不是直接取得成品泰阿剑',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+        {
+          name: '三转聚灵丹',
+          itemId: 123,
+          method: '切磋私物',
+          condition: '同构建固定私物1枚，先观察当前持物',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '清霄模板85级，太极相关招式可在下方查看；先核对现有剑、心法和经脉，不为一品图纸强行挑战。',
+      preparationPlan: {
+        defaultDefer:
+          '建议暂缓硬打清霄：先用已经取得的兵器和已学武学成长，再观察太极相关招式；泰阿剑图纸是可选收集。',
+        unknown: '先观察清霄的当前面板、招式与私物；读不到自身角色记录时，不据85级模板判断能赢。',
+        growth:
+          '先修炼主用心法与兵器招式、分配已有经脉点；拿到图纸后再查泰阿剑的打造材料与技能条件，材料不足时继续使用现有装备，不先为随机私物耗尽资源。',
+      },
+      recommendation: {
+        action: '需要高级剑图纸时，在名剑山庄先观察清霄；确认准备充分再切磋。',
+        reason: '同构建私物表和多位作者均支持泰阿剑图纸来源，适合剑系后续打造。',
+        tradeoff: '图纸取得、打造材料和打造条件是三件事；当前打不过可先推进成长，再核对后续武当回访。',
+      },
+      uncertainty:
+        '2026路线明确在名剑山庄切磋清霄；2025作者还记录后续武当回访。此处只提示当前收集顺序，不把人物位置视为实时在场，也不承诺全游戏仅此一份或固定打造品质。',
+      sourceIds: ['npc059Conference', 'npc059Masters', 'npc059Blueprints', 'npc059BlueprintsOther'],
+    },
+    {
+      id: 'npc059-zuojianglong',
+      npcId: 7500,
+      name: '左江龙',
+      place: '名剑山庄；品剑大会获胜后、回客房休息前',
+      level: 85,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5368],
+      afterAllComplete: [5424],
+      untilAnyStarted: [],
+      untilAnyComplete: [5444],
+      rewards: [
+        {
+          name: '犀皮兽纹甲精良图纸',
+          itemId: 100087,
+          method: '切磋私物',
+          condition: '同构建固定私物1份；打造材料和技能条件另查图鉴',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+        {
+          name: '二转聚灵丹',
+          itemId: 121,
+          method: '切磋私物',
+          condition: '同构建固定私物1枚，先观察当前持物',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation:
+        '模板85级，棍法与心法见下方静态招式；先准备现有防具、内功和经脉，不把收集图纸当作主线必胜条件。',
+      preparationPlan: {
+        defaultDefer:
+          '建议暂缓硬打左江龙：先补已穿防具、内功和经脉，再观察对方棍法；无需为可选图纸强刷掌门。',
+        unknown: '先观察左江龙的棍法、当前私物和切磋按钮，再核对自身装备与武学；角色记录不足时先准备。',
+        growth:
+          '先在现有配装基础上修炼内功与主用招式，查看已有经脉点；想打造犀皮兽纹甲时，先在图鉴核对图纸、材料和制衣要求，避免尚未能制作就反复切磋。',
+      },
+      recommendation: {
+        action: '回客房休息前，顺路观察左江龙；需要犀皮兽纹甲图纸且准备充分再挑战。',
+        reason: '高级衣服图纸可增加后续配装选择，私物表与独立作者互相支持。',
+        tradeoff:
+          '休息完成后，同构建任务配置将左江龙移回丐帮；改变的是山庄内顺路收集机会，不是永久失去人物或图纸。',
+      },
+      uncertainty: '人物移位依据回客房休息5444完成配置；在丐帮能否立即再次切磋、好感及当前持物仍须到场核对。',
+      sourceIds: ['npc059Masters', 'npc059Blueprints', 'npc059Conference'],
+    },
+    {
+      id: 'npc059-liuxiong',
+      npcId: 17102,
+      name: '刘雄',
+      place: '名剑山庄；品剑大会获胜后、回客房休息前',
+      level: 85,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5368],
+      afterAllComplete: [5424],
+      untilAnyStarted: [],
+      untilAnyComplete: [5444],
+      rewards: [
+        {
+          name: '承影剑精良图纸',
+          itemId: 100007,
+          method: '切磋私物',
+          condition: '同构建固定私物1份；与请教刀法、钓鱼分开',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+        {
+          name: '三转洗髓丹',
+          itemId: 141,
+          method: '切磋私物',
+          condition: '同构建固定私物1枚，先观察当前持物',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '模板85级，先观察刀法与心法；请教列表有独立条件，不能把请教学到的刀法写成切磋必掉秘籍。',
+      preparationPlan: {
+        interaction:
+          '先观察刘雄的有效好感、私物与请教菜单；刀法和钓鱼请教有各自条件与费用。只需要教学时，先确认能否直接请教，不为教学反复切磋。',
+        defaultDefer: '建议暂缓硬打刘雄：先提升现有配装、心法与经脉；需要刀法或钓鱼时可先核对请教条件。',
+        unknown: '先观察刘雄的刀法、心法、私物和请教条件；角色记录不足时先核对基础准备。',
+        growth:
+          '先修炼现有内功与主用招式、分配经脉点；刀系可核对刘雄的请教菜单，剑系则先比较承影剑与现有兵器的数值、打造要求，不必同时追全部收益。',
+      },
+      recommendation: {
+        action: '回客房休息前看刘雄的承影剑图纸与三转洗髓丹；按流派另行核对请教。',
+        reason: '同一人物能提供不同流派的收集与成长线索，分开来源可避免为教学强刷私物。',
+        tradeoff: '休息完成后，同构建任务配置将刘雄移离名剑山庄；本次顺路窗口结束，后续在场与交互另行核对。',
+      },
+      uncertainty: '本条不把羊脂净瓶的静态私物记录推断为已核定切磋路线，也不把刘雄的请教技能当作私物秘籍。',
+      sourceIds: ['npc059Masters', 'npc059Blueprints', 'npc059Conference'],
+    },
+    {
+      id: 'npc059-yuanwu',
+      npcId: 5501,
+      name: '圆悟',
+      place: '少林寺戒律院；品剑大会后、入峋谷关将军府前可选回访',
+      level: 80,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5500],
+      afterAllComplete: [5368],
+      untilAnyStarted: [5509],
+      untilAnyComplete: [],
+      rewards: [
+        {
+          name: '七杀拳套精良图纸',
+          itemId: 100038,
+          method: '切磋私物',
+          condition: '同构建固定私物1份，先观察当前背包',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+        {
+          name: '金钟罩',
+          itemId: 13805,
+          method: '切磋私物',
+          condition: '同构建固定私物秘籍1份；与易筋经请教分开',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation:
+        '模板80级，少林内功与拳法见静态招式；先准备主用兵器、内功和经脉。少林回访是可选成长路线，不是推进峋谷的必要条件。',
+      preparationPlan: {
+        interaction:
+          '在少林寺戒律院观察圆悟；七杀拳套图纸、金钟罩是私物线索，易筋经另看请教条件与费用，不把请教收益混作掉落。',
+        defaultDefer:
+          '建议暂缓硬打圆悟：先修炼主用武学与经脉，再观察拳法、心法和交互；可先继续当前低风险任务。',
+        unknown: '到少林寺戒律院先观察圆悟与自身准备；没有角色记录时，不把社区回访顺序当作现在能赢。',
+        growth:
+          '先修炼已学内功与常用招式；需要少林内功时核对圆悟的请教菜单与费用。若武学点不足，先做流程中已可完成的任务，不为可选图纸硬刷高风险精英。',
+      },
+      recommendation: {
+        action: '品剑大会后想补拳套图纸或金钟罩，可在赴峋谷途中绕回少林观察圆悟。',
+        reason: '独立作者均把圆悟列作高级拳套来源，回访可同时确认内功请教机会。',
+        tradeoff:
+          '会多走一段路，切磋私物随机且请教有成本；开始峋谷将军府剧情后，本次绕路提示退场，资料仍可查。',
+      },
+      uncertainty:
+        '圆悟在少林寺，不能因同一篇攻略讨论名剑山庄就把他写在山庄。这里只划定可选回访顺序，不声称献书后人物或收益永久消失。',
+      sourceIds: ['npc059Masters', 'npc059Blueprints', 'npc059BlueprintsOther', 'npc059Conference'],
+    },
+    {
+      id: 'npc059-yuannan',
+      npcId: 5502,
+      name: '圆难',
+      place: '少林寺罗汉堂；品剑大会后、入峋谷关将军府前可选回访',
+      level: 75,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5500],
+      afterAllComplete: [5368],
+      untilAnyStarted: [5509],
+      untilAnyComplete: [],
+      rewards: [
+        {
+          name: '方天画戟精良图纸',
+          itemId: 100028,
+          method: '切磋私物',
+          condition: '同构建固定私物1份；打造条件另查图鉴',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+        {
+          name: '大日如来棍',
+          itemId: 13303,
+          method: '切磋私物',
+          condition: '同构建固定私物秘籍1份，先核对是否已经学会或持有',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '模板75级，擅长枪棍，先看下方静态招式与游戏当前范围；准备现有防具、内功和主用兵器。',
+      preparationPlan: {
+        defaultDefer:
+          '建议暂缓硬打圆难：先提升现有兵器、内功与经脉，观察枪棍范围；方天画戟图纸不是当前主线必需。',
+        unknown: '先到少林寺罗汉堂观察圆难的枪棍、私物与当前面板，再核对自身基础准备。',
+        growth:
+          '枪棍系先修炼已学常用招式，核对现有兵器要求；取得大日如来棍秘籍后仍需学习与修炼。其他流派按需求收图纸，不为本条推荐改练枪棍。',
+      },
+      recommendation: {
+        action: '需要高级枪棍图纸或大日如来棍时，绕回少林寺观察圆难，再决定是否切磋。',
+        reason: '方天画戟图纸与对应武学秘籍均有社区和同构建私物证据，便于按流派选择。',
+        tradeoff: '绕路和随机私物有成本；没准备好可以继续峋谷主线，之后到场再查交互。',
+      },
+      uncertainty:
+        '献书只结束本条赴峋谷前的绕路建议，未证明之后永久失去圆难的私物。图纸并非直接获得成品武器。',
+      sourceIds: ['npc059Masters', 'npc059Blueprints', 'npc059BlueprintsOther', 'npc059Conference'],
+    },
+    {
+      id: 'npc059-yuanku',
+      npcId: 5503,
+      name: '圆苦',
+      place: '少林寺达摩院；品剑大会后、入峋谷关将军府前可选回访',
+      level: 75,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5500],
+      afterAllComplete: [5368],
+      untilAnyStarted: [5509],
+      untilAnyComplete: [],
+      rewards: [
+        {
+          name: '七星拳套精良图纸',
+          itemId: 100037,
+          method: '切磋私物',
+          condition: '同构建固定私物1份，先观察当前背包',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+        {
+          name: '般若金刚掌',
+          itemId: 13407,
+          method: '切磋私物',
+          condition: '同构建固定私物秘籍1份，先核对是否已经学会或持有',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation:
+        '模板75级，拳掌与少林内功见下方静态招式；先核对现有防具、主用武学和经脉，不套用攻略的高配战力。',
+      preparationPlan: {
+        defaultDefer: '建议暂缓硬打圆苦：先补现有防具、内功与经脉，再观察拳掌范围和互动条件。',
+        unknown: '先到少林寺达摩院观察圆苦的私物与拳掌，再核对自身基础准备；角色记录不足时先准备。',
+        growth:
+          '拳掌系优先检查现有拳套是否已经装备、常用招式是否修炼；其他流派继续已有配装。想打造七星拳套，先在图鉴核对材料与技能要求再投入收集。',
+      },
+      recommendation: {
+        action: '需要七星拳套图纸或般若金刚掌，可与圆悟、圆难一起在少林回访时核对。',
+        reason: '把同一地点的不同流派收益一起查看，可以按自己的流派选择，减少无目标往返。',
+        tradeoff: '不必三人全部挑战；私物随机，能否赠礼与切磋还取决于游戏当前条件。',
+      },
+      uncertainty:
+        '这里只整理品剑大会后的少林回访顺序；开始峋谷将军府剧情后提示退场，不据此判断人物或收益永久关闭。',
+      sourceIds: ['npc059Masters', 'npc059Blueprints', 'npc059BlueprintsOther', 'npc059Conference'],
+    },
+    {
+      id: 'npc059-huangzongzheng',
+      npcId: 19103,
+      name: '黄宗政',
+      place: '峋谷关将军府；夜探事后返回面见黄将军，再出关前顺路核对',
+      level: 80,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5500, 5550],
+      afterAllComplete: [5532],
+      untilAnyStarted: [5580],
+      untilAnyComplete: [],
+      rewards: [
+        {
+          name: '三清铃精良图纸',
+          itemId: 100076,
+          method: '切磋私物',
+          condition: '同构建固定私物1份；旧攻略简称三清铃，这里明确是图纸',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '模板80级，枪法与心法见下方静态招式；刚结束夜战先回复气血内力，再核对装备和武学。',
+      preparationPlan: {
+        defaultDefer: '建议暂缓硬打黄宗政：夜战后先休息回复、修炼现有武学与经脉；三清铃图纸是可选配装途径。',
+        unknown: '夜探事后先回复气血内力，到将军府观察黄宗政私物、枪法与切磋按钮，再核对自身准备。',
+        growth:
+          '先补夜战消耗，使用已有武学点与经脉点；三清铃取得图纸后还需制作，先查图鉴的材料和打造要求。没有需要的饰品配装时，可先接将军府、医馆的现阶段任务。',
+      },
+      recommendation: {
+        action: '夜探事后面见黄将军，再观察三清铃图纸；需要饰品配装且准备充分才切磋。',
+        reason: '能在出关前顺路补一条高级饰品打造途径，避免只有成品名称却不知道去找谁。',
+        tradeoff: '图纸随机且制作另有成本；本条顺路建议在赶赴黎城阶段退场，不等于永久漏失。',
+      },
+      uncertainty:
+        '2023作者只简称三清铃；采用本地固定私物及2026路线支持的图纸，不承诺成品或词条。首次入峋谷关不直接视为已开放切磋。',
+      sourceIds: ['npc059Xungu', 'npc059Blueprints'],
+    },
+    {
+      id: 'npc059-xiaoguli',
+      npcId: 19510,
+      name: '大渊勇士-萧古里',
+      place: '临昌；峋谷事终后、重回辽城阶段可选绕行',
+      level: 60,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5550],
+      afterAllComplete: [5500],
+      untilAnyStarted: [5580],
+      untilAnyComplete: [],
+      rewards: [
+        {
+          name: '八宝亮银铲精良图纸',
+          itemId: 100027,
+          method: '切磋私物',
+          condition: '三位独立作者交叉记载；同构建固定私物1份，是枪棍图纸而非成品',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '模板60级，擅长枪棍；先核对当前兵器、防具和武学，绕行前确认是自己需要的图纸。',
+      preparationPlan: {
+        defaultDefer: '建议暂缓硬打萧古里：先补现有兵器、防具和主用武学，再决定是否为枪棍图纸绕去临昌。',
+        unknown: '先确认是否需要枪棍图纸；到临昌观察萧古里私物、枪法与当前面板，再核对自身准备。',
+        growth:
+          '先修炼主用武学和已有经脉，枪棍系再比较八宝亮银铲与现有兵器的数值、打造材料及技能要求；其他流派可以跳过，不必为图鉴全收集拖住主线。',
+      },
+      recommendation: {
+        action: '峋谷事终后如需高级枪棍图纸，可绕去临昌找萧古里，先观察再决定是否切磋。',
+        reason: '图纸来源有独立作者和同构建私物支持，可与关外探索一并安排。',
+        tradeoff: '临昌不是辽城，需额外绕路；图纸随机、打造有条件，不是继续主线的前置。',
+      },
+      uncertainty:
+        '旧作者写平昌，另两位作者写临昌；这里采用当前地点临昌。赶赴黎城只结束本次绕行提示，没有证据表明之后人物或私物永久消失。',
+      sourceIds: ['npc059Linchang', 'npc059Blueprints', 'npc059BlueprintsOther'],
+    },
+    {
+      id: 'npc059-wutianliu',
+      npcId: 16017,
+      name: '乌天瘤',
+      place: '谭城丐帮总舵左上；伤魂鸟相关调查、前往总舵商议后',
+      level: 60,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5749, 5750],
+      afterAllComplete: [12609],
+      untilAnyStarted: [12661],
+      untilAnyComplete: [],
+      rewards: [
+        {
+          name: '清心护符精良图纸',
+          itemId: 100075,
+          method: '切磋私物',
+          condition: '同构建固定私物1份；旧文有成品简称，图纸与成品分开核对',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '模板60级，丐帮棍法见下方静态招式；先准备自身兵器、防具与内功，再观察好感和当前私物。',
+      preparationPlan: {
+        defaultDefer:
+          '建议暂缓硬打乌天瘤：先提升现有兵器、内功与经脉，再观察棍法和交互；伤魂鸟调查不以取得该图纸为前置。',
+        unknown: '到丐帮总舵左上先观察乌天瘤，核对私物是图纸还是成品、当前招式与切磋按钮。',
+        growth:
+          '先用已学内功和主用招式成长；清心护符取得图纸后仍需材料与打造条件，先与现有饰品比较。净衣派是另一条支线，不把支线奖励当作切磋私物。',
+      },
+      recommendation: {
+        action: '伤魂鸟相关调查回丐帮总舵时，顺路观察乌天瘤的清心护符图纸，再按准备情况切磋。',
+        reason: '可补一条饰品打造来源，与总舵调查一并核对，减少单独找人的成本。',
+        tradeoff: '切磋可选且私物随机；继续丐帮大战前先完成自己要做的调查，不为刷图纸遗漏剧情顺序。',
+      },
+      uncertainty:
+        '2023收集作者简称四品清心护符；本地私物表与另一道具汇总支持图纸。这里使用总舵商议后的路线窗口，不承诺当前即时在场或大战后永久不能获得。',
+      sourceIds: ['npc059Masters', 'npc059Blueprints', 'npc059Items'],
+    },
   ],
   advice: [
+    {
+      id: 'npc059-conference-collection',
+      kind: 'stage',
+      phaseChange: true,
+      requireStageMatch: true,
+      severity: 'warning',
+      title: '品剑大会获胜后：休息前看掌门图纸与请教',
+      questId: null,
+      chapterRoots: [5368],
+      afterAllComplete: [5424],
+      untilAnyStarted: [],
+      untilAnyComplete: [5444],
+      deadlineLabel: '约好同行、回客房休息完成之前',
+      advanceEffects: [
+        {
+          name: '左江龙、刘雄在名剑山庄的顺路收集机会',
+          scope: 'phase',
+          effect:
+            '回客房休息完成后，两人被任务配置移离名剑山庄；想查犀皮兽纹甲、承影剑图纸或请教，可先观察再决定。',
+          evidence: '同构建5444完成时的两名人物移位配置；只证明地点改变，不证明私物永久失去。',
+        },
+      ],
+      pickup: {
+        place: '名剑山庄泰阿堂及在场前辈处',
+        person: '欧阳衡、清霄、左江龙、刘雄',
+        personIds: ['npc-17100', 'npc-5006', 'npc-7500', 'npc-17102'],
+        action: '比武页按人物查看图纸、秘籍、具体准备与取舍；请教条件单独核对。',
+      },
+      recommendation: {
+        action: '先观察山庄内的前辈，按自己流派选图纸或教学；准备不足就跳过可选切磋，再约同行休息。',
+        reason: '高级刀、剑、衣服图纸和不同流派教学集中在这段路线；先看需求可以减少之后专程找人。',
+        tradeoff:
+          '不必全打，也不必改练流派；随机私物、赠礼、请教与打造分别有成本。人物移位不是永久漏失任务。',
+      },
+      warning: '回客房休息完成后，左江龙、刘雄会移离名剑山庄；想顺路查图纸与请教，先看比武页并量力决定。',
+      steps: [
+        '品剑大会获胜后，先检查所得兵器与当前准备。',
+        '在山庄观察欧阳衡、清霄、左江龙和刘雄；只选择自己需要的图纸或教学。',
+        '准备不足可跳过；决定继续后，再约同行回客房休息。',
+      ],
+      choices: [],
+      sourceIds: ['npc059Masters', 'npc059Conference', 'npc059Blueprints'],
+      uncertainty: '只提醒山庄内的顺路收集窗口；不会把人物移位写成任务失败，也不承诺此时能够战胜任何前辈。',
+    },
     {
       id: 'npc051-east-dialogue',
       title: '先去村东保留李寡妇的额外闲聊',
