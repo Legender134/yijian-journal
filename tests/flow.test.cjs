@@ -20,6 +20,131 @@ const ref = (quests, extra = {}, name = 'Synthetic.sav') => ({
   metadata: { quests, inventory: [], ...extra },
 });
 
+test('Five Saints visit is surfaced before Tianfo and retires on saved resolution without inventing affinity', () => {
+  const id = 'xiaotong-visit-before-tianfo';
+  const snapshot = (quests, main = 22100, scoped = profile()) => {
+    const bytes = syntheticSave({ full: true, quests, trackingMainQuest: main, trackingQuest: 23234 });
+    const original = Buffer.from(bytes);
+    const metadata = enrich(readMetadata(bytes, { details: true }));
+    const reference = ref(metadata.quests, metadata);
+    assert.deepEqual(bytes, original);
+    return { flow: flowSnapshot(scoped, reference), reference };
+  };
+  const departure = [
+    { id: 22100, step: 1 },
+    { id: 22150, step: 1 },
+  ];
+  for (const quests of [
+    departure,
+    departure.concat({ id: 23230, step: 3 }),
+    departure.concat({ id: 23230, step: 1 }, { id: 23234, step: 1 }),
+    departure.concat({ id: 23230, step: 1 }, { id: 23234, step: 4 }, { id: 23242, step: 1 }),
+    [
+      { id: 22000, step: 1 },
+      { id: 22050, step: 1 },
+    ],
+    [
+      { id: 22000, step: 1 },
+      { id: 22060, step: 1 },
+    ],
+  ]) {
+    const main = quests.some((q) => q.id === 22000) ? 22000 : 22100;
+    const current = snapshot(quests, main);
+    const warning = current.flow.warnings.find((row) => row.id === id);
+    assert(warning, JSON.stringify(quests));
+    assert.match(warning.pickup.place, /阎浮镇东北方小屋/);
+    assert.match(warning.recommendation.action, /回读.*离开少林.*江小彤.*约定.*会师出发/);
+    assert.match(warning.recommendation.reason, /两位独立作者.*娜乌.*解药.*清虚/);
+    assert.match(warning.recommendation.tradeoff, /另留存档.*不保证.*好感增量.*不同/);
+    assert.equal(warning.affectedTasks[0].name, '五仙圣女');
+    assert.match(warning.affectedTasks[1].effect, /2025.*解药.*敌方/);
+    assert.match(warning.affectedTasks[2].effect, /贺兰仇.*清虚.*非完美.*清霄.*不.*保证/);
+    assert.match(warning.steps.join(' '), /小彤的木剑.*墓前归还.*不以木剑有无/s);
+    assert.equal(warning.sources.length, 2);
+    assert.match(warning.uncertainty, /\+10.*\+20.*不作固定收益/);
+    assert(current.flow.changes.some((row) => row.id === id));
+    assert(!current.flow.decisions.some((row) => row.id === id), 'visit is not a dialogue choice');
+    if (quests.some((q) => q.id === 23230 && q.step === 1)) assert.equal(warning.state, 'active');
+  }
+  const standalone = snapshot([
+    { id: 23230, step: 1 },
+    { id: 23234, step: 1 },
+  ]);
+  assert(standalone.flow.warnings.some((row) => row.id === id));
+  const preparation = snapshot(departure.concat({ id: 23020, step: 4 }));
+  assert(
+    companionSnapshot(defaults(), catalog, preparation.reference).hints.some(
+      (row) => row.type === 'flow-warning' && /五仙圣女.*东北方小屋/.test(row.title),
+    ),
+  );
+  for (const outcome of [
+    { id: 23230, step: 4 },
+    { id: 23230, step: 2 },
+    { id: 23242, step: 4 },
+    { id: 23234, step: 2 },
+    { id: 23242, step: 2 },
+    ...[22170, 22171, 22179, 24000, 24020].map((id) => ({ id, step: 1 })),
+  ]) {
+    const current = snapshot(departure.concat(outcome));
+    for (const channel of ['warnings', 'advice', 'changes', 'decisions', 'opportunities'])
+      assert(!current.flow[channel].some((row) => row.id === id), channel + JSON.stringify(outcome));
+  }
+  for (const quests of [
+    [],
+    [{ id: 20000, step: 1 }],
+    [
+      { id: 22000, step: 1 },
+      { id: 22034, step: 1 },
+    ],
+  ])
+    assert(!snapshot(quests, quests[0]?.id || 0).flow.warnings.some((row) => row.id === id));
+  for (const scoped of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: 'Foreign.sav' }),
+  ])
+    assert(!snapshot(departure, 22100, scoped).flow.warnings.some((row) => row.id === id));
+});
+
+test('wooden sword is optional house preparation with no assumed pickup or permanent deadline', () => {
+  const id = 'xiaotong-wooden-sword-home';
+  const records = [
+    { id: 5346, step: 1 },
+    { id: 5351, step: 1 },
+  ];
+  for (const trackingMainQuest of [5346, 5500]) {
+    const current = flowSnapshot(profile(), ref(records, { trackingMainQuest }));
+    const advice = current.advice.find((row) => row.id === id);
+    assert(advice);
+    assert.match(advice.recommendation.action, /江吟风故居.*小彤的木剑.*已有.*已经归还.*跳过/);
+    assert.match(advice.recommendation.tradeoff, /未实测.*不表示.*永久错过.*不能.*普通赠礼/);
+    assert.match(advice.uncertainty, /背包没有.*不能证明.*已错过/);
+    assert.equal(advice.sources.length, 4);
+    assert(!current.warnings.some((row) => row.id === id), 'collection is an optional suggestion');
+    assert(!current.changes.some((row) => row.id === id), 'no invented deadline');
+  }
+  for (const quests of [
+    [],
+    [
+      { id: 5020, step: 1 },
+      { id: 5037, step: 1 },
+    ],
+    [
+      { id: 5346, step: 4 },
+      { id: 5351, step: 1 },
+    ],
+    ...[2, 4].map((step) => [
+      { id: 5346, step: 1 },
+      { id: 5351, step },
+    ]),
+  ])
+    assert(
+      !flowSnapshot(profile(), ref(quests, { trackingMainQuest: 5346 })).advice.some((row) => row.id === id),
+    );
+  const later = flowSnapshot(profile(), null).guide.find((row) => row.id === 'xiaotong-transmission');
+  assert.match(later.steps.join(' '), /江吟风墓前.*自动归还.*保存.*返回村内.*商葶苧.*另留存档/s);
+  assert.equal(later.questId, null, 'no invented native task for hidden treatment');
+});
+
 test('the retained Chengyu night chest is timely before porridge and retires after saved progression', () => {
   const id = 'wudang-night-chest-before-porridge';
   const retained = [
@@ -325,6 +450,100 @@ test('Kushui return lead names recruitment route, handles missing prerequisites 
     profile({ referenceMode: 'slot', saveSlot: 'Foreign.sav' }),
   ])
     assert(!snapshot(middle, scoped).flow.warnings.some((row) => [earlyId, id].includes(row.id)));
+});
+
+test('formation guidance precedes the native choice and follows each saved outcome without promising loot', () => {
+  const id = 'changsheng-formation-choice';
+  const snapshot = (records, scoped = profile(), main = 8499) => {
+    const bytes = syntheticSave({
+      full: true,
+      trackingMainQuest: main,
+      trackingQuest: 8536,
+      quests: records,
+    });
+    const before = Buffer.from(bytes);
+    const metadata = enrich(readMetadata(bytes, { details: true }));
+    const reference = ref(metadata.quests, metadata);
+    const flow = flowSnapshot(scoped, reference);
+    assert.deepEqual(bytes, before);
+    return { flow, compact: companionSnapshot(defaults(), catalog, reference) };
+  };
+  const root = { id: 8499, step: 1 };
+  for (const step of [1, 4]) {
+    const current = snapshot([root, { id: 8536, step }, { id: 8553, step: 0 }]);
+    const choice = current.flow.decisions.find((row) => row.id === id);
+    assert(choice, `visible step ${step} bridges the unnamed dialogue`);
+    assert.match(choice.recommendation.action, /另存.*乘黄御风.*三人赴战.*第二战/);
+    assert.match(choice.recommendation.reason, /两位.*单人.*三人.*燕未还.*荀杳杳/);
+    assert.match(choice.recommendation.tradeoff, /多人.*自由组队.*没有.*轻功.*鞋图.*不保证.*24回合.*当前/);
+    assert.deepEqual(
+      choice.choices.map((row) => row.label),
+      ['推荐收集路线：三人赴战', '挑战路线：孤身赴战', '自由组队：多人赴战'],
+    );
+    assert.match(choice.choices[1].effect, /独战.*掠阵.*再想想/);
+    assert.equal(choice.sources.length, 2);
+    assert.match(choice.uncertainty, /2025.*24回合.*当前.*未实测/);
+    assert.match(choice.affectedTasks[0].name, /乘黄御风.*图纸/);
+    assert(current.flow.warnings.some((row) => row.id === id));
+    assert.equal(current.compact.hints[0].type, 'flow-choice');
+    assert.match(current.compact.hints[0].title, /禁地.*另存.*乘黄御风.*三人/);
+  }
+  // Native 8553 options complete 8554 (three) / 8593 (party), or open
+  // 8595 (solo confirmation); confirmation completes 8555 and closes 8553.
+  assert(
+    snapshot([root, { id: 8536, step: 4 }, { id: 8595, step: 0 }]).flow.decisions.some(
+      (row) => row.id === id,
+    ),
+  );
+  for (const [branch, name] of [
+    [8554, '三人赴战'],
+    [8555, '孤身赴战'],
+    [8593, '多人赴战'],
+  ]) {
+    const records = [root, { id: 8536, step: 4 }, { id: 8553, step: 4 }, { id: branch, step: 4 }];
+    const current = snapshot(records);
+    assert(!current.flow.decisions.some((row) => row.id === id));
+    assert(!current.flow.warnings.some((row) => row.id === id));
+    const selected = current.flow.advice.filter((row) => row.id.startsWith('changsheng-formation-saved-'));
+    assert.equal(selected.length, 1, 'only the saved route is recommended');
+    assert.match(selected[0].title, new RegExp(name));
+    assert.match(selected[0].recommendation.action, /气血.*真气.*装备.*食物.*另存/);
+    assert.match(selected[0].steps.join(' '), /七杀幻蛇剑.*五灵心经.*不要求.*互斥/);
+    assert.match(
+      current.compact.hints.find((row) => row.type === 'flow-advice').title,
+      new RegExp(`已选${name}`),
+    );
+    for (const ending of [
+      { id: 8499, step: 4 },
+      { id: 8499, step: 2 },
+      { id: 8830, step: 1 },
+    ]) {
+      const ended = snapshot([...records.filter((row) => row.id !== ending.id), ending]);
+      assert(!ended.flow.advice.some((row) => row.id.startsWith('changsheng-formation-saved-')));
+    }
+  }
+  for (const outcome of [8554, 8555, 8593, 8560, 8561, 8830])
+    for (const step of [1, 2, 4])
+      assert(
+        !snapshot([root, { id: 8536, step: 4 }, { id: outcome, step }]).flow.decisions.some(
+          (row) => row.id === id,
+        ),
+      );
+  for (const records of [
+    [],
+    [root],
+    [root, { id: 8536, step: 3 }],
+    [
+      { id: 8499, step: 4 },
+      { id: 8536, step: 1 },
+    ],
+  ])
+    assert(!snapshot(records).flow.decisions.some((row) => row.id === id));
+  for (const scoped of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: 'Other.sav' }),
+  ])
+    assert(!snapshot([root, { id: 8536, step: 1 }], scoped).flow.decisions.some((row) => row.id === id));
 });
 
 test('Changsheng rescue advice leads before departure, bridges battle branches and retires on saved outcomes', () => {
@@ -1069,6 +1288,56 @@ test('an explicit interaction map can resolve a textual variant, while several i
     ['武当药谷'],
   );
   assert.equal(valley.places[0].id, 'place-3');
+});
+
+test('original late-story milestones continue to Tian Shan without inventing an unlocked or post-finale quest', () => {
+  const snapshot = (quests, main, trackingQuest = main) => {
+    const bytes = syntheticSave({ full: true, quests, trackingMainQuest: main, trackingQuest });
+    const before = Buffer.from(bytes);
+    const metadata = enrich(readMetadata(bytes, { details: true }));
+    const flow = flowSnapshot(profile(), ref(metadata.quests, metadata));
+    assert.deepEqual(bytes, before);
+    return flow;
+  };
+  for (const [current, next] of [
+    [6050, 6080],
+    [6080, 6110],
+    [6110, 6150],
+  ]) {
+    const records = [{ id: current, step: 1 }];
+    if (current === 6110) records.push({ id: 6080, step: 4 }, { id: 6095, step: 1 });
+    const flow = snapshot(records, current, current === 6110 ? 6095 : current);
+    assert.equal(flow.chapter.nextMilestone.questId, `quest-${next}`);
+    assert.equal(flow.chapter.nextMilestone.sources.length, 2);
+    assert(flow.chapter.nextMilestone.sources.every((row) => row.date && row.version));
+    assert.match(flow.chapter.nextMilestone.note, /参考.*前置条件/);
+    assert(
+      !flow.active.some((row) => row.gameId === next),
+      'next milestone does not imply accepted/unlocked',
+    );
+  }
+  const finale = snapshot(
+    [
+      { id: 6110, step: 4 },
+      { id: 6150, step: 1 },
+      { id: 6151, step: 1 },
+    ],
+    6150,
+    6151,
+  );
+  assert.equal(finale.chapter.questId, 'quest-6150');
+  assert.equal(finale.chapter.nextMilestone, null, 'do not invent another quest after the finale');
+  for (const step of [2, 4]) {
+    const ended = snapshot(
+      [
+        { id: 6110, step },
+        { id: 6095, step: 1 },
+      ],
+      6110,
+      6095,
+    );
+    assert.equal(ended.chapter, null, 'closed parent cannot keep the old next node alive');
+  }
 });
 
 test('late-story milestones follow sourced routes and disclose ambiguous returns instead of guessing', () => {
