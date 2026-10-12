@@ -20,6 +20,313 @@ const ref = (quests, extra = {}, name = 'Synthetic.sav') => ({
   metadata: { quests, inventory: [], ...extra },
 });
 
+test('the retained Chengyu night chest is timely before porridge and retires after saved progression', () => {
+  const id = 'wudang-night-chest-before-porridge';
+  const retained = [
+    { id: 5820, step: 1 },
+    { id: 5821, step: 4 },
+    { id: 5829, step: 4 },
+  ];
+  const snapshot = (records, scoped = profile(), main = 5820) => {
+    const metadata = enrich(
+      readMetadata(
+        syntheticSave({
+          full: true,
+          trackingMainQuest: main,
+          trackingQuest: 5830,
+          quests: records,
+        }),
+        { details: true },
+      ),
+    );
+    const reference = ref(metadata.quests, metadata);
+    return { flow: flowSnapshot(scoped, reference), reference };
+  };
+  for (const main of [5820, 5920]) {
+    const current = snapshot([...retained, { id: 5830, step: 1 }], profile(), main);
+    const warning = current.flow.warnings.find((row) => row.id === id);
+    assert(warning, 'saved night step works independently of main tracking');
+    assert.match(warning.recommendation.action, /祖师殿右侧宝箱.*清风步秘籍.*二转洗髓丹.*喝粥.*拿过/);
+    assert.match(warning.recommendation.reason, /两位.*2025.*2026/);
+    assert.match(warning.recommendation.tradeoff, /是否已开箱.*不能自动读取/);
+    assert.match(warning.affectedTasks[0].effect, /过时不候.*精确失效.*未实测.*不能.*永久不可得/);
+    assert.equal(warning.sources.length, 2);
+    assert(current.flow.changes.some((row) => row.id === id));
+    assert(!current.flow.decisions.some((row) => row.id === id), 'chest is not a dialogue choice');
+    assert(
+      companionSnapshot(defaults(), catalog, current.reference).hints.some(
+        (row) => row.type === 'flow-warning' && /喝粥前.*宝箱/.test(row.title),
+      ),
+    );
+  }
+  for (const records of [
+    retained,
+    retained.concat({ id: 5830, step: 4 }),
+    retained.concat({ id: 5830, step: 2 }),
+    [
+      { id: 5820, step: 4 },
+      { id: 5829, step: 4 },
+      { id: 5830, step: 1 },
+    ],
+    [
+      { id: 5820, step: 2 },
+      { id: 5829, step: 4 },
+      { id: 5830, step: 1 },
+    ],
+    [
+      { id: 5820, step: 1 },
+      { id: 5830, step: 1 },
+    ],
+    ...[5831, 5832, 5833, 5835].map((next) => retained.concat({ id: 5830, step: 1 }, { id: next, step: 1 })),
+  ]) {
+    const current = snapshot(records);
+    for (const channel of ['warnings', 'advice', 'changes', 'decisions', 'opportunities'])
+      assert(!current.flow[channel].some((row) => row.id === id), channel + JSON.stringify(records));
+  }
+  for (const scoped of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: 'Foreign.sav' }),
+  ])
+    assert(
+      !snapshot(retained.concat({ id: 5830, step: 1 }), scoped).flow.warnings.some((row) => row.id === id),
+    );
+});
+
+test('Tianfo departure names unfinished Damo preparation and retires only on saved outcomes or departure', () => {
+  const id = 'damo-before-tianfo-departure';
+  const snapshot = (records, scoped = profile()) => {
+    const metadata = enrich(
+      readMetadata(
+        syntheticSave({
+          full: true,
+          trackingMainQuest: 22100,
+          trackingQuest: 22150,
+          quests: records,
+        }),
+        { details: true },
+      ),
+    );
+    const reference = ref(metadata.quests, metadata);
+    return { flow: flowSnapshot(scoped, reference), reference };
+  };
+  const departure = [
+    { id: 22100, step: 1 },
+    { id: 22125, step: 4 },
+    { id: 22132, step: 4 },
+    { id: 22150, step: 1 },
+  ];
+  for (const records of [
+    departure,
+    ...[23025, 23031, 23032, 23049, 23052, 23059, 23064, 23068, 23072].map((stepId) =>
+      departure.concat({ id: 23020, step: 1 }, { id: stepId, step: 1 }),
+    ),
+    departure.concat({ id: 23020, step: 1 }, { id: 23062, step: 4 }, { id: 23066, step: 4 }),
+  ]) {
+    const before = structuredClone(records);
+    const current = snapshot(records);
+    const warning = current.flow.warnings.find((row) => row.id === id);
+    assert(warning);
+    assert.deepEqual(
+      warning.affectedTasks.map((row) => row.name),
+      ['佛生诸想', '涤罪僧的战斗能力与断臂图鉴', '天佛窟期间的队伍整备与自由活动'],
+    );
+    assert.match(warning.recommendation.action, /另存.*三场修行.*装备.*武学.*补给.*誓师/);
+    assert.match(warning.recommendation.tradeoff, /不同存档.*不保证.*全部完美/);
+    assert.match(warning.affectedTasks[1].effect, /攻略.*断臂.*无法战斗.*图鉴/);
+    assert.match(warning.steps.join(' '), /圆悟.*达摩洞.*囚室.*血字墙.*同参绝技.*同参心法.*达摩秘传/s);
+    assert.equal(warning.sources.length, 2);
+    assert.match(warning.uncertainty, /社区.*未验证/);
+    assert(current.flow.changes.some((row) => row.id === id));
+    assert(
+      !current.flow.decisions.some((row) => row.id === id),
+      'predeparture checklist is not an invented dialogue choice',
+    );
+    assert(
+      !current.flow.decisions.some((row) => row.id === 'cold-wuqing-night-choice'),
+      'saved night answer stays retired',
+    );
+    const compact = companionSnapshot(defaults(), catalog, current.reference);
+    assert(compact.hints.some((row) => row.type === 'flow-warning' && /佛生诸想.*战斗能力/.test(row.title)));
+    assert.deepEqual(records, before);
+  }
+  for (const outcome of [
+    { id: 23020, step: 4 },
+    { id: 23020, step: 2 },
+    { id: 23070, step: 4 },
+    { id: 22170, step: 1 },
+    { id: 22171, step: 1 },
+    { id: 22179, step: 1 },
+    { id: 24000, step: 1 },
+  ]) {
+    const current = snapshot(departure.concat({ id: 23020, step: 1 }, outcome));
+    for (const channel of ['warnings', 'advice', 'changes', 'decisions', 'opportunities'])
+      assert(!current.flow[channel].some((row) => row.id === id), channel + ':' + outcome.id);
+    assert(
+      !companionSnapshot(defaults(), catalog, current.reference).hints.some(
+        (row) => row.type === 'flow-warning' && /佛生诸想/.test(row.title),
+      ),
+    );
+  }
+  for (const records of [[], [{ id: 20000, step: 1 }], [{ id: 22100, step: 4 }]])
+    assert(!snapshot(records).flow.warnings.some((row) => row.id === id));
+  for (const scoped of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: 'Foreign.sav' }),
+  ])
+    assert(!snapshot(departure, scoped).flow.warnings.some((row) => row.id === id));
+});
+
+test('Kushui prerequisite follows saved side-story steps regardless of main tracking', () => {
+  const earlyId = 'kushui-chief-before-qiongshan';
+  const laterId = 'kushui-return-before-ganquan';
+  for (const [root, stepId] of [
+    [12815, 12819],
+    [12815, 12831],
+    [12815, 12838],
+    [12815, 12839],
+    [12815, 12841],
+    [12815, 12842],
+    [12815, 12843],
+    [12815, 12844],
+    [12815, 12875],
+    [12880, 12881],
+  ]) {
+    const records = [
+      { id: 5920, step: 1 },
+      { id: root, step: 1 },
+      { id: stepId, step: 1 },
+    ];
+    const before = structuredClone(records);
+    const reference = ref(records, { trackingMainQuest: 5920, trackingQuest: stepId });
+    const current = flowSnapshot(profile(), reference);
+    const warning = current.warnings.find((row) => row.id === earlyId);
+    assert(warning, String(stepId));
+    assert.match(warning.pickup.person, /苦水村村长/);
+    assert.match(warning.recommendation.reason, /首访.*再探苦水.*招募/);
+    assert.match(warning.recommendation.tradeoff, /已看过.*不必重复/);
+    assert.match(warning.uncertainty, /不能.*推断/);
+    assert.deepEqual(
+      warning.affectedTasks.map((row) => row.name),
+      ['再探苦水', '涤罪僧后续招募'],
+    );
+    assert(
+      !current.warnings.some((row) => row.id === laterId),
+      'do not show the return route before scouting',
+    );
+    assert.match(companionSnapshot(defaults(), catalog, reference).hints[0].title, /赴穷山.*首访/);
+    assert.deepEqual(records, before);
+    for (const status of [2, 4]) {
+      const terminal = records.map((row) => (row.id === root ? { ...row, step: status } : row));
+      assert(!flowSnapshot(profile(), ref(terminal)).warnings.some((row) => row.id === earlyId));
+    }
+  }
+  for (const records of [[], [{ id: 12815, step: 1 }], [{ id: 12880, step: 1 }]])
+    assert(
+      !flowSnapshot(profile(), ref(records)).warnings.some((row) => row.id === earlyId),
+      'a root-only record does not identify the early side-story step',
+    );
+});
+
+test('Kushui return lead names recruitment route, handles missing prerequisites and retires with saved outcomes', () => {
+  const earlyId = 'kushui-chief-before-qiongshan';
+  const id = 'kushui-return-before-ganquan';
+  const snapshot = (records, scoped = profile()) => {
+    const metadata = enrich(
+      readMetadata(
+        syntheticSave({
+          full: true,
+          trackingMainQuest: 5780,
+          trackingQuest: 12905,
+          quests: records,
+        }),
+        { details: true },
+      ),
+    );
+    const reference = ref(metadata.quests, metadata);
+    return { flow: flowSnapshot(scoped, reference), reference };
+  };
+  const middle = [
+    { id: 5780, step: 1 },
+    { id: 12815, step: 4 },
+    { id: 12880, step: 1 },
+    { id: 12881, step: 4 },
+    { id: 12896, step: 4 },
+    { id: 12905, step: 1 },
+  ];
+  for (const records of [
+    middle,
+    middle.filter((row) => row.id !== 12905).concat({ id: 12905, step: 4 }, { id: 12910, step: 1 }),
+    [
+      { id: 5780, step: 1 },
+      { id: 12905, step: 1 },
+    ],
+    [
+      { id: 13000, step: 1 },
+      { id: 13001, step: 1 },
+    ],
+  ]) {
+    const before = structuredClone(records);
+    const current = snapshot(records);
+    const lead = current.flow.opportunities.find((row) => row.id === id);
+    assert(lead, JSON.stringify(records));
+    assert.equal(lead.state, 'unrecorded', 'no invented availability, failure or chief-visit status');
+    assert.equal(lead.sources.length, 2);
+    assert.match(lead.pickup.place, /墓地.*苍岚村.*天水外城城墙.*程家堡/);
+    assert.match(lead.recommendation.action, /首.*|之前访过.*村长/);
+    assert.match(lead.recommendation.tradeoff, /已经回到甘泉.*(检查|核对).*不.*判定失败/);
+    assert.match(lead.steps.join(' '), /临时入队.*正式入队|临时同行.*正式招募/);
+    assert.match(lead.steps.at(-1), /拜谒神鹰门.*冷鹰正式入队.*少林寺后院/);
+    assert.equal(lead.affectedTasks[0].name, '再探苦水');
+    assert.match(lead.affectedTasks[0].effect, /不把回村.*判为错过/);
+    assert(current.flow.changes.some((row) => row.id === id && row.affectedTasks.length === 2));
+    assert(!current.flow.warnings.some((row) => row.id === earlyId));
+    assert(
+      companionSnapshot(defaults(), catalog, current.reference).hints.some(
+        (row) => row.type === 'flow-warning' && /再探苦水.*涤罪僧/.test(row.title),
+      ),
+    );
+    assert.deepEqual(records, before);
+  }
+  const accepted = snapshot(middle.concat({ id: 13250, step: 1 }, { id: 13260, step: 1 })).flow;
+  assert(!accepted.opportunities.some((row) => row.id === id));
+  assert(
+    accepted.active.some(
+      (row) => row.gameId === 13250 && row.steps.some((step) => step.id === 'quest-13260'),
+    ),
+  );
+  assert.match(
+    accepted.warnings.find((row) => row.id === id).affectedTasks[0].effect,
+    /已有进行中记录.*没有证明.*失败/,
+  );
+  for (const records of [
+    middle.concat({ id: 13250, step: 4 }),
+    middle.concat({ id: 13250, step: 2 }),
+    middle.concat({ id: 13250, step: 1 }, { id: 13269, step: 4 }),
+    [
+      { id: 12880, step: 4 },
+      { id: 12905, step: 1 },
+    ],
+    [
+      { id: 13000, step: 1 },
+      { id: 13006, step: 1 },
+    ],
+  ]) {
+    const current = snapshot(records);
+    for (const channel of ['warnings', 'opportunities', 'advice', 'changes', 'decisions'])
+      assert(!current.flow[channel].some((row) => [earlyId, id].includes(row.id)), channel);
+    assert(
+      !companionSnapshot(defaults(), catalog, current.reference).hints.some(
+        (row) => row.type === 'flow-warning' && /再探苦水/.test(row.title),
+      ),
+    );
+  }
+  for (const scoped of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: 'Foreign.sav' }),
+  ])
+    assert(!snapshot(middle, scoped).flow.warnings.some((row) => [earlyId, id].includes(row.id)));
+});
+
 test('Changsheng rescue advice leads before departure, bridges battle branches and retires on saved outcomes', () => {
   const id = 'changsheng-rescue-choice';
   const root = { id: 8830, step: 1 };

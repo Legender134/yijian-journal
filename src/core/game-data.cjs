@@ -4,6 +4,7 @@ const world = require('../data/world-index.json');
 const images = require('../data/game-images.json');
 const itemStats = require('../data/item-stats.json');
 const npcFacts = require('../data/npc-facts.json');
+const flowGuide = require('../data/flow-guide.cjs');
 if (String(itemStats.build) !== String(data.build)) throw Error('物品数值与图鉴版本不一致');
 if (String(npcFacts.build) !== String(data.build)) throw Error('人物私物与图鉴版本不一致');
 const { recipeOutputs } = require('./recipe-outputs.cjs');
@@ -92,7 +93,21 @@ function encyclopedia() {
           e.kind === '配方'
             ? { ...e, outputReference: recipeOutputs(e, 1) }
             : e.kind === '物品'
-              ? { ...e, stats: itemStats.items[e.gameId] || null }
+              ? {
+                  ...e,
+                  stats: itemStats.items[e.gameId] || null,
+                  ...(flowGuide.itemRoutes[e.gameId]
+                    ? {
+                        acquisitionRoutes: flowGuide.itemRoutes[e.gameId].map((route) => ({
+                          ...route,
+                          sources: route.sourceIds.map((id) => ({
+                            ...flowGuide.sources[id],
+                            id: 'flow:' + id,
+                          })),
+                        })),
+                      }
+                    : {}),
+                }
               : e.kind === '人物'
                 ? { ...e, npcFacts: npcFacts.people[e.gameId] || null }
                 : e,

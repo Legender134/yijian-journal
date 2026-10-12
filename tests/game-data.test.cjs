@@ -206,6 +206,64 @@ test('learning recipes and seller references form valid two-way links from game 
     for (const id of m.items) assert.equal(byId.get(`item-${id}`)?.kind, '物品');
   }
 });
+test('night chest rewards link dated acquisition guidance without replacing native item facts', async () => {
+  const raw = require('../src/data/game-index.json');
+  const before = structuredClone(raw);
+  const { createGameViews } = await import('../src/renderer/game-views.js');
+  const index = encyclopedia();
+  const esc = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch],
+    );
+  const views = createGameViews({
+    esc,
+    icon: () => '',
+    act: (action, label, cls, id) =>
+      `<button data-action="${esc(action)}" data-id="${esc(id)}">${label}</button>`,
+    pill: esc,
+    empty: esc,
+    notice: esc,
+    bytes: esc,
+    when: esc,
+    hours: esc,
+    iconButton: () => '',
+    picture: (id) => `<img data-picture="${id}">`,
+    qualityText: { name: (_, name) => esc(name), label: () => '' },
+  });
+  for (const id of ['item-13701', 'item-140']) {
+    const item = index.entries.find((entry) => entry.id === id);
+    const { stats, acquisitionRoutes, ...original } = item;
+    assert.deepEqual(
+      original,
+      raw.entries.find((entry) => entry.id === id),
+    );
+    assert(stats);
+    assert.equal(acquisitionRoutes.length, 1);
+    const route = acquisitionRoutes[0];
+    assert.equal(route.questId, 5830);
+    assert.match(route.detail, /程钰.*喝粥前.*祖师殿右侧.*清风步秘籍.*二转洗髓丹.*拿过/);
+    assert.match(route.uncertainty, /不是.*未开启.*精确失效.*未实测.*唯一来源/);
+    assert.equal(route.sources.length, 2);
+    assert(
+      route.sources.every(
+        (source) =>
+          source.id.startsWith('flow:') && source.date && source.version && source.url.startsWith('https://'),
+      ),
+    );
+    const html = views.detail(index, id);
+    assert.match(html, /阶段获取线索.*祖师殿右侧宝箱/s);
+    assert.match(html, /data-action="flow-quest" data-id="quest-5830"/);
+    assert.match(html, /data-action="source" data-id="flow:flow061WudangNight"/);
+    assert.match(html, /2025-07-14.*2026-08-13/s);
+    assert.match(html, /使用效果与数值/);
+    assert.match(html, new RegExp(`data-picture="${id}"`));
+    if (id === 'item-13701') assert.match(html, /初始私物中的人物线索/);
+  }
+  assert.equal(index.entries.find((entry) => entry.id === 'item-10217').acquisitionRoutes, undefined);
+  assert.deepEqual(raw, before);
+});
+
 test('save detail filename validation and scan cache invalidation', (t) => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-detail-'));
   t.after(() => {
