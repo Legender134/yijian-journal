@@ -73,6 +73,7 @@ async function attach() {
   return win;
 }
 async function entityPreview(page, trigger, expected, name, throughRefresh = false) {
+  await page.bringToFront();
   await trigger.hover();
   const preview = page.locator('#entity-preview');
   await preview.waitFor({ state: 'visible' });
@@ -110,12 +111,14 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
   assert.equal(await preview.isVisible(), true, 'preview stays open while moving into it');
   await page.screenshot({ animations: 'disabled', path: path.join(results, name + '.png') });
   await page.keyboard.press('Escape');
+  await preview.waitFor({ state: 'hidden' });
   assert.equal(await preview.isVisible(), false);
   await page.mouse.move(2, 2);
   await trigger.focus();
   await preview.waitFor({ state: 'visible' });
   assert.match(await preview.innerText(), expected);
   await page.keyboard.press('Escape');
+  await preview.waitFor({ state: 'hidden' });
   assert.equal(await preview.isVisible(), false);
 }
 async function taskMaterialReturn(page, title, screenshot) {
@@ -162,6 +165,44 @@ async function taskMaterialReturn(page, title, screenshot) {
   assert.equal(await page.locator('#entity-preview').isVisible(), false);
   await page.screenshot({ animations: 'disabled', path: path.join(results, screenshot + '.png') });
   await page.locator('[data-action="close-overlay"]').click();
+}
+async function referenceFocusContinuity(page, trigger, surface) {
+  const identity = await trigger.evaluate((el) => ({ action: el.dataset.action, id: el.dataset.entityId }));
+  // Chromium may blur a disabled async opener before its IPC finishes.
+  await trigger.evaluate((el) => {
+    el.focus();
+    el.click();
+    el.blur();
+  });
+  await page.locator('#overlay .drawer').waitFor();
+  await page.keyboard.press('Escape');
+  await page.locator('#overlay .drawer').waitFor({ state: 'detached' });
+  await page.waitForFunction(
+    ({ action, id }) =>
+      document.activeElement?.dataset.action === action && document.activeElement?.dataset.entityId === id,
+    identity,
+  );
+  assert.equal(await page.locator('#entity-preview').isVisible(), false);
+  const body = page.locator(surface === 'main' ? '.content' : '.compact-body');
+  const scroll = await body.evaluate((el) => el.scrollTop);
+  const old = await trigger.elementHandle();
+  // An isolated state broadcast exercises the same redraw as a background update.
+  await page.evaluate(() => window.journal.mutate({ type: 'settings', value: {} }));
+  await page.waitForFunction((el) => !el.isConnected, old);
+  await page.waitForFunction(
+    ({ action, id }) =>
+      document.activeElement?.dataset.action === action && document.activeElement?.dataset.entityId === id,
+    identity,
+  );
+  await page.waitForTimeout(100);
+  assert.equal(await trigger.evaluate((el) => document.activeElement === el), true);
+  assert.equal(await body.evaluate((el) => el.scrollTop), scroll);
+  assert.equal(await page.locator('#entity-preview').isVisible(), false);
+  await page.screenshot({
+    animations: 'disabled',
+    path: path.join(results, '01-' + surface + '-reference-focus-update.png'),
+  });
+  await old.dispose();
 }
 async function privateItemConnections(page, surface) {
   await page.locator('[data-action="search"]').first().click();
@@ -244,6 +285,8 @@ async function companionReferenceSync(page) {
   const preview = async (count) => {
     const item = page.locator('[data-task-relations] [data-id="item-10201"]').first();
     await item.scrollIntoViewIfNeeded();
+    // Returning keeps focus and dismisses the preview; request a fresh focus event.
+    await page.keyboard.press('Tab');
     await item.focus();
     await page.locator('#entity-preview').waitFor({ state: 'visible' });
     assert.match(await page.locator('#entity-preview').innerText(), new RegExp('2\\.sav · 库存 ' + count));
@@ -417,6 +460,11 @@ async function companionReferenceSync(page) {
       win.locator('[data-flow-quest="quest-11002"] h3 [data-id="quest-11002"]'),
       '01-main-task-return',
     );
+    await referenceFocusContinuity(
+      win,
+      win.locator('[data-flow-quest="quest-11002"] h3 [data-id="quest-11002"]'),
+      'main',
+    );
     await privateItemConnections(win, 'main');
     const choiceWindowReady = app.waitForEvent('window');
     await win.locator('[data-action="compact"]').first().click();
@@ -457,6 +505,11 @@ async function companionReferenceSync(page) {
       choiceCompact,
       choiceCompact.locator('[data-flow-now] > h3 [data-id="quest-11002"]'),
       '01-companion-task-return',
+    );
+    await referenceFocusContinuity(
+      choiceCompact,
+      choiceCompact.locator('[data-flow-now] > h3 [data-id="quest-11002"]'),
+      'companion',
     );
     await privateItemConnections(choiceCompact, 'companion');
     await companionReferenceSync(choiceCompact);
@@ -653,6 +706,39 @@ async function companionReferenceSync(page) {
       }),
     );
     await innChallenge.waitFor({ state: 'detached', timeout: 18000 });
+    fs.writeFileSync(
+      path.join(fakeSaves, '2.sav'),
+      syntheticSave({ full: true, trackingMainQuest: 5200, quests: [{ id: 5200, step: 1 }] }),
+    );
+    const baiChallenge = choiceCompact.locator('[data-duel-current] [data-duel="npc051-baijin"]');
+    await baiChallenge.waitFor({ timeout: 18000 });
+    assert.equal(await baiChallenge.evaluate((el) => el.open), false);
+    const rewardPreview = baiChallenge.locator(':scope > summary .duel-reward-preview');
+    const baiReward = rewardPreview.locator('[data-entity-id="item-13552"]');
+    assert.equal(await baiReward.count(), 1);
+    assert.equal(await baiReward.locator('.game-picture').count(), 1);
+    assert.match(await rewardPreview.innerText(), /无影飞箭秘籍.*切磋私物.*八品暗器图纸/s);
+    assert.equal(await rewardPreview.locator('[data-entity-id]').count(), 1);
+    await baiReward.hover();
+    await choiceCompact.locator('#entity-preview').waitFor({ state: 'visible' });
+    assert.match(await choiceCompact.locator('#entity-preview').innerText(), /无影飞箭/);
+    await choiceCompact.keyboard.press('Escape');
+    await choiceCompact.mouse.move(0, 0);
+    await baiChallenge.locator(':scope > summary').focus();
+    await baiReward.focus();
+    await choiceCompact.locator('#entity-preview').waitFor({ state: 'visible' });
+    assert.equal(await baiReward.getAttribute('aria-describedby'), 'entity-preview');
+    await choiceCompact.screenshot({
+      animations: 'disabled',
+      path: path.join(results, '01-compact-duel-reward-preview.png'),
+    });
+    await baiReward.click();
+    await choiceCompact.locator('.drawer h1').filter({ hasText: '无影飞箭' }).waitFor();
+    assert.equal(await baiChallenge.evaluate((el) => el.open), false);
+    await choiceCompact.keyboard.press('Escape');
+    await choiceCompact.waitForFunction(() => document.activeElement?.dataset.entityId === 'item-13552');
+    assert.equal(await baiChallenge.evaluate((el) => el.open), false);
+    assert.equal(await choiceCompact.locator('#entity-preview').isVisible(), false);
     fs.writeFileSync(
       path.join(fakeSaves, '2.sav'),
       syntheticSave({
