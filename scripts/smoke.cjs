@@ -72,6 +72,52 @@ async function attach() {
   await win.waitForSelector('.layout');
   return win;
 }
+async function entityPreview(page, trigger, expected, name, throughRefresh = false) {
+  await trigger.hover();
+  const preview = page.locator('#entity-preview');
+  await preview.waitFor({ state: 'visible' });
+  assert.match(await preview.innerText(), expected);
+  if (throughRefresh) {
+    const entry = await trigger.elementHandle();
+    const scroll = await page.locator('.content').evaluate((el) => el.scrollTop);
+    await page.waitForTimeout(5300);
+    assert.equal(
+      await entry.evaluate((el) => el.isConnected),
+      true,
+      'unchanged polling retains the hovered entry',
+    );
+    assert.equal(await preview.isVisible(), true, 'preview survives the background refresh');
+    assert.equal(await page.locator('.content').evaluate((el) => el.scrollTop), scroll);
+    await entry.dispose();
+  }
+  const rect = await preview.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return {
+      x: box.x,
+      y: box.y,
+      right: box.right,
+      bottom: box.bottom,
+      width: innerWidth,
+      height: innerHeight,
+    };
+  });
+  assert(
+    rect.x >= 0 && rect.y >= 0 && rect.right <= rect.width && rect.bottom <= rect.height,
+    JSON.stringify(rect),
+  );
+  await page.mouse.move(rect.x + 15, rect.y + 15);
+  await page.waitForTimeout(220);
+  assert.equal(await preview.isVisible(), true, 'preview stays open while moving into it');
+  await page.screenshot({ animations: 'disabled', path: path.join(results, name + '.png') });
+  await page.keyboard.press('Escape');
+  assert.equal(await preview.isVisible(), false);
+  await page.mouse.move(2, 2);
+  await trigger.focus();
+  await preview.waitFor({ state: 'visible' });
+  assert.match(await preview.innerText(), expected);
+  await page.keyboard.press('Escape');
+  assert.equal(await preview.isVisible(), false);
+}
 (async () => {
   try {
     app = await launch();
@@ -144,6 +190,32 @@ async function attach() {
       originalSave,
     );
     await win.screenshot({ animations: 'disabled', path: path.join(results, '01-home.png') });
+    await entityPreview(
+      win,
+      win.locator('[data-flow] [data-id="npc-5003"]').first(),
+      /人物.*清虚道长.*相关任务/s,
+      '01-main-person-preview',
+    );
+    await entityPreview(
+      win,
+      win.locator('[data-flow-quest="quest-5200"] h3 [data-id="quest-5200"]'),
+      /任务.*1\.sav · 进行中/s,
+      '01-main-task-preview',
+    );
+    await entityPreview(
+      win,
+      flowMaterials.locator('[data-action="database-detail"]').first(),
+      /物品.*模板基础/s,
+      '01-main-item-preview',
+      true,
+    );
+    await win.locator('[data-flow] [data-id="npc-5003"]').first().click();
+    assert.equal(await win.locator('[data-person-relations]').isVisible(), true);
+    await win.locator('[data-person-relations] [data-id="quest-5200"]').first().click();
+    assert.equal(await win.locator('[data-task-relations]').isVisible(), true);
+    await win.locator('[data-action="drawer-back"]').click();
+    assert.equal(await win.locator('[data-person-relations]').isVisible(), true);
+    await win.locator('[data-action="close-overlay"]').click();
     await win.locator('[data-action="save-slot"]').click();
     await win.locator('#save-slot-select').selectOption('2.sav');
     await win.locator('[data-action="save-slot-save"]').click();
@@ -164,11 +236,51 @@ async function attach() {
       await currentChoice.locator('.flow-choices').evaluate((el) => !!el.closest('details')),
       false,
     );
+    const armorChoice = currentChoice.locator('.flow-recommendation [data-id="name:亮银甲"]').first();
+    await entityPreview(win, armorChoice, /同名资料.*同名不等于/s, '01-same-name-preview');
+    await armorChoice.click();
+    await win.locator('[aria-label="选择同名资料"]').waitFor();
+    await win.locator('[aria-label="选择同名资料"] [data-id="item-9004"]').click();
+    await win.locator('[data-item-statistics]').waitFor();
+    assert.match(await win.locator('.drawer-body').innerText(), /2\.sav/);
+    await win.locator('[data-action="drawer-back"]').click();
+    await win.locator('[aria-label="选择同名资料"]').waitFor();
+    await win.locator('[data-action="close-overlay"]').click();
     const choiceWindowReady = app.waitForEvent('window');
     await win.locator('[data-action="compact"]').first().click();
     const choiceCompact = await choiceWindowReady;
     await choiceCompact.waitForSelector('.compact-shell');
     await choiceCompact.locator('[data-flow-decision="early-woodcutter-axe-choice"]').waitFor();
+    await entityPreview(
+      choiceCompact,
+      choiceCompact.locator('[data-flow-now] > h3 [data-id="quest-11002"]'),
+      /任务.*相关步骤/s,
+      '01-companion-task-preview',
+    );
+    await entityPreview(
+      choiceCompact,
+      choiceCompact
+        .locator(
+          '[data-flow-decision="early-woodcutter-axe-choice"] .flow-recommended-action [data-id="item-10201"]',
+        )
+        .first(),
+      /物品.*铁矿石.*2\.sav · 库存/s,
+      '01-companion-item-preview',
+    );
+    await choiceCompact.locator('[data-flow-now] > h3 [data-id="quest-11002"]').click();
+    await choiceCompact.locator('[data-task-relations]').waitFor();
+    await entityPreview(
+      choiceCompact,
+      choiceCompact
+        .locator('[data-task-relations] [data-action="database-detail"][data-id="npc-10005"]')
+        .first(),
+      /人物.*相关任务/s,
+      '01-companion-person-preview',
+    );
+    await choiceCompact.locator('[data-action="close-overlay"]').click();
+    await choiceCompact.locator('.compact-body').evaluate((el) => {
+      el.scrollTop = 0;
+    });
     const compactRisk = choiceCompact.locator('.flow-compact-risks');
     assert.equal(await compactRisk.evaluate((el) => el.open), false);
     const currentPosition = await choiceCompact
@@ -412,7 +524,10 @@ async function attach() {
       writeChoice(records);
       const card = choiceCompact.locator(`[data-flow-decision="${scenario.id}"]`);
       await card.waitFor({ timeout: 18000 });
-      assert.match(await card.locator('.flow-recommendation').innerText(), scenario.expected);
+      assert.match(
+        (await card.locator('.flow-recommendation').innerText()).replace(/\s+/g, ''),
+        scenario.expected,
+      );
       const position = await card.locator('.flow-recommended-action').evaluate((el) => ({
         bottom: el.getBoundingClientRect().bottom,
         height: innerHeight,
@@ -426,7 +541,10 @@ async function attach() {
       });
       if (scenario.detailsExpected) {
         await card.locator('.flow-choice-details > summary').click();
-        assert.match(await card.locator('.flow-choice-details').innerText(), scenario.detailsExpected);
+        assert.match(
+          (await card.locator('.flow-choice-details').innerText()).replace(/\s+/g, ''),
+          scenario.detailsExpected,
+        );
         await card.locator('.flow-choice-details > summary').click();
       }
       writeChoice([...records, { id: scenario.exit, step: scenario.exitStep }]);

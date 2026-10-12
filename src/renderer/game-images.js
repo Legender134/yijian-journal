@@ -3,11 +3,13 @@ export function createGameImages({ index, icon, esc }) {
   const glyph = (id) =>
     id.startsWith('npc-')
       ? 'person'
-      : id.startsWith('skill-')
-        ? 'sword'
-        : /^(fusion|alchemy|cooking)-/.test(id)
-          ? 'scroll'
-          : 'bag';
+      : id.startsWith('quest-')
+        ? 'scroll'
+        : id.startsWith('skill-')
+          ? 'sword'
+          : /^(fusion|alchemy|cooking)-/.test(id)
+            ? 'scroll'
+            : 'bag';
   function picture(id, size = 'tiny') {
     const data = index();
     const file = data?.images?.[id];

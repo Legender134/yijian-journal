@@ -81,6 +81,53 @@ test('challenge candidates require a recognized stage and do not turn unknown co
 });
 
 const projectCurated = createDuelProjector({ guide: curatedGuide, world, game });
+test('Sunlao and Qinlie recipe leads preserve private-possession probability, exact items and distinct windows', () => {
+  const project = (mainQuestId, states, available = true) =>
+    projectCurated({ mainQuestId, states, available });
+  const before = project(5062, [
+    { id: 5063, step: 4 },
+    { id: 5072, step: 1 },
+  ]);
+  const sun = before.candidates.find((row) => row.id === 'npc053-sunlao');
+  const qin = before.candidates.find((row) => row.id === 'npc053-inn-qinlie');
+  for (const [row, npcId, level, itemId, name] of [
+    [sun, 10001, 5, 100329, '宁神散丹方'],
+    [qin, 10023, 35, 100312, '下品烈阳丹丹方'],
+  ]) {
+    assert(row);
+    assert.equal(row.personId, `npc-${npcId}`);
+    assert.equal(row.level, level);
+    assert.match(row.levelBasis, /官方Build21798996.*不是当前实战面板或胜率/);
+    assert.deepEqual(
+      row.rewards.map((reward) => [reward.itemId, reward.name]),
+      [[itemId, name]],
+    );
+    assert.equal(game.entries.find((entry) => entry.id === `item-${itemId}`).name, name);
+    assert.equal(row.rewards[0].method, '切磋私物');
+    assert.match(row.rewards[0].probability, /随机.*不保证首胜.*概率未知/);
+  }
+  assert.match(sun.uncertainty, /不是取药剧情固定奖励.*未证实交酒后永久消失/);
+  assert.match(qin.recommendation.tradeoff, /继承.*普通新档.*不保证首胜/);
+  assert(!project(5062, [{ id: 5063, step: 1 }]).candidates.some((row) => row.id === qin.id));
+  for (const boundary of [
+    { id: 5072, step: 4 },
+    { id: 5074, step: 1 },
+  ]) {
+    const later = project(5062, [{ id: 5063, step: 4 }, boundary]);
+    assert(!later.candidates.some((row) => row.id === qin.id));
+    assert(later.candidates.some((row) => row.id === sun.id));
+  }
+  for (const mainQuestId of [undefined, 5200])
+    assert(
+      !project(mainQuestId, [{ id: 5063, step: 4 }]).candidates.some((row) =>
+        [sun.id, qin.id].includes(row.id),
+      ),
+    );
+  const offline = project(5062, [{ id: 5063, step: 4 }], false);
+  assert(!offline.candidates.some((row) => [sun.id, qin.id].includes(row.id)));
+  assert(offline.guide.some((row) => row.id === sun.id));
+});
+
 const tianshui = (states, options = {}) =>
   projectCurated({ available: true, states, mainQuestId: 5780, ...options });
 
@@ -436,7 +483,8 @@ test('compact challenge summaries expose names, places and rewards with stable p
     html.indexOf('</summary>', html.indexOf('class="duel-card')),
   );
   assert.match(summary, /吕轻祈.*静态等级 30.*客栈二楼.*Synthetic reward.*切磋私物/s);
-  assert.doesNotMatch(summary, /先修炼内功|data-action="database-detail"/);
+  assert.doesNotMatch(summary, /先修炼内功/);
+  assert.match(summary, /data-action="database-detail"/);
   assert.match(html, /前置记录仍待核对，不能据此认定现在可以挑战/);
   assert.match(html, /data-persist-detail="duel-card-first-inn-window"/);
   assert.match(html, /data-persist-detail="duel-info-first-inn-window"/);

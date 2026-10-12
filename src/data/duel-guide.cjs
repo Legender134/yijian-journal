@@ -30,6 +30,13 @@ module.exports = {
       date: '编辑于2025-09-26 03:42',
       version: '正文1.24.31；继承档，50000武学点/13000经脉点等高配路线',
     },
+    npc053XuBegin: {
+      title: '萌新路线：孙郎中丹方与交酒前客栈切磋',
+      author: '虚饮茶',
+      url: 'https://www.bilibili.com/opus/1090176314524041253',
+      date: '2025-07-16 19:20',
+      version: '含碧海仙踪、武家旧事；具体构建未标，正文区分普通新档与继承重开',
+    },
     npc051BaiNew: {
       title: '全图鉴全成就流程：落英林',
       author: '力拔山兮气盖世呐',
@@ -172,6 +179,68 @@ module.exports = {
     },
   },
   duels: [
+    {
+      id: 'npc053-sunlao',
+      npcId: 10001,
+      name: '郎中-孙老',
+      place: '梧桐村郎中处',
+      level: 5,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5020, 5053, 5062],
+      afterAllComplete: [],
+      untilAnyStarted: [],
+      untilAnyComplete: [],
+      rewards: [
+        {
+          name: '宁神散丹方',
+          itemId: 100329,
+          method: '切磋私物',
+          condition: '同构建官方ItemList模板为1份；配制的宁神散回复精力5点，当前持物先观察',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation:
+        '模板等级5；解毒取药时可顺路观察丹方与当前实力。未读取玩家实时面板，不保证新档可以立即战胜。',
+      recommendation: {
+        action: '到孙老处取药时先观察宁神散丹方，有炼丹需求且能战胜再切磋。',
+        reason: '可增加回复精力药物的制作途径，适合早期顺路核对。',
+        tradeoff: '丹方取得与后续炼制都需条件；反复切磋有成本，不为清空私物强刷。',
+      },
+      uncertainty:
+        '社区将此物简称宁神丹配方，本地固定私物为宁神散丹方；这是初始私物线索，不是取药剧情固定奖励，也未证实交酒后永久消失。',
+      sourceIds: ['npc053XuBegin', 'npc051Collect'],
+    },
+    {
+      id: 'npc053-inn-qinlie',
+      npcId: 10023,
+      name: '霸刀秦烈',
+      place: '梧桐村客栈',
+      level: 35,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5062],
+      afterAllComplete: [5063],
+      untilAnyStarted: [5074],
+      untilAnyComplete: [5072],
+      rewards: [
+        {
+          name: '下品烈阳丹丹方',
+          itemId: 100312,
+          method: '切磋私物',
+          condition: '零雨其霖1.24.31继承路线列出，同构建官方ItemList模板为1份；当前背包先观察',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation:
+        '可选高风险挑战，模板等级35。旧正式版客栈打法需大量准备；继承档的收集顺序不能证明普通新档能战胜。',
+      recommendation: {
+        action: '交酒前如想收集下品烈阳丹丹方，先观察秦烈私物并量力挑战。',
+        reason: '社区继承路线与本地初始私物表都指向这一丹方，可补暴击丹药制作途径。',
+        tradeoff: '高配继承路线的收益不是普通新档必做目标；不保证首胜取得，打不过可继续主线。',
+      },
+      uncertainty:
+        '旧版作者记交酒后无法再挑战客栈江湖人；这里只提示秦烈的早期窗口，不能从模板等级推断胜率，也不能把丹方写成剧情必得。',
+      sourceIds: ['npc051Collect', 'npc051InnA', 'npc051InnB', 'npc053XuBegin'],
+    },
     {
       id: 'npc051-xiaotong',
       npcId: 10017,

@@ -14,6 +14,8 @@ export function createGameViews({
   iconButton,
   picture,
   qualityText,
+  richText = esc,
+  personRelations = () => '',
 }) {
   const itemStats = createItemStatViews({ esc, act });
   const byId = (index, id) => index.entries.find((e) => e.id === id);
@@ -87,7 +89,7 @@ export function createGameViews({
         .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN') || a.gameId - b.gameId);
       const pages = Math.max(1, Math.ceil(gifts.length / 24));
       giftPage = Math.min(giftPage, pages - 1);
-      extra = `${
+      extra = `${personRelations(index, e, reference)}${
         e.hobbies.length
           ? `<div class="detail-block"><h3>赠礼偏好</h3><div class="tag-row">${e.hobbies.map((h) => pill(h, 'green')).join('')}</div><p class="save-note">具体好感增量与可否赠送，以游戏内当前状态为准。</p></div><div class="recipe-reference"><label for="person-save">用哪份存档找礼物</label><select id="person-save" aria-label="人物礼物对照存档"><option value="">只看偏好物品示例</option>${saveChoices}</select><p>${reference ? `对照 ${esc(reference.name)} · ${when(reference.modifiedAt)}${inventory ? ' · 已读取背包' : ' · 背包未能读取，以下仅为物品示例'}` : '选择存档后显示背包里符合偏好的物品。'}</p></div><div class="detail-block person-gifts"><h3>${inventory ? '背包中符合偏好的礼物' : '符合偏好的物品示例'}</h3><div class="related-items">${
               gifts
@@ -165,7 +167,7 @@ export function createGameViews({
     }
     const guides =
       index.guideEntries?.filter((g) => g.title.includes(e.name) || e.name.includes(g.title)) || [];
-    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(e.name)}资料"><div class="drawer-head"><span class="small muted">百物图鉴 / ${e.kind}</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${pill(e.kind, 'green')}${pill(typeName(e))}${qualityText.label(e)}</div><div class="game-detail-title">${picture(e.id, 'detail')}<div><h1>${qualityText.name(e, e.name)}</h1>${e.kind === '配方' ? '<p class="small muted">产物图标 · 制作次数与材料见下方</p>' : ''}</div></div>${e.description ? `<p class="intro preserve-text">${esc(e.description)}</p>` : ''}${extra}${guides.length ? `<div class="detail-block"><h3>手札里的相关线索</h3>${guides.map((g) => act('detail', esc(g.title), 'btn mb', g.id, 'arrow')).join(' ')}</div>` : ''}<div class="detail-block"><p class="small muted">来源：${esc(index.source)} · Build ${esc(index.build)}<br>条目编号 ${e.gameId} · 非官方个人查询工具</p></div></div><div class="drawer-actions">${act(e.kind === '配方' ? 'recipe-goal' : 'database-goal', e.kind === '配方' ? '把备料单加入待办' : '记为我的目标', 'btn primary', e.id, 'plus')}${e.kind === '人物' ? act('database-gifts', '查符合偏好的物品', 'btn', e.id, 'search') + act('journey-gift-dialog', '规划赠礼', 'btn', e.id, 'plus') : e.kind === '物品' && e.giftable ? act('journey-gift-dialog', '规划赠礼', 'btn', ':' + e.id, 'plus') : ''}</div></section>`;
+    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(e.name)}资料"><div class="drawer-head"><span class="small muted">百物图鉴 / ${e.kind}</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${pill(e.kind, 'green')}${pill(typeName(e))}${qualityText.label(e)}</div><div class="game-detail-title">${picture(e.id, 'detail')}<div><h1>${qualityText.name(e, e.name)}</h1>${e.kind === '配方' ? '<p class="small muted">产物图标 · 制作次数与材料见下方</p>' : ''}</div></div>${e.description ? `<p class="intro preserve-text">${richText(e.description)}</p>` : ''}${extra}${guides.length ? `<div class="detail-block"><h3>手札里的相关线索</h3>${guides.map((g) => act('detail', esc(g.title), 'btn mb', g.id, 'arrow')).join(' ')}</div>` : ''}<div class="detail-block"><p class="small muted">来源：${esc(index.source)} · Build ${esc(index.build)}<br>条目编号 ${e.gameId} · 非官方个人查询工具</p></div></div><div class="drawer-actions">${act(e.kind === '配方' ? 'recipe-goal' : 'database-goal', e.kind === '配方' ? '把备料单加入待办' : '记为我的目标', 'btn primary', e.id, 'plus')}${e.kind === '人物' ? act('database-gifts', '查符合偏好的物品', 'btn', e.id, 'search') + act('journey-gift-dialog', '规划赠礼', 'btn', e.id, 'plus') : e.kind === '物品' && e.giftable ? act('journey-gift-dialog', '规划赠礼', 'btn', ':' + e.id, 'plus') : ''}</div></section>`;
   }
   function recipeMaterials(e, quantity, index, reference = null) {
     const inventory = reference?.metadata.inventory,

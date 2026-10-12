@@ -20,6 +20,216 @@ const ref = (quests, extra = {}, name = 'Synthetic.sav') => ({
   metadata: { quests, inventory: [], ...extra },
 });
 
+test('Ganquan investigation advice opens at the departure step and retires on rescue or any arrival branch', () => {
+  const id = 'ganquan-prison-before-yixiantian';
+  const active = [
+    { id: 13000, step: 1 },
+    { id: 13001, step: 1 },
+  ];
+  const choice = (records) => flowSnapshot(profile(), ref(records)).decisions.find((row) => row.id === id);
+  const before = structuredClone(active);
+  const prompt = choice(active);
+  assert(prompt);
+  assert.equal(prompt.questId, 13000);
+  assert.match(prompt.recommendation.action, /牢房.*卧秋山.*安置.*一线天/);
+  assert.match(prompt.recommendation.tradeoff, /万彪.*牺牲/);
+  assert.match(prompt.steps.join(' '), /冷鹰.*兆成.*甘泉村.*裴庆/);
+  assert.match(prompt.choices[1].effect, /兆成死亡.*不同.*庆功宴/);
+  assert(choice([...active, { id: 12935, step: 1 }, { id: 12936, step: 1 }]));
+  assert.deepEqual(active, before);
+  for (const record of [
+    { id: 13001, step: 4 },
+    { id: 13002, step: 4 },
+    { id: 12935, step: 4 },
+    { id: 12939, step: 4 },
+    ...[13005, 13006, 13025, 13026, 13044, 13045, 13046].flatMap((id) =>
+      [1, 2, 4].map((step) => ({ id, step })),
+    ),
+  ])
+    assert(!choice([...active, record]), `departure/rescue boundary ${record.id}:${record.step}`);
+  for (const records of [
+    [],
+    [{ id: 13000, step: 1 }],
+    [
+      { id: 13000, step: 1 },
+      { id: 13001, step: 3 },
+    ],
+    ...[2, 3, 4].map((step) => [
+      { id: 13000, step },
+      { id: 13001, step: 1 },
+    ]),
+  ])
+    assert(!choice(records));
+});
+
+test('Ganquan investigation advice retires when Guiying fails while the departure remains active', () => {
+  const id = 'ganquan-prison-before-yixiantian';
+  const active = [
+    { id: 13000, step: 1 },
+    { id: 13001, step: 1 },
+  ];
+  assert(
+    flowSnapshot(profile(), ref([...active, { id: 12935, step: 1 }])).decisions.some((row) => row.id === id),
+  );
+  const snapshot = flowSnapshot(profile(), ref([...active, { id: 12935, step: 2 }]));
+  for (const key of ['decisions', 'warnings', 'changes', 'advice', 'opportunities'])
+    assert(!snapshot[key].some((row) => row.id === id), `failed rescue should retire ${key}`);
+});
+
+test('Mowen gift advice covers Moqi and the verified unnamed choice window, then stops at every gift branch', () => {
+  const id = 'mowen-thankyou-gift-choice';
+  const root = { id: 12400, step: 1 };
+  const choice = (records) => flowSnapshot(profile(), ref(records)).decisions.find((row) => row.id === id);
+  for (const records of [
+    [root, { id: 12404, step: 1 }],
+    [root, { id: 12401, step: 4 }, { id: 12406, step: 1 }],
+    [root, { id: 12401, step: 4 }],
+  ]) {
+    const prompt = choice(records);
+    assert(prompt);
+    assert.match(prompt.recommendation.action, /棋盘.*程家村.*陆博枭/);
+    assert.match(prompt.recommendation.tradeoff, /3000.*六博.*战斗.*不能保证/);
+    assert.match(prompt.choices[0].effect, /好感\+20/);
+    assert.match(prompt.choices[1].effect, /好感\+10.*白光剑/);
+    assert.match(prompt.choices[2].effect, /不加.*好感.*花坞茶.*双井茶.*阳羡茶/);
+    assert.match(prompt.uncertainty, /不把仅问过莫弃当作三人都已问完/);
+  }
+  const imminent = [root, { id: 12401, step: 4 }, { id: 12404, step: 1 }];
+  for (const id of [
+    12407, 12408, 12409, 12410, 12411, 12412, 12413, 12414, 12415, 12416, 12417, 12418, 12419, 12420, 12421,
+    12422,
+  ]) {
+    for (const step of [1, 2, 4]) assert(!choice([...imminent, { id, step }]), `gift branch ${id}:${step}`);
+  }
+  assert(!choice([...imminent, { id: 12406, step: 4 }]));
+  for (const records of [
+    [root],
+    [root, { id: 12401, step: 1 }, { id: 12402, step: 4 }],
+    [root, { id: 12404, step: 4 }],
+    ...[2, 3, 4].map((step) => [
+      { id: 12400, step },
+      { id: 12404, step: 1 },
+      { id: 12401, step: 4 },
+    ]),
+  ])
+    assert(!choice(records));
+});
+
+test('Caged Bird warns before the fight, keeps pre-fight dialogue separate from death, and retires at escape or hidden closure', () => {
+  const id = 'nightcat-before-caged-bird';
+  const root = { id: 12685, step: 1 };
+  const project = (records) => flowSnapshot(profile(), ref(records));
+  const warning = (records) => project(records).warnings.find((row) => row.id === id);
+  const prompt = warning([root]);
+  assert(prompt);
+  assert.deepEqual(
+    prompt.affectedTasks.map((row) => row.questId),
+    [11885, 12310, 11405],
+  );
+  assert.match(prompt.warning, /1\.24\.31.*夜猫子身亡.*画舫旧事.*烟霞剑客.*旧比武招亲/);
+  assert.match(prompt.affectedTasks[2].effect, /不把武家旧事.*一并/);
+  assert.match(prompt.uncertainty, /已接任务.*交付.*待核对.*不单独当作人物死亡证明/);
+  for (const id of [12686, 12687]) {
+    assert(warning([root, { id, step: 1 }]));
+    assert(warning([root, { id, step: 4 }]));
+  }
+  for (const id of [12688, 12689, 12693]) {
+    for (const step of [1, 2, 4]) {
+      const later = project([root, { id, step }]);
+      assert(!later.warnings.some((row) => row.id === prompt.id));
+      assert(!later.changes.some((row) => row.id === prompt.id));
+    }
+  }
+  for (const step of [2, 3, 4])
+    assert(
+      !warning([
+        { id: 12685, step },
+        { id: 12686, step: 1 },
+      ]),
+    );
+  assert(!warning([]));
+  const alreadyFinished = warning([root, { id: 11885, step: 4 }, { id: 11405, step: 2 }]);
+  assert.deepEqual(
+    alreadyFinished.affectedTasks.map((row) => row.questId),
+    [12310],
+  );
+  const accepted = warning([root, { id: 11885, step: 1 }]);
+  assert.match(accepted.affectedTasks[0].effect, /已有进行中记录.*没有证明.*失败/);
+});
+
+test('new side-story prompts use only the selected reference and retain versioned evidence as offline guide material', () => {
+  const ids = [
+    'ganquan-prison-before-yixiantian',
+    'mowen-thankyou-gift-choice',
+    'nightcat-before-caged-bird',
+  ];
+  const records = [
+    { id: 13000, step: 1 },
+    { id: 13001, step: 1 },
+    { id: 12400, step: 1 },
+    { id: 12404, step: 1 },
+    { id: 12685, step: 1 },
+  ];
+  const alternate = ref(records, {}, '1.sav');
+  for (const [selectedProfile, reference] of [
+    [profile({ referenceMode: 'none' }), alternate],
+    [profile({ referenceMode: 'slot', saveSlot: '0.sav' }), alternate],
+    [profile(), null],
+  ]) {
+    const flow = flowSnapshot(selectedProfile, reference);
+    assert.equal(flow.available, false);
+    for (const key of ['decisions', 'warnings', 'advice', 'changes'])
+      assert(!flow[key].some((row) => ids.includes(row.id)), key);
+    for (const id of ids) assert(flow.guide.some((row) => row.id === id));
+  }
+  const rule = guide.rules.find((row) => row.id === ids[1]);
+  const authors = new Set(rule.sourceIds.map((id) => guide.sources[id].author).filter(Boolean));
+  assert(authors.has('虚饮茶'));
+  assert(authors.has('无敌大白熊丶'));
+  const fixed = guide.sources.flow053MowenChoice;
+  assert.match(fixed.url, /oldid=61152/);
+  const sparse = flowSnapshot(
+    profile(),
+    ref([
+      { id: 13000, step: 1 },
+      { id: 12400, step: 1 },
+    ]),
+  );
+  for (const key of ['decisions', 'warnings', 'changes', 'advice', 'opportunities'])
+    assert(!sparse[key].some((row) => ids.slice(0, 2).includes(row.id)), key);
+  const recipeReference = ref(
+    [
+      { id: 5062, step: 1 },
+      { id: 5063, step: 4 },
+      { id: 5072, step: 1 },
+    ],
+    { trackingMainQuest: 5062 },
+  );
+  const recipeIds = ['npc053-sunlao', 'npc053-inn-qinlie'];
+  const ready = flowSnapshot(profile(), recipeReference);
+  for (const id of recipeIds) assert(ready.duels.candidates.some((row) => row.id === id));
+  for (const selectedProfile of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: '0.sav' }),
+  ])
+    assert(
+      !flowSnapshot(selectedProfile, recipeReference).duels.candidates.some((row) =>
+        recipeIds.includes(row.id),
+      ),
+    );
+  for (const step of [2, 3, 4]) {
+    const closed = ref(
+      [
+        { id: 5062, step },
+        { id: 5063, step: 4 },
+        { id: 5072, step: 1 },
+      ],
+      { trackingMainQuest: 5062 },
+    );
+    assert(!flowSnapshot(profile(), closed).duels.candidates.some((row) => recipeIds.includes(row.id)));
+  }
+});
+
 test('wine delivery names the optional inn challenge window and retires when delivered', () => {
   const project = (step, extra = []) =>
     flowSnapshot(

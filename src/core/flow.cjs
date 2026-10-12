@@ -418,6 +418,7 @@ function createFlowProjector({
         (rule.requireStageMatch ? stageMatch && (!anchors.length || anchorsMet) : stageMatch || anchorsMet);
       const deadlineReached =
         (rule.untilAnyStarted || []).some((id) => [1, 2, 4].includes(step(id))) ||
+        (rule.untilAnyFailed || []).some((id) => step(id) === 2) ||
         (rule.untilAnyComplete || []).some((id) => step(id) === 4);
       const decisionStepActive = (rule.decisionSteps || []).some((id) => {
         const task = quests.get(id);
@@ -487,7 +488,13 @@ function createFlowProjector({
       };
     });
     const relevantRules = projectedRules.filter(
-      (r) => available && r.relevant && !r.done && !r.failed && !r.decisionResolved,
+      (r) =>
+        available &&
+        r.relevant &&
+        !r.done &&
+        !r.failed &&
+        !r.decisionResolved &&
+        (!r.requireDecisionWindow || r.decisionActive),
     );
     const warnings = relevantRules
       .filter((r) => r.warning && r.severity !== 'reminder' && !r.deadlineReached)

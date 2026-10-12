@@ -503,6 +503,131 @@
 .pictured-link.text-btn {
   line-height: 1.6;
 }
+.entity-link-label {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.entity-link:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.entity-inline.text-btn,
+.flow-task h3 > .entity-link,
+.flow-now h3 > .entity-link,
+.duel-card summary .entity-link {
+  display: inline;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  line-height: inherit;
+  text-align: inherit;
+}
+.entity-inline .game-picture,
+.flow-task h3 .game-picture,
+.flow-now h3 .game-picture,
+.duel-card summary .game-picture {
+  display: inline-flex;
+  width: 21px;
+  height: 21px;
+  margin-right: 4px;
+  vertical-align: -4px;
+  border-radius: 4px;
+}
+.world-quest-card h3,
+.database-card h3 {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.entity-preview {
+  position: fixed;
+  z-index: 1000;
+  width: min(326px, calc(100vw - 20px));
+  max-height: calc(100vh - 20px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid #b4c3ad;
+  border-radius: 9px;
+  background: var(--paper, #f8f6ed);
+  color: var(--ink, #253d35);
+  box-shadow: 0 8px 26px #173c2926;
+  font-size: 13px;
+  line-height: 1.65;
+  animation: entity-preview-in 120ms ease-out;
+}
+.entity-preview[hidden] {
+  display: none;
+}
+.entity-preview-heading {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+}
+.entity-preview-heading > div {
+  min-width: 0;
+}
+.entity-preview-heading strong {
+  display: block;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.entity-preview-heading small {
+  color: var(--muted);
+}
+.entity-preview p {
+  margin: 9px 0 0;
+  overflow-wrap: anywhere;
+}
+.entity-preview .entity-preview-description {
+  font-size: 12px;
+}
+.entity-preview .entity-preview-note {
+  color: var(--muted);
+  font-size: 11px;
+  border-top: 1px solid #d8dfd0;
+  padding-top: 8px;
+}
+.entity-preview-hint {
+  display: block;
+  margin-top: 8px;
+  color: var(--green);
+}
+.entity-relation-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line, #e5e6dc);
+}
+.entity-relation-row:last-child {
+  border-bottom: none;
+}
+.entity-relation-row p {
+  margin: 6px 0;
+}
+.entity-relation-row summary,
+.entity-more > summary {
+  font-size: 12px;
+  color: var(--green);
+  padding: 5px 0;
+}
+.entity-relations > details {
+  margin-top: 14px;
+}
+.entity-related-advice {
+  margin-top: 12px;
+}
+@keyframes entity-preview-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .entity-preview {
+    animation: none;
+  }
+}
 .related-items .pictured-link {
   min-height: 44px;
 }

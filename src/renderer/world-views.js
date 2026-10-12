@@ -1,6 +1,18 @@
 import { compileSearch } from './search-query.js';
 import { taskMentions } from './task-mentions.js';
-export function createWorldViews({ esc, act, pill, notice, icon, iconButton, when, empty, picture }) {
+export function createWorldViews({
+  esc,
+  act,
+  pill,
+  notice,
+  icon,
+  iconButton,
+  when,
+  empty,
+  picture,
+  richText = esc,
+  taskRelations = () => '',
+}) {
   let cached, quests, people, maps, children, families;
   const labels = ['未开始', '进行中', '已失败', '未接取', '已完成'];
   function prepare(index) {
@@ -187,9 +199,11 @@ export function createWorldViews({ esc, act, pill, notice, icon, iconButton, whe
     const inventory = Array.isArray(view.reference?.metadata.inventory)
       ? new Map(view.reference.metadata.inventory.map((i) => [i.id, i.count]))
       : null;
-    const targetNames = (ids) => ids.map((id) => npc(id, index)).join('、') || '资料未列出';
-    const text = `<p class="preserve-text">${esc(q.description || '资料没有提供任务说明。')}</p>`;
-    return `<section class="drawer world-drawer" role="dialog" aria-modal="true" aria-label="任务资料"><div class="drawer-head"><span class="small muted">任务手册 / 资料与存档对照</span>${iconButton('close-overlay', 'close', '关闭任务资料')}</div><div class="drawer-body"><div class="tag-row">${pill(q.parentId ? '任务步骤' : '主任务')}${pill(status(q, view))}${pill(`资料编号 ${q.gameId}`)}</div><h1>${esc(q.name)}</h1><p class="save-note">${view.reference ? `对照 ${esc(view.reference.name)} · ${when(view.reference.modifiedAt)}` : '当前仅查资料，尚未核对存档。'}</p>${view.error ? notice(view.error) : ''}${parent ? `<div class="detail-block"><h3>所属任务</h3>${questLink(parent)}</div>` : ''}<details class="detail-block" ${showText ? 'open' : ''}><summary>任务说明 · 可能涉及剧情</summary>${text}</details><div class="detail-block"><h3>交互人物</h3><p>接取：${targetNames(q.requestNPCs)}</p><p>完成：${targetNames(q.finishNPCs)}</p></div>${mentionLinks(index, q, showText)}${q.materials?.length ? `<div class="detail-block"><h3>任务所需物品</h3>${q.materials.map((m) => `<div class="material-row"><span>${act('database-detail', esc(m.name), 'text-btn', `item-${m.id}`)}</span><strong>需 ${m.count}</strong>${inventory ? pill(`库存 ${inventory.get(m.id) || 0} · 缺 ${Math.max(0, m.count - (inventory.get(m.id) || 0))}`, (inventory.get(m.id) || 0) >= m.count ? 'green' : 'orange') : pill('库存未读取')}${act('world-reserve-material', (reservations[m.id] || 0) >= m.count ? `已预留 ${reservations[m.id]} 件` : `为任务预留 ${m.count} 件`, 'btn', `${q.id}:${m.id}`)}</div>`).join('')}<p class="save-note">预留归属于这项任务，与其他任务及手动保留数量相加。存档确认任务完成时暂停扣除；进度待核对时继续保留。可在备料清单调整或释放，不修改游戏库存。</p></div>` : ''}${q.requirements.length ? `<details class="detail-block"><summary>资料中的接取条件</summary>${requirementRows(q.requirements, index, view)}<p class="save-note">条件只是资料线索；尚未读取的隐藏记录和游戏当前状态也可能影响接取。</p></details>` : ''}${q.placements.length ? `<details class="detail-block"><summary>关联场景线索</summary>${q.placements.map((p) => `<div class="world-rule"><span>${mapLink(p.mapKey)}</span><span>${npc(p.npcId, index)}${p.inHouse ? ' · 室内' : ''}</span><small class="muted">${p.interactionTarget ? '对应交互人物' : '任务事件中的场景布置'}</small></div>`).join('')}<p class="save-note">场景布置也会包含其他剧情人物，不能把每条位置当成任务目标的当前所在地。</p></details>` : ''}${
+    const targetNames = (ids) =>
+      ids.map((id) => npc(id, index)).join('、') ||
+      (group.length > 1 ? '本记录未单列，见下方关联汇总' : '资料未列出');
+    const text = `<p class="preserve-text">${richText(q.description || '资料没有提供任务说明。')}</p>`;
+    return `<section class="drawer world-drawer" role="dialog" aria-modal="true" aria-label="任务资料"><div class="drawer-head"><span class="small muted">任务手册 / 资料与存档对照</span>${iconButton('close-overlay', 'close', '关闭任务资料')}</div><div class="drawer-body"><div class="tag-row">${pill(q.parentId ? '任务步骤' : '主任务')}${pill(status(q, view))}${pill(`资料编号 ${q.gameId}`)}</div><div class="game-detail-title">${picture(q.id, 'detail')}<h1>${esc(q.name)}</h1></div><p class="save-note">${view.reference ? `对照 ${esc(view.reference.name)} · ${when(view.reference.modifiedAt)}` : '当前仅查资料，尚未核对存档。'}</p>${view.error ? notice(view.error) : ''}${parent ? `<div class="detail-block"><h3>所属任务</h3>${questLink(parent)}</div>` : ''}<details class="detail-block" ${showText ? 'open' : ''}><summary>任务说明 · 可能涉及剧情</summary>${text}</details><div class="detail-block"><h3>本条记录的直接交互人物</h3><p>接取：${targetNames(q.requestNPCs)}</p><p>完成：${targetNames(q.finishNPCs)}</p></div>${taskRelations(index, q, view.reference)}${mentionLinks(index, q, showText)}${q.materials?.length ? `<div class="detail-block"><h3>任务所需物品</h3>${q.materials.map((m) => `<div class="material-row"><span>${act('database-detail', esc(m.name), 'text-btn', `item-${m.id}`)}</span><strong>需 ${m.count}</strong>${inventory ? pill(`库存 ${inventory.get(m.id) || 0} · 缺 ${Math.max(0, m.count - (inventory.get(m.id) || 0))}`, (inventory.get(m.id) || 0) >= m.count ? 'green' : 'orange') : pill('库存未读取')}${act('world-reserve-material', (reservations[m.id] || 0) >= m.count ? `已预留 ${reservations[m.id]} 件` : `为任务预留 ${m.count} 件`, 'btn', `${q.id}:${m.id}`)}</div>`).join('')}<p class="save-note">预留归属于这项任务，与其他任务及手动保留数量相加。存档确认任务完成时暂停扣除；进度待核对时继续保留。可在备料清单调整或释放，不修改游戏库存。</p></div>` : ''}${q.requirements.length ? `<details class="detail-block"><summary>资料中的接取条件</summary>${requirementRows(q.requirements, index, view)}<p class="save-note">条件只是资料线索；尚未读取的隐藏记录和游戏当前状态也可能影响接取。</p></details>` : ''}${q.placements.length ? `<details class="detail-block"><summary>关联场景线索</summary>${q.placements.map((p) => `<div class="world-rule"><span>${mapLink(p.mapKey)}</span><span>${npc(p.npcId, index)}${p.inHouse ? ' · 室内' : ''}</span><small class="muted">${p.interactionTarget ? '对应交互人物' : '任务事件中的场景布置'}</small></div>`).join('')}<p class="save-note">场景布置也会包含其他剧情人物，不能把每条位置当成任务目标的当前所在地。</p></details>` : ''}${
       group.length > 1
         ? `<details class="detail-block" open><summary>相关步骤 · ${group.length - 1}</summary><div class="world-steps">${group
             .filter((c) => c !== q)
