@@ -264,6 +264,81 @@ test('night chest rewards link dated acquisition guidance without replacing nati
   assert.deepEqual(raw, before);
 });
 
+test('wooden sword codex connects house pickup and later return while preserving native QuestItem facts', async () => {
+  const raw = require('../src/data/game-index.json');
+  const before = structuredClone(raw);
+  const index = encyclopedia();
+  const item = index.entries.find((row) => row.id === 'item-10393');
+  const { stats, acquisitionRoutes, ...native } = item;
+  assert.deepEqual(
+    native,
+    raw.entries.find((row) => row.id === 'item-10393'),
+  );
+  assert.equal(item.giftable, false);
+  assert.equal(item.typeKey, 'QuestItem');
+  assert.equal(item.buyPrice, 500);
+  assert.equal(item.sellPrice, 250);
+  assert.equal(acquisitionRoutes.length, 1);
+  const route = acquisitionRoutes[0];
+  assert.equal(route.questId, 5351);
+  assert.match(route.detail, /江吟风故居.*已归还.*六派共议.*补拿.*天佛窟归来.*墓前.*自动归还/);
+  assert.match(route.uncertainty, /精确拾取窗口.*未可靠识别.*背包没有.*不能证明.*不据旧版/);
+  assert.equal(route.sources.length, 4);
+  assert(route.sources.every((row) => row.id.startsWith('flow:') && row.date && row.version));
+  const { createGameViews } = await import('../src/renderer/game-views.js');
+  const esc = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch],
+    );
+  const views = createGameViews({
+    esc,
+    icon: () => '',
+    act: (action, label, cls, id) =>
+      `<button data-action="${esc(action)}" data-id="${esc(id)}">${label}</button>`,
+    pill: esc,
+    empty: esc,
+    notice: esc,
+    bytes: esc,
+    when: esc,
+    hours: esc,
+    iconButton: () => '',
+    picture: (id) => `<img data-picture="${id}">`,
+    qualityText: { name: (_, name) => esc(name), label: () => '' },
+  });
+  const html = views.detail(index, item.id);
+  assert.match(html, /阶段获取线索.*江吟风故居/s);
+  assert.match(html, /data-action="flow-quest" data-id="quest-5351"/);
+  assert.match(html, /data-action="source" data-id="flow:flow062XiaotongXu"/);
+  assert.match(html, /2024-08-28.*2025-07-16.*2024-12-07.*2025-07-16/s);
+  assert.match(html, /data-picture="item-10393"/);
+  assert.deepEqual(raw, before);
+});
+
+test('Chenghuang Yufeng item route distinguishes formation from conditional combat rewards', () => {
+  const raw = require('../src/data/game-index.json');
+  const before = structuredClone(raw);
+  const item = encyclopedia().entries.find((row) => row.id === 'item-13721');
+  const { stats, acquisitionRoutes, ...native } = item;
+  assert.deepEqual(
+    native,
+    raw.entries.find((row) => row.id === 'item-13721'),
+  );
+  assert.equal(item.name, '乘黄御风');
+  assert.equal(acquisitionRoutes.length, 1);
+  assert.equal(acquisitionRoutes[0].questId, 8499);
+  assert.match(
+    acquisitionRoutes[0].detail,
+    /另存.*燕未还.*荀杳杳.*三人赴战.*多人赴战.*自由组队.*第二战.*并非/,
+  );
+  assert.match(acquisitionRoutes[0].uncertainty, /两位2025.*24回合.*当前.*未实测.*不保证/);
+  assert.equal(acquisitionRoutes[0].sources.length, 2);
+  assert(
+    acquisitionRoutes[0].sources.every((row) => row.date && row.version && row.url.startsWith('https://')),
+  );
+  assert.deepEqual(raw, before);
+});
+
 test('save detail filename validation and scan cache invalidation', (t) => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-detail-'));
   t.after(() => {

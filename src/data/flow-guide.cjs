@@ -9,11 +9,91 @@ const wudangNightChest = {
     '社区路线，不是宝箱当前未开启的证明。2025作者记过时不候，2026流程列两件奖励；当前构建的精确失效时点未实测，也不表示这是物品的唯一来源。',
   sourceIds: ['flow061WudangNight', 'npc053WudangReturn'],
 };
+const xiaotongWoodenSword = {
+  title: '梧桐村 · 江吟风故居的木剑',
+  questId: 5351,
+  detail:
+    '祭拜故人、返回梧桐村时，可到江吟风故居内找小彤的木剑；已有或已归还可跳过。烟尘回响流程还记六派共议后可回屋补拿，天佛窟归来在江吟风墓前见小彤时，持有木剑会自动归还。',
+  uncertainty:
+    '地点与用途来自不同版本的社区路线；精确拾取窗口、是否已拾取或归还未可靠识别。背包没有木剑不能证明未拿过或已错过，也不据旧版好感数值保证当前结局。',
+  sourceIds: ['flow062WoodenOld', 'flow062WoodenXuEarly', 'flow062XiaotongHetu', 'flow062XiaotongXu'],
+};
+const changshengFormationReward = {
+  title: '长生殿 · 赴战人数与第二战速杀',
+  questId: 8499,
+  detail:
+    '去五仙教东北侧禁地的路上先另存，再和燕未还、荀杳杳确认人数。想收集乘黄御风秘籍，社区路线推荐三人赴战；孤身赴战也有此收集路线，多人赴战可自由组队。奖励还需满足第二战速杀条件，并非选完人数就获得。',
+  uncertainty:
+    '两位2025碧海仙踪作者均记第二战24回合目标及单人／三人路线的乘黄御风；鞋子等图纸记载略有不同。精确游戏构建未标，当前速杀阈值、奖励全部条件未实测；不保证本次可取得，也不证明其他来源不存在。',
+  sourceIds: ['flow062FormationXu', 'biliChangshengChoice'],
+};
 // Community flow clues; unknown task records never prove availability.
 module.exports = {
-  itemRoutes: { 13701: [wudangNightChest], 140: [wudangNightChest] },
+  itemRoutes: {
+    13701: [wudangNightChest],
+    140: [wudangNightChest],
+    10393: [xiaotongWoodenSword],
+    13721: [changshengFormationReward],
+  },
   sources: {
     ...duelGuide.sources,
+    flow062OriginalRoute: {
+      title: '木林风：玄火不灭、重返武当与天山决战',
+      author: '木林风',
+      url: 'https://www.3dmgame.com/gl/3904744_46.html',
+      date: '2024-08-28 13:38:43',
+      version: '旧正式版后期路线；不套用烟尘回响结局条件',
+      confidence:
+        '已读45–47页正文与目录，支持原版后期主线衔接；只作下一节点参考，不证明已解锁，也不套用旧版好感门槛或封路条件。',
+    },
+    flow062LinyaFinale: {
+      title: '临崖攻略组：原版后期至天山决战的流程目录',
+      author: '临崖攻略组',
+      url: 'https://www.bilibili.com/opus/1081593793052934146',
+      date: '2026-06-19 15:36（编辑）',
+      version: '烟尘回响攻略集，含原版路线；具体构建未标',
+      confidence:
+        '已读公开目录P23武林浩劫、玄火不灭、重返武当及P24决战天山之巅；未取得付费全文，不据目录推断隐藏结局或推进截止。',
+    },
+    flow062FormationXu: {
+      title: '虚饮茶：决战白惟一前的赴战人数抉择',
+      author: '虚饮茶',
+      url: 'https://www.bilibili.com/opus/1090176752596025364',
+      date: '2025-07-16 19:22',
+      version: '碧海仙踪流程；具体构建未标',
+      confidence:
+        '已读禁地路上的三种人数选项、单人／三人与多人收集差异正文；第二战24回合、鞋图及轻功奖励是作者版本化记载，未实测当前构建。',
+    },
+    flow062WoodenXuEarly: {
+      title: '虚饮茶：早期回梧桐村取木剑',
+      url: 'https://www.bilibili.com/opus/1090176314524041253',
+      date: '2025-07-16 19:20',
+      version: '碧海仙踪流程；具体构建未标',
+      confidence: '已读野猪王、卫霍离队后回家拿木剑的早期流程；支持提前收集，未验证所有版本的最后拾取时点。',
+    },
+    flow062XiaotongXu: {
+      title: '虚饮茶：天佛窟前回访小彤与归还木剑',
+      url: 'https://www.bilibili.com/opus/1090176752596025364',
+      date: '2025-07-16 19:22',
+      version: '碧海仙踪流程；具体构建未标',
+      confidence:
+        '已读回访、解药后果与墓前归还正文；后果是作者版本化记载，未实测当前隐藏判定。回访好感+10与另一作者+20不同，不作统一数值。',
+    },
+    flow062XiaotongHetu: {
+      title: '_河图与洛书_：五仙圣女与木剑补拿',
+      url: 'https://www.bilibili.com/opus/1003325637634555960',
+      date: '2024-12-07 00:38（编辑）',
+      version: '烟尘回响12.7第二版；具体构建未标',
+      confidence:
+        '独立流程支持离开少林后接五仙圣女、阎浮镇回访及故居补拿木剑；不独立证明解药全部隐藏条件，也不把好感+20当作当前固定收益。',
+    },
+    flow062WoodenOld: {
+      title: '木林风：江小彤旧版结局与木剑地点',
+      url: 'https://www.3dmgame.com/gl/3904744_50.html',
+      date: '2024-08-28 13:38:43',
+      version: '旧正式版结局流程；不直接套用烟尘回响结局',
+      confidence: '独立作者记峋谷关后回梧桐村家中取木剑；仅交叉核对地点与保留道具，不保证当前拾取截止。',
+    },
     flow061WudangNight: {
       title: '三瓶卡尔：天水归来后的武当夜间宝箱',
       url: 'https://www.bilibili.com/opus/1085489014869327875',
@@ -312,12 +392,13 @@ module.exports = {
       confidence: '力拔山兮气盖世呐的流程；已读弟子房寻物段落，未实机验证。',
     },
     biliChangshengChoice: {
-      title: '决战长生殿：战前留档与救援分支',
+      title: '决战长生殿：人数收益、抗毒整备与救援分支',
       author: 'shuffleDJ_共祭',
       url: 'https://www.bilibili.com/opus/1093773564369174531',
       date: '2025-07-26 12:00',
       version: '碧海仙踪极难路线；具体构建未标',
-      confidence: '已读作者正文；留档、救援与另档图鉴分支有记载，全部触发条件和战斗回合阈值未实测。',
+      confidence:
+        '已读作者正文；单人／三人的乘黄御风、第二战24回合、抗毒整备、留档及救援有记载，全部触发条件和当前战斗回合阈值未实测。',
     },
     biliChangshengRoute: {
       title: '南疆主线：长生殿决战与救援后续',
@@ -516,6 +597,9 @@ module.exports = {
   },
   // Sourced story transitions, independent of quest-ID order or unlock status.
   milestones: {
+    6050: { next: 6080, sourceIds: ['flow062LinyaFinale', 'flow062OriginalRoute'] },
+    6080: { next: 6110, sourceIds: ['flow062LinyaFinale', 'flow062OriginalRoute'] },
+    6110: { next: 6150, sourceIds: ['flow062LinyaFinale', 'flow062OriginalRoute'] },
     9254: { next: 20000, sourceIds: ['biliLateFlow', 'gs49'] },
     20000: { next: 22000, sourceIds: ['biliLateFlow', 'gs51'] },
     22000: { next: 22100, sourceIds: ['biliLateFlow', 'gs52'] },
@@ -625,6 +709,102 @@ module.exports = {
       sourceIds: ['flow061DamoXu', 'flow061DamoCat'],
       uncertainty:
         '静态任务数据核对了达摩洞调查、准备和三段参悟记录；伤残后果及活动限制来自社区，未验证每个版本与隐藏条件。已有完成、失败或出征记录后撤下当前提醒，仍可查完整攻略。',
+    },
+    {
+      id: 'xiaotong-visit-before-tianfo',
+      kind: 'stage',
+      title: '少林共议后：赴天佛窟前回访小彤',
+      questId: 23230,
+      chapterRoots: [22100],
+      stageSteps: [22050, 22060],
+      afterAllComplete: [],
+      untilAnyStarted: [22170, 22171, 22179, 24000, 24020],
+      untilAnyComplete: [23242],
+      untilAnyFailed: [23234, 23242],
+      deadlineLabel: '六派共议后离开少林、回武当确认会师与誓师出发前；精确内部截止未实测',
+      pickup: {
+        place: '离开少林山门 → 阎浮镇东北方小屋',
+        person: '江小彤',
+        action: '离开少林后核对五仙圣女任务，到阎浮镇东北方小屋探望江小彤，完成后核对约定记录。',
+      },
+      recommendation: {
+        hint: '赴天佛窟前：去阎浮镇东北方小屋回访小彤',
+        goal: '优先保留小彤后续剧情及解药准备路线',
+        action:
+          '先留可回读进度；六派共议后离开少林，去阎浮镇东北方小屋探望江小彤，核对五仙圣女与约定，再回武当确认会师出发。',
+        reason:
+          '两位独立作者都安排出发前回访；虚饮茶记漏访会影响娜乌请掌门准备解药、小彤阵营及后续清虚遇袭的分支。',
+        tradeoff:
+          '多一次阎浮镇回访；已完成约定可继续。若想探索另一分支，另留存档；本次回访不保证全部完美条件，好感增量的两篇记载也不同。',
+      },
+      warning:
+        '赴天佛窟前核对「五仙圣女」：到阎浮镇东北方小屋回访小彤；攻略关联解药准备、小彤阵营与后续人物分支。',
+      advanceEffects: [
+        {
+          questId: 23230,
+          scope: 'continue',
+          effect:
+            '建议在回武当确认六派会师、誓师出发前完成探望及约定；已接取不等于已经回访，精确截止未实测。',
+        },
+        {
+          name: '娜乌的解药准备与小彤阵营',
+          scope: 'continue',
+          effect:
+            '虚饮茶的2025流程记未回访时，娜乌不会请掌门准备解药，小彤会参与敌方；优先保留救治路线时先回访。',
+          evidence:
+            '另一独立作者支持回访顺序，未单独证明这些因果和全部隐藏前置；不是当前人物状态的读取结果。',
+        },
+        {
+          name: '清虚遇袭、清霄存活及武当掌门分支',
+          scope: 'continue',
+          effect:
+            '同一作者将漏访关联贺兰仇偷袭清虚成功，进而影响非完美路线的清霄存活和掌门结局；不要把回访一项当作结局保证。',
+        },
+      ],
+      steps: [
+        '六派共议后，在少林山门与清霄交谈并离开少林，核对是否接到五仙圣女；没有任务记录不等于已错过或已解锁。',
+        '去阎浮镇东北方小屋，靠近小彤休养的房间触发探望；完成对话，核对约定或根任务完成记录。',
+        '顺路另核对小彤的木剑：社区记梧桐村江吟风故居可补拿，用于天佛窟归来后的墓前归还；不以木剑有无判定这次探望是否完成。',
+        '确认回访、佛生诸想和队伍整备后，再回武当与清霄确认六派会师、参加誓师；另档探索不同人物分支。',
+      ],
+      choices: [],
+      sourceIds: ['flow062XiaotongXu', 'flow062XiaotongHetu'],
+      uncertainty:
+        '本地任务文字确认探望地点与约定，后果来自社区版本化流程；+10与+20好感记载不同，不作固定收益或完美结局承诺。保存的完成、失败或出征记录会撤下当前提醒，未保存的回访须自行核对。',
+    },
+    {
+      id: 'xiaotong-wooden-sword-home',
+      kind: 'stage',
+      severity: 'reminder',
+      proactive: true,
+      title: '祭拜故人时：顺路核对小彤的木剑',
+      questId: null,
+      chapterRoots: [5346],
+      stageSteps: [5351],
+      afterAllComplete: [],
+      untilAnyStarted: [],
+      untilAnyComplete: [5346, 5351],
+      untilAnyFailed: [5351],
+      deadlineLabel: '',
+      pickup: {
+        place: '梧桐村江吟风故居内；后续江吟风墓前',
+        person: '江小彤',
+        action: xiaotongWoodenSword.detail,
+      },
+      recommendation: {
+        hint: '祭拜故人顺路：去江吟风故居核对小彤的木剑，已有可跳过',
+        goal: '保留小彤后续归还木剑的剧情线索',
+        action: '回梧桐村祭拜时，顺路到江吟风故居找小彤的木剑；背包已有或已经归还就跳过。',
+        reason:
+          '不同版本作者都记录故居内获取，烟尘回响流程还记后续墓前持有会自动归还；现在顺路核对可减少之后折返。',
+        tradeoff:
+          '多一次屋内搜寻；当前拾取窗口未实测，不表示这次不拿就永久错过。木剑是任务道具，不能按普通赠礼送出。',
+      },
+      warning: '祭拜时可顺路核对故居里的小彤的木剑，保留后续归还线索；已经取得或归还可跳过。',
+      steps: [xiaotongWoodenSword.detail],
+      choices: [],
+      sourceIds: xiaotongWoodenSword.sourceIds,
+      uncertainty: xiaotongWoodenSword.uncertainty,
     },
     {
       id: 'kushui-chief-before-qiongshan',
@@ -2180,6 +2360,113 @@ module.exports = {
       uncertainty: '仅列可选收益，未确认所有版本、队伍状态与触发细节；不保证现在能够调入队伍。',
     },
     {
+      id: 'changsheng-formation-choice',
+      kind: 'stage',
+      title: '禁地前：按收集目标决定赴战人数',
+      questId: 8499,
+      requireDecisionWindow: true,
+      chapterRoots: [],
+      afterAllComplete: [],
+      decisionSteps: [8536],
+      decisionAfterAllComplete: [8536],
+      untilAnyComplete: [8553],
+      untilAnyStarted: [8554, 8555, 8593, 8560, 8561, 8830],
+      deadlineLabel: '前往五仙教东北侧禁地，和燕未还、荀杳杳确认赴战人数之前',
+      pickup: {
+        place: '五仙教东北侧禁地路上',
+        person: '燕未还；荀杳杳',
+        action: '先另存可回读记录，再按收集目标选人数；孤身赴战还会出现确定单人赴战／再想想。',
+      },
+      recommendation: {
+        hint: '禁地前先另存；想收集乘黄御风优先三人赴战',
+        goal: '保留乘黄御风秘籍的收集路线，并有燕未还、荀杳杳协助',
+        action: '先另存；想收集乘黄御风时优先选三人赴战，再准备第二战的速杀目标。',
+        reason:
+          '两位独立作者都把单人／三人路线与乘黄御风关联；三人路线由主角、燕未还、荀杳杳共同对敌，较孤身多两位同伴。',
+        tradeoff:
+          '人数选择会限制出战阵容；多人赴战可自由组队，但虚饮茶记此路线没有这次轻功与鞋图收益。选三人本身不保证获奖，还需满足战斗条件；不把作者的24回合直接当当前保证。',
+      },
+      warning: '赴战人数会影响乘黄御风等收集路线；去禁地前先另存，再决定三人、孤身或多人赴战。',
+      advanceEffects: [
+        {
+          name: '乘黄御风秘籍与第二战速杀图纸',
+          effect:
+            '2025作者记单人／三人并满足第二战速杀条件有乘黄御风；多人路线可自由组队但缺少这次轻功与鞋图。当前阈值及全部奖励未实测，不等于物品永久不可得。',
+        },
+      ],
+      steps: [
+        '前往禁地途中，燕未还与荀杳杳会讨论赴战人数；确认前先自行另存。',
+        '收集目标优先核对三人赴战；孤身赴战还有确定单人赴战／再想想的确认机会。',
+        '选完人数后按当前路线准备装备、恢复气血真气；第二战速杀另有条件，不能只选人数就视为已收集。',
+      ],
+      choices: [
+        {
+          label: '推荐收集路线：三人赴战',
+          effect: '主角、燕未还、荀杳杳共同对敌；两位作者记满足第二战速杀条件可取得乘黄御风及图纸。',
+        },
+        {
+          label: '挑战路线：孤身赴战',
+          effect:
+            '主角独战，燕未还、荀杳杳同行掠阵；作者也记乘黄御风收集路线，但不能据此保证当前练度能速杀。确认框可选再想想。',
+        },
+        {
+          label: '自由组队：多人赴战',
+          effect:
+            '可按自己的队伍组合备战；虚饮茶记没有这次乘黄御风与鞋图收益。想探索不同人数路线需回读选择前另存的记录。',
+        },
+      ],
+      sourceIds: changshengFormationReward.sourceIds,
+      uncertainty: changshengFormationReward.uncertainty,
+    },
+    ...[
+      { step: 8554, name: '三人赴战', preparation: '按主角、燕未还、荀杳杳的三人阵容整备。' },
+      {
+        step: 8555,
+        name: '孤身赴战',
+        preparation: '按主角独战整备，燕未还、荀杳杳同行掠阵；不能据同行误认为会出战。',
+      },
+      {
+        step: 8593,
+        name: '多人赴战',
+        preparation: '按自己的可用队伍自由组队；不要继续按三人路线的奖励预期推进。',
+      },
+    ].map(({ step, name, preparation }) => ({
+      id: `changsheng-formation-saved-${step}`,
+      kind: 'stage',
+      severity: 'reminder',
+      proactive: true,
+      title: `已记录${name}：按本路线准备长生殿`,
+      questId: null,
+      requireStageMatch: true,
+      chapterRoots: [8499],
+      afterAllComplete: [step],
+      afterLabels: { [step]: name },
+      untilAnyComplete: [8499],
+      untilAnyFailed: [8499],
+      untilAnyStarted: [8830],
+      deadlineLabel: '',
+      pickup: { place: '五仙教 → 长生殿', person: '燕未还；荀杳杳', action: preparation },
+      warning: `已记录${name}；${preparation}`,
+      recommendation: {
+        hint: `已选${name}；先恢复、整备并留档`,
+        goal: '按已保存人数路线完成战前准备',
+        action: `${preparation}补好气血、真气、装备和食物，再自行另存。`,
+        reason: '人数结果已经保存，应按当前阵容备战，停止选择前的推荐。作者还建议检查抗毒手段。',
+        tradeoff:
+          step === 8593
+            ? '多人路线侧重自由组队；虚饮茶记没有这次乘黄御风与鞋图。想改人数需回读选择前记录。'
+            : '乘黄御风与图纸还受第二战速杀条件影响；两位2025作者记24回合，当前阈值未实测，已有奖励可跳过。',
+      },
+      steps: [
+        preparation,
+        '作者建议先核对已有七杀幻蛇剑或五灵心经等抗毒手段，再按现有流派准备；不要求为此重走互斥路线。',
+        '第二战速杀奖励属于社区条件线索，先保留可回读记录；本助手未识别当前实时阵容或战斗回合，不保证胜利或奖励。',
+      ],
+      choices: [],
+      sourceIds: changshengFormationReward.sourceIds,
+      uncertainty: changshengFormationReward.uncertainty,
+    })),
+    {
       id: 'changsheng-rescue-choice',
       kind: 'stage',
       title: '长生殿决战：先留档，再按目标决定救援',
@@ -2453,7 +2740,11 @@ module.exports = {
         action: '天佛窟归来后查墓，出村再返回',
       },
       warning: '传功与征询莫问会改变小彤入队和后续场景。',
-      steps: ['对话前核对是否希望小彤同行。'],
+      steps: [
+        '天佛窟归来，先在梧桐村江吟风墓前找到小彤；2025流程记持有小彤的木剑时自动归还，不是普通赠礼。',
+        '离开梧桐村后保存，再返回村内核对梦境与治疗剧情；商葶苧在队时，作者记有风云决治疗提示。',
+        '对话前核对是否希望小彤同行；默认推荐传功小彤，若想探索征询莫问则另留存档。',
+      ],
       choices: [
         {
           label: '传功小彤',
@@ -2464,7 +2755,7 @@ module.exports = {
           effect: '攻略记小彤不入队，后续剧情有所不同。',
         },
       ],
-      sourceIds: ['gs52', 'gs53', 'wiki29135'],
+      sourceIds: ['gs52', 'gs53', 'wiki29135', 'flow062XiaotongXu'],
       uncertainty: '小彤这段隐藏剧情尚未与当前任务索引可靠对应；未证实传功是任何特定结局的唯一必要条件。',
     },
     {
