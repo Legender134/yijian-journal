@@ -178,6 +178,15 @@ test('explicit edge tuck remains clickable without taking focus and restores the
     assert.equal(f.controller.mode, 'expanded');
     await f.controller.tuck();
     f.quiet(true);
+    assert.equal(f.win.isVisible(), true);
+    assert.deepEqual(f.actions.filter((a) => a[0] === 'ignore').at(-1), ['ignore', false]);
+    f.set({ ...game, gameForeground: false, ownForeground: false });
+    assert.equal(f.win.isVisible(), false);
+    f.set(game);
+    assert.equal(f.win.isVisible(), true);
+    f.controller.expand();
+    assert.deepEqual(f.win.getBounds(), chosen);
+    await f.controller.collapse();
     assert.equal(f.win.isVisible(), false);
     f.quiet(false);
     assert.equal(f.win.isVisible(), true);

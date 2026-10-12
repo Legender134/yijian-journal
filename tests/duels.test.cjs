@@ -23,6 +23,64 @@ const guide = {
 };
 const project = createDuelProjector({ guide, world, game });
 
+test('Yuanjue collection stays conditional until saved death, with exact private items and conservative preparation', () => {
+  const projectYuanjue = createDuelProjector({ guide: curatedGuide, world, game });
+  const facts = require('../src/data/npc-facts.json').people['5500'];
+  const combat = {
+    format: 14,
+    player: {
+      id: 0,
+      level: 25,
+      healthRatio: 0.3,
+      manaRatio: 0.2,
+      equipment: [],
+      skills: [],
+      skillPoints: 720,
+      meridianPoints: 35,
+    },
+    opponents: [],
+  };
+  const before = structuredClone(combat);
+  const get = (mainQuestId, states = [], available = true) =>
+    projectYuanjue({ available, states, mainQuestId, combat });
+  for (const stage of [5920, 5940, 9254]) {
+    const row = get(stage).candidates.find((entry) => entry.id === 'npc060-yuanjue');
+    assert(row, String(stage));
+    assert.equal(row.personId, 'npc-5500');
+    assert.equal(row.level, facts.level);
+    assert.equal(row.readiness.status, 'defer');
+    assert(row.readiness.checks.some((check) => check.id === 'weapon' && check.status === 'unmet'));
+    assert.match(row.readiness.growth, /720.*35/);
+    assert.match(row.recommendation.tradeoff, /龙爪手.*另有/);
+    assert.match(row.uncertainty, /进入檀林不等于立即失效/);
+    assert(row.sources.length >= 3);
+    for (const reward of row.rewards) {
+      assert(facts.fixedItems.some((item) => item.id === reward.itemId));
+      assert.equal(game.entries.find((entry) => entry.id === 'item-' + reward.itemId)?.name, reward.name);
+      assert.equal(reward.method, '切磋私物');
+      assert.match(reward.probability, /不保证首胜.*概率未知/);
+    }
+  }
+  // A Tanlin step or a still-living Yuanjue dialogue is not itself a death record.
+  for (const [stage, record] of [
+    [5920, 5926],
+    [5940, 5947],
+    [9254, 9246],
+  ])
+    assert(get(stage, [{ id: record, step: 1 }]).candidates.some((row) => row.id === 'npc060-yuanjue'));
+  for (const boundary of [5950, 5953, 9133, 9249, 20000, 20001])
+    for (const step of [1, 2, 4]) {
+      const result = get(5920, [{ id: boundary, step }]);
+      assert(!result.candidates.some((row) => row.id === 'npc060-yuanjue'), `${boundary}:${step}`);
+      assert(result.guide.find((row) => row.id === 'npc060-yuanjue').closed);
+    }
+  for (const boundary of [5940, 9254])
+    assert(!get(boundary, [{ id: boundary, step: 4 }]).candidates.some((row) => row.id === 'npc060-yuanjue'));
+  assert(!get(20000).candidates.some((row) => row.id === 'npc060-yuanjue'));
+  assert(!get(5920, [], false).candidates.some((row) => row.id === 'npc060-yuanjue'));
+  assert.deepEqual(combat, before);
+});
+
 test('midgame collection follows conference, Xungu, Linchang and beggar saved windows', () => {
   const current = createDuelProjector({ guide: curatedGuide, world, game });
   const mids = (mainQuestId, states) =>

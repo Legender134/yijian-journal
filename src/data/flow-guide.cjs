@@ -264,6 +264,22 @@ module.exports = {
       version: '正文声明 ver1.24.25',
       confidence: '力拔山兮气盖世呐的流程；已读弟子房寻物段落，未实机验证。',
     },
+    biliChangshengChoice: {
+      title: '决战长生殿：战前留档与救援分支',
+      author: 'shuffleDJ_共祭',
+      url: 'https://www.bilibili.com/opus/1093773564369174531',
+      date: '2025-07-26 12:00',
+      version: '碧海仙踪极难路线；具体构建未标',
+      confidence: '已读作者正文；留档、救援与另档图鉴分支有记载，全部触发条件和战斗回合阈值未实测。',
+    },
+    biliChangshengRoute: {
+      title: '南疆主线：长生殿决战与救援后续',
+      author: '_河图与洛书_',
+      url: 'https://www.bilibili.com/opus/1002913866250715170',
+      date: '编辑于2024-12-24 17:04',
+      version: '南疆完美路线第三版；具体构建未标',
+      confidence: '已读决战与后续正文，支持救援路线；不能只凭本次选项保证满足全部前置。',
+    },
     biliLatePrep: {
       title: '烟尘回响：入门前阵容与结局条件',
       url: 'https://www.bilibili.com/opus/1002228831844564999',
@@ -1911,6 +1927,52 @@ module.exports = {
       ],
       sourceIds: ['gs47'],
       uncertainty: '仅列可选收益，未确认所有版本、队伍状态与触发细节；不保证现在能够调入队伍。',
+    },
+    {
+      id: 'changsheng-rescue-choice',
+      kind: 'stage',
+      title: '长生殿决战：先留档，再按目标决定救援',
+      questId: 8830,
+      requireDecisionWindow: true,
+      chapterRoots: [],
+      afterAllComplete: [],
+      decisionSteps: [8831, 8843, 8847, 8848, 8851, 8852, 8855, 8856, 8857, 8858, 8904],
+      decisionAfterAnyComplete: [8843, 8847, 8848, 8851, 8852, 8855, 8856, 8857, 8858, 8904],
+      untilAnyStarted: [8865, 8866, 8869, 8875, 8879, 5920, 5940, 9254],
+      deadlineLabel: '与蓝孔雀确认动身前留档；决战后作出救援选择之前',
+      pickup: {
+        place: '五仙教山门 → 长生殿决战',
+        person: '蓝孔雀；白惟一',
+        action: '跟蓝孔雀确认前先另存；决战后按想保留的人物与收集目标核对救援选项。',
+      },
+      recommendation: {
+        hint: '长生殿决战：先另存；保留人物优先救援',
+        goal: '优先保留人物存活与长生殿的后续剧情',
+        action: '出发前另存可回读记录；若战后出现「出手相救」，保留人物路线优先选它。',
+        reason: '两位作者均采用救援路线；任务文字也将救治白惟一与为皓首一族作保相连。',
+        tradeoff:
+          '不兼得不救分支的图鉴；救援能否出现并成功还受此前剧情与好感影响，不保证只选一次就全员存活。',
+      },
+      warning: '',
+      steps: [
+        '与蓝孔雀确认动身前，自行保留独立存档；准备连续两战，先补气血、真气并核对装备。',
+        '作者建议准备抗毒手段；可先查看自己是否已有七杀幻蛇剑或五灵心经，再按现有流派整备，不要求为此重新走互斥路线。',
+        '决战后先读清选项；想保留人物与和平后续时优先核对出手相救，想看另一分支则用另档探索。',
+      ],
+      choices: [
+        {
+          label: '保留人物与后续：出手相救',
+          effect: '社区的完整前置路线可保留白惟一及长生殿后续，并回访神树崖；选择本身不保证满足隐藏条件。',
+        },
+        {
+          label: '另档探索：置之不理／不救白惟一',
+          effect:
+            '社区记有油尽灯枯及不同回忆；白惟一与长生殿众人的存活、后续会改变。同一推进不能同时保留两条结果，需回读事先另存的记录。',
+        },
+      ],
+      sourceIds: ['biliChangshengChoice', 'biliChangshengRoute'],
+      uncertainty:
+        '社区版本不同，全部好感、剧情前置和速杀奖励阈值未在当前游戏验证。已保存的出手相救同名记录不单独证明所有人存活；出现分支记录后停止选择前建议，以已记录步骤与实际剧情为准。',
     },
     {
       id: 'late-roster-before-wudang',
