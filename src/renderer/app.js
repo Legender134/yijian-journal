@@ -34,6 +34,8 @@ import { createTimelineViews } from './timeline-views.js';
 import { createCompanionViews } from './companion-view.js';
 import { createFlowViews } from './flow-views.js';
 import { createDuelViews } from './duel-views.js';
+import { createEntityReferences, installEntityPreviews } from './entity-references.js';
+import { createEntityDetailViews } from './entity-detail-views.js';
 const api = window.journal;
 const compact = new URLSearchParams(location.search).has('compact');
 const root = document.querySelector('#app'),
@@ -834,8 +836,9 @@ document.addEventListener(
   },
   true,
 );
+const entityReferences = createEntityReferences({ index: () => gameIndex, esc, picture, icon, qualityText });
 const act = (action, label, cls = 'btn', id = '', glyph = '', accessibleLabel = '') =>
-  `<button type="button" class="${cls}${action === 'database-detail' && id ? ' pictured-link' : ''}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''}${accessibleLabel ? ` aria-label="${esc(accessibleLabel)}"` : ''}>${action === 'database-detail' && id ? picture(id) + '<span>' + qualityText.html(id, label) + '</span>' : (glyph ? icon(glyph) : '') + label}</button>`;
+  entityReferences.button(action, label, cls, id, glyph, accessibleLabel);
 const iconButton = (action, glyph, title, id = '', cls = '') =>
   `<button class="icon-btn ${cls}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''} aria-label="${esc(title)}" title="${esc(title)}">${icon(glyph)}</button>`;
 const pill = (label, style = '') => `<span class="pill ${style}">${esc(label)}</span>`;
@@ -872,8 +875,15 @@ const gameViews = createGameViews({
   iconButton,
   picture,
   qualityText,
+  richText: entityReferences.text,
+  personRelations: (index, person, reference) => entityDetailViews.person(index, person, reference),
 });
-const duelViews = createDuelViews({ esc, act, pill });
+const duelViews = createDuelViews({
+  esc,
+  act,
+  pill,
+  richText: (value) => entityReferences.text(value, 'flow-quest'),
+});
 function duelsPage() {
   return duelViews.page(currentFlow(), { compact, scope: profile().id });
 }
@@ -888,12 +898,71 @@ const comparisonViews = createComparisonViews({
   iconButton,
   picture,
 });
-const worldViews = createWorldViews({ esc, act, pill, notice, icon, iconButton, when, empty, picture });
-const flowViews = createFlowViews({ esc, act, icon, pill, when });
+const entityDetailViews = createEntityDetailViews({
+  esc,
+  act,
+  pill,
+  guide: () => currentFlow()?.guide || [],
+});
+const worldViews = createWorldViews({
+  esc,
+  act,
+  pill,
+  notice,
+  icon,
+  iconButton,
+  when,
+  empty,
+  picture,
+  richText: entityReferences.text,
+  taskRelations: (index, quest, reference) => entityDetailViews.task(index, quest, reference),
+});
+const flowViews = createFlowViews({
+  esc,
+  act,
+  icon,
+  pill,
+  when,
+  richText: (value) => entityReferences.text(value, 'flow-quest'),
+});
 function currentFlow() {
   const flow = compact ? companionData?.flow : environment?.flow;
   return flow?.profileId === profile().id ? flow : null;
 }
+let entityPreviewReference = null;
+const entityPreviews = installEntityPreviews({
+  document,
+  window,
+  references: entityReferences,
+  context: async (target) => {
+    if (
+      target.closest('[data-flow], .duel-page') ||
+      (currentDrawer?.type === 'entity-choice' && currentDrawer.flowReference)
+    ) {
+      const flow = currentFlow();
+      const identity =
+        currentDrawer?.type === 'entity-choice' ? currentDrawer.flowReference : flow?.reference;
+      let reference = null;
+      if (
+        identity &&
+        readableSaves().some((file) => file.name === identity.name && file.hash === identity.hash)
+      ) {
+        if (entityPreviewReference?.name !== identity.name || entityPreviewReference?.hash !== identity.hash)
+          entityPreviewReference = await call('saveDetails', identity.name);
+        if (entityPreviewReference?.hash === identity.hash) reference = entityPreviewReference;
+      }
+      const statuses = new Map(
+        (flow?.active || []).flatMap((task) => [
+          [task.id, '进行中'],
+          ...(task.progress || []).map((step) => [step.id, step.status]),
+          ...(task.steps || []).map((step) => [step.id, '进行中']),
+        ]),
+      );
+      return { reference, name: identity?.name, statuses };
+    }
+    return { reference: currentDrawer?.type?.startsWith('world-') ? worldView.reference : referenceSave };
+  },
+});
 const materialViews = createMaterialViews({ esc, act, pill, notice, icon, iconButton, when, empty });
 const searchHelpViews = createSearchHelpViews({ esc, fields: searchFilterFields });
 const backupViews = createBackupViews({ esc, act, pill, icon, iconButton, empty, when, bytes });
@@ -1526,7 +1595,7 @@ async function readComparison() {
 function databaseView() {
   return gameViews.page(gameIndex, query, databaseKind, databaseType, databasePage);
 }
-async function showDatabaseDetail(id, quantity = 1, giftPage) {
+async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference = null) {
   const sameDrawer = currentDrawer?.type === 'database' && currentDrawer.id === id;
   databaseId = id;
   const e = gameViews.byId(gameIndex, id),
@@ -1549,8 +1618,12 @@ async function showDatabaseDetail(id, quantity = 1, giftPage) {
       }
   }
   if (token !== detailRequest || profileId !== profile().id) return;
+  if (expectedReference && referenceSave?.hash !== expectedReference.hash) {
+    toast('这份流程参照已变化，请刷新后重新查看人物或物品。', true);
+    return;
+  }
   if (['物品', '人物', '配方'].includes(e.kind) && planningSignature !== planningIntentSignature())
-    return showDatabaseDetail(id, quantity, giftPage);
+    return showDatabaseDetail(id, quantity, giftPage, expectedReference);
   const quantityField = sameDrawer && e.kind === '配方' ? document.querySelector('#recipe-quantity') : null;
   const rawQuantity = quantityField?.value;
   const validQuantity = quantityField && quantityField.checkValidity() && Number(rawQuantity) >= 1;
@@ -2400,8 +2473,18 @@ function compactPage() {
     `<span data-save-health>${timelineViews.chip(environment.health)}</span>`,
   );
 }
+function showEntityChoice(id, flowReference = null) {
+  const rows = entityReferences.choices(id);
+  if (!rows.length) throw Error('这组同名资料暂不可用');
+  rememberDrawer({ type: 'entity-choice', id, flowReference });
+  showOverlay(
+    `<section class="drawer" role="dialog" aria-modal="true" aria-label="选择同名资料"><div class="drawer-head"><span>选择具体资料</span>${iconButton('close-overlay', 'close', '关闭同名资料')}</div><div class="drawer-body"><h1>${esc(id.slice(5))}</h1><p class="save-note">这些条目同名，但人物身份、品质或任务步骤可能不同。请选择具体资料；不会按同名猜选。</p>${rows.map((entry) => `<div class="entity-relation-row">${act(entry.kind === '任务' ? (flowReference ? 'flow-quest' : 'world-quest') : 'database-detail', esc(entry.name), 'text-btn', entry.id)}<p class="small muted">${esc(entry.kind)}${entry.quality ? ' · ' + esc(entry.quality) + '色' : ''} · #${entry.gameId}</p>${entry.description ? `<p class="small">${esc(entry.description.slice(0, 160))}</p>` : ''}</div>`).join('')}</div></section>`,
+    true,
+  );
+}
 function render(preserve = false, navigationId = null) {
   if (!catalog || !state || composing) return;
+  entityPreviews.close();
   captureIntentDrafts();
   const replaceRoot = (html) => {
     const note = preserve ? root.querySelector('#note') : null;
@@ -2575,9 +2658,9 @@ function render(preserve = false, navigationId = null) {
   syncItineraryIntentEditors();
   root.querySelector('.sidebar-nav .nav-btn.active')?.scrollIntoView({ block: 'nearest' });
   if (preserve) {
-    root.querySelector('.content').scrollTop = scroll;
     for (const el of root.querySelectorAll('details[data-persist-detail]'))
       if (openedDetails.has(el.dataset.persistDetail)) el.open = openedDetails.get(el.dataset.persistDetail);
+    root.querySelector('.content').scrollTop = scroll;
   }
   if (focusId) {
     const next = document.getElementById(focusId);
@@ -2598,6 +2681,7 @@ function intentDraftBanner() {
   return `<div class="notice mb">${act('intent-drafts', `继续未完成安排 · ${availableIntentDrafts().length} 份草稿`, 'text-btn')}</div>`;
 }
 function showOverlay(html, drawer = false, preserve = false) {
+  entityPreviews.close();
   ++backupPreviewRequest;
   if (resourcePriorityDraft && !html.includes('class="resource-priority-editor"')) {
     resourcePriorityRequest++;
@@ -3205,15 +3289,18 @@ function searchHistory() {
     )
     .join('');
 }
-async function refresh() {
+async function refresh(background = false) {
   const token = ++refreshRequest;
   const next = await call('refresh');
   if (token !== refreshRequest) return;
   const discoverySourceChanged =
     recipeDiscoverySourceSignature(environment) !== recipeDiscoverySourceSignature(next);
+  const changed = JSON.stringify(environment) !== JSON.stringify(next);
   environment = next;
   if (discoverySourceChanged) invalidateRecipeDiscovery();
-  render(true);
+  // Keep the hovered entry and keyboard focus connected during an unchanged poll.
+  // Explicit refreshes still render route changes and locally updated views.
+  if (!background || changed) render(true);
   if (route === 'recipe-discovery' && recipeDiscoveryNeedsRefresh) await refreshRecipeDiscovery();
   if (token !== refreshRequest) return;
   if (journeyDraft?.kind === 'gift' && document.querySelector('#journey-item-options'))
@@ -4202,7 +4289,8 @@ async function handle(action, id, target, navigationFocused = false) {
         referenceSaveName = view.referenceName;
         referenceFollow = view.follow;
         await showDatabaseDetail(view.id, view.quantity || 1, view.giftPage);
-      } else if (view.type === 'search') searchModal(view);
+      } else if (view.type === 'entity-choice') showEntityChoice(view.id, view.flowReference);
+      else if (view.type === 'search') searchModal(view);
       else if (view.type === 'guide') showDetail(view.id);
       else if (view.type === 'backup') await inspectBackupPreview(view.data.id);
       else if (view.type === 'timeline') {
@@ -4948,8 +5036,21 @@ async function handle(action, id, target, navigationFocused = false) {
       render(true);
       document.querySelector('#list-search')?.focus();
       break;
+    case 'entity-choice':
+      showEntityChoice(
+        id,
+        target.closest('[data-flow], .duel-page') ? currentFlow()?.reference : currentDrawer?.flowReference,
+      );
+      break;
     case 'database-detail': {
       let quantity = 1;
+      const flowReference = target.closest('[data-flow], .duel-page')
+        ? currentFlow()?.reference
+        : currentDrawer?.flowReference;
+      if (flowReference) {
+        referenceSaveName = flowReference.name;
+        referenceFollow = false;
+      }
       if (!currentDrawer && route === 'materials') {
         await mutationQueue;
         referenceSaveName = materialView.referenceName ?? defaultReference();
@@ -4958,7 +5059,7 @@ async function handle(action, id, target, navigationFocused = false) {
         if (target.closest('.craft-line'))
           quantity = profile().craftList?.find((line) => line.id === id)?.quantity || 1;
       }
-      await showDatabaseDetail(id, quantity);
+      await showDatabaseDetail(id, quantity, undefined, flowReference);
       break;
     }
     case 'database-uses': {
@@ -6857,7 +6958,7 @@ try {
       !document.hidden &&
       (currentDrawer || !document.activeElement?.matches('select,input,textarea'))
     )
-      refresh().catch(() => {});
+      refresh(true).catch(() => {});
   }, 5000);
   await call('ready');
 } catch (e) {

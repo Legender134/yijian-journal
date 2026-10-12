@@ -296,6 +296,7 @@ function backupPreviewSetup() {
   };
   const context = {
     overlay,
+    entityPreviews: { close: noop },
     root: { inert: false, querySelector: () => null },
     document: { activeElement: null, querySelector: () => null },
     window: { journal: { timelineRelease: async () => {} } },

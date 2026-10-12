@@ -173,7 +173,7 @@ function rendererHarness() {
         '\nasync function refreshRecipeDiscovery(',
       ) +
       '\n' +
-      section(renderer, 'async function refresh() {', '\nasync function handle(') +
+      section(renderer, 'async function refresh(', '\nasync function handle(') +
       '\n' +
       'async function runExport() { switch ("protection-export") {' +
       section(renderer, "case 'protection-export': {", "    case 'protection-import-volumes':") +
@@ -188,6 +188,24 @@ const failureReceipt = () => ({
   status: 'failed',
   file: '本次目标',
   message: '长期保护 0001 · 1.sav 校验失败；原件保留，可靠副本分批导出。',
+});
+
+test('unchanged background refresh retains the page while changed data and explicit refresh still render', async () => {
+  const { context, requests } = rendererHarness();
+  let renders = 0;
+  context.render = () => renders++;
+  let pending = context.refresh(true);
+  requests.shift()(JSON.parse(JSON.stringify(context.environment)));
+  await pending;
+  assert.equal(renders, 0);
+  pending = context.refresh(true);
+  requests.shift()({ ...context.environment, recent: { name: 'synthetic-updated.sav' } });
+  await pending;
+  assert.equal(renders, 1);
+  pending = context.refresh();
+  requests.shift()(JSON.parse(JSON.stringify(context.environment)));
+  await pending;
+  assert.equal(renders, 2, 'an explicit refresh can render a newly selected page with unchanged data');
 });
 test('superseding refresh cannot turn a durable failure into an unrecorded generic failure', async () => {
   const { context, requests, operations } = rendererHarness(),
