@@ -1475,7 +1475,15 @@ async function showWorldDetail(id, type = 'quest', replace = false, flowReferenc
     worldView.follow = false;
     worldView.reference = selectedSave;
   }
-  if (!flowReference && (worldView.referenceName === undefined || worldView.loading))
+  const currentWorldName = worldView.follow ? latestReference() : worldView.referenceName;
+  if (
+    !flowReference &&
+    (worldView.referenceName === undefined ||
+      worldView.loading ||
+      currentWorldName !== worldView.referenceName ||
+      environment.saves.files.find((file) => file.name === currentWorldName)?.hash !==
+        worldView.reference?.hash)
+  )
     await loadWorldReference();
   if (token !== detailRequest) return;
   const canonical = type === 'quest' && !String(id).startsWith('quest-') ? `quest-${id}` : id;
@@ -3036,7 +3044,15 @@ function showSearchResults(value) {
       ...e,
       quality: qualityText.quality(e),
       title: e.name,
-      sub: e.kind + ' · ' + e.type + ' · 本机图鉴',
+      sub:
+        e.kind +
+        ' · ' +
+        e.type +
+        ' · 本机图鉴' +
+        (e.kind === '人物' &&
+        entityReferences.choices('name:' + e.name).filter((row) => row.kind === '人物').length > 1
+          ? ' · #' + e.gameId
+          : ''),
       action: 'database-detail',
       glyph: { 物品: 'bag', 武学: 'sword', 人物: 'person', 配方: 'scroll' }[e.kind],
       group: 'database',
@@ -7013,7 +7029,11 @@ try {
         'journey',
         'recipe-discovery',
       ].includes(route) &&
-      (!compact || route !== 'home') &&
+      // Opened references need hash synchronization even after their drawer closes.
+      (!compact ||
+        route !== 'home' ||
+        worldView.referenceName !== undefined ||
+        referenceSaveName !== undefined) &&
       !document.hidden &&
       (currentDrawer || !document.activeElement?.matches('select,input,textarea'))
     )

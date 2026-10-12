@@ -16,6 +16,7 @@ const loaded = Promise.all([
   import(url('entity-catalog.js')),
   import(url('entity-references.js')),
   import(url('entity-detail-views.js')),
+  import(url('flow-views.js')),
 ]);
 const esc = (value) =>
   String(value ?? '').replace(
@@ -215,4 +216,36 @@ test('shipped character and root quest relationships include actual descendants 
         row.via.some(({ quest, count }) => quest.gameId === 11010 && count === 4),
     ),
   );
+});
+
+test('expanded community steps and choice effects retain escaped entity previews and ambiguous-name choices', async () => {
+  const [, { createEntityReferences }, , { createFlowViews }] = await loaded;
+  const index = fixture(),
+    references = factory(createEntityReferences, index);
+  const view = createFlowViews({
+    esc,
+    act: references.button,
+    icon: esc,
+    pill: esc,
+    when: esc,
+    richText: references.text,
+  });
+  const html = view.panel({
+    guide: [
+      {
+        id: 'guide',
+        name: '攻略',
+        steps: ['先找孙老，再问莫弃。<img onerror="bad">'],
+        choices: [{ label: '把金疮药送给孙老', effect: '莫弃的分支需核对' }],
+      },
+    ],
+  });
+  const steps = html.match(/<ol class="flow-guide-steps">[\s\S]*?<\/ol>/)[0];
+  assert.match(steps, /data-entity-id="npc-1"/);
+  assert.match(steps, /data-action="entity-choice" data-id="name:莫弃"/);
+  assert.match(steps, /&lt;img onerror=&quot;bad&quot;&gt;/);
+  const choices = html.match(/<dl>[\s\S]*?<\/dl>/)[0];
+  assert.match(choices, /data-entity-id="item-11"/);
+  assert.match(choices, /data-id="name:莫弃"/);
+  assert.doesNotMatch(html, /<img onerror/);
 });
