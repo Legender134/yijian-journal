@@ -957,10 +957,9 @@ const entityPreviews = installEntityPreviews({
       const identity =
         currentDrawer?.type === 'entity-choice' ? currentDrawer.flowReference : flow?.reference;
       let reference = null;
-      if (
-        identity &&
-        readableSaves().some((file) => file.name === identity.name && file.hash === identity.hash)
-      ) {
+      // Companion snapshots can advance before the main environment's save list.
+      // Read the flow's exact identity and still reject a changed hash below.
+      if (identity?.name && identity.hash) {
         if (entityPreviewReference?.name !== identity.name || entityPreviewReference?.hash !== identity.hash)
           entityPreviewReference = await call('saveDetails', identity.name);
         if (entityPreviewReference?.hash === identity.hash) reference = entityPreviewReference;
@@ -1461,7 +1460,7 @@ async function loadWorldReference(name) {
     }
   }
 }
-async function showWorldDetail(id, type = 'quest', replace = false, flowReference = null) {
+async function showWorldDetail(id, type = 'quest', replace = false, flowReference = null, opener = null) {
   const token = ++detailRequest;
   const view = flowReference || worldView;
   if (!flowReference && currentDrawer?.type === 'database' && referenceSaveName !== undefined) {
@@ -1512,7 +1511,7 @@ async function showWorldDetail(id, type = 'quest', replace = false, flowReferenc
     },
     replace,
   );
-  showOverlay(html, true);
+  showOverlay(html, true, false, opener);
 }
 async function calculateMaterials() {
   if ([...document.querySelectorAll('.craft-count')].some((n) => !n.checkValidity()))
@@ -1617,7 +1616,7 @@ async function readComparison() {
 function databaseView() {
   return gameViews.page(gameIndex, query, databaseKind, databaseType, databasePage);
 }
-async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference = null) {
+async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference = null, opener = null) {
   const sameDrawer = currentDrawer?.type === 'database' && currentDrawer.id === id;
   databaseId = id;
   const e = gameViews.byId(gameIndex, id),
@@ -1645,7 +1644,7 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
     return;
   }
   if (['物品', '人物', '配方'].includes(e.kind) && planningSignature !== planningIntentSignature())
-    return showDatabaseDetail(id, quantity, giftPage, expectedReference);
+    return showDatabaseDetail(id, quantity, giftPage, expectedReference, opener);
   const quantityField = sameDrawer && e.kind === '配方' ? document.querySelector('#recipe-quantity') : null;
   const rawQuantity = quantityField?.value;
   const validQuantity = quantityField && quantityField.checkValidity() && Number(rawQuantity) >= 1;
@@ -1685,7 +1684,7 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
       },
       currentDrawer?.type === 'database' && currentDrawer.id === id,
     );
-    showOverlay(html, true, sameDrawer);
+    showOverlay(html, true, sameDrawer, opener);
     if (quantityField && !validQuantity) {
       document.querySelector('#recipe-quantity').value = rawQuantity || '';
       document.querySelector('#recipe-materials').innerHTML = notice(
@@ -2495,13 +2494,15 @@ function compactPage() {
     `<span data-save-health>${timelineViews.chip(environment.health)}</span>`,
   );
 }
-function showEntityChoice(id, flowReference = null) {
+function showEntityChoice(id, flowReference = null, opener = null) {
   const rows = entityReferences.choices(id);
   if (!rows.length) throw Error('这组同名资料暂不可用');
   rememberDrawer({ type: 'entity-choice', id, flowReference });
   showOverlay(
     `<section class="drawer" role="dialog" aria-modal="true" aria-label="选择同名资料"><div class="drawer-head"><span>选择具体资料</span>${iconButton('close-overlay', 'close', '关闭同名资料')}</div><div class="drawer-body"><h1>${esc(id.slice(5))}</h1><p class="save-note">这些条目同名，但人物身份、品质或任务步骤可能不同。请选择具体资料；不会按同名猜选。</p>${rows.map((entry) => `<div class="entity-relation-row">${act(entry.kind === '任务' ? (flowReference ? 'flow-quest' : 'world-quest') : 'database-detail', esc(entry.name), 'text-btn', entry.id)}<p class="small muted">${esc(entry.kind)}${entry.quality ? ' · ' + esc(entry.quality) + '色' : ''} · #${entry.gameId}</p>${entry.description ? `<p class="small">${esc(entry.description.slice(0, 160))}</p>` : ''}</div>`).join('')}</div></section>`,
     true,
+    false,
+    opener,
   );
 }
 function render(preserve = false, navigationId = null) {
@@ -2555,6 +2556,28 @@ function render(preserve = false, navigationId = null) {
     focusId = preserve ? active?.id : null,
     selection = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null,
     fieldValue = active && active.dataset?.persist ? active.value : null;
+  const referenceFocus =
+    preserve && root.contains(active) && active?.dataset?.entityId
+      ? {
+          action: active.dataset.action,
+          id: active.dataset.entityId,
+          occurrence: [...root.querySelectorAll('[data-entity-id]')]
+            .filter(
+              (el) =>
+                el.dataset.action === active.dataset.action &&
+                el.dataset.entityId === active.dataset.entityId,
+            )
+            .indexOf(active),
+        }
+      : null;
+  const restoreReferenceFocus = () => {
+    if (!referenceFocus || root.inert) return;
+    const next = [...root.querySelectorAll('[data-entity-id]')].filter(
+      (el) => el.dataset.action === referenceFocus.action && el.dataset.entityId === referenceFocus.id,
+    )[referenceFocus.occurrence];
+    next?.focus({ preventScroll: true });
+    entityPreviews.close(true);
+  };
   navigationId ||=
     root.contains(active) && active.matches('.sidebar-nav .nav-btn, .companion-tabs [data-action="navigate"]')
       ? active.dataset.id
@@ -2641,6 +2664,7 @@ function render(preserve = false, navigationId = null) {
     }
     restoreItineraryFocus();
     restoreNavigationFocus();
+    restoreReferenceFocus();
     return;
   }
   const sidebarScroll = root.querySelector('.sidebar-nav')?.scrollTop || 0;
@@ -2705,11 +2729,12 @@ function render(preserve = false, navigationId = null) {
   }
   restoreItineraryFocus();
   restoreNavigationFocus();
+  restoreReferenceFocus();
 }
 function intentDraftBanner() {
   return `<div class="notice mb">${act('intent-drafts', `继续未完成安排 · ${availableIntentDrafts().length} 份草稿`, 'text-btn')}</div>`;
 }
-function showOverlay(html, drawer = false, preserve = false) {
+function showOverlay(html, drawer = false, preserve = false, opener = null) {
   entityPreviews.close();
   ++backupPreviewRequest;
   if (resourcePriorityDraft && !html.includes('class="resource-priority-editor"')) {
@@ -2726,7 +2751,7 @@ function showOverlay(html, drawer = false, preserve = false) {
         (e) => e.id || e.querySelector('summary')?.textContent,
       )
     : [];
-  if (!overlay.firstChild) lastFocus = document.activeElement;
+  if (!overlay.firstChild) lastFocus = opener || document.activeElement;
   if (!drawer) {
     currentDrawer = null;
     drawerHistory.length = 0;
@@ -3392,7 +3417,8 @@ async function refresh(background = false) {
     currentDrawer.planningSignature !== planningIntentSignature()
   )
     await showDatabaseDetail(currentDrawer.id, currentDrawer.quantity || 1, currentDrawer.giftPage);
-  if (currentDrawer?.type === 'search' && !composing) showSearchResults(currentDrawer.query);
+  if ((!background || changed) && currentDrawer?.type === 'search' && !composing)
+    showSearchResults(currentDrawer.query);
 }
 async function handle(action, id, target, navigationFocused = false) {
   if (
@@ -4742,7 +4768,7 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     }
     case 'world-quest':
-      await showWorldDetail(id, 'quest');
+      await showWorldDetail(id, 'quest', false, null, target);
       break;
     case 'flow-quest': {
       const profileId = profile().id;
@@ -4763,7 +4789,7 @@ async function handle(action, id, target, navigationFocused = false) {
       if (profile().id !== profileId) break;
       worldRequest++;
       Object.assign(worldView, view, { loading: false });
-      await showWorldDetail(id, 'quest', false, view);
+      await showWorldDetail(id, 'quest', false, view, target);
       break;
     }
     case 'world-person': {
@@ -4783,7 +4809,7 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     }
     case 'world-place':
-      await showWorldDetail(id, 'place');
+      await showWorldDetail(id, 'place', false, null, target);
       break;
     case 'world-kind':
       worldView.kind = id;
@@ -5101,6 +5127,7 @@ async function handle(action, id, target, navigationFocused = false) {
       showEntityChoice(
         id,
         target.closest('[data-flow], .duel-page') ? currentFlow()?.reference : currentDrawer?.flowReference,
+        target,
       );
       break;
     case 'database-detail': {
@@ -5120,7 +5147,7 @@ async function handle(action, id, target, navigationFocused = false) {
         if (target.closest('.craft-line'))
           quantity = profile().craftList?.find((line) => line.id === id)?.quantity || 1;
       }
-      await showDatabaseDetail(id, quantity, undefined, flowReference);
+      await showDatabaseDetail(id, quantity, undefined, flowReference, target);
       break;
     }
     case 'database-uses': {
@@ -6924,8 +6951,13 @@ try {
     const currentMode = profile().referenceMode;
     state = next;
     const intentsChanged = currentBasket !== planningIntentSignature();
+    const referenceChanged =
+      currentId !== state.activeProfileId ||
+      currentSlot !== (profile().saveSlot || '') ||
+      currentMode !== profile().referenceMode ||
+      currentPath !== state.settings.savePath;
     if (compact) {
-      companionData = null;
+      if (referenceChanged) companionData = null;
       ++companionRequest;
       refreshCompanion().catch(() => {});
     }
@@ -6933,12 +6965,7 @@ try {
       invalidateMaterials();
       invalidateRecipeDiscovery();
     }
-    if (
-      currentId !== state.activeProfileId ||
-      currentSlot !== (profile().saveSlot || '') ||
-      currentMode !== profile().referenceMode ||
-      currentPath !== state.settings.savePath
-    ) {
+    if (referenceChanged) {
       invalidateBackupPreview('存档来源或回顾选择已改变，旧预览已失效。请重新校验后再恢复。');
       resetPlanningViews();
       if (currentId !== state.activeProfileId) {

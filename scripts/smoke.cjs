@@ -73,13 +73,22 @@ async function attach() {
   return win;
 }
 async function entityPreview(page, trigger, expected, name, throughRefresh = false) {
+  const native = await app.browserWindow(page);
+  await native.evaluate((win) => {
+    win.show();
+    win.focus();
+  });
+  await native.dispose();
+  await page.bringToFront();
+  await page.waitForFunction(() => document.hasFocus());
   await trigger.hover();
   const preview = page.locator('#entity-preview');
   await preview.waitFor({ state: 'visible' });
   assert.match(await preview.innerText(), expected);
   if (throughRefresh) {
     const entry = await trigger.elementHandle();
-    const scroll = await page.locator('.content').evaluate((el) => el.scrollTop);
+    const scrollContainer = page.locator('.content, .compact-body');
+    const scroll = await scrollContainer.evaluate((el) => el.scrollTop);
     await page.waitForTimeout(5300);
     assert.equal(
       await entry.evaluate((el) => el.isConnected),
@@ -87,7 +96,7 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
       'unchanged polling retains the hovered entry',
     );
     assert.equal(await preview.isVisible(), true, 'preview survives the background refresh');
-    assert.equal(await page.locator('.content').evaluate((el) => el.scrollTop), scroll);
+    assert.equal(await scrollContainer.evaluate((el) => el.scrollTop), scroll);
     await entry.dispose();
   }
   const rect = await preview.evaluate((el) => {
@@ -105,17 +114,50 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
     rect.x >= 0 && rect.y >= 0 && rect.right <= rect.width && rect.bottom <= rect.height,
     JSON.stringify(rect),
   );
-  await page.mouse.move(rect.x + 15, rect.y + 15);
-  await page.waitForTimeout(220);
-  assert.equal(await preview.isVisible(), true, 'preview stays open while moving into it');
+  try {
+    // Recheck stability and hit targeting instead of using an earlier rectangle.
+    await preview.hover({ position: { x: 15, y: 15 } });
+    await page.waitForTimeout(220);
+    assert.equal(await preview.isVisible(), true, 'preview stays open while moving into it');
+  } catch (error) {
+    console.error(
+      'Preview transfer diagnostics:',
+      JSON.stringify({
+        name,
+        before: rect,
+        after: await preview.evaluate((el) => ({
+          hidden: el.hidden,
+          bounds: el.getBoundingClientRect().toJSON(),
+          focused: document.hasFocus(),
+          activeEntity: document.activeElement?.dataset.entityId,
+          hovered: [...document.querySelectorAll(':hover')].map((node) => ({
+            tag: node.tagName,
+            id: node.id,
+            entity: node.dataset.entityId,
+          })),
+        })),
+      }),
+    );
+    await page.screenshot({
+      animations: 'disabled',
+      path: path.join(results, name + '-transfer-failure.png'),
+    });
+    throw error;
+  }
   await page.screenshot({ animations: 'disabled', path: path.join(results, name + '.png') });
+  // Capture can yield to native window events; send Esc only to a visible preview.
+  await trigger.hover();
+  await preview.waitFor({ state: 'visible' });
   await page.keyboard.press('Escape');
+  await preview.waitFor({ state: 'hidden' });
   assert.equal(await preview.isVisible(), false);
   await page.mouse.move(2, 2);
+  await page.keyboard.press('Tab');
   await trigger.focus();
   await preview.waitFor({ state: 'visible' });
   assert.match(await preview.innerText(), expected);
   await page.keyboard.press('Escape');
+  await preview.waitFor({ state: 'hidden' });
   assert.equal(await preview.isVisible(), false);
 }
 async function taskMaterialReturn(page, title, screenshot) {
@@ -163,6 +205,44 @@ async function taskMaterialReturn(page, title, screenshot) {
   await page.screenshot({ animations: 'disabled', path: path.join(results, screenshot + '.png') });
   await page.locator('[data-action="close-overlay"]').click();
 }
+async function referenceFocusContinuity(page, trigger, surface) {
+  const identity = await trigger.evaluate((el) => ({ action: el.dataset.action, id: el.dataset.entityId }));
+  // Chromium may blur a disabled async opener before its IPC finishes.
+  await trigger.evaluate((el) => {
+    el.focus();
+    el.click();
+    el.blur();
+  });
+  await page.locator('#overlay .drawer').waitFor();
+  await page.keyboard.press('Escape');
+  await page.locator('#overlay .drawer').waitFor({ state: 'detached' });
+  await page.waitForFunction(
+    ({ action, id }) =>
+      document.activeElement?.dataset.action === action && document.activeElement?.dataset.entityId === id,
+    identity,
+  );
+  assert.equal(await page.locator('#entity-preview').isVisible(), false);
+  const body = page.locator(surface === 'main' ? '.content' : '.compact-body');
+  const scroll = await body.evaluate((el) => el.scrollTop);
+  const old = await trigger.elementHandle();
+  // An isolated state broadcast exercises the same redraw as a background update.
+  await page.evaluate(() => window.journal.mutate({ type: 'settings', value: {} }));
+  await page.waitForFunction((el) => !el.isConnected, old);
+  await page.waitForFunction(
+    ({ action, id }) =>
+      document.activeElement?.dataset.action === action && document.activeElement?.dataset.entityId === id,
+    identity,
+  );
+  await page.waitForTimeout(100);
+  assert.equal(await trigger.evaluate((el) => document.activeElement === el), true);
+  assert.equal(await body.evaluate((el) => el.scrollTop), scroll);
+  assert.equal(await page.locator('#entity-preview').isVisible(), false);
+  await page.screenshot({
+    animations: 'disabled',
+    path: path.join(results, '01-' + surface + '-reference-focus-update.png'),
+  });
+  await old.dispose();
+}
 async function privateItemConnections(page, surface) {
   await page.locator('[data-action="search"]').first().click();
   await page.locator('#global-search').fill('莫弃');
@@ -180,7 +260,7 @@ async function privateItemConnections(page, surface) {
   });
   await page.locator('#global-search').fill('秦烈');
   const person = page.locator('.search-result[data-id="npc-10023"]');
-  await entityPreview(page, person, /秦烈.*静态等级 35/s, '01-' + surface + '-private-person-preview');
+  await entityPreview(page, person, /秦烈.*静态等级 35/s, '01-' + surface + '-private-person-preview', true);
   await person.click();
   const fixed = page.locator('[data-npc-private-items]');
   assert.equal(await fixed.evaluate((el) => el.open), false);
@@ -244,6 +324,8 @@ async function companionReferenceSync(page) {
   const preview = async (count) => {
     const item = page.locator('[data-task-relations] [data-id="item-10201"]').first();
     await item.scrollIntoViewIfNeeded();
+    // Returning keeps focus and dismisses the preview; request a fresh focus event.
+    await page.keyboard.press('Tab');
     await item.focus();
     await page.locator('#entity-preview').waitFor({ state: 'visible' });
     assert.match(await page.locator('#entity-preview').innerText(), new RegExp('2\\.sav · 库存 ' + count));
@@ -276,6 +358,55 @@ async function companionReferenceSync(page) {
   } finally {
     const close = page.locator('[data-action="close-overlay"]');
     if (await close.count()) await close.first().click();
+    fs.writeFileSync(file, original);
+    fs.utimesSync(file, times.atime, times.mtime);
+    await page.waitForTimeout(6300);
+  }
+}
+async function companionHomeInventorySync(page) {
+  const file = path.join(fakeSaves, '2.sav');
+  const original = fs.readFileSync(file);
+  const times = fs.statSync(file);
+  const item = page
+    .locator(
+      '[data-flow-decision="early-woodcutter-axe-choice"] .flow-recommended-action [data-id="item-10201"]',
+    )
+    .first();
+  const preview = page.locator('#entity-preview');
+  await page.bringToFront();
+  try {
+    for (const count of [0, 3, 9]) {
+      if (count) {
+        fs.writeFileSync(
+          file,
+          syntheticSave({
+            full: true,
+            seconds: 7200,
+            trackingMainQuest: 5780,
+            trackingQuest: 11005,
+            inventory: [{ id: 10201, count }],
+            quests: [
+              { id: 11002, step: 1 },
+              { id: 11005, step: 1 },
+              { id: 5780, step: 1 },
+              { id: 5700, step: 4 },
+            ],
+          }),
+        );
+        await page.waitForTimeout(6300);
+      }
+      await item.focus();
+      await preview.waitFor({ state: 'visible' });
+      assert.match(await preview.innerText(), new RegExp('2\\.sav · 库存 ' + count));
+      assert.equal(await page.locator('.drawer').count(), 0, 'home preview sync needs no detail navigation');
+      await page.screenshot({
+        animations: 'disabled',
+        path: path.join(results, '01-companion-home-inventory-' + count + '.png'),
+      });
+      await page.keyboard.press('Escape');
+      await page.keyboard.press('Tab');
+    }
+  } finally {
     fs.writeFileSync(file, original);
     fs.utimesSync(file, times.atime, times.mtime);
     await page.waitForTimeout(6300);
@@ -417,12 +548,18 @@ async function companionReferenceSync(page) {
       win.locator('[data-flow-quest="quest-11002"] h3 [data-id="quest-11002"]'),
       '01-main-task-return',
     );
+    await referenceFocusContinuity(
+      win,
+      win.locator('[data-flow-quest="quest-11002"] h3 [data-id="quest-11002"]'),
+      'main',
+    );
     await privateItemConnections(win, 'main');
     const choiceWindowReady = app.waitForEvent('window');
     await win.locator('[data-action="compact"]').first().click();
     const choiceCompact = await choiceWindowReady;
     await choiceCompact.waitForSelector('.compact-shell');
     await choiceCompact.locator('[data-flow-decision="early-woodcutter-axe-choice"]').waitFor();
+    await companionHomeInventorySync(choiceCompact);
     await entityPreview(
       choiceCompact,
       choiceCompact.locator('[data-flow-now] > h3 [data-id="quest-11002"]'),
@@ -457,6 +594,11 @@ async function companionReferenceSync(page) {
       choiceCompact,
       choiceCompact.locator('[data-flow-now] > h3 [data-id="quest-11002"]'),
       '01-companion-task-return',
+    );
+    await referenceFocusContinuity(
+      choiceCompact,
+      choiceCompact.locator('[data-flow-now] > h3 [data-id="quest-11002"]'),
+      'companion',
     );
     await privateItemConnections(choiceCompact, 'companion');
     await companionReferenceSync(choiceCompact);
@@ -653,6 +795,39 @@ async function companionReferenceSync(page) {
       }),
     );
     await innChallenge.waitFor({ state: 'detached', timeout: 18000 });
+    fs.writeFileSync(
+      path.join(fakeSaves, '2.sav'),
+      syntheticSave({ full: true, trackingMainQuest: 5200, quests: [{ id: 5200, step: 1 }] }),
+    );
+    const baiChallenge = choiceCompact.locator('[data-duel-current] [data-duel="npc051-baijin"]');
+    await baiChallenge.waitFor({ timeout: 18000 });
+    assert.equal(await baiChallenge.evaluate((el) => el.open), false);
+    const rewardPreview = baiChallenge.locator(':scope > summary .duel-reward-preview');
+    const baiReward = rewardPreview.locator('[data-entity-id="item-13552"]');
+    assert.equal(await baiReward.count(), 1);
+    assert.equal(await baiReward.locator('.game-picture').count(), 1);
+    assert.match(await rewardPreview.innerText(), /无影飞箭秘籍.*切磋私物.*八品暗器图纸/s);
+    assert.equal(await rewardPreview.locator('[data-entity-id]').count(), 1);
+    await baiReward.hover();
+    await choiceCompact.locator('#entity-preview').waitFor({ state: 'visible' });
+    assert.match(await choiceCompact.locator('#entity-preview').innerText(), /无影飞箭/);
+    await choiceCompact.keyboard.press('Escape');
+    await choiceCompact.mouse.move(0, 0);
+    await baiChallenge.locator(':scope > summary').focus();
+    await baiReward.focus();
+    await choiceCompact.locator('#entity-preview').waitFor({ state: 'visible' });
+    assert.equal(await baiReward.getAttribute('aria-describedby'), 'entity-preview');
+    await choiceCompact.screenshot({
+      animations: 'disabled',
+      path: path.join(results, '01-compact-duel-reward-preview.png'),
+    });
+    await baiReward.click();
+    await choiceCompact.locator('.drawer h1').filter({ hasText: '无影飞箭' }).waitFor();
+    assert.equal(await baiChallenge.evaluate((el) => el.open), false);
+    await choiceCompact.keyboard.press('Escape');
+    await choiceCompact.waitForFunction(() => document.activeElement?.dataset.entityId === 'item-13552');
+    assert.equal(await baiChallenge.evaluate((el) => el.open), false);
+    assert.equal(await choiceCompact.locator('#entity-preview').isVisible(), false);
     fs.writeFileSync(
       path.join(fakeSaves, '2.sav'),
       syntheticSave({
