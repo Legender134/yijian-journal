@@ -343,6 +343,72 @@ async function attach() {
       { timeout: 18000 },
     );
     assert.doesNotMatch(await choiceCompact.locator('.flow-impact-summary').innerText(), /吕轻祈/);
+    for (const scenario of [
+      {
+        id: 'early-jingyin-weapon-choice',
+        root: 5074,
+        anchor: 5076,
+        anchorStep: 1,
+        exit: 5087,
+        exitStep: 1,
+        expected: /普通新档.*剑系武器.*为什么.*惊雷剑法/s,
+      },
+      {
+        id: 'chengyu-stay-choice',
+        root: 5820,
+        anchor: 5821,
+        anchorStep: 4,
+        exit: 5827,
+        exitStep: 4,
+        expected: /赞成留下程钰.*为什么.*一气纯阳指/s,
+      },
+      {
+        id: 'yanfu-investigation-choice',
+        root: 21050,
+        main: 20000,
+        anchor: 21123,
+        anchorStep: 4,
+        exit: 21148,
+        exitStep: 1,
+        expected: /继续调查.*为什么.*查明真相.*放弃.*结束/s,
+      },
+    ]) {
+      const records = [
+        { id: scenario.root, step: 1 },
+        { id: scenario.anchor, step: scenario.anchorStep },
+        ...(scenario.main ? [{ id: scenario.main, step: 1 }] : []),
+      ];
+      const writeChoice = (quests) =>
+        fs.writeFileSync(
+          path.join(fakeSaves, '2.sav'),
+          syntheticSave({
+            full: true,
+            trackingMainQuest: scenario.main || scenario.root,
+            trackingQuest: scenario.anchor,
+            quests,
+          }),
+        );
+      writeChoice(records);
+      const card = choiceCompact.locator(`[data-flow-decision="${scenario.id}"]`);
+      await card.waitFor({ timeout: 18000 });
+      assert.match(await card.locator('.flow-recommendation').innerText(), scenario.expected);
+      const position = await card
+        .locator('.flow-recommended-action')
+        .evaluate((el) => ({
+          bottom: el.getBoundingClientRect().bottom,
+          height: innerHeight,
+          folded: !!el.closest('details'),
+        }));
+      assert.equal(position.folded, false);
+      assert(position.bottom <= position.height, scenario.id + ' recommendation stays on the first screen');
+      await choiceCompact.screenshot({
+        animations: 'disabled',
+        path: path.join(results, `01-${scenario.id}.png`),
+      });
+      writeChoice([...records, { id: scenario.exit, step: scenario.exitStep }]);
+      await card.waitFor({ state: 'detached', timeout: 18000 });
+      assert.equal(await choiceCompact.locator(`[data-flow-warning="${scenario.id}"]`).count(), 0);
+    }
     fs.writeFileSync(path.join(fakeSaves, '2.sav'), beforeNpcProbe);
     await choiceCompact.locator('.companion-tabs [data-action="navigate"][data-id="home"]').click();
     await choiceCompact

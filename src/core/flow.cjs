@@ -419,10 +419,26 @@ function createFlowProjector({
       const deadlineReached =
         (rule.untilAnyStarted || []).some((id) => [1, 2, 4].includes(step(id))) ||
         (rule.untilAnyComplete || []).some((id) => step(id) === 4);
-      const decisionActive = (rule.decisionSteps || []).some((id) => {
+      const decisionStepActive = (rule.decisionSteps || []).some((id) => {
         const task = quests.get(id);
         return task && rootOf(task)?.gameId === rule.questId && step(id) === 1 && !blocked(task);
       });
+      // Some choices follow a completed visible step and use an unnamed dialog record.
+      // Only curated, verified windows may bridge that gap, until a saved branch closes it.
+      const decisionAnchors = rule.decisionAfterAllComplete || [];
+      const decisionWindowActive =
+        status === 1 &&
+        decisionAnchors.length > 0 &&
+        decisionAnchors.every((id) => {
+          const task = quests.get(id);
+          return (
+            task &&
+            rootOf(task)?.gameId === rule.questId &&
+            step(id) === 4 &&
+            !blocked(quests.get(task.parentId))
+          );
+        });
+      const decisionActive = !deadlineReached && (decisionStepActive || decisionWindowActive);
       const decisionResolved =
         !decisionActive && (rule.decisionSteps || []).some((id) => [2, 4].includes(step(id)));
       const affectedTasks = (rule.advanceEffects || [])
@@ -614,7 +630,7 @@ function createFlowProjector({
       warnings: [...warnings, ...windowChecks],
       advice: relevantRules.filter((r) => r.warning && r.severity === 'reminder' && !r.deadlineReached),
       decisions: relevantRules
-        .filter((r) => r.decisionActive && r.choices?.length)
+        .filter((r) => r.decisionActive && !r.deadlineReached && r.choices?.length)
         .sort(
           (a, b) =>
             active.findIndex((row) => row.gameId === a.questId) -

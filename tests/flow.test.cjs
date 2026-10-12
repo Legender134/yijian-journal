@@ -520,6 +520,130 @@ test('decision prompts follow an actual active choice step and disappear after c
   }
 });
 
+test('weapon choice is recommended before the dialog and retires as soon as a saved weapon branch is known', () => {
+  const id = 'early-jingyin-weapon-choice';
+  const project = (records, extra = {}) =>
+    flowSnapshot(profile(), ref(records, { trackingMainQuest: 5074, ...extra }));
+  for (const step of [1, 4]) {
+    const before = project([
+      { id: 5074, step: 1 },
+      { id: 5076, step },
+    ]);
+    const choice = before.decisions.find((row) => row.id === id);
+    assert(choice, 'visible step or verified window before the unnamed dialog');
+    assert.match(choice.recommendation.action, /普通新档.*剑系武器.*继承.*缺少/);
+    assert.match(choice.choices.map((row) => row.effect).join(' '), /惊雷剑法.*霹雳霸刀.*化功绵掌/);
+  }
+  for (const exit of [5079, 5080, 5081, 5087]) {
+    const after = project([
+      { id: 5074, step: 1 },
+      { id: 5076, step: 1 },
+      { id: exit, step: 4 },
+    ]);
+    assert(
+      !after.decisions.some((row) => row.id === id),
+      `recorded branch ${exit} supersedes a stale active anchor`,
+    );
+    assert(!after.warnings.some((row) => row.id === id));
+    assert(
+      after.guide.some((row) => row.id === id),
+      'reward reference remains searchable',
+    );
+  }
+  for (const records of [
+    [],
+    [{ id: 5074, step: 1 }],
+    [
+      { id: 5074, step: 2 },
+      { id: 5076, step: 4 },
+    ],
+    [{ id: 5076, step: 4 }],
+  ]) {
+    assert(!project(records).decisions.some((row) => row.id === id));
+  }
+});
+
+test('Chengyu recommendation bridges the return dialog but closes on either saved departure choice', () => {
+  const id = 'chengyu-stay-choice';
+  const project = (records) => flowSnapshot(profile(), ref(records, { trackingMainQuest: 5820 }));
+  for (const step of [1, 4]) {
+    const before = project([
+      { id: 5820, step: 1 },
+      { id: 5821, step },
+    ]);
+    const choice = before.decisions.find((row) => row.id === id);
+    assert(choice);
+    assert.match(choice.recommendation.action, /赞成留下程钰/);
+    assert.match(choice.recommendation.tradeoff, /不告而别.*清霄.*李天宝/);
+    assert.match(before.changes.find((row) => row.id === id).affectedTasks[0].effect, /送走.*不告而别/);
+  }
+  for (const exit of [5827, 5828, 5829, 5831]) {
+    const after = project([
+      { id: 5820, step: 1 },
+      { id: 5821, step: 4 },
+      { id: exit, step: 4 },
+    ]);
+    assert(!after.decisions.some((row) => row.id === id));
+    assert(!after.warnings.some((row) => row.id === id));
+  }
+  for (const records of [
+    [{ id: 5820, step: 1 }],
+    [{ id: 5821, step: 4 }],
+    [
+      { id: 5820, step: 4 },
+      { id: 5821, step: 4 },
+    ],
+  ]) {
+    assert(!project(records).decisions.some((row) => row.id === id));
+  }
+});
+
+test('Yanfu investigation leads the sidebar before the choice and retires on continue or abandon', () => {
+  const id = 'yanfu-investigation-choice';
+  const saved = ref(
+    [
+      { id: 20000, step: 1 },
+      { id: 21050, step: 1 },
+      { id: 21123, step: 1 },
+    ],
+    { trackingMainQuest: 20000, trackingQuest: 21123 },
+  );
+  const bytes = syntheticSave({
+    full: true,
+    quests: saved.metadata.quests,
+    trackingMainQuest: 20000,
+    trackingQuest: 21123,
+  });
+  const parsed = enrich(readMetadata(bytes, { details: true }));
+  const reference = { ...saved, metadata: parsed };
+  const untouched = structuredClone(reference);
+  const current = companionSnapshot(defaults(), catalog, reference);
+  assert.equal(current.hints[0].type, 'flow-choice');
+  assert.match(current.hints[0].title, /阎浮镇凶案.*继续调查/);
+  const choice = current.flow.decisions.find((row) => row.id === id);
+  assert(choice);
+  assert.match(choice.recommendation.tradeoff, /其他选择.*不保证/);
+  assert.match(choice.affectedTasks[0].effect, /放弃调查.*结束/);
+  const duringDialog = structuredClone(reference);
+  duringDialog.metadata.questStates.find((row) => row.id === 21123).step = 4;
+  assert(flowSnapshot(profile(), duringDialog).decisions.some((row) => row.id === id));
+  for (const exit of [21133, 21134, 21142, 21143, 21148, 21149]) {
+    const after = structuredClone(reference);
+    after.metadata.questStates.push({ id: exit, step: exit === 21148 ? 1 : 4 });
+    const snapshot = companionSnapshot(defaults(), catalog, after);
+    assert(!snapshot.flow.decisions.some((row) => row.id === id), String(exit));
+    assert(!snapshot.flow.warnings.some((row) => row.id === id));
+    assert(snapshot.flow.guide.some((row) => row.id === id));
+  }
+  for (const scoped of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: 'Other.sav' }),
+  ]) {
+    assert(!flowSnapshot(scoped, reference).decisions.some((row) => row.id === id));
+  }
+  assert.deepEqual(reference, untouched);
+});
+
 test('current choice recommendations lead ordinary warnings and follow the tracked task across saved changes', () => {
   const saved = ref(
     [
