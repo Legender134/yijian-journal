@@ -1,56 +1,10 @@
 'use strict';
 const zlib = require('node:zlib');
+const { readInventory, readCombat } = require('./native-save-details.cjs');
 
 // The native inventory segment follows the tagged properties. Its layout was
-// checked against all 36 local numeric slots. Unknown layouts are omitted;
+// checked against the same-build native serializer. Unknown layouts are omitted;
 // metadata and byte-exact backup remain available independently.
-function readInventory(data, start) {
-  try {
-    let offset = start;
-    const take = (n) => {
-      if (!Number.isSafeInteger(n) || n < 0 || offset + n > data.length) throw Error('Inventory truncated');
-      const at = offset;
-      offset += n;
-      return at;
-    };
-    const i32 = () => data.readInt32LE(take(4));
-    if (i32() !== 0) return null;
-    const count = i32();
-    if (count < 0 || count > 10000) return null;
-    const totals = new Map();
-    for (let i = 0; i < count; i++) {
-      take(16);
-      const id = i32(),
-        quantity = i32();
-      if (id < 0 || id > 10000000 || quantity < 0 || quantity > 100000000) return null;
-      // The native item serializer writes a uint32 bool before TWO action
-      // arrays. Treating this bool as a third array only worked while it was 0.
-      const itemFlag = i32();
-      if (itemFlag !== 0 && itemFlag !== 1) return null;
-      for (let group = 0; group < 2; group++) {
-        const actions = i32();
-        if (actions < 0 || actions > 1000) return null;
-        for (let j = 0; j < actions; j++) {
-          take(1);
-          i32();
-          const value = data.readFloatLE(take(4));
-          if (!Number.isFinite(value)) return null;
-        }
-      }
-      const acquired = data.readBigInt64LE(take(8));
-      if (acquired < 0n || acquired > 7258118400n) return null;
-      const flag = i32();
-      if (flag !== 0 && flag !== 1) return null;
-      totals.set(id, (totals.get(id) || 0) + quantity);
-    }
-    // The following native NPC map is a separate collection, not an item.
-    const npcCount = i32();
-    if (npcCount < 0 || npcCount > 20000) return null;
-    return [...totals].map(([id, count]) => ({ id, count }));
-  } catch {
-    return null;
-  }
-}
 function readQuestSpecs(data, start, size) {
   try {
     let offset = start;
@@ -103,8 +57,10 @@ function readMetadata(bytes, { details = false } = {}) {
   try {
     if (!Buffer.isBuffer(bytes) || bytes.length < 16 || bytes.length > 32 * 1024 * 1024) return null;
     let data = bytes;
+    let nativeFormat = null;
     if (bytes.subarray(0, 4).toString() !== 'GVAS') {
       if (bytes.readUInt32LE(0) !== 14 || bytes.readUInt32LE(8) !== bytes.length - 12) return null;
+      nativeFormat = 14;
       const expected = bytes.readUInt32LE(4);
       if (expected > 64 * 1024 * 1024) return null;
       data = zlib.inflateSync(bytes.subarray(12), { maxOutputLength: 64 * 1024 * 1024 });
@@ -223,7 +179,10 @@ function readMetadata(bytes, { details = false } = {}) {
       take(size);
       if (result.teamIds && !details) break;
     }
-    if (details && propertyEnd !== null) result.inventory = readInventory(data, propertyEnd);
+    if (details && propertyEnd !== null) {
+      result.inventory = readInventory(data, propertyEnd);
+      result.combat = readCombat(data, propertyEnd, nativeFormat);
+    }
     return typeof result.playSeconds === 'number' ? result : null;
   } catch {
     return null;

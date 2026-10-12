@@ -763,8 +763,13 @@ async function companionHomeInventorySync(page) {
       path: path.join(results, '01-compact-duels.png'),
     });
     await innChallenge.locator(':scope > summary').click();
-    assert.match(await innChallenge.innerText(), /准备与实力.*2932/s);
-    await innChallenge.locator('details > summary').click();
+    assert.match(await innChallenge.innerText(), /到场核对.*已穿装备/s);
+    await innChallenge.locator('[data-persist-detail^="duel-info-"] > summary').click();
+    assert.match(await innChallenge.innerText(), /攻略参考.*2932/s);
+    await innChallenge.locator('[data-persist-detail^="duel-readiness-"] > summary').click();
+    assert.match(await innChallenge.innerText(), /气血 · 待核对.*防具 · 待核对/s);
+    await innChallenge.locator('[data-persist-detail^="duel-skills-"] > summary').click();
+    assert.match(await innChallenge.innerText(), /对手招式 · 静态模板.*连山掌法/s);
     fs.writeFileSync(
       path.join(fakeSaves, '2.sav'),
       syntheticSave({
@@ -785,7 +790,11 @@ async function companionHomeInventorySync(page) {
       { timeout: 18000 },
     );
     assert.equal(await innChallenge.evaluate((el) => el.open), true);
-    assert.equal(await innChallenge.locator('details').evaluate((el) => el.open), true);
+    for (const kind of ['duel-info-', 'duel-readiness-', 'duel-skills-'])
+      assert.equal(
+        await innChallenge.locator(`[data-persist-detail^="${kind}"]`).evaluate((el) => el.open),
+        true,
+      );
     fs.writeFileSync(
       path.join(fakeSaves, '2.sav'),
       syntheticSave({
