@@ -89,6 +89,38 @@ test('native inventory aggregates item stacks and recipe plan calculates exact s
   assert.equal(silver.missing, 0);
   assert.throws(() => recipePlan('fusion-1002', 1, [{ id: 10226, count: -1 }]), /库存/);
 });
+
+test('native item bool does not consume an action record or hide the entire inventory', () => {
+  const { readInventory } = require('../src/core/save-reader.cjs');
+  // Layout independently checked against Build21798996's native item
+  // serializer: GUID, ID, quantity, uint32 bool, two action arrays, time, bool.
+  // Each action is uint8 type + int32 ID + float32 value.
+  const bytes = Buffer.from(
+    '00000000' + // leading native segment marker
+      '01000000' + // one item
+      '00000000000000000000000000000000' + // GUID
+      'f227000003000000' + // item10226, quantity3
+      '01000000' + // bool true, NOT an action-array length
+      '0100000015090000000000c03f' + // first action array: type21, ID9, 1.5
+      '01000000150a00000000002040' + // second: type21, ID10, 2.5
+      '0000000000000000' + // acquisition time
+      '01000000' + // trailing bool true
+      '00000000', // separate NPC collection count
+    'hex',
+  );
+  const before = Buffer.from(bytes);
+  assert.deepEqual(readInventory(bytes, 0), [{ id: 10226, count: 3 }]);
+  assert.deepEqual(bytes, before);
+  const unflagged = Buffer.from(bytes);
+  unflagged.writeInt32LE(0, 32);
+  assert.deepEqual(readInventory(unflagged, 0), [{ id: 10226, count: 3 }]);
+  for (const flag of [-1, 2, 1001]) {
+    const invalid = Buffer.from(bytes);
+    invalid.writeInt32LE(flag, 32);
+    assert.equal(readInventory(invalid, 0), null);
+  }
+  assert.equal(readInventory(bytes.subarray(0, bytes.length - 1), 0), null);
+});
 test('truncated or unsupported native inventory is omitted without losing basic metadata', () => {
   const { readInventory } = require('../src/core/save-reader.cjs');
   assert.equal(readInventory(Buffer.alloc(4), 0), null);

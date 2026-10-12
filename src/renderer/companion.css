@@ -165,10 +165,67 @@
 .companion .compact-title {
   height: 42px;
   flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+.companion .compact-title .row {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.companion .compact-title .row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.companion.tucked #app,
+.companion.tucked #overlay,
+.companion.tucked #entity-preview,
+.companion.tucked #toast {
+  display: none;
+}
+.companion-edge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100vw;
+  height: 100vh;
+  padding: 4px;
+  border: 1px solid var(--green);
+  border-radius: 15px 0 0 15px;
+  background: var(--green-soft);
+  color: var(--green);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
   -webkit-app-region: no-drag;
+}
+.companion-edge svg {
+  width: 18px;
+  height: 18px;
+  transform: rotate(180deg);
+}
+.companion-edge:hover {
+  background: var(--card);
+}
+.tucked-left .companion-edge {
+  border-radius: 0 15px 15px 0;
+}
+.tucked-left .companion-edge svg {
+  transform: none;
+}
+.companion .compact-title .icon-btn {
+  flex-shrink: 0;
+}
+.companion .compact-foot {
+  flex-wrap: wrap;
+  gap: 5px 10px;
 }
 .companion-tabs {
   display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
   justify-content: space-around;
   border-bottom: 1px solid var(--line);
   padding: 7px 5px;

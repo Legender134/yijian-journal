@@ -20,6 +20,27 @@ const ref = (quests, extra = {}, name = 'Synthetic.sav') => ({
   metadata: { quests, inventory: [], ...extra },
 });
 
+test('optional pre-banquet island detour retires after seating or sparse saved pursuit records', () => {
+  const project = (records) => flowSnapshot(profile(), ref(records, { trackingMainQuest: 5780 }));
+  const main = { id: 5780, step: 1 };
+  const id = 'mowen-island-window';
+  for (const step of [0, 1, 2, 3])
+    assert(project([main, { id: 5790, step }]).advice.some((row) => row.id === id));
+  for (const boundary of [
+    { id: 5790, step: 4 },
+    ...[5801, 5803, 5806, 5810].flatMap((id) => [1, 2, 4].map((step) => ({ id, step }))),
+  ]) {
+    const records = [main, boundary];
+    const before = structuredClone(records);
+    const result = project(records);
+    assert(!result.advice.some((row) => row.id === id), `${boundary.id}:${boundary.step}`);
+    const reference = result.guide.find((row) => row.id === id);
+    assert(reference.deadlineReached);
+    assert.match(reference.uncertainty, /全部攻略回看.*不据此判定.*永久错过/);
+    assert.deepEqual(records, before);
+  }
+});
+
 test('Ganquan investigation advice opens at the departure step and retires on rescue or any arrival branch', () => {
   const id = 'ganquan-prison-before-yixiantian';
   const active = [
