@@ -20,6 +20,133 @@ const ref = (quests, extra = {}, name = 'Synthetic.sav') => ({
   metadata: { quests, inventory: [], ...extra },
 });
 
+test('Changsheng rescue advice leads before departure, bridges battle branches and retires on saved outcomes', () => {
+  const id = 'changsheng-rescue-choice';
+  const root = { id: 8830, step: 1 };
+  const snapshot = (records, scoped = profile()) => {
+    const metadata = enrich(
+      readMetadata(
+        syntheticSave({
+          full: true,
+          trackingMainQuest: 8830,
+          quests: records,
+        }),
+        { details: true },
+      ),
+    );
+    const reference = ref(metadata.quests, metadata);
+    return { flow: flowSnapshot(scoped, reference), reference };
+  };
+  for (const stepId of [8831, 8843, 8847, 8848, 8851, 8852, 8855, 8856, 8857, 8858, 8904]) {
+    const records = [root, { id: stepId, step: 1 }];
+    const before = structuredClone(records);
+    const current = snapshot(records);
+    const choice = current.flow.decisions.find((row) => row.id === id);
+    assert(choice, String(stepId));
+    assert.match(choice.recommendation.action, /另存.*出手相救/);
+    assert.match(choice.recommendation.tradeoff, /好感.*不保证/);
+    assert(choice.choices.some((row) => /不救/.test(row.label) && /油尽灯枯.*回读/.test(row.effect)));
+    assert.equal(choice.sources.length, 2);
+    const compact = companionSnapshot(defaults(), catalog, current.reference);
+    assert.equal(compact.hints[0].type, 'flow-choice');
+    assert.match(compact.hints[0].title, /长生殿.*先另存/);
+    assert.deepEqual(records, before);
+  }
+  // Each combat variant can be the last saved step before the unnamed choice.
+  for (const stepId of [8843, 8847, 8848, 8851, 8852, 8855, 8856, 8857, 8858, 8904])
+    assert(snapshot([root, { id: stepId, step: 4 }]).flow.decisions.some((row) => row.id === id));
+  for (const outcome of [8865, 8866, 8869, 8875, 8879, 5920, 5940, 9254]) {
+    for (const step of [1, 2, 4]) {
+      const current = snapshot([root, { id: 8855, step: 4 }, { id: outcome, step }]);
+      for (const channel of ['decisions', 'warnings', 'advice', 'changes', 'opportunities'])
+        assert(!current.flow[channel].some((row) => row.id === id), `${channel}:${outcome}:${step}`);
+      assert(
+        !companionSnapshot(defaults(), catalog, current.reference).hints.some(
+          (row) => row.type === 'flow-choice' && /长生殿/.test(row.title),
+        ),
+      );
+      if ([8865, 8866, 8869].includes(outcome)) {
+        const saved = current.flow.active.find((row) => row.gameId === 8830).progress;
+        assert(saved.some((row) => row.id === `quest-${outcome}`));
+        assert(
+          !saved.some((row) =>
+            [8865, 8866, 8869].filter((n) => n !== outcome).includes(Number(row.id.replace('quest-', ''))),
+          ),
+          'do not invent another outcome from a same-name record',
+        );
+      }
+    }
+  }
+  for (const records of [
+    [],
+    [root],
+    [root, { id: 8843, step: 3 }],
+    [
+      { id: 8830, step: 4 },
+      { id: 8855, step: 1 },
+    ],
+    [
+      { id: 8830, step: 2 },
+      { id: 8855, step: 1 },
+    ],
+  ])
+    assert(!snapshot(records).flow.decisions.some((row) => row.id === id));
+  for (const scoped of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: 'Other.sav' }),
+  ])
+    assert(!snapshot([root, { id: 8843, step: 1 }], scoped).flow.decisions.some((row) => row.id === id));
+});
+
+test('Tanlin preflight names Yuanjue interaction risk and retires without reporting unique-item loss', () => {
+  const id = 'npc060-before-tanlin-yuanjue';
+  const records = [
+    { id: 5920, step: 1 },
+    { id: 5921, step: 4 },
+    { id: 5926, step: 1 },
+  ];
+  const reference = (quests) => {
+    const metadata = enrich(
+      readMetadata(syntheticSave({ full: true, trackingMainQuest: 5920, quests }), { details: true }),
+    );
+    return ref(metadata.quests, metadata);
+  };
+  const before = structuredClone(records);
+  const snapshot = flowSnapshot(profile(), reference(records));
+  const warning = snapshot.warnings.find((row) => row.id === id);
+  assert(warning);
+  assert.equal(warning.pickup.personIds[0], 'npc-5500');
+  assert.match(warning.message, /少林寺.*切磋.*请教/);
+  assert.match(warning.message, /不是进入檀林立刻失效/);
+  const effect = snapshot.changes.find((row) => row.id === id).affectedTasks[0];
+  assert.match(effect.name, /圆觉/);
+  assert.match(effect.effect, /直接交互.*结束.*不代表秘籍永久绝版/);
+  assert.equal(warning.sources.length, 3);
+  assert(snapshot.duels.candidates.some((row) => row.npcId === 5500));
+  assert(
+    companionSnapshot(defaults(), catalog, reference(records)).hints.some((row) => /圆觉/.test(row.title)),
+  );
+  for (const boundary of [5940, 9254, 5950, 5953, 9133, 9249, 20000, 20001])
+    for (const step of [1, 2, 4]) {
+      const after = flowSnapshot(profile(), reference([...records, { id: boundary, step }]));
+      for (const channel of ['warnings', 'changes', 'advice', 'opportunities'])
+        assert(!after[channel].some((row) => row.id === id), `${channel}:${boundary}:${step}`);
+    }
+  assert(!flowSnapshot(profile(), reference([{ id: 5920, step: 4 }])).warnings.some((row) => row.id === id));
+  assert(
+    !flowSnapshot(profile({ referenceMode: 'none' }), reference(records)).warnings.some(
+      (row) => row.id === id,
+    ),
+  );
+  assert(
+    !flowSnapshot(
+      profile({ referenceMode: 'slot', saveSlot: 'Other.sav' }),
+      reference(records),
+    ).warnings.some((row) => row.id === id),
+  );
+  assert.deepEqual(records, before);
+});
+
 test('conference rest warning names the relocated NPC collection window and retires only after saved rest', () => {
   const id = 'npc059-conference-collection';
   const records = [

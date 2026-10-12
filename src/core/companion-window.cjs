@@ -180,7 +180,8 @@ class CompanionWindow {
           Date.now() <= this.grace ||
           (this.wantFocus && s?.gameForeground)
         : this.mode === 'tucked'
-          ? !this.quiet() && (this.test || !s?.available || s.gameForeground || s.ownForeground)
+          ? // Keep this explicit control reachable while menus/dialogue pause automatic hints.
+            this.test || !s?.available || s.gameForeground || s.ownForeground
           : p.enabled && s?.gameForeground && !this.quiet();
     this.visible = !!visible;
     if (!visible) {

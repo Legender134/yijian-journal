@@ -2,6 +2,20 @@
 // Community challenge and dialogue facts, with versioned sources.
 module.exports = {
   sources: {
+    npc060ShaolinWindow: {
+      title: '全DLC流程攻略 V7：丐帮求援至少林剑决',
+      author: 'Ventulus；注明整理自满满REX与语文大师路线',
+      url: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3552565492',
+      date: '2025-08-20',
+      version: '全DLC V7；只采用赴檀林前核对方丈交互的顺序，不采用进入檀林即失效的概括',
+    },
+    npc060ShaolinNight: {
+      title: '全图鉴全成就流程：丐帮求援与少林诡夜',
+      author: '力拔山兮气盖世呐',
+      url: 'https://www.gamersky.com/handbook/202608/2188490_49.shtml',
+      date: '2026-08-13 16:28:27',
+      version: '同系列ver1.24.25；檀林救援后仍有圆觉对话，夜探宝箱另有龙爪手，不能推断瞬间截止或秘籍独占',
+    },
     npc059Masters: {
       title: '流程提示：品剑大会后的掌门请教与中原回访',
       author: '星1辰2之3羽',
@@ -242,6 +256,60 @@ module.exports = {
     },
   },
   duels: [
+    {
+      id: 'npc060-yuanjue',
+      npcId: 5500,
+      name: '圆觉',
+      place: '少林寺方丈处；丐帮求援赴檀林前先核对，夜间剧情中以人物在场与按钮为准',
+      level: 90,
+      levelBasis: '官方Build21798996同构建NPC静态表；不是当前实战面板或胜率',
+      chapterRoots: [5920, 5940, 9254],
+      afterAllComplete: [],
+      untilAnyStarted: [5950, 5953, 9133, 9249, 20000, 20001],
+      untilAnyComplete: [5940, 9254],
+      rewards: [
+        {
+          name: '千叶如来手',
+          itemId: 13409,
+          method: '切磋私物',
+          condition: '同构建固定私物秘籍1份；先观察当前背包',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+        {
+          name: '龙爪手',
+          itemId: 13408,
+          method: '切磋私物',
+          condition: '同构建固定私物秘籍1份；少林夜探宝箱另有来源',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+        {
+          name: '三转血气丹',
+          itemId: 122,
+          method: '切磋私物',
+          condition: '同构建固定私物1份；先观察当前背包',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '模板90级，先观察圆觉的拳法、心法与自身配装；这是一项可选收集，不是救援主线的必胜门槛。',
+      preparationPlan: {
+        interaction:
+          '在少林寺方丈处确认圆觉仍可交互，再观察好感、私物与切磋按钮；易筋经属于请教机会，另核对菜单、武学点和费用。',
+        defaultDefer:
+          '建议暂缓硬打圆觉：先核对交互与需要的私物，补足主用武学、经脉和装备；保留另存后再决定是否挑战。',
+        unknown: '先观察圆觉的当前招式、私物和切磋按钮；没有角色记录时不能按主线进度认定能赢。',
+        growth:
+          '先回满气血与内力、穿齐现成装备，修炼已学内功与主用招式并检查经脉；请教另看费用，不为可选私物强改流派。',
+      },
+      recommendation: {
+        action: '丐帮求援赴檀林前，若尚未核对圆觉，先看是否需要千叶如来手、龙爪手或请教，再决定推进。',
+        reason: '社区路线提醒先核对方丈交互；后续少林剧情明确结束其直接交互机会。',
+        tradeoff:
+          '绕行、赠礼与请教各有成本，切磋私物随机；打不过可暂缓。龙爪手另有夜探宝箱来源，不等于漏失独有秘籍。',
+      },
+      uncertainty:
+        '未在真实游戏验证最后可切磋的精确步骤；进入檀林不等于立即失效。少林夜间仍有圆觉对话，能否切磋须看当时按钮；已保存身亡相关剧情后撤下当前候选。',
+      sourceIds: ['npc060ShaolinWindow', 'npc059Masters', 'npc059Conference', 'npc060ShaolinNight'],
+    },
     {
       id: 'npc053-sunlao',
       npcId: 10001,
@@ -1440,6 +1508,52 @@ module.exports = {
     },
   ],
   advice: [
+    {
+      id: 'npc060-before-tanlin-yuanjue',
+      kind: 'stage',
+      phaseChange: true,
+      requireStageMatch: true,
+      severity: 'warning',
+      title: '赴檀林前：先核对圆觉的切磋与请教',
+      questId: null,
+      chapterRoots: [5920],
+      afterAllComplete: [],
+      untilAnyStarted: [5940, 9254, 5950, 5953, 9133, 9249, 20000, 20001],
+      untilAnyComplete: [5920],
+      deadlineLabel: '赴檀林、进入连续少林剧情前先核对',
+      advanceEffects: [
+        {
+          name: '圆觉在少林寺的切磋与请教机会',
+          scope: 'phase',
+          effect:
+            '后续少林剧情中圆觉遇害，其直接交互机会结束；这不是说一进檀林就失效，也不代表秘籍永久绝版。',
+          evidence:
+            '社区流程顺序与同构建5950／5953、9249、20001等身亡记录交叉核对；精确最后可切磋步骤未实机验证。',
+        },
+      ],
+      pickup: {
+        place: '少林寺方丈处',
+        person: '圆觉',
+        personIds: ['npc-5500'],
+        action: '比武页查看千叶如来手、龙爪手、三转血气丹及当前准备；请教与私物分开核对。',
+      },
+      recommendation: {
+        action: '若还没核对圆觉，推进前先另存并观察交互与需求；只为自己需要的私物或请教量力决定。',
+        reason: '这段主线接入连续少林剧情，之后圆觉直接交互会结束，提前看一眼可保留选择。',
+        tradeoff: '绕行和请教有成本，模板90级且私物随机；不必强打，龙爪手另有夜探宝箱来源。',
+      },
+      warning:
+        '赴檀林前，若还未核对圆觉，可先到少林寺看切磋与请教。后续剧情会结束他的直接交互；精确截止待核对，不是进入檀林立刻失效。',
+      steps: [
+        '推进前另存，先判断是否需要圆觉的私物或请教。',
+        '在少林寺方丈处观察交互、当前私物与招式；比武页按存档核对准备。',
+        '只选需要且准备足够的切磋或教学，再继续檀林主线；不必为了收集强打。',
+      ],
+      choices: [],
+      sourceIds: ['npc060ShaolinWindow', 'npc059Masters', 'npc060ShaolinNight'],
+      uncertainty:
+        '这是连续剧情前的提前核对提醒。夜间剧情仍有圆觉对话，但不据此保证切磋开放；新阶段保存后旧绕行提醒退场，资料仍可查。',
+    },
     {
       id: 'npc059-conference-collection',
       kind: 'stage',

@@ -427,18 +427,20 @@ function createFlowProjector({
       // Some choices follow a completed visible step and use an unnamed dialog record.
       // Only curated, verified windows may bridge that gap, until a saved branch closes it.
       const decisionAnchors = rule.decisionAfterAllComplete || [];
+      const decisionAnyAnchors = rule.decisionAfterAnyComplete || [];
+      const completedDecisionAnchor = (id) => {
+        const task = quests.get(id);
+        return (
+          task &&
+          rootOf(task)?.gameId === rule.questId &&
+          step(id) === 4 &&
+          !blocked(quests.get(task.parentId))
+        );
+      };
       const decisionWindowActive =
         status === 1 &&
-        decisionAnchors.length > 0 &&
-        decisionAnchors.every((id) => {
-          const task = quests.get(id);
-          return (
-            task &&
-            rootOf(task)?.gameId === rule.questId &&
-            step(id) === 4 &&
-            !blocked(quests.get(task.parentId))
-          );
-        });
+        ((decisionAnchors.length > 0 && decisionAnchors.every(completedDecisionAnchor)) ||
+          decisionAnyAnchors.some(completedDecisionAnchor));
       const decisionActive = !deadlineReached && (decisionStepActive || decisionWindowActive);
       const decisionResolved =
         !decisionActive && (rule.decisionSteps || []).some((id) => [2, 4].includes(step(id)));
