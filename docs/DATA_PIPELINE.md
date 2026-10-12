@@ -33,6 +33,31 @@ node scripts/reduce-large-table.cjs NPCResources
 
 生成时间会变化。核对生成结果时应比较实际条目与关联内容，而不是仅比较 JSON 文件时间或条目总数。通过 `pnpm test` 核对索引与逻辑；规则变更后相应修订数据断言。
 
+## 物品数值索引
+
+`scripts/build-item-stats.cjs` 另外生成 `src/data/item-stats.json`，按 `game-index.json` 的物品 ID 选择同版本静态数据。它不读取玩家存档，也不启动游戏；只输出展示所需的基础动作、使用条件、装备原始 Rank 值、共享随机候选池、引用到的增益文本及数值参数。原始全表、程序和工具不随产品分发。
+
+除上述 `Items-simple.json`，输入目录还需包含 `RandActionPools-simple.json`、`Buffs-simple.json`、`AffixDisplay-simple.json`、`AttributeTypes-simple.json` 和 `source-manifest.json`。前三张新增表同样来自 `JH/Tables/`，使用同版本工具导出和简化。`AttributeTypes-simple.json` 是由匹配版本静态程序中 `EAttributeType` 的名称指针 / 整数注册值对导出的 `{ "Id": 9, "Key": "AttackPower" }` 数组，不是根据名称排列猜出的编号，也不是玩家属性。
+
+来源清单须包含 `schema: 1`、`build: "21798996"`、`source.kind: "owned-installed-game-static-tables"`、`attributeEnumSource.sha256`（匹配版本静态程序的 SHA-256）、公开工具版本与哈希，以及 `tables` 对象中上述五个 `*-simple.json` 文件名对应的 SHA-256。来源清单及生成数据不得写入账号、存档或本机绝对路径。构建器验证全部输入文件哈希、Build 和现有物品的 ID / 名称 / 类型；禁止通过修改 Build 标签混用不同版本的表。
+
+```powershell
+node scripts/build-item-stats.cjs
+# 也可以明确指定保留的导出输入目录：
+node scripts/build-item-stats.cjs --input-dir <同版本简化表目录>
+node --test tests/item-stats.test.cjs
+```
+
+输出不带生成时间，因此同一输入得到相同字节。固定 `effects` 与 `random` 候选分开；随机池的 `weight` 是原始池内权重，不是掉率。`RandRange` / `NormalRandRange` 仅保留原字段区间，不据此宣称实际词条条数、抽取次数或独立概率。原表引用缺失的池会保留 `unresolved: true`，不补造候选。
+
+`attributes` 中的 ID 与英文键来自静态枚举，中文名称结合相同版本程序的中文属性文字与物品描述核对；百分数格式依据 `AffixDisplay`。`Percent_*` 使用原值，`Percent100_*` 展示时乘 100。没有确定单位的移动速度及倍率参数保留原数值，不擅自换算。显示最多两位小数的静态参考值，不能声称是游戏实际取整或随机词条结算后的面板。`EquipmentRank` 保留原值，未核定其用途，不直接称为装备等级或品级。
+
+`CAttr`、`CAllAttr`、百分比恢复等动作类型分别保留，不能把所有动作都解释为永久增加属性。`CAllAttr` 的作用范围，以及 `CHealthAttrPercent` / `CBlueAttrPercent` 的百分比基准尚未核定，不能宣称全队恢复或按上限、当前值、缺失值计算。`ABuff` 等动作的 `value` 保留原参数；`ABattleCountBuff` / `RealTimeBuff` 的参数单位尚未核定，不能直接写成战斗场数或秒。增益描述中的 `{0}` 等占位符，以及 `modifiers` / `durations` 原始参数数组，在未验证等级代入规则前不自动替换。`ARandItem` 引用的是掉落池，不能链接为随机词缀池。普通材料确实没有数值效果时保留空 `effects`。
+
+使用条件中的 `Item` 逐项显示物品与数量，不把多项条件吞成泛化提示；这表示模板要求，不代表已经核对玩家库存。`WeaponRequirement` 的类型名称依据同构建静态程序的 `EWeaponType` 枚举（0 Default、1 Sword、2 Sabre、3 Spear、4 Fist、5 HiddenWeapon、6 OtherWeapons），程序 SHA-256 为 `946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c`。枚举只能确认兵器类型，未核定具体判定对象，不宣称必须装备对应武器。`CheckNeiGong`、`CurrentSkillLv` 等比较逻辑未核定时，保留已知对象、参数和待核定说明，不把原始参数擅自解释为最低等级。
+
+比武阶段线索另由 `duel-guide.cjs` 维护。智度上人（16022）的静态等级60、私物三转洗髓丹（141）与没药（10315）各1，核对自同Build的 `NPCs.uexp`（SHA-256 `0c3dcfdb36901efc70d65446064c5a97d44c1629d1e2cf418eb586ff3c131ec3`）；不分发原表。宴前及天水赴一线天途中的收集顺序来自标明版本的社区路线，与静态模板证据分开。原文的天水守卫尚未唯一绑定NPC实例，保留名称线索，不用同名候选的等级冒充。模板私物数量、装备池权重都不代表切磋掉率或首胜保证；静态等级不代表当前胜率。
+
 ## 游戏 UI 图片
 
 额外导出 `NPCResources.json` 并简化为 `NPCResources-simple.json`。将需要的纹理 `.uasset` 和 `.uexp` 放到 `.downloads/game-icons-raw/`，保留 `Wandering_Sword/Content/...` 的原目录结构。

@@ -1,7 +1,9 @@
 'use strict';
+const duelGuide = require('./duel-guide.cjs');
 // Community flow clues; unknown task records never prove availability.
 module.exports = {
   sources: {
+    ...duelGuide.sources,
     biliWeapon: {
       title: '继承点选择与武当入门功法',
       url: 'https://www.bilibili.com/opus/994077546563764225',
@@ -233,6 +235,41 @@ module.exports = {
       version: '正文声明 ver1.24.25；部分章节另记后续更新',
       confidence: '社区流程，单作者；已阅读相关段落，未实机验证',
     },
+    gs48: {
+      title: '全图鉴全成就流程：长生殿后、返回武当前的准备',
+      url: 'https://www.gamersky.com/handbook/202608/2188490_48.shtml',
+      date: '2026-08-13',
+      version: '正文声明 ver1.24.25',
+      confidence: '力拔山兮气盖世呐的流程；正文支持准备时机，不单独证明当前版本锁队机制。',
+    },
+    gs49: {
+      title: '全图鉴全成就流程：返回武当与元启寻物',
+      url: 'https://www.gamersky.com/handbook/202608/2188490_49.shtml',
+      date: '2026-08-13',
+      version: '正文声明 ver1.24.25',
+      confidence: '力拔山兮气盖世呐的流程；已读弟子房寻物段落，未实机验证。',
+    },
+    biliLatePrep: {
+      title: '烟尘回响：入门前阵容与结局条件',
+      url: 'https://www.bilibili.com/opus/1002228831844564999',
+      date: '2024-11-23 10:25',
+      version: '作者明确针对 v1.23.24',
+      confidence: '肥宅美少女甩葱歌的旧版攻略；锁队与队友作用需结合当前版本核对，未实机验证。',
+    },
+    biliLateFlow: {
+      title: '烟尘回响后期主线流程',
+      url: 'https://www.bilibili.com/opus/1003325637634555960',
+      date: '2024-12-07 00:38',
+      version: '烟尘回响更新第二版攻略；具体构建未标',
+      confidence: '河图与洛书的独立流程；只作主线衔接参考，不证明当前任务已解锁。',
+    },
+    biliXuRoute: {
+      title: '萌新路线：金蝎分支与韶华轻掷',
+      url: 'https://www.bilibili.com/opus/1090176314524041253',
+      date: '2025-07-16 19:20',
+      version: '含碧海仙踪与武家旧事；具体构建未标',
+      confidence: '虚饮茶的独立流程正文；分支收益和继承条件未在当前游戏实测。',
+    },
     gs50: {
       title: '全图鉴全成就流程：天剑宗、名剑山庄、峋谷关',
       url: 'https://www.gamersky.com/handbook/202608/2188490_50.shtml',
@@ -325,7 +362,142 @@ module.exports = {
       confidence: '社区数据表；隐藏根29100未收录于当前索引',
     },
   },
+  // Sourced story transitions, independent of quest-ID order or unlock status.
+  milestones: {
+    9254: { next: 20000, sourceIds: ['biliLateFlow', 'gs49'] },
+    20000: { next: 22000, sourceIds: ['biliLateFlow', 'gs51'] },
+    22000: { next: 22100, sourceIds: ['biliLateFlow', 'gs52'] },
+    22100: { next: 22170, sourceIds: ['biliLateFlow', 'gs52'] },
+    22170: { next: 24000, sourceIds: ['biliLateFlow', 'gs52'] },
+    24000: { next: 24020, sourceIds: ['biliLateFlow', 'gs52'] },
+  },
   rules: [
+    ...duelGuide.advice,
+    {
+      id: 'inn-before-delivering-wine',
+      kind: 'stage',
+      phaseChange: true,
+      requireStageMatch: true,
+      severity: 'warning',
+      title: '交酒前：决定是否挑战客栈江湖人',
+      questId: null,
+      chapterRoots: [5062],
+      afterAllComplete: [5063],
+      untilAnyStarted: [],
+      untilAnyComplete: [5072],
+      deadlineLabel: '把高粱酒交给江吟风之前',
+      advanceEffects: [
+        {
+          name: '吕轻祈、雷万钧、岳九的客栈比武机会',
+          scope: 'phase',
+          effect: '旧版正式流程记交酒后不能再挑战客栈江湖人；想收集私物，请在交酒前观察并决定是否挑战。',
+          evidence: '2023正式版社区记录；不据此断言这些人物以后永久无法再遇。',
+        },
+      ],
+      pickup: {
+        place: '梧桐村客栈',
+        person: '吕轻祈、雷万钧、岳九',
+        action: '先观察私物与实力；比武页可看重要收益和准备建议。',
+      },
+      recommendation: {
+        action: '交酒前先看比武页；只在有想要的私物且准备充分时挑战，否则继续主线。',
+        reason: '这次早期挑战窗口会随交酒推进结束，先看一眼能避免想收集时已经错过。',
+        tradeoff:
+          '这是高成本可选挑战；旧版打法需要大量武学点与经脉准备，普通新档不必强刷，也不保证取得金剑。',
+      },
+      warning: '交酒会结束社区记载的客栈挑战窗口；吕轻祈、雷万钧、岳九的私物想要再考虑打，不是新手必做。',
+      steps: [
+        '先取得高粱酒，暂不交付。',
+        '观察客栈江湖人的私物与当前面板，按准备情况决定是否切磋。',
+        '收集结束或选择跳过后，再把酒交给江吟风。',
+      ],
+      choices: [],
+      sourceIds: ['npc051InnA', 'npc051InnB', 'npc051Collect'],
+      uncertainty:
+        '交酒步骤完成后本提醒退出。未读取实时战斗面板与好感，不能保证当前可挑战、能赢或固定取得金色剑。',
+    },
+    {
+      id: 'tianshui-before-banquet-duel',
+      kind: 'stage',
+      phaseChange: true,
+      requireStageMatch: true,
+      severity: 'warning',
+      title: '入席前：核对智度上人的洗髓丹与没药',
+      questId: null,
+      chapterRoots: [5780],
+      afterAllComplete: [5789],
+      untilAnyStarted: [5801],
+      untilAnyComplete: [5790],
+      deadlineLabel: '次日去右侧第一桌入席之前',
+      advanceEffects: [
+        {
+          name: '智度上人·宴前比武',
+          scope: 'phase',
+          effect: '所引流程把三转洗髓丹、没药的切磋收集安排在早上入席前；想收集请先观察。',
+          evidence: 'ver1.24.25流程顺序，未证明入席后永久无法挑战。',
+        },
+      ],
+      pickup: {
+        place: '天水城·程家堡宴前',
+        person: '智度上人',
+        action: '次日入席前观察智度上人，再按实力决定是否切磋。',
+      },
+      recommendation: {
+        action: '入席前先观察智度上人是否持有三转洗髓丹与没药，量力切磋。',
+        reason: '社区流程在这段明确记载两件私物收益，先核对可少一次遗漏。',
+        tradeoff: '私物随机，静态等级60不能代替当前战斗面板；不为清空背包强刷。',
+      },
+      warning: '下一步入席前，想收集三转洗髓丹、没药可先核对智度上人的比武；不是寿宴任务的必做条件。',
+      steps: [
+        '夜间调查结束，次日暂不入席。',
+        '观察智度上人私物与实力，决定是否挑战。',
+        '完成收集或选择跳过，再去右侧第一桌入席。',
+      ],
+      choices: [],
+      sourceIds: ['npc052Tianshui'],
+      uncertainty: '提醒依据已保存子步骤与社区版本；当前人物是否在场、私物与玩家实力须在游戏中核对。',
+    },
+    {
+      id: 'tianshui-before-yixiantian-duel',
+      kind: 'stage',
+      phaseChange: true,
+      requireStageMatch: true,
+      severity: 'warning',
+      title: '赴一线天途中：核对天水守卫的洗髓丹',
+      questId: null,
+      chapterRoots: [5780],
+      afterAllComplete: [5803],
+      untilAnyStarted: [5810],
+      untilAnyComplete: [5806],
+      deadlineLabel: '前往一线天的这段追击流程结束之前',
+      advanceEffects: [
+        {
+          name: '天水守卫·途中比武',
+          scope: 'phase',
+          effect: '所引流程在出天水去一线天途中收集一转洗髓丹；路过时可先核对守卫私物。',
+          evidence: 'ver1.24.25的路线提示，未证后续永久关闭。',
+        },
+      ],
+      pickup: {
+        place: '天水城外→一线天的路上',
+        person: '天水守卫',
+        action: '出城追击途中先观察守卫，确认私物与实力。',
+      },
+      recommendation: {
+        action: '去一线天路过天水守卫时，观察一转洗髓丹并量力挑战。',
+        reason: '这是主线路上就能核对的成长物品线索，适合顺路查看。',
+        tradeoff: '当前NPC、等级与玩家面板仍需核对；不保证首胜取得。',
+      },
+      warning: '追击途中想收集一转洗髓丹，可先看天水守卫私物；这里只提示顺路机会，不判任务永久失效。',
+      steps: [
+        '城墙剧情结束后，出天水前往一线天。',
+        '路上观察天水守卫是否持有一转洗髓丹，量力切磋。',
+        '继续一线天追击，完成后返回程家堡。',
+      ],
+      choices: [],
+      sourceIds: ['npc052Tianshui'],
+      uncertainty: '未核定守卫实例与当前实战等级，不会仅凭主线阶段承诺可以战胜。',
+    },
     {
       id: 'early-jingyin-weapon-choice',
       title: '江吟风授武：选择会改变后续宝箱秘籍',
@@ -365,6 +537,13 @@ module.exports = {
     {
       id: 'early-woodcutter-axe-choice',
       decisionSteps: [11004, 11005],
+      recommendation: {
+        hint: '樵夫：优先重锻，先备铁矿石×4',
+        goal: '前期装备、铜钱与樵夫好感',
+        action: '优先选「重新锻造一番吧」，准备铁矿石×4。',
+        reason: '所引 v1.24.32 表中，重锻多给亮银甲、铜钱与好感，适合前期补装备。',
+        tradeoff: '要采矿和往返；换新独有武学笔记。若更需要笔记，可改选换新，两边奖励不能在同一次结算兼得。',
+      },
       title: '樵夫的斧子：换新与重锻奖励不同',
       questId: 11002,
       chapterRoots: [5020, 5053, 5062, 5074, 5110, 5150, 5176],
@@ -460,6 +639,13 @@ module.exports = {
     {
       id: 'early-sun-homesickness-choice',
       decisionSteps: [11061],
+      recommendation: {
+        hint: '孙老：劝返乡，优先丹药与好感',
+        goal: '前期丹药与孙老好感',
+        action: '优先劝「趁着还硬朗，回去看看吧」。',
+        reason: '较新表记这一线给两种丹药、武学笔记及孙老好感，收益比单纯铜钱更适合前期培养。',
+        tradeoff: '不走天青花交铁匠的600铜与铁匠好感路线；旧版奖励记载不同，也不保证任一答法锁定后续。',
+      },
       title: '孙老思乡：丹药与送花是不同答法',
       questId: 11060,
       chapterRoots: [5020, 5053, 5062, 5074, 5110, 5150, 5176],
@@ -550,6 +736,14 @@ module.exports = {
     {
       id: 'early-rain-money-choice',
       decisionSteps: [11301, 11303],
+      recommendation: {
+        hint: '小雨：追查后哄哄她，需放弃500铜',
+        goal: '多看一段剧情、保留后续线索',
+        action: '先选「找她算账！」，找到后选「哄哄她」。',
+        reason: '这条路线能继续听小雨解释；所引表记有武学心得，社区作者也记有后续线索。',
+        tradeoff:
+          '不索回500铜；缺钱优先可选吓唬取回，但该步骤没有心得。放过也有作者记载后续，不把安慰说成唯一入口。',
+      },
       title: '同情心：放过、安慰与吓唬有不同结算',
       questId: 11297,
       chapterRoots: [5150, 5246, 5275],
@@ -703,6 +897,14 @@ module.exports = {
       afterAllComplete: [],
       untilAnyStarted: [],
       deadlineLabel: '继续赶赴黎城的主线剧情之前',
+      advanceEffects: [
+        {
+          questId: 29800,
+          scope: 'companion',
+          effect: '瑶姬同行的沙盘演武相关内容应先核对；攻略记后续黎城主线使她离队，未证整条任务永久关闭。',
+          evidence: '社区流程的同行窗口；精确离队事件尚未绑定。',
+        },
+      ],
       pickup: {
         place: '猴儿林左侧山谷 → 和璞山庄',
         person: '去年花；慕迟',
@@ -720,6 +922,12 @@ module.exports = {
     },
     {
       id: 'beggar-rest-order',
+      recommendation: {
+        goal: '保留调查与较完整的剧情路线',
+        action: '暂不让李元兴安排休息，先离开丐帮去客栈核对玉伯剧情。',
+        reason: '所引流程把直接休息列为坏结局路线；先调查能保留该作者的后续路径。',
+        tradeoff: '需要多走一段调查；仍要满足其他剧情条件，不能只靠这个顺序保证结局。',
+      },
       kind: 'stage',
       title: '净衣派之后：先出丐帮，再安排休息',
       questId: null,
@@ -801,12 +1009,26 @@ module.exports = {
     },
     {
       id: 'qin-score-window',
+      recommendation: {
+        goal: '欧阳雪好感与支线内容',
+        action: '祝寿前先找琴谱，再探望欧阳雪。',
+        reason: '较新流程记琴谱路线好感增加20，还能经历素节林支线；直接探望的旧版记载为增加10。',
+        tradeoff: '需要姑苏、素节林往返；窗口与旧版数值需核对当前游戏，已经开始祝寿时先确认是否仍可接。',
+      },
       title: '绝响难求：祝寿前再去探望欧阳雪',
       questId: 12200,
       chapterRoots: [5700, 5749, 5750, 5755],
       afterAllComplete: [5700],
       untilAnyStarted: [5780],
       deadlineLabel: '名剑探病后、天水祝寿开始前',
+      advanceEffects: [
+        {
+          questId: 12200,
+          scope: 'accept',
+          effect: '攻略明确称天水祝寿开始后不能再触发接取；想走琴谱和探望剧情，先到欧阳雪门前。',
+          evidence: '2024木林风攻略的接取窗口，当前版本仍请核对；不据此判已接任务失效。',
+        },
+      ],
       pickup: {
         place: '名剑山庄 · 欧阳雪住处 / 莫邪阁',
         person: '欧阳雪',
@@ -831,6 +1053,14 @@ module.exports = {
     {
       id: 'chenlinxi-critical-choice',
       decisionSteps: [12078],
+      recommendation: {
+        hint: '陈麟熙：先存档；好感60再义正词严',
+        goal: '保留陈麟熙入队与后续剧情',
+        action: '先保存并核对好感；按所引路线控制在60且低于70，再选「义正词严」。',
+        reason: '该作者将此组合对应心灰意冷并保留后续招募；高于70时好言相劝反而对应死亡。',
+        tradeoff:
+          '选择会减10好感，之后还需完成调查与平康麟子。70或其他组合未确认；另一个图鉴需另留分支存档，不能同次兼得。',
+      },
       title: '北山寒尸：对话与好感共同影响陈麟熙去留',
       questId: 12075,
       chapterRoots: [5246, 5275],
@@ -894,6 +1124,14 @@ module.exports = {
       afterAllComplete: [],
       untilAnyStarted: [],
       deadlineLabel: '拜入武当之前；精确触发步骤待核对',
+      advanceEffects: [
+        {
+          questId: 11942,
+          scope: 'accept',
+          effect: '攻略记正式拜入武当后不再触发莲心湖会晤；拜师前先去湖中央核对。',
+          evidence: '社区流程窗口；开始拜师任务不等于已经正式拜入。',
+        },
+      ],
       pickup: {
         place: '莲心湖中央',
         person: '两名神秘男子',
@@ -949,6 +1187,14 @@ module.exports = {
     {
       id: 'golden-scorpion-choice',
       decisionSteps: [16006],
+      recommendation: {
+        hint: '金蝎：剧情与治疗优先，留给柳麻衣',
+        goal: '一周目优先药圣剧情与治疗武学',
+        action: '先保留选择前的存档；默认拒绝娜乌索蝎，把金蝎交柳麻衣，继续药圣线。',
+        reason: '可获得岐黄剑术并继续药圣之约；独立流程还记有后续救治与治疗武学机会，适合保留这条人物线。',
+        tradeoff:
+          '本次交付不能兼走娜乌的灵蝎挂坠或商人的截脉三式路线。想收集对应奖励应改选；三条线都可继续接触商葶苧，不能把药圣线说成唯一入队途径。',
+      },
       title: '异种金蝎：交付对象改变后续路线',
       questId: 16000,
       chapterRoots: [5231, 5242, 5304, 5860],
@@ -964,8 +1210,12 @@ module.exports = {
       steps: ['毒蝎夺命从清河村铁蛋查起，经洛村郎中再找柳麻衣。', '去无名岩洞取得金蝎，交出前选择目标路线。'],
       choices: [
         {
-          label: '交给娜乌',
-          effect: '娜乌相关路线，可得彩云剑法。',
+          label: '赠送给娜乌',
+          effect: '娜乌相关路线，可得彩云剑法；虚饮茶的流程将此线与后期灵蝎挂坠图鉴关联。',
+        },
+        {
+          label: '与娜乌交换',
+          effect: '虚饮茶的流程记彩云剑法与两份花蜜酒；与赠送的好感收益不同，不保留给其他人物交蝎的路线。',
         },
         {
           label: '拒绝娜乌，交柳麻衣',
@@ -976,13 +1226,21 @@ module.exports = {
           effect: '毒物商人路线，可得截脉三式。',
         },
       ],
-      sourceIds: ['gs14', 'nanjing2024', 'nanjingOriginal', 'steamV7'],
+      sourceIds: ['gs14', 'nanjing2024', 'nanjingOriginal', 'steamV7', 'biliXuRoute'],
       uncertainty:
         '旧南疆资料只作交叉证据；后续好感、饰品与隐藏条件未穷尽。不采纳CT修改多只金蝎的路线，不保证只凭交付即完成全部后续。',
     },
     {
       id: 'kongliang-choice',
       decisionSteps: [12293],
+      recommendation: {
+        hint: '孔亮：队友优先选帮助，取舍见展开',
+        goal: '本周目优先保留队友与同行剧情',
+        action: '默认建议「帮助孔亮」，保留招募路线。',
+        reason: '可继续招募孔亮、请教天罡刀法并看同行内容，符合尽量不漏人物剧情的目标。',
+        tradeoff:
+          '放弃这一分支中冷鹰合作的漫天花雨路线。若一周目优先这本可继承武学，所引作者建议不救，多周目再救；主线均可继续。',
+      },
       title: '韶华轻掷：营救影响甘泉苦水合作',
       questId: 12280,
       chapterRoots: [5304, 5330, 5755, 5780],
@@ -1006,8 +1264,9 @@ module.exports = {
           effect: '甘泉苦水可与冷鹰合作，并有漫天花雨获取路线。',
         },
       ],
-      sourceIds: ['gs26', 'gs38'],
-      uncertainty: '同作者两章互证，非独立实机验证；救与不救均为有效选择，不据此判主线失败。',
+      sourceIds: ['gs26', 'gs38', 'biliXuRoute'],
+      uncertainty:
+        '两位流程作者支持按目标取舍，未实机验证；虚饮茶记袖手旁观仍可招募涤罪僧，不能误写为不救就失去两位队友。救与不救均不据此判主线失败。',
     },
     {
       id: 'counterattack-window',
@@ -1017,6 +1276,14 @@ module.exports = {
       afterAllComplete: [12500],
       untilAnyStarted: [5603],
       deadlineLabel: '开始围攻不风山之前',
+      advanceEffects: [
+        {
+          questId: 12540,
+          scope: 'accept',
+          effect: '开始围攻不风山的对应剧情后，接取条件不再满足；未接时先到桃花林找冷无情。',
+          evidence: '接取步骤12541的条件与社区路线；此限制只证接取窗口。',
+        },
+      ],
       pickup: {
         place: '桃花林',
         person: '冷无情',
@@ -1088,6 +1355,14 @@ module.exports = {
     },
     {
       id: 'qiluo-window',
+      recommendation: {
+        goal: '优先保留队友互动与本段玄阳离火功路线',
+        action: '出发前另存一份，默认保留白锦、冷无情等队友，先按队友路线核对准备。',
+        reason:
+          '这条整理路线包含羽毛、翼卫消息和瑶姬的西厢房互动，比直接为苦老分支移出队友更适合人物内容优先。',
+        tradeoff:
+          '本段火云神掌走另一套队伍与行动顺序。想收集该分支应另留进度按下方步骤做，不保证一次参加拿齐两边奖励。',
+      },
       title: '绮罗筵：晋升执法前核对请托与出发',
       questId: 30150,
       chapterRoots: [5755, 5780, 5820, 5850],
@@ -1095,6 +1370,14 @@ module.exports = {
       afterLabels: { 30148: '道微请托的隐藏剧情', 16107: '抵达霹雳门' },
       untilAnyStarted: [5858],
       deadlineLabel: '开始晋升执法之前',
+      advanceEffects: [
+        {
+          questId: 30150,
+          scope: 'departure',
+          effect: '晋升执法开始后，所列出发条件不再满足；先核对道微请托、送药、献礼及参加安排。',
+          evidence: '出发步骤30152的条件与社区路线；官方修复过请托触发，未出现不能一概判永久错过。',
+        },
+      ],
       pickup: {
         place: '武当；威远镖局；幽云泽商人',
         person: '道微；李泰',
@@ -1266,6 +1549,94 @@ module.exports = {
       uncertainty: '仅列可选收益，未确认所有版本、队伍状态与触发细节；不保证现在能够调入队伍。',
     },
     {
+      id: 'late-roster-before-wudang',
+      recommendation: {
+        goal: '保留后期结局与队友线的选择空间',
+        action: '先完成想走的队友个人线、补好装备，另存一份，再返回武当进入山门。',
+        reason: '较新流程也先安排准备；旧版明确记载进门后锁定阵容，提前处理比进入后补救稳妥。',
+        tradeoff: '需要额外整理队伍；锁队机制与好感门槛有版本差异，不保证带齐人物就满足全部结局。',
+      },
+      kind: 'stage',
+      phaseChange: true,
+      title: '长生殿之后：回武当前先核对队伍与结局目标',
+      questId: null,
+      chapterRoots: [8830],
+      afterAllComplete: [8830],
+      untilAnyStarted: [
+        5920, 5940, 9254, 5980, 5990, 6050, 6080, 6110, 6150, 20000, 22000, 22100, 22170, 24000, 24020,
+      ],
+      deadlineLabel: '长生殿结束后，返回武当进入山门之前',
+      pickup: {
+        place: '长生殿结束后 → 无名岛 → 武当山门',
+        person: '商葶苧；叶飞；冷无情；李元兴、燕未还、荀杳杳',
+        action: '按想走的结局核对队伍，保留可回读存档，再进入武当。',
+      },
+      warning: '回武当前先存档并核对队伍；旧版攻略记载进门开启烟尘回响后会锁定阵容。',
+      steps: [
+        '完成长生殿后，先按自己的结局目标核对队友个人任务、好感、装备与练度。',
+        '无名岛的同行剧情可在此检查；部分需要休息，或离岛后再返回。',
+        '若研究盟主路线，核对李元兴、燕未还、荀杳杳的个人线；攻略对好感门槛并不确定，不保证只靠调入队伍就能满足。',
+        '准备完成后自行保留可回读存档，再返回武当进入山门。',
+      ],
+      choices: [
+        {
+          label: '希望保留掌门方向',
+          effect: '旧版攻略将商葶苧与玄火神丹及后续掌门选择关联；还需完成相关支线与承诺。',
+        },
+        {
+          label: '希望保留天机宫方向',
+          effect: '旧版攻略将叶飞与天机宫、商颂后续关联；阵容之外仍有剧情和互斥选择条件。',
+        },
+        {
+          label: '希望继续小彤相关剧情',
+          effect: '旧版攻略将冷无情与小彤前往天佛窟的调查分支关联，推进前先核对。',
+        },
+      ],
+      sourceIds: ['gs48', 'biliLatePrep'],
+      uncertainty:
+        '较新流程支持回武当前先准备；明确锁队的独立攻略针对 v1.23.24，不能保证当前版本机制相同。未读取实时队伍或全部隐藏结局条件，也不据缺少记录断言已经错过。',
+    },
+    {
+      id: 'yuanqi-return-followthrough',
+      recommendation: {
+        goal: '尽量保留元启的后续',
+        action: '先核对弟子房断剑与笔记；寻物或比剑之后都再回天剑宗，完成解开心结的对话。',
+        reason: '拿到线索只完成前半段，当前任务文字和社区流程都还有回天剑宗点醒元启这一步。',
+        tradeoff: '需要额外往返；比剑是另一条线索，不要求两条都做，也不承诺只完成此项就必然存活。',
+      },
+      title: '元启心结：寻物或比剑后，还要回天剑宗',
+      questId: 20100,
+      chapterRoots: [20000],
+      afterAllComplete: [],
+      untilAnyStarted: [],
+      deadlineLabel: '',
+      pickup: {
+        place: '武当弟子房 → 名剑山庄 → 天剑宗',
+        person: '元启；肖寒光',
+        action: '发现元启失踪后先核对寻物或比剑线索；肖寒光回去后再到天剑宗继续。',
+      },
+      warning: '只完成寻人或比剑前半段，不等于解开元启心结；攻略将此后续与天佛窟的人物存亡关联。',
+      steps: [
+        '武当发现元启失踪时，可去弟子房桌面找断剑与剑术笔记。',
+        '另一条线索来自肖寒光拜庄比剑：攻略列主角持剑，或上官虹、叶飞出战；实际出战会受装备与队伍影响。',
+        '肖寒光返回后，再到天剑宗继续元启与肖寒光剧情；拿到线索不能替代这一步。',
+      ],
+      choices: [
+        { label: '弟子房取断剑与笔记', effect: '旧版攻略将其列为解开心结的线索之一；仍需回天剑宗完成后续。' },
+        {
+          label: '通过肖寒光比剑了解心结',
+          effect: '旧版攻略列主角持剑、上官虹或叶飞出战为另一种线索；同样还需回天剑宗。',
+        },
+        {
+          label: '只做前半段，跳过回天剑宗',
+          effect: '旧版攻略提醒心结仍可能未解，并影响元启在天佛窟的后续；不是单凭任务缺失就判定死亡。',
+        },
+      ],
+      sourceIds: ['gs49', 'gs50', 'biliLatePrep'],
+      uncertainty:
+        '具体生死条件来自 v1.23.24 攻略，较新流程也安排寻物、比剑后回天剑宗。当前任务文字20104可核对断剑笔记与点醒元启，但未读取全部隐藏标记，不保证任何组合必然存活，也未确认精确失效时点。',
+    },
+    {
       id: 'xiaotong-one-time-grove',
       title: '追踪小彤：林地离开前核对两个宝箱',
       questId: null,
@@ -1286,6 +1657,12 @@ module.exports = {
     },
     {
       id: 'xiaotong-transmission',
+      recommendation: {
+        goal: '保留小彤同行与额外剧情',
+        action: '想尽量不漏人物内容，选「传功小彤」。',
+        reason: '攻略明确记这一选择让小彤入队，并保留无名岛与最终本阵的额外场景。',
+        tradeoff: '与询问莫问分支的剧情不同；没有证据证明这是所有结局的必选项。',
+      },
       title: '天佛窟后：是否传功小彤',
       questId: null,
       chapterRoots: [24000, 24020],
@@ -1333,6 +1710,13 @@ module.exports = {
     },
     {
       id: 'ending-commitment',
+      recommendation: {
+        goal: '优先保留天机宫、救商颂与武学收集路线',
+        action: '与清虚谈接任时，先另存一份，默认选「不愿意」；后续仍须核对重建天机宫。',
+        reason:
+          '答应掌门会关闭天机宫主方向，并影响救商颂；暂不承诺可保留这些后续，所引流程还记贪狼枪法收益。',
+        tradeoff: '这一周目不走掌门承诺路线。若目标就是掌门，改选愿意；两条互斥，不能保证一份进度同时完成。',
+      },
       title: '后期承诺：掌门与重建天机宫路线',
       questId: null,
       chapterRoots: [5980, 20000, 22000, 24000, 24020],

@@ -75,6 +75,7 @@ function defaults() {
       steamPath: '',
       companionEnabled: true,
       companionPosition: 'top-right',
+      companionSections: ['advice', 'opportunities', 'milestones'],
       saveFeedback: false,
       offerAutoSaveOnStart: true,
       compactOpacity: 0.96,
@@ -224,6 +225,14 @@ function validateState(s, ids) {
     throw Error('开始游戏偏好无效');
   if (s.settings.companionEnabled !== undefined && typeof s.settings.companionEnabled !== 'boolean')
     throw Error('随行提示设置无效');
+  if (
+    s.settings.companionSections !== undefined &&
+    (!Array.isArray(s.settings.companionSections) ||
+      s.settings.companionSections.length > 3 ||
+      new Set(s.settings.companionSections).size !== s.settings.companionSections.length ||
+      s.settings.companionSections.some((key) => !['advice', 'opportunities', 'milestones'].includes(key)))
+  )
+    throw Error('随行显示内容无效');
   if (
     s.settings.companionPosition !== undefined &&
     !['top-right', 'bottom-right', 'top-left', 'bottom-left'].includes(s.settings.companionPosition)
@@ -884,6 +893,7 @@ class Store {
               'offerAutoSaveOnStart',
               'companionEnabled',
               'companionPosition',
+              'companionSections',
               'compactOpacity',
               'readingScale',
             ].includes(key)

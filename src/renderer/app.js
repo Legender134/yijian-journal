@@ -33,6 +33,7 @@ import { createQualityText } from './quality.js';
 import { createTimelineViews } from './timeline-views.js';
 import { createCompanionViews } from './companion-view.js';
 import { createFlowViews } from './flow-views.js';
+import { createDuelViews } from './duel-views.js';
 const api = window.journal;
 const compact = new URLSearchParams(location.search).has('compact');
 const root = document.querySelector('#app'),
@@ -845,6 +846,7 @@ const notice = (message, info = false) =>
 const headings = {
   home: '江湖总览',
   checklist: '流程任务',
+  duels: '比武与收益',
   library: '江湖索引',
   database: '百物图鉴',
   world: '任务与地点',
@@ -871,6 +873,10 @@ const gameViews = createGameViews({
   picture,
   qualityText,
 });
+const duelViews = createDuelViews({ esc, act, pill });
+function duelsPage() {
+  return duelViews.page(currentFlow(), { compact, scope: profile().id });
+}
 const comparisonViews = createComparisonViews({
   esc,
   icon,
@@ -2358,10 +2364,10 @@ function compactPage() {
   document.body.classList.add('companion');
   document.body.classList.toggle('passive', companionMode === 'hint');
   if (companionMode === 'hint') return companionViews.passive(companionData);
-  const ref = companionData?.reference;
-  const sourceLine = `<p class="companion-reference">${esc(companionData?.referenceLabel || '正在核对参照')}<br>${ref ? `${esc(ref.mapName)} · ${esc(ref.name)} · ${when(ref.modifiedAt)}（已保存的进度）` : '尚无可读存档，资料查询仍然可用'}</p>${companionData?.error ? notice(companionData.error) : ''}${companionData?.windowError ? notice('窗口跟随暂不可用：' + companionData.windowError) : ''}`;
+  const sourceErrors = `${companionData?.error ? notice(companionData.error) : ''}${companionData?.windowError ? notice('窗口跟随暂不可用：' + companionData.windowError) : ''}`;
   if (route === 'materials')
     return companionViews.frame(materialPage(), timelineViews.chip(environment.health));
+  if (route === 'duels') return companionViews.frame(duelsPage(), timelineViews.chip(environment.health));
   if (route === 'recipe-discovery')
     return companionViews.frame(recipeDiscoveryPage(), timelineViews.chip(environment.health));
   if (route === 'saves')
@@ -2380,7 +2386,7 @@ function compactPage() {
     compactUndo?.profileId === profile().id
       ? `<div class="notice"><span>已完成：${esc(compactUndo.title)}</span>${act('compact-undo', '撤销这次完成', 'text-btn')}</div>`
       : '';
-  const body = `<div class="eyebrow">${esc(profile().name)} · 流程任务</div>${sourceLine}${flowViews.panel(currentFlow(), { compact: true })}<details class="flow-personal" data-compact-detail="flow-personal"><summary>个人目标、行程与备料</summary>${companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${undo}<h3 class="companion-section">我的目标</h3>${
+  const body = `${sourceErrors}${flowViews.panel(currentFlow(), { compact: true, sections: state.settings.companionSections })}<details class="flow-personal" data-compact-detail="flow-personal"><summary>个人目标、行程与备料</summary>${companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${undo}<h3 class="companion-section">我的目标</h3>${
     orderedGoals()
       .filter((g) => !goalDone(g))
       .map(
@@ -2538,6 +2544,7 @@ function render(preserve = false, navigationId = null) {
     `<div class="layout"><aside class="sidebar"><div class="brand"><span class="seal">逸</span><div><div class="brand-name">逸剑手札</div><div class="brand-sub">WANDERING JOURNAL</div></div></div><nav class="sidebar-nav" aria-label="手札页面"><div class="nav-section">我的江湖</div>${[
       ['home', 'home'],
       ['checklist', 'scroll'],
+      ['duels', 'sword'],
       ['library', 'book'],
       ['database', 'sword'],
       ['world', 'scroll'],
@@ -2560,7 +2567,7 @@ function render(preserve = false, navigationId = null) {
       )
       .join(
         '',
-      )}</nav><div class="sidebar-art"><div class="sidebar-line"></div><p>山水有相逢<br>江湖不相忘</p><small>ONE JOURNEY AT A TIME</small></div><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong><small>记录只保存在本机</small></div>${iconButton('profiles', 'settings', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑风云决 · 个人助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="breadcrumb">我的江湖 ${icon('chevron')}<b>${headings[route]}</b></div><div class="row"><span data-save-health>${timelineViews.chip(environment.health)}</span><button class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${iconButton('compact', 'pin', '打开随行小窗 · Ctrl+Alt+J')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`,
+      )}</nav><div class="sidebar-art"><div class="sidebar-line"></div><p>山水有相逢<br>江湖不相忘</p><small>ONE JOURNEY AT A TIME</small></div><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong><small>记录只保存在本机</small></div>${iconButton('profiles', 'settings', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑风云决 · 个人助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="breadcrumb">我的江湖 ${icon('chevron')}<b>${headings[route]}</b></div><div class="row"><span data-save-health>${timelineViews.chip(environment.health)}</span><button class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${iconButton('compact', 'pin', '打开随行小窗 · Ctrl+Alt+J')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, duels: duelsPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`,
   );
   root.querySelector('.sidebar-nav').scrollTop = sidebarScroll;
   if (availableIntentDrafts().length && !['home', 'journey'].includes(route))
@@ -4169,6 +4176,7 @@ async function handle(action, id, target, navigationFocused = false) {
       );
       break;
     case 'save-slot':
+      await refresh();
       saveSlotModal();
       break;
     case 'save-slot-save':
@@ -6071,6 +6079,33 @@ async function handle(action, id, target, navigationFocused = false) {
       await saveNote();
       await call('compact');
       break;
+    case 'companion-display': {
+      const selected = new Set(state.settings.companionSections || ['advice', 'opportunities', 'milestones']);
+      modal(
+        '随行首页显示什么',
+        '当前行动与关键提醒始终保留；其他内容按你的习惯选择。',
+        [
+          ['advice', '顺路建议'],
+          ['opportunities', '未接任务线索'],
+          ['milestones', '下一主线节点与阶段变化'],
+        ]
+          .map(
+            ([key, label]) =>
+              `<label class="companion-section-option"><input type="checkbox" id="companion-section-${key}" ${selected.has(key) ? 'checked' : ''}>${label}</label>`,
+          )
+          .join(''),
+        act('companion-display-save', '保存显示偏好', 'btn primary'),
+      );
+      break;
+    }
+    case 'companion-display-save': {
+      const companionSections = ['advice', 'opportunities', 'milestones'].filter(
+        (key) => overlay.querySelector('#companion-section-' + key)?.checked,
+      );
+      await mutation({ type: 'settings', value: { companionSections } });
+      closeOverlay();
+      break;
+    }
     case 'companion-collapse':
       closeOverlay();
       await call('companionCollapse');
@@ -6810,6 +6845,7 @@ try {
       [
         'home',
         'checklist',
+        'duels',
         'saves',
         'world',
         'materials',

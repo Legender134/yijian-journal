@@ -20,6 +20,392 @@ const ref = (quests, extra = {}, name = 'Synthetic.sav') => ({
   metadata: { quests, inventory: [], ...extra },
 });
 
+test('wine delivery names the optional inn challenge window and retires when delivered', () => {
+  const project = (step, extra = []) =>
+    flowSnapshot(
+      profile(),
+      ref([{ id: 5062, step: 1 }, { id: 5063, step: 4 }, { id: 5072, step }, ...extra], {
+        trackingMainQuest: 5062,
+      }),
+    );
+  const before = project(1);
+  const warning = before.warnings.find((row) => row.id === 'inn-before-delivering-wine');
+  assert(warning);
+  assert.match(warning.affectedTasks[0].name, /吕轻祈.*雷万钧.*岳九/);
+  assert.match(warning.recommendation.tradeoff, /高成本.*不必.*不保证/);
+  assert.equal(before.chapter.next.questId, 'quest-5072');
+  assert(!before.opportunities.some((row) => row.id === warning.id));
+  assert(!project(4).warnings.some((row) => row.id === warning.id));
+  assert(
+    !flowSnapshot(profile(), ref([{ id: 5062, step: 1 }])).warnings.some((row) => row.id === warning.id),
+  );
+});
+
+test('Tianshui reminders follow the banquet and pursuit substeps rather than the entire chapter', () => {
+  const project = (steps) =>
+    flowSnapshot(profile(), ref([{ id: 5780, step: 1 }, ...steps], { trackingMainQuest: 5780 }));
+  const banquet = project([
+    { id: 5789, step: 4 },
+    { id: 5790, step: 1 },
+  ]);
+  assert(
+    banquet.warnings.some(
+      (row) => row.id === 'tianshui-before-banquet-duel' && /智度上人/.test(row.affectedTasks[0].name),
+    ),
+  );
+  for (const crossed of [[{ id: 5790, step: 4 }], [{ id: 5801, step: 1 }]]) {
+    assert(
+      !project([{ id: 5789, step: 4 }, ...crossed]).warnings.some(
+        (row) => row.id === 'tianshui-before-banquet-duel',
+      ),
+    );
+  }
+  const journey = project([
+    { id: 5803, step: 4 },
+    { id: 5806, step: 1 },
+  ]);
+  assert(journey.warnings.some((row) => row.id === 'tianshui-before-yixiantian-duel'));
+  assert(!journey.warnings.some((row) => row.id === 'tianshui-before-banquet-duel'));
+  assert(
+    !project([
+      { id: 5803, step: 4 },
+      { id: 5806, step: 4 },
+    ]).warnings.some((row) => row.id === 'tianshui-before-yixiantian-duel'),
+  );
+  assert(!project([]).warnings.some((row) => row.id.startsWith('tianshui-before-')));
+});
+
+test('village pickup clues do not send players to the objective destination to accept the task', () => {
+  const flow = flowSnapshot(
+    profile(),
+    ref(
+      [
+        { id: 5062, step: 1 },
+        { id: 5039, step: 4 },
+      ],
+      { trackingMainQuest: 5062 },
+    ),
+  );
+  const snake = flow.opportunities.find((row) => row.questId === 11000);
+  assert.match(snake.pickup.place, /梧桐村/);
+  assert.doesNotMatch(snake.pickup.place, /山洞/);
+  assert.match(snake.pickup.person, /李村长/);
+  assert.match(snake.pickup.action, /交谈.*无妄蛇灾/);
+  assert.match(snake.pickup.executionPlace, /山洞/);
+  const tailor = flow.opportunities.find((row) => row.questId === 11052);
+  assert.match(tailor.pickup.place, /梧桐村/);
+  assert.match(tailor.pickup.person, /薛氏/);
+  assert(tailor.sources.length);
+});
+
+test('mining puts the exact task route before distant merchants and retires the resolved axe recommendation', () => {
+  const flow = flowSnapshot(
+    profile(),
+    ref(
+      [
+        { id: 5062, step: 1 },
+        { id: 11002, step: 1 },
+        { id: 11005, step: 4 },
+        { id: 11010, step: 1 },
+      ],
+      { trackingMainQuest: 5062, mapName: '梧桐村' },
+    ),
+  );
+  const iron = flow.active.find((row) => row.gameId === 11002).steps.find((row) => row.id === 'quest-11010')
+    .materials[0];
+  assert.equal(iron.routes[0].kind, 'quest');
+  assert.match(iron.routes[0].detail, /后山山洞.*四个铁矿石/);
+  assert.equal(iron.routes[0].alternative, false);
+  const merchants = iron.routes.filter((row) => row.personId?.startsWith('npc-'));
+  assert(merchants.some((row) => /平康城/.test(row.label) && row.placeId === 'place-15'));
+  assert(merchants.some((row) => /樊城/.test(row.label) && row.placeId === 'place-51'));
+  assert(merchants.filter((row) => !row.placeId).every((row) => row.alternative));
+  assert(!flow.advice.some((row) => row.id === 'early-woodcutter-axe-choice'));
+  assert(!flow.opportunities.some((row) => row.id === 'early-woodcutter-axe-choice'));
+});
+
+test('advance warnings name affected quests, distinguish pickup windows, and retire resolved tasks', () => {
+  const before = flowSnapshot(
+    profile(),
+    ref([
+      { id: 5700, step: 4 },
+      { id: 5750, step: 1 },
+    ]),
+  );
+  const qin = before.warnings.find((row) => row.id === 'qin-score-window');
+  assert.equal(qin.affectedTasks[0].name, '绝响难求');
+  assert.match(qin.affectedTasks[0].effect, /不能再触发接取/);
+  assert.match(qin.affectedTasks[0].evidence, /2024.*不据此判已接任务失效/);
+  assert.equal(before.changes.find((row) => row.id === qin.id).affectedTasks[0].questId, 12200);
+  const accepted = flowSnapshot(
+    profile(),
+    ref([
+      { id: 5700, step: 4 },
+      { id: 12200, step: 1 },
+    ]),
+  );
+  assert.match(
+    accepted.warnings.find((row) => row.id === qin.id).affectedTasks[0].effect,
+    /已有进行中记录.*没有证明/,
+  );
+  const crossed = flowSnapshot(
+    profile(),
+    ref([
+      { id: 5700, step: 4 },
+      { id: 5780, step: 1 },
+    ]),
+  );
+  assert.match(crossed.warnings.find((row) => row.id === qin.id).message, /没有任务记录不等于错过/);
+  for (const step of [2, 4]) {
+    const resolved = flowSnapshot(
+      profile(),
+      ref([
+        { id: 5700, step: 4 },
+        { id: 12200, step },
+      ]),
+    );
+    assert(!resolved.warnings.some((row) => row.id === qin.id));
+    assert.equal(resolved.guide.find((row) => row.id === qin.id).affectedTasks.length, 0);
+  }
+  const early = flowSnapshot(profile(), ref([{ id: 5200, step: 1 }]));
+  assert.equal(early.warnings.find((row) => row.id === 'lotus-meeting').affectedTasks[0].name, '莲湖会晤');
+  assert(!early.changes.some((row) => row.affectedTasks.some((task) => task.questId === 12200)));
+});
+
+test('contextual village advice requires its actual stage and retires before inviting Xiaotong', () => {
+  const project = (quests, trackingMainQuest = 5020) =>
+    flowSnapshot(profile(), ref(quests, { trackingMainQuest }));
+  const before = project([
+    { id: 5020, step: 1 },
+    { id: 5024, step: 4 },
+  ]);
+  const advice = before.advice.find((row) => row.id === 'npc051-east-dialogue');
+  assert(advice);
+  assert.match(advice.recommendation.action, /村东.*李寡妇.*小彤/);
+  assert.match(advice.recommendation.reason, /额外闲聊/);
+  assert.match(advice.recommendation.tradeoff, /未发现独占物品奖励/);
+  for (const step of [1, 2, 4]) {
+    const after = project([
+      { id: 5020, step: 1 },
+      { id: 5024, step: 4 },
+      { id: 5036, step },
+    ]);
+    assert(!after.advice.some((row) => row.id === advice.id));
+  }
+  assert(
+    !project(
+      [
+        { id: 5200, step: 1 },
+        { id: 5024, step: 4 },
+      ],
+      5200,
+    ).advice.some((row) => row.id === advice.id),
+  );
+  assert(!project([{ id: 5020, step: 1 }]).advice.some((row) => row.id === advice.id));
+});
+
+test('an accepted Qiluo invitation still needs the departure window checked', () => {
+  const flow = flowSnapshot(
+    profile(),
+    ref([
+      { id: 5850, step: 1 },
+      { id: 30150, step: 1 },
+      { id: 30151, step: 4 },
+    ]),
+  );
+  const affected = flow.warnings.find((row) => row.id === 'qiluo-window').affectedTasks[0];
+  assert.equal(affected.scope, 'departure');
+  assert.match(affected.effect, /出发条件不再满足/);
+  assert.doesNotMatch(affected.effect, /只限制未接取|已有进行中记录/);
+});
+
+test('return-to-Wudang preparation follows the late boundary without calling a stage an unaccepted task', () => {
+  const id = 'late-roster-before-wudang';
+  const preparing = flowSnapshot(
+    profile(),
+    ref(
+      [
+        { id: 8830, step: 1 },
+        { id: 8879, step: 1 },
+      ],
+      { trackingMainQuest: 8830 },
+    ),
+  );
+  const warning = preparing.warnings.find((row) => row.id === id);
+  assert(warning);
+  assert.match(warning.message, /回武当前.*旧版/);
+  assert.match(warning.uncertainty, /v1\.23\.24.*不能保证当前版本/);
+  assert.equal(warning.sources.length, 2);
+  assert.match(preparing.changes.find((row) => row.id === id).triggerName, /进入山门之前/);
+  assert(!preparing.opportunities.some((row) => row.id === id));
+  const ended = [{ id: 8830, step: 4 }];
+  assert(flowSnapshot(profile(), ref(ended)).warnings.some((row) => row.id === id));
+  for (const root of guide.rules.find((row) => row.id === id).untilAnyStarted) {
+    for (const state of [1, 2, 4]) {
+      const flow = flowSnapshot(
+        profile(),
+        ref([...ended, { id: root, step: state }], { trackingMainQuest: root }),
+      );
+      assert(!flow.warnings.some((row) => row.id === id), `${root}/${state} must retire preparation`);
+      assert(!flow.changes.some((row) => row.id === id));
+      assert(!flow.opportunities.some((row) => row.id === id));
+      assert(
+        flow.guide.some((row) => row.id === id),
+        'still available for reference',
+      );
+    }
+  }
+  for (const state of [0, 3])
+    assert(
+      flowSnapshot(profile(), ref([...ended, { id: 5920, step: state }])).warnings.some(
+        (row) => row.id === id,
+      ),
+    );
+  assert(!flowSnapshot(profile(), ref([{ id: 5200, step: 1 }])).warnings.some((row) => row.id === id));
+  assert(!flowSnapshot(profile({ referenceMode: 'none' }), ref(ended)).warnings.some((row) => row.id === id));
+  assert(
+    !flowSnapshot(profile({ referenceMode: 'slot', saveSlot: '0.sav' }), ref(ended)).warnings.some(
+      (row) => row.id === id,
+    ),
+  );
+});
+
+test('Yuanqi follow-through remains a lead until the return quest is resolved, without inventing survival', () => {
+  const id = 'yuanqi-return-followthrough';
+  const records = [
+    { id: 20000, step: 1 },
+    { id: 20012, step: 4 },
+    { id: 20050, step: 4 },
+  ];
+  const early = flowSnapshot(profile(), ref(records, { trackingMainQuest: 20000 }));
+  const lead = early.opportunities.find((row) => row.id === id);
+  assert(lead);
+  assert.equal(lead.state, 'unrecorded');
+  assert.match(lead.pickup.place, /弟子房.*天剑宗/);
+  assert.match(lead.warning, /前半段.*不等于/);
+  assert.match(lead.uncertainty, /不保证.*必然存活/);
+  assert.equal(lead.sources.length, 3);
+  const running = flowSnapshot(
+    profile(),
+    ref([...records, { id: 20100, step: 1 }, { id: 20101, step: 1 }], { trackingMainQuest: 20000 }),
+  );
+  assert(running.warnings.some((row) => row.id === id));
+  assert(!running.opportunities.some((row) => row.id === id));
+  assert.match(running.active.find((row) => row.gameId === 20100).steps[0].nextAction, /天剑宗/);
+  for (const state of [2, 4]) {
+    const resolved = flowSnapshot(profile(), ref([...records, { id: 20100, step: state }]));
+    assert(!resolved.warnings.some((row) => row.id === id));
+    assert(!resolved.opportunities.some((row) => row.id === id));
+    assert.equal(resolved.guide.find((row) => row.id === id).state, state === 4 ? 'done' : 'failed');
+  }
+});
+
+test('task locations recognize named destinations and do not choose arbitrary same-name map variants', () => {
+  const flow = flowSnapshot(
+    profile(),
+    ref([
+      { id: 8830, step: 1 },
+      { id: 8879, step: 1 },
+    ]),
+  );
+  const places = flow.active.find((row) => row.gameId === 8830).steps[0].places;
+  assert.deepEqual(
+    places.map((row) => row.name),
+    ['武当派', '名剑山庄'],
+  );
+  assert(places.every((row) => row.id === null));
+  assert(places.every((row) => /文字提及/.test(row.evidence)));
+  const village = flowSnapshot(
+    profile(),
+    ref([
+      { id: 5020, step: 1 },
+      { id: 5021, step: 1 },
+    ]),
+  );
+  for (const task of village.active)
+    for (const step of task.steps) {
+      assert.equal(new Set(step.places.map((row) => row.name)).size, step.places.length);
+    }
+});
+
+test('an explicit interaction map can resolve a textual variant, while several interaction variants stay uncertain', () => {
+  const maps = [
+    { id: 'place-1', gameId: 1, key: 'base', name: '武当派' },
+    { id: 'place-2', gameId: 2, key: 'later', name: '武当派' },
+    { id: 'place-3', gameId: 3, key: 'valley', name: '武当药谷' },
+  ];
+  const task = {
+    id: 'quest-1',
+    gameId: 1,
+    parentId: 0,
+    kind: 'Secondary',
+    name: '返回武当',
+    description: '',
+    requestNPCs: [],
+    finishNPCs: [],
+    requirements: [],
+    placements: [{ mapKey: 'later', interactionTarget: true }],
+  };
+  const snapshot = (q) =>
+    createFlowProjector({
+      world: { quests: [q], people: [], maps, npcNames: {} },
+      game: { entries: [] },
+      guide: { rules: [], sources: {} },
+    }).flowSnapshot(profile(), ref([{ id: 1, step: 1 }])).active[0].steps[0];
+  assert.equal(snapshot(task).places[0].id, 'place-2');
+  const ambiguous = snapshot({
+    ...task,
+    placements: [...task.placements, { mapKey: 'base', interactionTarget: true }],
+  });
+  assert.equal(ambiguous.places.length, 1);
+  assert.equal(ambiguous.places[0].id, null);
+  assert.match(ambiguous.places[0].evidence, /多个同名/);
+  const valley = snapshot({ ...task, name: '前往武当药谷', placements: [] });
+  assert.deepEqual(
+    valley.places.map((row) => row.name),
+    ['武当药谷'],
+  );
+  assert.equal(valley.places[0].id, 'place-3');
+});
+
+test('late-story milestones follow sourced routes and disclose ambiguous returns instead of guessing', () => {
+  for (const [current, next] of [
+    [9254, 20000],
+    [20000, 22000],
+    [22000, 22100],
+    [22100, 22170],
+    [22170, 24000],
+    [24000, 24020],
+  ]) {
+    const node = flowSnapshot(profile(), ref([{ id: current, step: 1 }], { trackingMainQuest: current }))
+      .chapter.nextMilestone;
+    assert.equal(node.questId, `quest-${next}`);
+    assert(node.sources.some((row) => row.id === 'flow:biliLateFlow'));
+    assert.match(node.note, /参考.*前置条件/);
+  }
+  for (const root of [5920, 5940, 5980]) {
+    const node = flowSnapshot(profile(), ref([{ id: root, step: 1 }], { trackingMainQuest: root })).chapter
+      .nextMilestone;
+    assert.equal(node.questId, null);
+    assert.match(node.note, /原版.*烟尘回响.*不足以自动区分/);
+  }
+  assert.equal(
+    flowSnapshot(profile(), ref([{ id: 5990, step: 1 }], { trackingMainQuest: 5990 })).chapter.nextMilestone
+      .questId,
+    'quest-6050',
+  );
+  assert.equal(
+    flowSnapshot(
+      profile(),
+      ref([
+        { id: 20000, step: 1 },
+        { id: 22000, step: 1 },
+      ]),
+    ).chapter,
+    null,
+  );
+});
+
 test('unindexed active records stay visible without inventing names, ownership or next actions', () => {
   const metadata = enrich(
     readMetadata(
@@ -103,7 +489,7 @@ test('decision prompts follow an actual active choice step and disappear after c
     ]),
   );
   assert.equal(passive.hints[0].type, 'flow-choice');
-  assert.match(passive.hints[0].title, /奖励不同/);
+  assert.match(passive.hints[0].title, /樵夫.*重锻.*铁矿石.*4/);
   for (const records of [
     [{ id: 11002, step: 1 }],
     [
@@ -132,6 +518,69 @@ test('decision prompts follow an actual active choice step and disappear after c
       assert.equal(task?.parentId, rule.questId, rule.id);
     }
   }
+});
+
+test('current choice recommendations lead ordinary warnings and follow the tracked task across saved changes', () => {
+  const saved = ref(
+    [
+      { id: 5780, step: 1 },
+      { id: 5700, step: 4 },
+      { id: 11002, step: 1 },
+      { id: 11005, step: 1 },
+      { id: 11060, step: 1 },
+      { id: 11061, step: 1 },
+    ],
+    { trackingMainQuest: 5780, trackingQuest: 11061 },
+  );
+  const before = structuredClone(saved);
+  const state = defaults();
+  const snapshot = companionSnapshot(state, catalog, saved);
+  assert(snapshot.flow.warnings.length > 0, 'ordinary chapter warnings remain available');
+  assert.deepEqual(
+    snapshot.flow.decisions.map((row) => row.id),
+    ['early-sun-homesickness-choice', 'early-woodcutter-axe-choice'],
+  );
+  assert.equal(snapshot.hints[0].type, 'flow-choice');
+  assert.match(snapshot.hints[0].title, /孙老.*返乡/);
+  assert.equal(snapshot.hints[1].type, 'flow-warning');
+  const updated = structuredClone(saved);
+  updated.metadata.quests.find((row) => row.id === 11061).step = 4;
+  const after = companionSnapshot(state, catalog, updated);
+  assert.match(after.hints[0].title, /樵夫.*重锻/);
+  assert(!after.flow.decisions.some((row) => row.id === 'early-sun-homesickness-choice'));
+  assert.deepEqual(saved, before);
+  for (const scoped of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: 'Other.sav' }),
+  ]) {
+    const isolated = flowSnapshot(scoped, saved);
+    assert.equal(isolated.decisions.length, 0);
+    assert.equal(isolated.reference, null);
+  }
+});
+
+test('critical recommendations state conditional goals and incompatible rewards instead of a universal best ending', () => {
+  const entries = flowSnapshot(profile(), ref([])).guide;
+  for (const entry of entries.filter((row) => row.decisionSteps?.length)) {
+    assert(entry.recommendation?.action, entry.id);
+    assert(entry.recommendation?.reason, entry.id);
+    assert(entry.recommendation?.goal, entry.id);
+    assert(entry.recommendation?.tradeoff, entry.id);
+    assert(entry.sources.length, entry.id);
+  }
+  const find = (id) => entries.find((row) => row.id === id).recommendation;
+  assert.match(find('chenlinxi-critical-choice').action, /先保存.*好感.*60.*低于70.*义正词严/);
+  assert.match(find('chenlinxi-critical-choice').tradeoff, /70.*其他组合.*未确认/);
+  assert.match(find('kongliang-choice').goal, /队友.*剧情/);
+  assert.match(find('kongliang-choice').tradeoff, /漫天花雨.*一周目.*不救/);
+  assert.match(find('golden-scorpion-choice').tradeoff, /不能兼走.*灵蝎挂坠.*截脉三式.*三条线/);
+  assert.match(find('ending-commitment').action, /另存.*不愿意/);
+  assert.match(find('ending-commitment').tradeoff, /互斥/);
+  assert.equal(
+    entries.find((row) => row.id === 'ending-commitment').decisionSteps,
+    undefined,
+    'no invented precise dialog binding',
+  );
 });
 
 test('a new profile gets actionable saved steps, NPCs, material deficits and acquisition routes without setup', () => {

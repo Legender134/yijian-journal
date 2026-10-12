@@ -93,6 +93,34 @@ test('invalid reading size rejects the whole settings mutation and malformed imp
   assert(!fs.readdirSync(store.dir).some((name) => name.startsWith('journal-before-import-')));
 });
 
+test('companion content choices persist and malformed settings cannot partially replace them', (t) => {
+  const dir = temp(t),
+    store = new Store(dir, catalog);
+  assert.deepEqual(store.get().settings.companionSections, ['advice', 'opportunities', 'milestones']);
+  store.mutate({ type: 'settings', value: { companionSections: ['advice'] } });
+  assert.deepEqual(new Store(dir, catalog).get().settings.companionSections, ['advice']);
+  const before = store.get();
+  for (const companionSections of [
+    null,
+    'advice',
+    ['unknown'],
+    ['advice', 'advice'],
+    ['advice', 'opportunities', 'milestones', 'unknown'],
+  ]) {
+    assert.throws(
+      () => store.mutate({ type: 'settings', value: { spoiler: 'details', companionSections } }),
+      /随行显示内容/,
+    );
+    assert.deepEqual(new Store(dir, catalog).get(), before);
+  }
+  const legacy = defaults();
+  delete legacy.settings.companionSections;
+  store.importData(legacy);
+  assert.deepEqual(new Store(dir, catalog).get().settings.companionSections, ['advice']);
+  store.mutate({ type: 'settings', value: { companionSections: [] } });
+  assert.deepEqual(new Store(dir, catalog).get().settings.companionSections, []);
+});
+
 test('delayed note write remains in its original profile', (t) => {
   const s = new Store(temp(t), catalog),
     first = s.get().activeProfileId;
