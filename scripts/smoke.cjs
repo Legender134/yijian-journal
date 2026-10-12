@@ -372,6 +372,27 @@ async function attach() {
         exitStep: 1,
         expected: /继续调查.*为什么.*查明真相.*放弃.*结束/s,
       },
+      {
+        id: 'bai-jin-rescue-route',
+        root: 12030,
+        main: 5700,
+        anchor: 12035,
+        anchorStep: 1,
+        exit: 12037,
+        exitStep: 1,
+        expected: /临昌.*白锦.*救人.*为什么.*危机解除.*天罗地网钉/s,
+        detailsExpected: /霹雳雷火弹.*绝笔.*不能.*兼得.*白锦身亡/s,
+      },
+      {
+        id: 'cold-wuqing-night-choice',
+        root: 22100,
+        anchor: 22125,
+        anchorStep: 4,
+        exit: 22133,
+        exitStep: 4,
+        expected: /矢志于此.*阎浮镇凶案.*为什么.*隐藏结局/s,
+        detailsExpected: /好感100.*不保证.*江湖器量.*完整结局后果尚未核定/s,
+      },
     ]) {
       const records = [
         { id: scenario.root, step: 1 },
@@ -392,19 +413,22 @@ async function attach() {
       const card = choiceCompact.locator(`[data-flow-decision="${scenario.id}"]`);
       await card.waitFor({ timeout: 18000 });
       assert.match(await card.locator('.flow-recommendation').innerText(), scenario.expected);
-      const position = await card
-        .locator('.flow-recommended-action')
-        .evaluate((el) => ({
-          bottom: el.getBoundingClientRect().bottom,
-          height: innerHeight,
-          folded: !!el.closest('details'),
-        }));
+      const position = await card.locator('.flow-recommended-action').evaluate((el) => ({
+        bottom: el.getBoundingClientRect().bottom,
+        height: innerHeight,
+        folded: !!el.closest('details'),
+      }));
       assert.equal(position.folded, false);
       assert(position.bottom <= position.height, scenario.id + ' recommendation stays on the first screen');
       await choiceCompact.screenshot({
         animations: 'disabled',
         path: path.join(results, `01-${scenario.id}.png`),
       });
+      if (scenario.detailsExpected) {
+        await card.locator('.flow-choice-details > summary').click();
+        assert.match(await card.locator('.flow-choice-details').innerText(), scenario.detailsExpected);
+        await card.locator('.flow-choice-details > summary').click();
+      }
       writeChoice([...records, { id: scenario.exit, step: scenario.exitStep }]);
       await card.waitFor({ state: 'detached', timeout: 18000 });
       assert.equal(await choiceCompact.locator(`[data-flow-warning="${scenario.id}"]`).count(), 0);

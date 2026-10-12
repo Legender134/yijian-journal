@@ -563,6 +563,131 @@ test('weapon choice is recommended before the dialog and retires as soon as a sa
   }
 });
 
+test('Bai rescue recommendation replaces the dangerous default route before delivery and retires on either outcome', () => {
+  const id = 'bai-jin-rescue-route';
+  const project = (quests, metadata = {}) =>
+    flowSnapshot(profile(), ref(quests, { trackingMainQuest: 5700, trackingQuest: 12035, ...metadata }));
+  const stages = [
+    [{ id: 12033, step: 1 }],
+    [{ id: 12033, step: 4 }],
+    [
+      { id: 12033, step: 4 },
+      { id: 12035, step: 1 },
+    ],
+  ];
+  for (const stage of stages) {
+    const quests = [{ id: 5700, step: 1 }, { id: 12030, step: 1 }, ...stage];
+    const current = project(quests);
+    const choice = current.decisions.find((row) => row.id === id);
+    assert(choice);
+    assert.match(choice.recommendation.action, /临昌.*渊军营寨.*救人.*再回峋谷关/);
+    assert.match(choice.recommendation.reason, /危机解除.*保留白锦.*天罗地网钉/);
+    assert.match(choice.recommendation.tradeoff, /霹雳雷火弹.*绝笔.*不能.*兼得/);
+    assert.match(choice.choices.map((row) => row.effect).join(' '), /白锦获救.*白锦身亡/);
+    assert.match(current.changes.find((row) => row.id === id).affectedTasks[0].effect, /身亡.*不能继续/);
+    const sidebar = companionSnapshot(defaults(), catalog, ref(quests, { trackingQuest: 12035 }));
+    assert.equal(sidebar.hints[0].type, 'flow-choice');
+    assert.match(sidebar.hints[0].title, /临昌.*白锦/);
+  }
+  const before = [
+    { id: 12030, step: 1 },
+    { id: 12033, step: 4 },
+    { id: 12035, step: 1 },
+  ];
+  for (const [exit, step] of [
+    [12035, 4],
+    [12036, 4],
+    [12037, 1],
+    [12038, 4],
+    [12040, 4],
+    [12041, 4],
+  ]) {
+    const current = project([...before.filter((row) => row.id !== exit), { id: exit, step }]);
+    assert(!current.decisions.some((row) => row.id === id), String(exit));
+    assert(!current.warnings.some((row) => row.id === id));
+    assert(
+      current.guide.some((row) => row.id === id),
+      'branch rewards remain available as reference',
+    );
+  }
+  for (const quests of [
+    [],
+    [{ id: 12030, step: 1 }],
+    [
+      { id: 12030, step: 1 },
+      { id: 12032, step: 1 },
+    ],
+    [{ id: 12033, step: 4 }],
+    [
+      { id: 12030, step: 2 },
+      { id: 12033, step: 4 },
+    ],
+    [
+      { id: 12030, step: 4 },
+      { id: 12035, step: 1 },
+    ],
+  ])
+    assert(!project(quests).decisions.some((row) => row.id === id));
+});
+
+test('late-night dialogue advice survives the visible rest step but does not promise a hidden ending', () => {
+  const id = 'cold-wuqing-night-choice';
+  const saved = syntheticSave({
+    full: true,
+    quests: [
+      { id: 22100, step: 1 },
+      { id: 22125, step: 1 },
+    ],
+    trackingMainQuest: 22100,
+    trackingQuest: 22125,
+  });
+  const reference = { ...ref([]), metadata: enrich(readMetadata(saved, { details: true })) };
+  const untouched = structuredClone(reference);
+  for (const step of [1, 4]) {
+    const state = structuredClone(reference);
+    state.metadata.questStates.find((row) => row.id === 22125).step = step;
+    const current = companionSnapshot(defaults(), catalog, state);
+    const choice = current.flow.decisions.find((row) => row.id === id);
+    assert(choice);
+    assert.equal(current.hints[0].type, 'flow-choice');
+    assert.match(current.hints[0].title, /冷无情.*矢志于此/);
+    assert.match(choice.recommendation.action, /矢志于此.*此前.*阎浮镇凶案/);
+    assert.match(choice.recommendation.tradeoff, /好感100.*不保证.*江湖器量/);
+    assert.match(choice.choices[1].effect, /完整结局后果尚未核定/);
+    for (const [exit, exitStep] of [
+      [22132, 4],
+      [22133, 4],
+      [22134, 4],
+      [22150, 1],
+      [23000, 1],
+    ]) {
+      const after = structuredClone(state);
+      after.metadata.questStates.push({ id: exit, step: exitStep });
+      const result = flowSnapshot(profile(), after);
+      assert(!result.decisions.some((row) => row.id === id), String(exit));
+      assert(!result.warnings.some((row) => row.id === id));
+    }
+  }
+  for (const scoped of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: 'Other.sav' }),
+  ]) {
+    assert(!flowSnapshot(scoped, reference).decisions.some((row) => row.id === id));
+  }
+  for (const quests of [
+    [],
+    [{ id: 22100, step: 1 }],
+    [{ id: 22125, step: 4 }],
+    [
+      { id: 22100, step: 4 },
+      { id: 22125, step: 4 },
+    ],
+  ]) {
+    assert(!flowSnapshot(profile(), ref(quests)).decisions.some((row) => row.id === id));
+  }
+  assert.deepEqual(reference, untouched);
+});
+
 test('Chengyu recommendation bridges the return dialog but closes on either saved departure choice', () => {
   const id = 'chengyu-stay-choice';
   const project = (records) => flowSnapshot(profile(), ref(records, { trackingMainQuest: 5820 }));

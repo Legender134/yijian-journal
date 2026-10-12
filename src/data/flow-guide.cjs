@@ -53,6 +53,21 @@ module.exports = {
       version: '旧正式版攻略；具体构建未标',
       confidence: '未在本任务启动或附加游戏；作者路线不是当前存档可接证明。',
     },
+    threeDmBaiRescue: {
+      title: '塞外风光：临昌营寨救人路线',
+      url: 'https://www.3dmgame.com/gl/3908832_58.html',
+      date: '2023-10-17 17:47:32',
+      version: '木林风的旧正式版攻略；具体构建未标',
+      confidence: '救人地点与奖励已读正文；75好感解锁说法与其他作者的80不同，不据此判断当前可接。',
+    },
+    steamColdConditions: {
+      title: '冷无情江湖器量：夜谈选择之外还有条件',
+      url: 'https://steamcommunity.com/app/1876890/discussions/0/4635988976587539829/?l=schinese',
+      date: '2024-12-02；回复2024-12-03',
+      version: 'kannu的实玩疑问与Pomiait回复；具体构建未标',
+      confidence:
+        '作者报告好感100且选矢志于此仍未触发，回复询问此前调查；仅作条件不完整的反例，不当作完整攻略。',
+    },
     pandaWei: {
       title: '卫霍入队方法说明',
       url: 'https://www.gamersky.com/handbook/202310/1653171.shtml',
@@ -124,7 +139,7 @@ module.exports = {
       confidence: '用于核对任务ID、效果和分支；解包表不是独立实机游玩证据。',
     },
     gs33: {
-      title: '全图鉴全成就流程：丐帮交接与晋升传功',
+      title: '全图鉴全成就流程：白锦救人、丐帮交接与晋升传功',
       url: 'https://www.gamersky.com/handbook/202608/2188490_33.shtml',
       date: '2026-08-13',
       version: '正文声明 ver1.24.25；并非当前存档的实机验证',
@@ -559,6 +574,63 @@ module.exports = {
       },
       kind: 'stage',
       warning: '授武选择会改变后续宝箱内容，收集前先考虑本周目所需。',
+    },
+    {
+      id: 'bai-jin-rescue-route',
+      title: '塞外风光：想保留白锦，先赴临昌救人',
+      questId: 12030,
+      chapterRoots: [],
+      decisionSteps: [12033, 12035],
+      decisionAfterAllComplete: [12033],
+      afterAllComplete: [],
+      untilAnyStarted: [12037, 12038, 12041],
+      untilAnyComplete: [12035, 12036, 12040],
+      deadlineLabel: '取回军情、返回峋谷关交付之前',
+      recommendation: {
+        hint: '塞外风光：先去临昌救白锦',
+        goal: '保留白锦存活与后续队友内容',
+        action: '先留一份可回读进度；去临昌左下的渊军营寨找白锦，完成救人战斗后再回峋谷关将军府。',
+        reason: '葬龙谷取军情只是其中一路；临昌救人走「危机解除」，保留白锦并获得天罗地网钉。',
+        tradeoff:
+          '需要额外救人战斗；葬龙谷路线的霹雳雷火弹与绝笔图鉴是另一分支。想看两路请用分支前的不同存档，不能在一次结算兼得。',
+      },
+      pickup: {
+        place: '峋谷关将军府 → 临昌渊军营寨',
+        person: '白锦；黄宗政',
+        action: '将军府得知军情后，先核对临昌救人路线，再决定如何取回文书。',
+      },
+      warning: '直接走葬龙谷取军情并回府交付，会进入白锦身亡的「血染峋谷」路线；想保留他，先去临昌救人。',
+      advanceEffects: [
+        {
+          name: '白锦存活与后续队友内容',
+          scope: 'continue',
+          effect: '「血染峋谷」记录白锦身亡，不能继续以他存活为前提的队友内容；临昌救人走「危机解除」。',
+        },
+        {
+          name: '塞外风光两种结算',
+          scope: 'continue',
+          effect:
+            '取传令兵军情路线列霹雳雷火弹、绝笔图鉴；临昌救人路线列天罗地网钉、盗取军情图鉴。同次结算不兼走两路。',
+        },
+      ],
+      steps: [
+        '在峋谷关将军府探问军情，先保存分支前进度。',
+        '想保留白锦时，先乘驿站赴临昌，去左下渊军营寨救出白锦并取文书。',
+        '救人后回峋谷关将军府结算；若专看另一分支，另用分支前存档走葬龙谷传令兵路线。',
+      ],
+      choices: [
+        {
+          label: '先赴临昌救白锦，再回将军府',
+          effect: '「危机解除」：白锦获救，奖励天罗地网钉；2026流程列盗取军情图鉴。',
+        },
+        {
+          label: '葬龙谷取军情后直接回将军府',
+          effect: '「血染峋谷」：白锦身亡，奖励霹雳雷火弹；2026流程列绝笔图鉴。',
+        },
+      ],
+      sourceIds: ['gs33', 'pandaBai', 'threeDmBaiRescue'],
+      uncertainty:
+        '当前构建已核对死亡、救出两种任务记录及奖励。地点与先后来自不同作者的攻略，未实机验证全部触发；75/80好感解锁有版本差异。提醒只依据保存进度，分支结算后不会自动回退。',
     },
     {
       id: 'chengyu-stay-choice',
@@ -1762,6 +1834,57 @@ module.exports = {
       sourceIds: ['gs51', 'biliSecondCycle'],
       uncertainty:
         '当前构建已核对继续、放弃两种分支及任务结束动作；隐藏结局关联来自二周目攻略，未实机验证全部条件。不读取未保存的实时对话。',
+    },
+    {
+      id: 'cold-wuqing-night-choice',
+      title: '赴天佛窟前夜：冷无情夜谈别跳过',
+      questId: 22100,
+      chapterRoots: [22100],
+      decisionSteps: [22125],
+      decisionAfterAllComplete: [22125],
+      afterAllComplete: [],
+      untilAnyStarted: [22150, 23000],
+      untilAnyComplete: [22132, 22133, 22134],
+      deadlineLabel: '弟子房夜谈选答、次日誓师之前',
+      recommendation: {
+        hint: '冷无情夜谈：保留相关路线，可选矢志于此',
+        goal: '沿社区的冷无情相关隐藏剧情路线继续',
+        action: '回弟子房前先保存；想沿所引路线继续，夜谈选「矢志于此」，并核对此前是否继续追查阎浮镇凶案。',
+        reason:
+          '两篇流程在赴天佛窟前都选此项，二周目作者将它与冷无情隐藏结局关联；前面的继续调查也是该路线的一环。',
+        tradeoff:
+          '「不负己心」留下另一分支记录，适合另档看不同答复。完整结局条件尚未核定，仅选矢志于此、好感100都不保证触发江湖器量或某个结局。',
+      },
+      pickup: {
+        place: '武当弟子房',
+        person: '冷无情',
+        action: '无瘢刀与清霄商议后，回弟子房休息时留意夜谈选项。',
+      },
+      warning:
+        '夜谈有「矢志于此／不负己心」两种分支。想沿冷无情相关攻略路线，选答前核对此前调查；次日誓师后不再提醒这次对话。',
+      advanceEffects: [
+        {
+          name: '冷无情夜谈与相关隐藏剧情线索',
+          scope: 'continue',
+          effect:
+            '两种答复记录不同分支；攻略将矢志于此与此前继续调查并列为线索。未核定所有后果，不能据此判定不负己心必定关闭哪项成就。',
+        },
+      ],
+      steps: [
+        '完成与清霄的商议，回弟子房之前保存分支前进度。',
+        '夜谈时按本周目目标选答；相关隐藏路线可选矢志于此，仍须核对先前调查与其他剧情条件。',
+        '次日到试剑台参加誓师大会；这次夜谈建议在保存选答后退场。',
+      ],
+      choices: [
+        {
+          label: '矢志于此',
+          effect: '社区两篇流程的选择；二周目作者将其与冷无情隐藏结局关联，不能单凭此项保证触发。',
+        },
+        { label: '不负己心', effect: '记录另一种答复分支；独占奖励与完整结局后果尚未核定，可另档探索。' },
+      ],
+      sourceIds: ['gs52', 'biliSecondCycle', 'steamColdConditions'],
+      uncertainty:
+        '当前构建已核对选项原文与不同分支动作；二周目文章误写失志于此，这里用任务表的矢志于此。社区也有满足此选项及高好感仍未触发的报告，完整条件未验证，不将攻略建议当成必然结局。',
     },
     {
       id: 'xiaotong-one-time-grove',
