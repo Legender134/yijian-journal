@@ -99,6 +99,7 @@ let referenceFollow;
 let nodeDraftQueue = Promise.resolve();
 let quitIntent = false;
 let compactUndo = null;
+let companionMaterialFolds = { profileId: null, values: new Map() };
 let companionData = null,
   companionMode = 'expanded',
   companionVisible = true,
@@ -719,6 +720,17 @@ let lastSearchQuery = '';
 function rememberDrawer(view, replace = false) {
   captureNodeDraft();
   if (currentDrawer && !replace) {
+    if (['database', 'world-quest', 'world-place'].includes(currentDrawer.type)) {
+      const body = overlay.querySelector('.drawer-body');
+      currentDrawer.presentation = body && {
+        scroll: body.scrollTop,
+        focus: currentDrawer.referenceFocus || null,
+        details: [...body.querySelectorAll('details')].map((el) => ({
+          summary: el.querySelector('summary')?.textContent,
+          open: el.open,
+        })),
+      };
+    }
     if (currentDrawer.type === 'database') {
       const field = document.querySelector('#recipe-quantity');
       currentDrawer.quantity = field && Number(field.value) > 0 ? Number(field.value) : 1;
@@ -817,6 +829,7 @@ const companionViews = createCompanionViews({
   iconButton: (...args) => iconButton(...args),
   picture,
   qualityText,
+  index: () => gameIndex,
 });
 async function refreshCompanion() {
   if (!compact) return;
@@ -902,6 +915,7 @@ const entityDetailViews = createEntityDetailViews({
   esc,
   act,
   pill,
+  richText: entityReferences.text,
   guide: () => currentFlow()?.guide || [],
 });
 const worldViews = createWorldViews({
@@ -2569,6 +2583,11 @@ function render(preserve = false, navigationId = null) {
   };
   const scroll = root.querySelector('.content')?.scrollTop || 0;
   if (compact) {
+    if (companionMaterialFolds.profileId !== profile().id)
+      companionMaterialFolds = { profileId: profile().id, values: new Map() };
+    else
+      for (const detail of root.querySelectorAll('.companion-material details[data-compact-detail]'))
+        companionMaterialFolds.values.set(detail.dataset.compactDetail, detail.open);
     const opened = new Set(
       [...root.querySelectorAll('[data-compact-detail][open]')].map((e) => e.dataset.compactDetail),
     );
@@ -2594,7 +2613,9 @@ function render(preserve = false, navigationId = null) {
       root.querySelector('.compact-body')?.insertAdjacentHTML('afterbegin', intentDraftBanner());
     syncItineraryIntentEditors();
     for (const el of root.querySelectorAll('[data-compact-detail]'))
-      el.open = opened.has(el.dataset.compactDetail);
+      el.open = el.closest('.companion-material')
+        ? companionMaterialFolds.values.get(el.dataset.compactDetail) === true
+        : opened.has(el.dataset.compactDetail);
     if (preserve)
       for (const el of root.querySelectorAll('details[data-persist-detail]'))
         if (itineraryDetails.has(el.dataset.persistDetail))
@@ -2839,6 +2860,7 @@ function closeOverlay() {
     if (matches.length === 1) returnFocus = matches[0];
   }
   (returnFocus || root.querySelector('.nav-btn.active, .compact-tab.active'))?.focus();
+  entityPreviews.close(true);
 }
 function showDetail(id, keep = false) {
   const e = entry(id);
@@ -4307,6 +4329,29 @@ async function handle(action, id, target, navigationFocused = false) {
         worldView.reference = view.reference;
         worldView.error = view.error || '';
         await showWorldDetail(view.id, view.type === 'world-quest' ? 'quest' : 'place');
+      }
+      if (view.presentation && currentDrawer?.type === view.type && currentDrawer.id === view.id) {
+        const body = overlay.querySelector('.drawer-body');
+        const details = body && [...body.querySelectorAll('details')];
+        if (
+          details?.length === view.presentation.details.length &&
+          details.every(
+            (el, i) => el.querySelector('summary')?.textContent === view.presentation.details[i].summary,
+          )
+        ) {
+          details.forEach((el, i) => {
+            el.open = view.presentation.details[i].open;
+          });
+          const focus = view.presentation.focus;
+          if (focus) {
+            const trigger = [...body.querySelectorAll('[data-entity-id]')].filter(
+              (el) => el.dataset.action === focus.action && el.dataset.entityId === focus.id,
+            )[focus.occurrence];
+            trigger?.focus({ preventScroll: true });
+            entityPreviews.close(true);
+          }
+          body.scrollTop = view.presentation.scroll;
+        }
       }
       break;
     }
@@ -6267,6 +6312,20 @@ document.addEventListener('click', async (event) => {
     id = target.dataset.id;
   if (currentDrawer?.type === 'search' && target.classList.contains('search-result'))
     currentDrawer.selection = { action, id };
+  // Disabling an async navigation button blurs it. Remember its identity first.
+  if (
+    ['database', 'world-quest', 'world-place'].includes(currentDrawer?.type) &&
+    target.dataset.entityId &&
+    overlay.querySelector('.drawer-body')?.contains(target)
+  ) {
+    currentDrawer.referenceFocus = {
+      action,
+      id: target.dataset.entityId,
+      occurrence: [...overlay.querySelectorAll('.drawer-body [data-entity-id]')]
+        .filter((el) => el.dataset.action === action && el.dataset.entityId === target.dataset.entityId)
+        .indexOf(target),
+    };
+  }
   const lock = ![
     'detail',
     'search',

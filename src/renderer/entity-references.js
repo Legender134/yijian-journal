@@ -131,7 +131,7 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
     } else note = '资料效果可能取决于修炼等级和游戏状态。';
     const description =
       choices.length === 1 && e.kind !== '任务' ? String(e.description || '').slice(0, 100) : '';
-    return `<div class="entity-preview-heading">${artwork(id, 'card')}<div><small>${esc(choices.length > 1 ? '同名资料' : e.kind)}${e.quality ? ' · ' + esc(e.quality) + '色' : ''}</small><strong>${esc(name)}</strong></div></div>${description ? `<p class="entity-preview-description">${esc(description)}</p>` : ''}${lines
+    return `<div class="entity-preview-heading">${artwork(id, 'card')}<div><small>${esc(choices.length > 1 ? '同名资料' : e.kind)}${choices.length === 1 && e.quality ? ' · ' + esc(e.quality) + '色' : ''}</small><strong>${esc(name)}</strong></div></div>${description ? `<p class="entity-preview-description">${esc(description)}</p>` : ''}${lines
       .slice(0, 4)
       .map((line) => `<p>${esc(line)}</p>`)
       .join(
@@ -158,7 +158,8 @@ export function installEntityPreviews({ document, window, references, context })
     node?.closest?.(
       '[data-entity-id], [data-action="database-detail"][data-id], [data-action="world-quest"][data-id], [data-action="flow-quest"][data-id]',
     );
-  const close = () => {
+  const close = (dismissCurrent = false) => {
+    if (dismissCurrent === true) dismissed = trigger || pending || eligible(document.activeElement);
     clearTimeout(timer);
     clearTimeout(hideTimer);
     trigger?.removeAttribute('aria-describedby');
@@ -261,9 +262,10 @@ export function installEntityPreviews({ document, window, references, context })
       if (panel.contains(event.target)) return;
       const node = pending || trigger;
       close();
-      // A scroll into view can finish after pointerover. Restart for the entry
-      // still under the pointer, rather than requiring an extra mouse movement.
-      if (node?.isConnected && node.matches(':hover')) show(node);
+      // Pointer and keyboard navigation can scroll an entry into view after
+      // its preview starts. Keep that entry available at its new position.
+      if (node?.isConnected && (node.matches(':hover') || document.activeElement === node))
+        show(node, document.activeElement === node);
     },
     true,
   );

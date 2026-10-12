@@ -1,6 +1,14 @@
 import { itineraryPlaceLabel } from './journey-views.js';
 import { craftMoneyNotice } from './material-views.js';
-export function createCompanionViews({ esc, icon, act, iconButton, picture, qualityText }) {
+export function createCompanionViews({
+  esc,
+  icon,
+  act,
+  iconButton,
+  picture,
+  qualityText,
+  index = () => null,
+}) {
   function hintContent(h) {
     return h.id?.startsWith('item-') ? qualityText.name(h.id, h.title) : esc(h.title);
   }
@@ -27,6 +35,11 @@ export function createCompanionViews({ esc, icon, act, iconButton, picture, qual
         '',
       )}<div class="hint-source">${data?.reference ? `${data.referenceMode === 'slot' ? '固定' : '存档'} ${esc(data.reference.name)} · ${elapsed}的已保存进度` : '手札记录 · 尚无可读存档'}</div></section>`;
   }
+  function materialIdentity(material) {
+    if (material.ids.length === 1)
+      return act('database-detail', esc(material.name), 'text-btn', `item-${material.ids[0]}`);
+    return `<details data-compact-detail="material-alternatives-${esc(material.ids.join('-'))}"><summary>${esc(material.name)} · 可替代材料</summary><p class="save-note">补足组内总量即可，不需要备齐每一种。</p><div class="related-items">${material.ids.map((id) => act('database-detail', esc(index()?.entries.find((entry) => entry.id === `item-${id}`)?.name || `物品 #${id}`), 'text-btn', `item-${id}`)).join('')}</div></details>`;
+  }
   function materials(data) {
     const plan = data?.materials;
     const sharedMoney = craftMoneyNotice(data?.allocations, esc);
@@ -36,7 +49,7 @@ export function createCompanionViews({ esc, icon, act, iconButton, picture, qual
         sharedMoney +
         '<p class="small muted">将配方加入备料清单，或在图鉴中加入制作目标，这里会随有效存档更新。</p>'
       );
-    return `<section class="companion-materials">${sharedMoney}<h3>${icon('bag')} ${esc(data.materialsLabel || '当前备料')} · ${plan.recipes.length} 项配方</h3>${data.materialsCompleted ? '<p class="notice">个人已制作完成 · 用料已释放</p><p class="save-note">下方仅供若重新制作时核对；本计划不再计入待制作安排。</p>' : ''}<p class="small muted">扣除其他任务、制作与赠礼占用后计算本清单；可替代食材按整份清单分配。</p>${data.allocations?.baseMaterialMissingTotal > 0 ? `<p class="small shortage">${data.materialsCompleted ? '其他未完成的任务、制作与赠礼计划' : '全部任务、制作与赠礼计划'}按加工安排的原料共同还缺 ${data.allocations.baseMaterialMissingTotal} 件，可在行程中查看每项需求。</p>${act('navigate', '查看完整行程', 'text-btn', 'journey', 'map')}` : ''}${plan.materials.map((m) => `<div class="companion-material"><span class="row">${picture(`item-${m.ids[0]}`)}<span>${m.ids.length === 1 ? qualityText.name(`item-${m.ids[0]}`, m.name) : esc(m.name)}</span></span><span class="${m.missing > 0 ? 'shortage' : 'muted'}">${data.materialsCompleted ? '若重做：' : ''}${m.missing === null ? `需 ${m.count} · 待核对` : m.missing ? `还缺 ${m.missing}` : '已齐'}</span></div>`).join('')}${plan.stages ? `<p class="small">${data.materialsCompleted ? '若重新制作：' : ''}原料端点还缺 ${plan.stages.rawMissingTotal ?? '待核对'} 件 · 先加工 ${plan.stages.workRemaining.processing} 次 · 再制作 ${plan.stages.workRemaining.final} 次</p><p class="save-note">预计加工产物仍须制作，当前赠礼和其他计划不能使用。</p>` : ''}<p class="small muted">${data.materialsCompleted ? '若重做' : '本清单'}含加工费用 ${ownMoney === null ? '待核对' : ownMoney.toLocaleString() + ' 文'}${data.materialsCompleted ? '，未纳入共同预算' : ''}；配方是否学会与制作等级请在详细备料中核对。</p>${act('navigate', '调整清单与留用数量', 'btn soft', 'materials', 'bag')}</section>`;
+    return `<section class="companion-materials">${sharedMoney}<h3>${icon('bag')} ${esc(data.materialsLabel || '当前备料')} · ${plan.recipes.length} 项配方</h3>${data.materialsCompleted ? '<p class="notice">个人已制作完成 · 用料已释放</p><p class="save-note">下方仅供若重新制作时核对；本计划不再计入待制作安排。</p>' : ''}<p class="small muted">扣除其他任务、制作与赠礼占用后计算本清单；可替代食材按整份清单分配。</p>${data.allocations?.baseMaterialMissingTotal > 0 ? `<p class="small shortage">${data.materialsCompleted ? '其他未完成的任务、制作与赠礼计划' : '全部任务、制作与赠礼计划'}按加工安排的原料共同还缺 ${data.allocations.baseMaterialMissingTotal} 件，可在行程中查看每项需求。</p>${act('navigate', '查看完整行程', 'text-btn', 'journey', 'map')}` : ''}${plan.materials.map((m) => `<div class="companion-material"><div>${materialIdentity(m)}</div><span class="${m.missing > 0 ? 'shortage' : 'muted'}">${data.materialsCompleted ? '若重做：' : ''}${m.missing === null ? `需 ${m.count} · 待核对` : m.missing ? `还缺 ${m.missing}` : '已齐'}</span></div>`).join('')}${plan.stages ? `<p class="small">${data.materialsCompleted ? '若重新制作：' : ''}原料端点还缺 ${plan.stages.rawMissingTotal ?? '待核对'} 件 · 先加工 ${plan.stages.workRemaining.processing} 次 · 再制作 ${plan.stages.workRemaining.final} 次</p><p class="save-note">预计加工产物仍须制作，当前赠礼和其他计划不能使用。</p>` : ''}<p class="small muted">${data.materialsCompleted ? '若重做' : '本清单'}含加工费用 ${ownMoney === null ? '待核对' : ownMoney.toLocaleString() + ' 文'}${data.materialsCompleted ? '，未纳入共同预算' : ''}；配方是否学会与制作等级请在详细备料中核对。</p>${act('navigate', '调整清单与留用数量', 'btn soft', 'materials', 'bag')}</section>`;
   }
   function frame(body, footer) {
     return `<div class="compact-shell"><div class="compact-title"><div class="row">${icon('leaf')}逸剑手札 · 随行</div>${iconButton('main', 'maximize', '打开完整手札')}${iconButton('companion-collapse', 'minus', '收起随行面板')}</div><div class="companion-tabs">${act('navigate', '流程', 'text-btn', 'home', 'pin')}${act('navigate', '比武', 'text-btn', 'duels', 'sword')}${act('search', '查询', 'text-btn', '', 'search')}${act('navigate', '备料', 'text-btn', 'materials', 'bag')}${act('navigate', '历史', 'text-btn', 'saves', 'clock')}</div><div class="compact-body">${body}</div><div class="compact-foot">${footer}<span>Esc 收起 · Ctrl K 查询</span></div></div>`;
