@@ -648,6 +648,7 @@ function createFlowProjector({
         states: available ? states : [],
         mainQuestId: main?.gameId,
         difficultyName: metadata.difficultyName || '',
+        combat: metadata.combat || null,
       }),
       changes,
       coverage: {

@@ -93,7 +93,7 @@ test('native inventory aggregates item stacks and recipe plan calculates exact s
 test('native item bool does not consume an action record or hide the entire inventory', () => {
   const { readInventory } = require('../src/core/save-reader.cjs');
   // Layout independently checked against Build21798996's native item
-  // serializer: GUID, ID, quantity, uint32 bool, two action arrays, time, bool.
+  // serializer: GUID, ID, quantity, uint32 bool, two action arrays, int32, two bools.
   // Each action is uint8 type + int32 ID + float32 value.
   const bytes = Buffer.from(
     '00000000' + // leading native segment marker
@@ -103,7 +103,7 @@ test('native item bool does not consume an action record or hide the entire inve
       '01000000' + // bool true, NOT an action-array length
       '0100000015090000000000c03f' + // first action array: type21, ID9, 1.5
       '01000000150a00000000002040' + // second: type21, ID10, 2.5
-      '0000000000000000' + // acquisition time
+      '0000000000000000' + // native int32 + version9 bool false
       '01000000' + // trailing bool true
       '00000000', // separate NPC collection count
     'hex',

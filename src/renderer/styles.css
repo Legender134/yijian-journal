@@ -210,6 +210,23 @@
 .duel-action {
   color: var(--green);
 }
+.duel-readiness {
+  border-left: 3px solid var(--green);
+  padding-left: 10px;
+  margin: 10px 0;
+}
+.duel-readiness-preview {
+  display: inline-block;
+  font-size: 12px;
+  margin-top: 6px;
+  color: var(--green);
+}
+.duel-readiness ul {
+  padding-left: 18px;
+}
+.duel-readiness li {
+  margin: 12px 0;
+}
 .duel-page summary {
   cursor: pointer;
   padding: 8px 0;

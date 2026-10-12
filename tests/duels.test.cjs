@@ -483,7 +483,7 @@ test('followthrough rewards link verified items and separate dialogue from rando
         reward.name,
       );
     }
-    assert.equal(row.sources.length, 1);
+    assert.equal(row.sources.length, id === 'npc053-chengyu' ? 2 : 1);
     assert.equal(row.sources[0].url, `https://www.gamersky.com/handbook/202608/2188490_${page}.shtml`);
     assert.equal(row.sources[0].author, '力拔山兮气盖世呐');
     assert.match(row.sources[0].version, /ver1.24.25/);
