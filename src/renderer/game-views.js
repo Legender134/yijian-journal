@@ -1,5 +1,6 @@
 import { compileSearch, compareSearchTitles } from './search-query.js';
 import { createItemStatViews, itemNumericSummary } from './item-stat-views.js';
+import { createNpcFactViews } from './npc-fact-views.js';
 // Rendering helpers for the local game index. All game strings remain plain text.
 export function createGameViews({
   esc,
@@ -18,6 +19,7 @@ export function createGameViews({
   personRelations = () => '',
 }) {
   const itemStats = createItemStatViews({ esc, act });
+  const npcFacts = createNpcFactViews({ esc, act });
   const byId = (index, id) => index.entries.find((e) => e.id === id);
   const glyph = (kind) => ({ 物品: 'bag', 武学: 'sword', 人物: 'person', 配方: 'scroll' })[kind] || 'book';
   const typeName = (e) => (e.kind === '配方' ? `${e.type} · ${e.level} 级` : e.type);
@@ -89,7 +91,7 @@ export function createGameViews({
         .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN') || a.gameId - b.gameId);
       const pages = Math.max(1, Math.ceil(gifts.length / 24));
       giftPage = Math.min(giftPage, pages - 1);
-      extra = `${personRelations(index, e, reference)}${
+      extra = `${npcFacts.person(index, e)}${personRelations(index, e, reference)}${
         e.hobbies.length
           ? `<div class="detail-block"><h3>赠礼偏好</h3><div class="tag-row">${e.hobbies.map((h) => pill(h, 'green')).join('')}</div><p class="save-note">具体好感增量与可否赠送，以游戏内当前状态为准。</p></div><div class="recipe-reference"><label for="person-save">用哪份存档找礼物</label><select id="person-save" aria-label="人物礼物对照存档"><option value="">只看偏好物品示例</option>${saveChoices}</select><p>${reference ? `对照 ${esc(reference.name)} · ${when(reference.modifiedAt)}${inventory ? ' · 已读取背包' : ' · 背包未能读取，以下仅为物品示例'}` : '选择存档后显示背包里符合偏好的物品。'}</p></div><div class="detail-block person-gifts"><h3>${inventory ? '背包中符合偏好的礼物' : '符合偏好的物品示例'}</h3><div class="related-items">${
               gifts
@@ -134,6 +136,7 @@ export function createGameViews({
     if (e.kind === '配方' && e.learningItems?.length)
       extra += `<div class="detail-block recipe-learning"><h3>学习这份配方的图纸</h3><div class="related-items">${e.learningItems.map((id) => itemLink(id, byId(index, `item-${id}`)?.name || `物品 #${id}`)).join('')}</div><p class="save-note">这些物品在游戏资料中可用于学习此配方。点击查看物品与售卖线索。</p></div>`;
     if (e.kind === '物品') {
+      extra += npcFacts.holders(index, e);
       extra += `<div class="recipe-reference"><label for="item-save">用哪份已保存进度核对用途</label><select id="item-save" aria-label="物品用途参照存档"><option value="" ${!referenceName && !follow ? 'selected' : ''}>仅查资料 · 库存待核对</option>${saveChoices}</select>${fresh}</div>${itemUsage}`;
       extra += `<section class="detail-block reservation-editor"><h3>${icon('shield')} 为任务或其他用途留一些</h3><p class="small muted">此周目预留的数量会从赠礼与备料可用库存中扣除。由你设定用途，手札不会猜测任务还需要多少。</p><div class="row"><label class="quantity-label">保留<input id="reserve-count" type="number" min="0" max="999999" step="1" value="${reservations[e.gameId] || 0}" aria-label="保留物品数量"></label>${act('reserve-save', '保存预留数量', 'btn', e.id, 'shield')}</div><p class="save-note">0 表示不预留；修改手札规划，不修改游戏物品。</p></section>`;
       const produced = index.entries.filter(

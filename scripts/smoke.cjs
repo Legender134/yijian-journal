@@ -163,6 +163,124 @@ async function taskMaterialReturn(page, title, screenshot) {
   await page.screenshot({ animations: 'disabled', path: path.join(results, screenshot + '.png') });
   await page.locator('[data-action="close-overlay"]').click();
 }
+async function privateItemConnections(page, surface) {
+  await page.locator('[data-action="search"]').first().click();
+  await page.locator('#global-search').fill('莫弃');
+  for (const id of [5012, 5029]) {
+    const result = page.locator('.search-result[data-id="npc-' + id + '"]');
+    assert.match(await result.innerText(), new RegExp('#' + id));
+    assert.match(
+      (await result.getAttribute('aria-label')) || (await result.innerText()),
+      new RegExp('#' + id),
+    );
+  }
+  await page.screenshot({
+    animations: 'disabled',
+    path: path.join(results, '01-' + surface + '-same-name-search.png'),
+  });
+  await page.locator('#global-search').fill('秦烈');
+  const person = page.locator('.search-result[data-id="npc-10023"]');
+  await entityPreview(page, person, /秦烈.*静态等级 35/s, '01-' + surface + '-private-person-preview');
+  await person.click();
+  const fixed = page.locator('[data-npc-private-items]');
+  assert.equal(await fixed.evaluate((el) => el.open), false);
+  await fixed.locator(':scope > summary').click();
+  const formula = fixed.locator('[data-id="item-100312"]');
+  await entityPreview(page, formula, /下品烈阳丹丹方/, '01-' + surface + '-private-formula-preview');
+  const before = await page.locator('.drawer-body').evaluate((el) => el.scrollTop);
+  await formula.click();
+  assert.match(await page.locator('.drawer h1').innerText(), /下品烈阳丹丹方/);
+  const holders = page.locator('[data-item-private-holders]');
+  assert.equal(await holders.evaluate((el) => el.open), false);
+  await holders.locator(':scope > summary').click();
+  const qin = holders.locator('[data-id="npc-10023"]');
+  await qin.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    animations: 'disabled',
+    path: path.join(results, '01-' + surface + '-private-holders.png'),
+  });
+  await qin.click();
+  assert.match(await page.locator('[data-npc-template] > h3').innerText(), /35/);
+  await page.locator('[data-action="drawer-back"]').click();
+  assert.equal(await holders.evaluate((el) => el.open), true);
+  await page.locator('[data-action="drawer-back"]').click();
+  assert.equal(await fixed.evaluate((el) => el.open), true);
+  assert(Math.abs((await page.locator('.drawer-body').evaluate((el) => el.scrollTop)) - before) <= 1);
+  assert.equal(await formula.evaluate((el) => document.activeElement === el), true);
+  await page.screenshot({
+    animations: 'disabled',
+    path: path.join(results, '01-' + surface + '-private-back.png'),
+  });
+  await page.locator('[data-action="close-overlay"]').click();
+}
+async function companionReferenceSync(page) {
+  const file = path.join(fakeSaves, '2.sav'),
+    original = fs.readFileSync(file),
+    times = fs.statSync(file);
+  const write = (count, step) =>
+    fs.writeFileSync(
+      file,
+      syntheticSave({
+        full: true,
+        seconds: 7200,
+        trackingMainQuest: 5780,
+        trackingQuest: 11005,
+        inventory: [{ id: 10201, count }],
+        quests: [
+          { id: 11002, step: 1 },
+          { id: 11005, step: 1 },
+          { id: 5780, step: 1 },
+          { id: 5700, step: 4 },
+          { id: 11010, step },
+        ],
+      }),
+    );
+  const open = async () => {
+    await page.locator('[data-action="search"]').first().click();
+    await page.locator('#global-search').fill('樵夫的斧子');
+    await page.locator('.search-result[data-id="quest-11002"]').click();
+    await page.locator('[data-task-relations]').waitFor();
+  };
+  const preview = async (count) => {
+    const item = page.locator('[data-task-relations] [data-id="item-10201"]').first();
+    await item.scrollIntoViewIfNeeded();
+    await item.focus();
+    await page.locator('#entity-preview').waitFor({ state: 'visible' });
+    assert.match(await page.locator('#entity-preview').innerText(), new RegExp('2\\.sav · 库存 ' + count));
+    await page.keyboard.press('Escape');
+    return item;
+  };
+  try {
+    write(3, 1);
+    await page.waitForTimeout(6300);
+    await open();
+    await preview(3);
+    await page.locator('[data-action="close-overlay"]').click();
+    write(9, 4);
+    await page.waitForTimeout(6300);
+    await open();
+    const item = await preview(9);
+    assert.match(await page.locator('[data-task-relations]').innerText(), /采矿.*需 4 件 已完成/s);
+    await item.click();
+    await page.locator('.item-usage').waitFor();
+    write(12, 1);
+    await page.waitForTimeout(6300);
+    assert.match(await page.locator('.item-usage').innerText(), /真实持有\s*12/);
+    await page.locator('[data-action="drawer-back"]').click();
+    await preview(12);
+    assert.match(await page.locator('[data-task-relations]').innerText(), /采矿.*需 4 件 进行中/s);
+    await page.screenshot({
+      animations: 'disabled',
+      path: path.join(results, '01-companion-reference-synchronized.png'),
+    });
+  } finally {
+    const close = page.locator('[data-action="close-overlay"]');
+    if (await close.count()) await close.first().click();
+    fs.writeFileSync(file, original);
+    fs.utimesSync(file, times.atime, times.mtime);
+    await page.waitForTimeout(6300);
+  }
+}
 (async () => {
   try {
     app = await launch();
@@ -299,6 +417,7 @@ async function taskMaterialReturn(page, title, screenshot) {
       win.locator('[data-flow-quest="quest-11002"] h3 [data-id="quest-11002"]'),
       '01-main-task-return',
     );
+    await privateItemConnections(win, 'main');
     const choiceWindowReady = app.waitForEvent('window');
     await win.locator('[data-action="compact"]').first().click();
     const choiceCompact = await choiceWindowReady;
@@ -339,6 +458,8 @@ async function taskMaterialReturn(page, title, screenshot) {
       choiceCompact.locator('[data-flow-now] > h3 [data-id="quest-11002"]'),
       '01-companion-task-return',
     );
+    await privateItemConnections(choiceCompact, 'companion');
+    await companionReferenceSync(choiceCompact);
     assert(
       (
         await choiceCompact.evaluate(() =>

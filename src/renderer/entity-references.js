@@ -57,6 +57,10 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       ];
       note = '同名不等于同一身份或同一件装备。';
     } else if (e.kind === '人物') {
+      if (e.npcFacts)
+        lines.push(
+          `静态等级 ${e.npcFacts.level} · 可查 ${new Set(e.npcFacts.fixedItems.map((item) => item.id)).size} 种初始固定私物`,
+        );
       if (e.hobbies?.length) lines.push('赠礼偏好：' + e.hobbies.join('、'));
       const place = index().world?.maps?.find((m) => m.key === e.walkMap);
       if (place) lines.push('资料中的行走场景：' + place.name);
