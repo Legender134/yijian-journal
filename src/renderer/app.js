@@ -957,10 +957,9 @@ const entityPreviews = installEntityPreviews({
       const identity =
         currentDrawer?.type === 'entity-choice' ? currentDrawer.flowReference : flow?.reference;
       let reference = null;
-      if (
-        identity &&
-        readableSaves().some((file) => file.name === identity.name && file.hash === identity.hash)
-      ) {
+      // Companion snapshots can advance before the main environment's save list.
+      // Read the flow's exact identity and still reject a changed hash below.
+      if (identity?.name && identity.hash) {
         if (entityPreviewReference?.name !== identity.name || entityPreviewReference?.hash !== identity.hash)
           entityPreviewReference = await call('saveDetails', identity.name);
         if (entityPreviewReference?.hash === identity.hash) reference = entityPreviewReference;
@@ -3418,7 +3417,8 @@ async function refresh(background = false) {
     currentDrawer.planningSignature !== planningIntentSignature()
   )
     await showDatabaseDetail(currentDrawer.id, currentDrawer.quantity || 1, currentDrawer.giftPage);
-  if (currentDrawer?.type === 'search' && !composing) showSearchResults(currentDrawer.query);
+  if ((!background || changed) && currentDrawer?.type === 'search' && !composing)
+    showSearchResults(currentDrawer.query);
 }
 async function handle(action, id, target, navigationFocused = false) {
   if (

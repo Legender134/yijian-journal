@@ -1,7 +1,7 @@
 {
   "name": "yijian-journal",
   "productName": "逸剑手札",
-  "version": "1.14.4",
+  "version": "1.14.5",
   "description": "逸剑风云决流程任务助手：推进提醒、任务下一步、材料来源、存档保护与离线图鉴",
   "main": "src/main.cjs",
   "private": true,

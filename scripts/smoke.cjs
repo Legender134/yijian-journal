@@ -73,14 +73,22 @@ async function attach() {
   return win;
 }
 async function entityPreview(page, trigger, expected, name, throughRefresh = false) {
+  const native = await app.browserWindow(page);
+  await native.evaluate((win) => {
+    win.show();
+    win.focus();
+  });
+  await native.dispose();
   await page.bringToFront();
+  await page.waitForFunction(() => document.hasFocus());
   await trigger.hover();
   const preview = page.locator('#entity-preview');
   await preview.waitFor({ state: 'visible' });
   assert.match(await preview.innerText(), expected);
   if (throughRefresh) {
     const entry = await trigger.elementHandle();
-    const scroll = await page.locator('.content').evaluate((el) => el.scrollTop);
+    const scrollContainer = page.locator('.content, .compact-body');
+    const scroll = await scrollContainer.evaluate((el) => el.scrollTop);
     await page.waitForTimeout(5300);
     assert.equal(
       await entry.evaluate((el) => el.isConnected),
@@ -88,7 +96,7 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
       'unchanged polling retains the hovered entry',
     );
     assert.equal(await preview.isVisible(), true, 'preview survives the background refresh');
-    assert.equal(await page.locator('.content').evaluate((el) => el.scrollTop), scroll);
+    assert.equal(await scrollContainer.evaluate((el) => el.scrollTop), scroll);
     await entry.dispose();
   }
   const rect = await preview.evaluate((el) => {
@@ -106,14 +114,45 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
     rect.x >= 0 && rect.y >= 0 && rect.right <= rect.width && rect.bottom <= rect.height,
     JSON.stringify(rect),
   );
-  await page.mouse.move(rect.x + 15, rect.y + 15);
-  await page.waitForTimeout(220);
-  assert.equal(await preview.isVisible(), true, 'preview stays open while moving into it');
+  try {
+    // Recheck stability and hit targeting instead of using an earlier rectangle.
+    await preview.hover({ position: { x: 15, y: 15 } });
+    await page.waitForTimeout(220);
+    assert.equal(await preview.isVisible(), true, 'preview stays open while moving into it');
+  } catch (error) {
+    console.error(
+      'Preview transfer diagnostics:',
+      JSON.stringify({
+        name,
+        before: rect,
+        after: await preview.evaluate((el) => ({
+          hidden: el.hidden,
+          bounds: el.getBoundingClientRect().toJSON(),
+          focused: document.hasFocus(),
+          activeEntity: document.activeElement?.dataset.entityId,
+          hovered: [...document.querySelectorAll(':hover')].map((node) => ({
+            tag: node.tagName,
+            id: node.id,
+            entity: node.dataset.entityId,
+          })),
+        })),
+      }),
+    );
+    await page.screenshot({
+      animations: 'disabled',
+      path: path.join(results, name + '-transfer-failure.png'),
+    });
+    throw error;
+  }
   await page.screenshot({ animations: 'disabled', path: path.join(results, name + '.png') });
+  // Capture can yield to native window events; send Esc only to a visible preview.
+  await trigger.hover();
+  await preview.waitFor({ state: 'visible' });
   await page.keyboard.press('Escape');
   await preview.waitFor({ state: 'hidden' });
   assert.equal(await preview.isVisible(), false);
   await page.mouse.move(2, 2);
+  await page.keyboard.press('Tab');
   await trigger.focus();
   await preview.waitFor({ state: 'visible' });
   assert.match(await preview.innerText(), expected);
@@ -221,7 +260,7 @@ async function privateItemConnections(page, surface) {
   });
   await page.locator('#global-search').fill('秦烈');
   const person = page.locator('.search-result[data-id="npc-10023"]');
-  await entityPreview(page, person, /秦烈.*静态等级 35/s, '01-' + surface + '-private-person-preview');
+  await entityPreview(page, person, /秦烈.*静态等级 35/s, '01-' + surface + '-private-person-preview', true);
   await person.click();
   const fixed = page.locator('[data-npc-private-items]');
   assert.equal(await fixed.evaluate((el) => el.open), false);
@@ -319,6 +358,55 @@ async function companionReferenceSync(page) {
   } finally {
     const close = page.locator('[data-action="close-overlay"]');
     if (await close.count()) await close.first().click();
+    fs.writeFileSync(file, original);
+    fs.utimesSync(file, times.atime, times.mtime);
+    await page.waitForTimeout(6300);
+  }
+}
+async function companionHomeInventorySync(page) {
+  const file = path.join(fakeSaves, '2.sav');
+  const original = fs.readFileSync(file);
+  const times = fs.statSync(file);
+  const item = page
+    .locator(
+      '[data-flow-decision="early-woodcutter-axe-choice"] .flow-recommended-action [data-id="item-10201"]',
+    )
+    .first();
+  const preview = page.locator('#entity-preview');
+  await page.bringToFront();
+  try {
+    for (const count of [0, 3, 9]) {
+      if (count) {
+        fs.writeFileSync(
+          file,
+          syntheticSave({
+            full: true,
+            seconds: 7200,
+            trackingMainQuest: 5780,
+            trackingQuest: 11005,
+            inventory: [{ id: 10201, count }],
+            quests: [
+              { id: 11002, step: 1 },
+              { id: 11005, step: 1 },
+              { id: 5780, step: 1 },
+              { id: 5700, step: 4 },
+            ],
+          }),
+        );
+        await page.waitForTimeout(6300);
+      }
+      await item.focus();
+      await preview.waitFor({ state: 'visible' });
+      assert.match(await preview.innerText(), new RegExp('2\\.sav · 库存 ' + count));
+      assert.equal(await page.locator('.drawer').count(), 0, 'home preview sync needs no detail navigation');
+      await page.screenshot({
+        animations: 'disabled',
+        path: path.join(results, '01-companion-home-inventory-' + count + '.png'),
+      });
+      await page.keyboard.press('Escape');
+      await page.keyboard.press('Tab');
+    }
+  } finally {
     fs.writeFileSync(file, original);
     fs.utimesSync(file, times.atime, times.mtime);
     await page.waitForTimeout(6300);
@@ -471,6 +559,7 @@ async function companionReferenceSync(page) {
     const choiceCompact = await choiceWindowReady;
     await choiceCompact.waitForSelector('.compact-shell');
     await choiceCompact.locator('[data-flow-decision="early-woodcutter-axe-choice"]').waitFor();
+    await companionHomeInventorySync(choiceCompact);
     await entityPreview(
       choiceCompact,
       choiceCompact.locator('[data-flow-now] > h3 [data-id="quest-11002"]'),
