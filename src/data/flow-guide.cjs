@@ -256,6 +256,20 @@ module.exports = {
       version: '作者明确针对 v1.23.24',
       confidence: '肥宅美少女甩葱歌的旧版攻略；锁队与队友作用需结合当前版本核对，未实机验证。',
     },
+    biliSecondCycle: {
+      title: '碧海仙踪二周目流程：阎浮镇凶案与隐藏结局线索',
+      url: 'https://www.bilibili.com/opus/1098750804429373478',
+      date: '2025-12-11 00:58（编辑）',
+      version: '二周目、有传承战力；具体构建未标',
+      confidence: '神奇的喵喵人的独立流程；只引用调查选择与后续线索，不套用继承战力，也不保证隐藏结局。',
+    },
+    gsEndingChoices: {
+      title: '20个主线结局条件：程钰去留与清霄选择组合',
+      url: 'https://www.gamersky.com/handbook/202608/2189378.shtml',
+      date: '2026-08-14 18:18:39',
+      version: '含老版与烟尘回响路线；具体构建未标',
+      confidence: '能去码头整点薯条吗的独立经验；部分条件作者也未测清，不能当作全部结局的充分条件。',
+    },
     biliLateFlow: {
       title: '烟尘回响后期主线流程',
       url: 'https://www.bilibili.com/opus/1003325637634555960',
@@ -500,12 +514,24 @@ module.exports = {
     },
     {
       id: 'early-jingyin-weapon-choice',
+      decisionSteps: [5076],
+      decisionAfterAllComplete: [5076],
+      recommendation: {
+        hint: '江吟风授武：新档可选剑；收集档先查缺哪本',
+        goal: '普通新档顺畅推进；继承或收集档按缺少的秘籍调整',
+        action:
+          '普通新档可先选「剑系武器」；已有流派、继承或专门收集时，先核对剑、刀、拳对应秘籍，再选缺少的一系。',
+        reason: '所引流程推荐新档剑系，并接着使用惊雷剑法；这次授武也决定碗子山头领旁宝箱的三选一秘籍。',
+        tradeoff:
+          '该宝箱同次只能取一本。继承档的缺项可能不同，不一律推荐刀；这也不证明其他两系在所有版本都永久绝版。',
+      },
       title: '江吟风授武：选择会改变后续宝箱秘籍',
       questId: 5074,
       chapterRoots: [5074],
       afterAllComplete: [],
-      untilAnyStarted: [],
-      deadlineLabel: '',
+      untilAnyStarted: [5087],
+      untilAnyComplete: [5079, 5080, 5081],
+      deadlineLabel: '在后山洞口选择武器之前',
       steps: [
         '后山洞口选剑、刀或拳，再到木桩演练。',
         '日后狂风寨救人击败头领后，旁边宝箱的秘籍随此次授武改变。',
@@ -533,6 +559,57 @@ module.exports = {
       },
       kind: 'stage',
       warning: '授武选择会改变后续宝箱内容，收集前先考虑本周目所需。',
+    },
+    {
+      id: 'chengyu-stay-choice',
+      title: '程钰去留：留在武当可继续人物内容',
+      questId: 5820,
+      chapterRoots: [5820],
+      decisionSteps: [5821],
+      decisionAfterAllComplete: [5821],
+      afterAllComplete: [],
+      untilAnyStarted: [5829, 5831],
+      untilAnyComplete: [5827, 5828],
+      deadlineLabel: '带程钰返武当向清虚复命、讨论去留之前',
+      recommendation: {
+        hint: '程钰去留：想保留人物后续，赞成留下',
+        goal: '优先保留程钰的对话、武学与切磋机会',
+        action: '先留一份可回读进度；想多看程钰内容，选「赞成留下程钰」，之后再找他交谈。',
+        reason: '流程在留人后安排一气纯阳指秘籍、复仇对话，以及清蒸赤鳞鱼菜谱、凤凰金瓶的切磋线索。',
+        tradeoff:
+          '送走会进入「不告而别」，不走这段留在武当的后续。若专收掌门分支图鉴，还须核对前面认同清霄、李天宝等选择，留人不是所有结局的通解。',
+      },
+      pickup: {
+        place: '武当',
+        person: '清虚；程钰',
+        action: '天水归来后带程钰复命，选择前先核对本周目目标。',
+      },
+      warning: '去留会改变程钰在武当的后续，也属于社区掌门结局攻略讨论的选择组合之一。',
+      advanceEffects: [
+        {
+          name: '程钰留在武当的对话与切磋',
+          scope: 'continue',
+          effect:
+            '送走进入「不告而别」分支；若想保留武当对话和切磋线索，先赞成留下。未证明他在所有后续场景永久消失。',
+        },
+      ],
+      steps: [
+        '带程钰回武当向清虚复命。',
+        '讨论去留时按本周目目标选择；留下后再交谈，并在比武中查询私物线索。',
+      ],
+      choices: [
+        {
+          label: '赞成留下程钰',
+          effect: '进入「意外之喜」的留人后续；社区流程列后续秘籍、复仇对话与切磋机会。',
+        },
+        {
+          label: '同意把人送走',
+          effect: '进入「不告而别」分支，放弃这段留在武当的后续；并会改变与清霄相关的选择组合。',
+        },
+      ],
+      sourceIds: ['npc053WudangReturn', 'gsEndingChoices'],
+      uncertainty:
+        '当前构建去留选项及分支已核对，收益与结局组合来自社区，未实机验证。新版攻略对旧三次选择仍有不同说明，不能保证只留人或送走就达成某个结局。',
     },
     {
       id: 'early-woodcutter-axe-choice',
@@ -1635,6 +1712,56 @@ module.exports = {
       sourceIds: ['gs49', 'gs50', 'biliLatePrep'],
       uncertainty:
         '具体生死条件来自 v1.23.24 攻略，较新流程也安排寻物、比剑后回天剑宗。当前任务文字20104可核对断剑笔记与点醒元启，但未读取全部隐藏标记，不保证任何组合必然存活，也未确认精确失效时点。',
+    },
+    {
+      id: 'yanfu-investigation-choice',
+      title: '阎浮镇凶案：勘验尸体后是否继续调查',
+      questId: 21050,
+      chapterRoots: [20000],
+      decisionSteps: [21123],
+      decisionAfterAllComplete: [21123],
+      afterAllComplete: [],
+      untilAnyStarted: [21148, 21149],
+      untilAnyComplete: [21133, 21134, 21142, 21143],
+      deadlineLabel: '白龟洞勘验尸体、决定是否继续追查之前',
+      recommendation: {
+        hint: '阎浮镇凶案：查完尸体，继续调查',
+        goal: '保留查明凶案与小彤、冷无情相关的后续线索',
+        action: '先勘验上身、腰际、下身的可用选项；想继续查明凶案时，选「继续调查」。',
+        reason:
+          '当前任务分支中，继续会开启「查明真相」；放弃会结束凶案。两篇流程都选继续，二周目作者还将它与冷无情隐藏结局关联。',
+        tradeoff:
+          '继续需要后续调查与战斗；若想在此结束案件可放弃。隐藏结局还涉及其他选择与队伍条件，不保证仅此一选就达成。',
+      },
+      pickup: {
+        place: '白龟洞（阎浮镇凶案）',
+        person: '绝无心；冷无情',
+        action: '协助勘验尸体，决定是否继续追查。',
+      },
+      warning: '放弃调查会进入「放弃真相」并结束阎浮镇凶案，之后不能从本任务继续「查明真相」路线。',
+      advanceEffects: [
+        {
+          questId: 21050,
+          name: '阎浮镇凶案 → 查明真相',
+          scope: 'continue',
+          effect: '选「放弃调查」会结束凶案；若想继续此任务及相关人物线索，选「继续调查」。',
+        },
+      ],
+      steps: [
+        '在白龟洞协助绝无心调查尸体，核对可用勘验选项。',
+        '想保留调查路线时选继续；随后按游戏任务前往天剑宗、阎浮镇。',
+      ],
+      choices: [
+        {
+          label: '继续调查',
+          effect:
+            '开启「查明真相」；社区流程继续推进小彤相关事件，二周目攻略将它列作冷无情隐藏结局线索之一。',
+        },
+        { label: '放弃调查', effect: '进入「放弃真相」，结束阎浮镇凶案，不再从本任务继续调查路线。' },
+      ],
+      sourceIds: ['gs51', 'biliSecondCycle'],
+      uncertainty:
+        '当前构建已核对继续、放弃两种分支及任务结束动作；隐藏结局关联来自二周目攻略，未实机验证全部条件。不读取未保存的实时对话。',
     },
     {
       id: 'xiaotong-one-time-grove',

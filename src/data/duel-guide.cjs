@@ -58,6 +58,20 @@ module.exports = {
       date: '2026-08-13 16:28:27',
       version: '同系列ver1.24.25；早晨入席前智度上人、出城赴一线天途中天水守卫',
     },
+    npc053WudangReturn: {
+      title: '全图鉴全成就流程：天水城、一线天后的武当回访',
+      author: '力拔山兮气盖世呐',
+      url: 'https://www.gamersky.com/handbook/202608/2188490_37.shtml',
+      date: '2026-08-13 16:28:27',
+      version: '同系列ver1.24.25；赞成程钰留在武当后，对话与切磋收益分列',
+    },
+    npc053Changsheng: {
+      title: '全图鉴全成就流程：长生殿',
+      author: '力拔山兮气盖世呐',
+      url: 'https://www.gamersky.com/handbook/202608/2188490_48.shtml',
+      date: '2026-08-13 16:28:27',
+      version: '同系列ver1.24.25；出手相救、山门后暂缓回武当的长生殿回访路线',
+    },
     npc051BaiOld: {
       title: '白锦入队攻略',
       author: 'PandaUncle',
@@ -623,6 +637,113 @@ module.exports = {
       uncertainty:
         '世界索引有两名天水卫兵，尚不能确定原文对应哪一位，因此不绑定人物编号。这里只整理追击途中的路线窗口，不声称返回程家堡后永久失去该收益。',
       sourceIds: ['npc052Tianshui'],
+    },
+    {
+      id: 'npc053-chengyu',
+      npcId: 5037,
+      name: '程钰',
+      place: '武当派；程钰获准留下后、赴南疆前',
+      level: 40,
+      levelBasis: '官方Build21798996的NPC静态模板等级，与本地索引同构建；不是当前实战面板或胜率',
+      chapterRoots: [5820, 5850],
+      afterAllComplete: [5829],
+      untilAnyStarted: [5831, 5860],
+      untilAnyComplete: [],
+      rewards: [
+        {
+          name: '清蒸赤鳞鱼菜谱',
+          itemId: 100245,
+          method: '切磋私物',
+          condition: '社区路线列出烹饪菜谱；同构建官方ItemList模板为1份，当前背包先观察',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+        {
+          name: '凤凰金瓶',
+          itemId: 10176,
+          method: '切磋私物',
+          condition: '社区路线列出珍宝；同构建官方ItemList模板为1件，当前背包先观察',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation:
+        '先确认程钰留在武当，再观察他的招式、私物和切磋条件，按当前难度及自身装备、武学判断；尚未读取玩家实时面板。模板40级不代表当前能战胜。',
+      recommendation: {
+        action: '留在武当的分支落实后，回访程钰并观察；需要菜谱或凤凰金瓶且准备足够时再切磋。',
+        reason: '能顺路补烹饪菜谱与珍宝收集，所引流程明确分列这两件切磋私物。',
+        tradeoff: '切磋可选且私物随机；一气纯阳指秘籍来自对话，后续报仇选择另行核对，不是切磋掉落。',
+      },
+      uncertainty:
+        '只整理留在武当后、南疆之行前的回访窗口，不声称离开武当后永久失去收益。静态模板未标漫游地图；在场位置、好感、当前私物与切磋条件需到场核对。',
+      sourceIds: ['npc053WudangReturn'],
+    },
+    {
+      id: 'npc053-xiaowuyan',
+      npcId: 19702,
+      name: '萧无颜',
+      place: '长生殿；决战与山门剧情后、返回武当前回访',
+      level: 85,
+      levelBasis: '官方Build21798996的NPC静态模板等级，与本地索引同构建；不是当前实战面板或胜率',
+      chapterRoots: [8830],
+      afterAllComplete: [8875],
+      untilAnyStarted: [],
+      untilAnyComplete: [8879],
+      rewards: [
+        {
+          name: '丙火丹',
+          itemId: 117,
+          method: '切磋私物',
+          condition: '社区路线列出永久属性丹药；同构建官方ItemList模板为1枚，当前背包先观察',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+        {
+          name: '壬水丹',
+          itemId: 119,
+          method: '切磋私物',
+          condition: '社区路线列出永久属性丹药；同构建官方ItemList模板为1枚，当前背包先观察',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation:
+        '山门剧情结束后回访长生殿，先观察萧无颜的招式、私物与切磋条件，按当前难度及自身装备、武学判断；尚未读取玩家实时面板。模板85级不代表当前能战胜。',
+      recommendation: {
+        action: '暂缓返回武当、回访长生殿时，先观察萧无颜；需要丙火丹或壬水丹且准备足够再切磋。',
+        reason: '所引回访路线明确列出两种永久属性丹药，可顺路核对收集。',
+        tradeoff: '切磋可选且私物随机；相邻对话所给的芙蓉金冠精良图纸不是本条切磋收益。',
+      },
+      uncertainty:
+        '正文切磋写萧无颜，相邻对话写萧无言；同构建可切磋模板及对应两丹支持采用萧无颜名称。所引为出手相救后的回访路线，其他分支、在场位置与好感仍需核对；静态模板未标漫游地图。返回武当后退出本次线索，不声称永久失去收益。',
+      sourceIds: ['npc053Changsheng'],
+    },
+    {
+      id: 'npc053-duanlvshuang',
+      npcId: 19703,
+      name: '段履霜',
+      place: '长生殿；决战与山门剧情后、返回武当前回访',
+      level: 65,
+      levelBasis: '官方Build21798996的NPC静态模板等级，与本地索引同构建；不是当前实战面板或胜率',
+      chapterRoots: [8830],
+      afterAllComplete: [8875],
+      untilAnyStarted: [],
+      untilAnyComplete: [8879],
+      rewards: [
+        {
+          name: '乙木丹',
+          itemId: 114,
+          method: '切磋私物',
+          condition: '社区路线列出永久属性丹药；同构建官方ItemList模板为1枚，当前背包先观察',
+          probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation:
+        '山门剧情结束后回访长生殿，先观察段履霜的招式、私物与切磋条件，按当前难度及自身装备、武学判断；尚未读取玩家实时面板。模板65级不代表当前能战胜。',
+      recommendation: {
+        action: '暂缓返回武当、回访长生殿时，先观察段履霜；需要乙木丹且准备足够再切磋。',
+        reason: '所引路线在长生殿收集段落明确列出乙木丹，可与回访一起核对。',
+        tradeoff: '切磋可选且私物随机；附近宝箱、邀请入队和请教武学另有条件，不是乙木丹切磋奖励。',
+      },
+      uncertainty:
+        '所引为出手相救后的回访路线；其他分支、在场位置、好感、当前私物与切磋条件仍需核对。静态模板未标漫游地图；返回武当后退出本次线索，不声称永久失去收益。',
+      sourceIds: ['npc053Changsheng'],
     },
   ],
   advice: [

@@ -217,6 +217,200 @@ test('Tianshui reward facts distinguish community leads and the official static 
   }
 });
 
+const followthroughIds = ['npc053-chengyu', 'npc053-xiaowuyan', 'npc053-duanlvshuang'];
+const followthrough = (snapshot) => {
+  const projected = projectCurated({ available: true, ...snapshot });
+  return {
+    ...projected,
+    candidates: projected.candidates.filter((row) => followthroughIds.includes(row.id)),
+    guide: projected.guide.filter((row) => followthroughIds.includes(row.id)),
+  };
+};
+
+test('Cheng Yu challenge follows the confirmed stay branch through promotion preparation', () => {
+  for (const mainQuestId of [5820, 5850]) {
+    for (const step of [0, 1, 2, 3]) {
+      assert.equal(followthrough({ mainQuestId, states: [{ id: 5829, step }] }).candidates.length, 0);
+    }
+    const ready = followthrough({ mainQuestId, states: [{ id: 5829, step: 4 }] });
+    assert.deepEqual(
+      ready.candidates.map((row) => row.id),
+      ['npc053-chengyu'],
+    );
+    assert.equal(ready.candidates[0].conditions[0].id, 'quest-5829');
+    assert.equal(ready.candidates[0].conditions[0].status, 'met');
+    const unknown = followthrough({ mainQuestId, states: [] });
+    assert.deepEqual(
+      unknown.candidates.map((row) => row.id),
+      ['npc053-chengyu'],
+    );
+    assert.equal(unknown.candidates[0].conditions[0].status, 'unknown');
+    assert.match(unknown.candidates[0].confidence, /前置仍待核对/);
+  }
+});
+
+test('Cheng Yu leave branch and the southern journey retire the lead but keep its reference', () => {
+  for (const id of [5831, 5860]) {
+    for (const step of [1, 2, 4]) {
+      const later = followthrough({
+        mainQuestId: 5850,
+        states: [
+          { id: 5829, step: 4 },
+          { id, step },
+        ],
+      });
+      assert.equal(later.candidates.length, 0);
+      const cheng = later.guide.find((row) => row.id === 'npc053-chengyu');
+      assert.equal(cheng.closed, true);
+      assert.match(cheng.uncertainty, /不声称.*永久失去/);
+    }
+  }
+  const nextStage = followthrough({ mainQuestId: 5860, states: [{ id: 5829, step: 4 }] });
+  assert.equal(nextStage.candidates.length, 0);
+  assert.equal(nextStage.guide.find((row) => row.id === 'npc053-chengyu').stageMatch, false);
+});
+
+test('Changsheng challenges wait for the mountain gate aftermath and remain during the return task', () => {
+  for (const step of [0, 1, 2, 3]) {
+    assert.equal(followthrough({ mainQuestId: 8830, states: [{ id: 8875, step }] }).candidates.length, 0);
+  }
+  for (const step of [0, 1, 2, 3]) {
+    const during = followthrough({
+      mainQuestId: 8830,
+      states: [
+        { id: 8875, step: 4 },
+        { id: 8879, step },
+      ],
+    });
+    assert.deepEqual(
+      during.candidates.map((row) => row.id),
+      followthroughIds.slice(1),
+    );
+    for (const row of during.candidates) {
+      assert.equal(row.conditions[0].id, 'quest-8875');
+      assert.equal(row.conditions[0].status, 'met');
+      assert.equal(row.closed, false);
+    }
+  }
+  const returned = followthrough({
+    mainQuestId: 8830,
+    states: [
+      { id: 8875, step: 4 },
+      { id: 8879, step: 4 },
+    ],
+  });
+  assert.equal(returned.candidates.length, 0);
+  for (const row of returned.guide.filter((entry) => entry.id !== 'npc053-chengyu')) {
+    assert.equal(row.closed, true);
+    assert.match(row.uncertainty, /不声称永久失去/);
+  }
+});
+
+test('followthrough leads keep absent prerequisites uncertain, require their stage and read inputs only', () => {
+  const unknown = followthrough({ mainQuestId: 8830, states: [] });
+  assert.deepEqual(
+    unknown.candidates.map((row) => row.id),
+    followthroughIds.slice(1),
+  );
+  for (const row of unknown.candidates) {
+    assert.equal(row.conditions[0].status, 'unknown');
+    assert.match(row.confidence, /前置仍待核对/);
+    assert.match(row.preparation, /尚未读取玩家实时面板/);
+  }
+  for (const mainQuestId of [undefined, 5780, 8810, 8900]) {
+    assert.equal(
+      followthrough({
+        mainQuestId,
+        states: [
+          { id: 5829, step: 4 },
+          { id: 8875, step: 4 },
+        ],
+      }).candidates.length,
+      0,
+    );
+  }
+  for (const mainQuestId of [5820, 5850, 8830]) {
+    const input = {
+      available: true,
+      mainQuestId,
+      difficultyName: '极难',
+      states: [
+        { id: 5829, step: 4 },
+        { id: 8875, step: 4 },
+        { id: 8879, step: 1 },
+      ],
+    };
+    const before = structuredClone(input);
+    for (const row of input.states) Object.freeze(row);
+    Object.freeze(input.states);
+    Object.freeze(input);
+    const ready = followthrough(input);
+    assert.equal(ready.difficultyName, '极难');
+    assert.match(ready.combatLimit, /静态等级不能直接换算胜率/);
+    assert.deepEqual(input, before);
+    const offline = followthrough({ ...input, available: false });
+    assert.equal(offline.candidates.length, 0);
+    assert.equal(offline.guide.length, 3);
+  }
+});
+
+test('followthrough rewards link verified items and separate dialogue from random private possessions', () => {
+  const rows = followthrough({ states: [] }).guide;
+  const expected = [
+    [
+      'npc053-chengyu',
+      5037,
+      40,
+      [
+        ['清蒸赤鳞鱼菜谱', 100245],
+        ['凤凰金瓶', 10176],
+      ],
+      '37',
+    ],
+    [
+      'npc053-xiaowuyan',
+      19702,
+      85,
+      [
+        ['丙火丹', 117],
+        ['壬水丹', 119],
+      ],
+      '48',
+    ],
+    ['npc053-duanlvshuang', 19703, 65, [['乙木丹', 114]], '48'],
+  ];
+  for (const [id, npcId, level, rewards, page] of expected) {
+    const row = rows.find((entry) => entry.id === id);
+    assert.equal(row.personId, `npc-${npcId}`);
+    assert.equal(row.npcId, npcId);
+    assert.equal(row.level, level);
+    assert.match(row.levelBasis, /官方Build21798996.*同构建.*不是当前实战面板或胜率/);
+    assert.deepEqual(
+      row.rewards.map((reward) => [reward.name, reward.itemId]),
+      rewards,
+    );
+    for (const reward of row.rewards) {
+      assert.equal(reward.method, '切磋私物');
+      assert.match(reward.condition, /官方ItemList模板为1/);
+      assert.match(reward.probability, /随机.*不保证首胜.*概率未知/);
+      assert.equal(
+        game.entries.find((item) => item.kind === '物品' && item.gameId === reward.itemId)?.name,
+        reward.name,
+      );
+    }
+    assert.equal(row.sources.length, 1);
+    assert.equal(row.sources[0].url, `https://www.gamersky.com/handbook/202608/2188490_${page}.shtml`);
+    assert.equal(row.sources[0].author, '力拔山兮气盖世呐');
+    assert.match(row.sources[0].version, /ver1.24.25/);
+    assert.ok(
+      row.place && row.recommendation.action && row.recommendation.reason && row.recommendation.tradeoff,
+    );
+  }
+  assert.match(rows[0].recommendation.tradeoff, /一气纯阳指秘籍来自对话/);
+  assert.match(rows[1].uncertainty, /切磋写萧无颜.*对话写萧无言/);
+  assert.match(rows[1].recommendation.tradeoff, /芙蓉金冠精良图纸不是本条切磋收益/);
+});
+
 test('compact challenge summaries expose names, places and rewards with stable per-profile reading state', async () => {
   const { createDuelViews } = await import(
     pathToFileURL(path.join(__dirname, '../src/renderer/duel-views.js')).href
