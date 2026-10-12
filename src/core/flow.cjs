@@ -4,6 +4,8 @@ const game = require('../data/game-index.json');
 const guide = require('../data/flow-guide.cjs');
 const materialGuide = require('../data/material-guide.cjs');
 const { selectedReference } = require('./goal-progress.cjs');
+const { createDuelProjector } = require('./duels.cjs');
+const duelGuide = require('../data/duel-guide.cjs');
 
 // These are named sections of the story, not a numeric quest-ID ordering.
 // A section is selected only by an actually active main-quest record.
@@ -39,6 +41,7 @@ function createFlowProjector({
   const people = new Map(w.people.map((p) => [p.gameId, p]));
   const items = new Map(g.entries.map((e) => [e.id, e]));
   const maps = new Map(w.maps.map((p) => [p.key, p]));
+  const projectDuels = createDuelProjector({ world: w, game: g, guide: duelGuide });
   const children = new Map();
   for (const q of quests.values()) {
     if (!children.has(q.parentId)) children.set(q.parentId, []);
@@ -68,10 +71,27 @@ function createFlowProjector({
   }
   const npcName = (id) => people.get(id)?.name || w.npcNames?.[id] || g.npcNames?.[id] || `人物 #${id}`;
   function textPlaces(text) {
-    const found = w.maps.filter((p) => p.name.length > 1 && text.includes(p.name));
-    return found.filter((p) => !found.some((other) => other.name !== p.name && other.name.includes(p.name)));
+    const aliases = { 武当派: '武当', 少林寺: '少林' };
+    const found = w.maps
+      .map((p) => ({
+        ...p,
+        mention: text.includes(p.name)
+          ? p.name
+          : aliases[p.name] && text.includes(aliases[p.name])
+            ? aliases[p.name]
+            : '',
+      }))
+      .filter((p) => p.mention.length > 1);
+    const distinct = new Map();
+    for (const p of found.filter(
+      (p) => !found.some((other) => other.mention !== p.mention && other.mention.includes(p.mention)),
+    )) {
+      if (distinct.has(p.name)) distinct.get(p.name).id = null;
+      else distinct.set(p.name, { ...p });
+    }
+    return [...distinct.values()].sort((a, b) => text.indexOf(a.mention) - text.indexOf(b.mention));
   }
-  function routesFor(material, task) {
+  function routesFor(material, task, currentMap) {
     const item = items.get(`item-${material.id}`),
       routes = (materialContent.items[material.id]?.routes || []).map((route) => ({
         ...route,
@@ -82,14 +102,18 @@ function createFlowProjector({
     for (const shop of g.merchants || []) {
       if (!shop.items.includes(material.id)) continue;
       if (routes.some((route) => route.personId === `npc-${shop.id}`)) continue;
+      const person = people.get(shop.id);
+      const place = maps.get(person?.walkMap);
       routes.push({
         kind: 'shop',
-        label: `购买 · ${shop.name}`,
+        label: `购买 · ${shop.name}${place ? ' · ' + place.name : ''}`,
         personId: `npc-${shop.id}`,
+        placeId: place?.id,
+        place: place?.name,
         detail: item?.buyPrice
           ? `资料标价 ${item.buyPrice} 文/件；当前售卖、库存和折扣请到店核对。`
           : '当前售卖、库存和价格请到店核对。',
-        efficiency: '数量够且商店已开放时可直接买齐；不保证当前可买。',
+        efficiency: `${place ? '地点来自静态行走场景，非当前在场证明。' : '商人所在地点待核对。'}数量够且商店已开放时可直接买齐；不保证当前可买。`,
       });
     }
     const acquisition = item?.description?.match(/(?:可以在|可在|可以通过|可通过|击败|打败)[\s\S]*/)?.[0];
@@ -118,7 +142,21 @@ function createFlowProjector({
         detail: '当前资料没有可确认的购买、采集或掉落地点。',
         efficiency: '暂无效率数据。',
       });
-    return routes;
+    const nearby = (route) =>
+      !!currentMap &&
+      (route.place === currentMap ||
+        textPlaces(route.detail || '').some((place) => place.name === currentMap));
+    const rank = (route) =>
+      route.kind === 'quest'
+        ? 0
+        : nearby(route)
+          ? 1
+          : route.kind === 'shop' || (route.personId && !route.placeId)
+            ? 4
+            : 2;
+    return routes
+      .map((route) => ({ ...route, alternative: rank(route) === 4 }))
+      .sort((a, b) => rank(a) - rank(b));
   }
   function snapshot(profile, reference, error = '') {
     const selected = selectedReference(profile, reference, error);
@@ -193,9 +231,21 @@ function createFlowProjector({
       }));
       for (const row of q.placements || []) {
         const p = maps.get(row.mapKey);
-        if (p && row.interactionTarget && !places.some((v) => v.id === p.id))
-          places.push({ id: p.id, name: p.name, evidence: '资料中的交互场景，非实时位置' });
+        if (!p || !row.interactionTarget) continue;
+        let place = places.find((v) => v.name === p.name);
+        if (!place) {
+          place = { name: p.name };
+          places.push(place);
+        }
+        place.interactionIds ||= new Set();
+        place.interactionIds.add(p.id);
+        place.id = place.interactionIds.size === 1 ? p.id : null;
+        place.evidence =
+          place.interactionIds.size === 1
+            ? '资料中的交互场景，非实时位置'
+            : '资料中有多个同名交互场景，具体场景待核对';
       }
+      for (const place of places) delete place.interactionIds;
       const npcs = [...new Set(q.finishNPCs || [])].map((id) => ({
         id: `npc-${id}`,
         name: npcName(id),
@@ -223,7 +273,7 @@ function createFlowProjector({
           required: m.count,
           owned: inventory ? inventory.get(m.id) || 0 : null,
           missing: inventory ? Math.max(0, m.count - (inventory.get(m.id) || 0)) : null,
-          routes: routesFor(m, q),
+          routes: routesFor(m, q, metadata.mapName),
         })),
         requirements: (q.requirements || []).map(requirement),
         upcoming: [...quests.values()]
@@ -323,7 +373,10 @@ function createFlowProjector({
             ? '存档同时记录了多条进行中主线，尚无明确的主线追踪；阶段与下一节点待核对。'
             : '这份存档没有可确认的进行中主线；阶段与下一节点待核对。';
     const section = main && sections.find(([, ids]) => ids.includes(main.gameId));
-    const nextMilestone = section && quests.get(nextMilestones[sections.indexOf(section)]);
+    const milestone = main && content.milestones?.[main.gameId];
+    const ambiguousReturn = section?.[0] === '重返中原' && !milestone && main.gameId !== 5990;
+    const nextMilestone =
+      main && quests.get(milestone?.next || (section && nextMilestones[sections.indexOf(section)]));
     const chapter = main
       ? {
           name: section?.[0] || '当前主线',
@@ -333,13 +386,22 @@ function createFlowProjector({
             ? '依据这份存档的主线追踪与进行中记录。'
             : '依据唯一已识别的进行中主线；未保存的剧情变化仍需核对。',
           next: null,
-          nextMilestone: nextMilestone
+          nextMilestone: ambiguousReturn
             ? {
-                questId: nextMilestone.id,
-                title: cleanName(nextMilestone.name),
-                note: '主线大阶段参考；实际接取以当前任务栏和前置条件为准。',
+                questId: null,
+                title: '少林后续路线待核对',
+                note: '原版后续有武林浩劫，烟尘回响会先进入少林剑决；当前阶段记录不足以自动区分路线，请核对游戏任务栏。',
               }
-            : null,
+            : nextMilestone
+              ? {
+                  questId: nextMilestone.id,
+                  title: cleanName(nextMilestone.name),
+                  note: '主线节点参考；实际接取以当前任务栏和前置条件为准。',
+                  sources: (milestone?.sourceIds || [])
+                    .filter((id) => content.sources[id])
+                    .map((id) => ({ ...content.sources[id], id: 'flow:' + id })),
+                }
+              : null,
         }
       : null;
     const projectedRules = (content.rules || []).map((rule) => {
@@ -350,12 +412,33 @@ function createFlowProjector({
       const failed = status === 2;
       const anchors = rule.afterAllComplete || [];
       const anchorsMet = anchors.length > 0 && anchors.every((id) => step(id) === 4);
-      const relevant = activeRule || (main && (rule.chapterRoots || []).includes(main.gameId)) || anchorsMet;
-      const deadlineReached = (rule.untilAnyStarted || []).some((id) => [1, 2, 4].includes(step(id)));
+      const stageMatch = main && (rule.chapterRoots || []).includes(main.gameId);
+      const relevant =
+        activeRule ||
+        (rule.requireStageMatch ? stageMatch && (!anchors.length || anchorsMet) : stageMatch || anchorsMet);
+      const deadlineReached =
+        (rule.untilAnyStarted || []).some((id) => [1, 2, 4].includes(step(id))) ||
+        (rule.untilAnyComplete || []).some((id) => step(id) === 4);
       const decisionActive = (rule.decisionSteps || []).some((id) => {
         const task = quests.get(id);
         return task && rootOf(task)?.gameId === rule.questId && step(id) === 1 && !blocked(task);
       });
+      const decisionResolved =
+        !decisionActive && (rule.decisionSteps || []).some((id) => [2, 4].includes(step(id)));
+      const affectedTasks = (rule.advanceEffects || [])
+        .filter((effect) => !effect.questId || ![2, 4].includes(step(effect.questId)))
+        .map((effect) => {
+          const task = quests.get(effect.questId);
+          const accepted = task && family(task).some((entry) => step(entry.gameId) === 1 && !blocked(entry));
+          return {
+            ...effect,
+            name: effect.name || cleanName(task?.name || '任务名称待核对'),
+            effect:
+              effect.scope === 'accept' && accepted
+                ? '这份存档已有进行中记录；资料只限制未接取的窗口，没有证明推进后已接任务会失败。'
+                : effect.effect,
+          };
+        });
       return {
         ...rule,
         name: rule.title,
@@ -365,6 +448,8 @@ function createFlowProjector({
         relevant,
         deadlineReached,
         decisionActive,
+        decisionResolved,
+        affectedTasks,
         state: done
           ? 'done'
           : failed
@@ -385,12 +470,16 @@ function createFlowProjector({
           .map((id) => ({ ...content.sources[id], id: 'flow:' + id })),
       };
     });
-    const relevantRules = projectedRules.filter((r) => available && r.relevant && !r.done && !r.failed);
+    const relevantRules = projectedRules.filter(
+      (r) => available && r.relevant && !r.done && !r.failed && !r.decisionResolved,
+    );
     const warnings = relevantRules
       .filter((r) => r.warning && r.severity !== 'reminder' && !r.deadlineReached)
       .map((r) => ({ ...r, message: r.warning }));
     const changes = relevantRules
-      .filter((r) => (r.untilAnyStarted?.length || r.phaseChange) && !r.deadlineReached)
+      .filter(
+        (r) => (r.untilAnyStarted?.length || r.phaseChange || r.affectedTasks.length) && !r.deadlineReached,
+      )
       .map((r) => ({
         id: r.id,
         title: r.title,
@@ -400,12 +489,16 @@ function createFlowProjector({
             .map((id) => cleanName(quests.get(id)?.name || '后续主线推进（具体触发待核对）'))
             .join(' / '),
         consequence: r.warning || '社区资料标注此处为接取窗口边界，推进前请核对。',
+        affectedTasks: r.affectedTasks,
       }));
     if (chapter && changes[0])
       chapter.next = {
         title: changes[0].triggerName,
         questId:
-          quests.get(relevantRules.find((r) => r.id === changes[0].id)?.untilAnyStarted[0])?.id || null,
+          quests.get(
+            relevantRules.find((r) => r.id === changes[0].id)?.untilAnyStarted?.[0] ||
+              relevantRules.find((r) => r.id === changes[0].id)?.untilAnyComplete?.[0],
+          )?.id || null,
       };
     const opportunities = relevantRules.filter(
       (r) => r.kind !== 'stage' && !r.activeRule && !r.deadlineReached,
@@ -434,6 +527,31 @@ function createFlowProjector({
       )
         continue;
       const projected = projectStep(q);
+      const requestPeople = q.requestNPCs.map(npcName);
+      const pickupHint = (content.rules || []).find(
+        (rule) =>
+          rule.questId === root.gameId &&
+          rule.pickup &&
+          requestPeople.some((name) =>
+            String(rule.pickup.person || '')
+              .replace(/[-\s]/g, '')
+              .includes(name.split('-').at(-1)),
+          ),
+      );
+      // Pickup locations belong to the requesting NPC, not to destinations in
+      // the task's objective text. Static clues do not establish current presence.
+      const pickupPlaces = new Set();
+      for (const placement of q.placements || []) {
+        if (placement.phase !== 'request' || !q.requestNPCs.includes(placement.npcId)) continue;
+        const place = maps.get(placement.mapKey);
+        if (place) pickupPlaces.add(place.name);
+      }
+      for (const id of q.requestNPCs) {
+        const person = people.get(id);
+        const place = maps.get(person?.walkMap);
+        if (place) pickupPlaces.add(place.name);
+        else for (const clue of textPlaces(person?.description || '')) pickupPlaces.add(clue.name);
+      }
       opportunities.push({
         id: 'conditions-' + q.gameId,
         questId: root.gameId,
@@ -445,15 +563,20 @@ function createFlowProjector({
               ? 'conditions-partial'
               : 'conditions-match',
         pickup: {
-          place: projected.places.map((p) => p.name).join('、') || '任务文字未提供明确地点',
-          person: q.requestNPCs.map(npcName).join('、'),
-          action: cleanName(q.name),
+          place: pickupHint?.pickup.place || [...pickupPlaces].join('、') || '接取地点待核对',
+          person: pickupHint?.pickup.person || requestPeople.join('、'),
+          action:
+            pickupHint?.pickup.action ||
+            `与${requestPeople.join('、')}交谈，询问「${cleanName(root.name)}」。`,
+          executionPlace: projected.places.map((p) => p.name).join('、'),
         },
-        steps: [q.description],
+        steps: pickupHint?.steps || [q.description],
         choices: [],
         warning: '',
         conditions,
-        sources: [],
+        sources: (pickupHint?.sourceIds || [])
+          .filter((id) => content.sources[id])
+          .map((id) => ({ ...content.sources[id], id: 'flow:' + id })),
         uncertainty: conditions.length
           ? '已读取的条件见上方；未列出的隐藏条件及 NPC 当前所在位置仍需到游戏中确认。'
           : '这一步在存档中记为尚未接取；资料未列出可核对的接取条件，人物当前所在位置仍需到游戏中确认。',
@@ -463,7 +586,7 @@ function createFlowProjector({
     // A crossed guide window is a verification item, never an automatic
     // declaration of a missed/failed quest.
     const windowChecks = relevantRules
-      .filter((r) => r.deadlineReached && !r.activeRule)
+      .filter((r) => r.kind !== 'stage' && r.deadlineReached && !r.activeRule)
       .map((r) => ({
         ...r,
         message: `已出现窗口边界的剧情记录；请核对「${r.title}」是否仍可接取。没有任务记录不等于错过。`,
@@ -481,6 +604,7 @@ function createFlowProjector({
               : '游戏里保存一次后，自动按已保存进度整理任务。'),
       referenceNeedsSelection: !available && referenceMode === 'slot',
       reference: source,
+      referenceMode,
       chapter,
       stageUncertainty,
       active,
@@ -489,7 +613,19 @@ function createFlowProjector({
       opportunities,
       warnings: [...warnings, ...windowChecks],
       advice: relevantRules.filter((r) => r.warning && r.severity === 'reminder' && !r.deadlineReached),
-      decisions: relevantRules.filter((r) => r.decisionActive && r.choices?.length),
+      decisions: relevantRules
+        .filter((r) => r.decisionActive && r.choices?.length)
+        .sort(
+          (a, b) =>
+            active.findIndex((row) => row.gameId === a.questId) -
+            active.findIndex((row) => row.gameId === b.questId),
+        ),
+      duels: projectDuels({
+        available,
+        states: available ? states : [],
+        mainQuestId: main?.gameId,
+        difficultyName: metadata.difficultyName || '',
+      }),
       changes,
       coverage: {
         tasks: quests.size,

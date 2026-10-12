@@ -146,8 +146,78 @@
 .flow-decision h4 {
   margin-top: 0;
 }
+.flow-current-decisions .flow-decision {
+  margin-top: 0;
+}
+.flow-recommendation {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: var(--green-soft);
+  border-radius: 6px;
+}
+.flow-decision .flow-recommendation {
+  padding: 0;
+}
+.flow-recommended-action {
+  color: var(--ink);
+}
 .flow-compact-risks > summary {
   font-weight: 600;
+}
+.flow-affected {
+  padding: 8px 10px;
+  border: 1px solid #d9b797;
+  border-radius: 6px;
+  margin: 8px 0;
+}
+.flow-affected h4 {
+  margin-top: 0;
+  color: var(--orange);
+}
+.flow-affected .text-btn {
+  font-weight: 600;
+}
+.duel-page > h2 {
+  margin: 0 0 10px;
+}
+.duel-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.duel-card h3,
+.duel-card h3 .text-btn {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.duel-card p {
+  margin: 8px 0;
+}
+.duel-place {
+  color: var(--muted);
+  font-size: 13px;
+}
+.duel-rewards .text-btn {
+  display: inline-flex;
+}
+.duel-rewards small {
+  color: var(--muted);
+}
+.duel-action {
+  color: var(--green);
+}
+.duel-page summary {
+  cursor: pointer;
+  padding: 8px 0;
+  color: var(--green);
+}
+.duel-sources {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
 }
 .flow-guide,
 .flow-main-index {
@@ -3790,4 +3860,91 @@ kbd {
     min-width: 0;
     overflow-wrap: anywhere;
   }
+}
+
+.database-card .database-numeric {
+  color: var(--green);
+  font-weight: 600;
+  font-size: 12px;
+  margin-top: 8px;
+}
+.item-statistics {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+}
+.item-statistics h3 {
+  margin-top: 0;
+}
+.item-effect-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.item-effect-row strong {
+  white-space: nowrap;
+  color: var(--green);
+}
+.item-effect-buff {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.item-effect-buff p {
+  margin: 5px 0;
+}
+.item-statistics details {
+  margin-top: 12px;
+}
+.item-statistics summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.item-random-pool {
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+  margin-top: 12px;
+}
+.item-random-candidate {
+  margin-bottom: 8px;
+}
+.item-stat-restrictions {
+  font-size: 12px;
+  line-height: 1.7;
+}
+.duel-compact-card > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.duel-compact-card > summary::after {
+  content: '展开准备建议与收益';
+  display: block;
+  font-size: 11px;
+  color: var(--green);
+  margin-top: 5px;
+}
+.duel-compact-card[open] > summary::after {
+  content: '收起详情';
+}
+.duel-compact-card .duel-place,
+.duel-reward-preview {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  margin-top: 5px;
+  line-height: 1.55;
+}
+.duel-compact-detail {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.companion .duel-page > h2 {
+  font-size: 17px;
+  margin-top: 0;
+}
+.companion .duel-compact-card {
+  padding: 12px;
+  margin: 10px 0;
 }

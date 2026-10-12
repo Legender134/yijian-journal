@@ -604,6 +604,14 @@ function portableJournal(input) {
   const display = {};
   for (const [key, valid] of [
     ['readingScale', (value) => [100, 110, 125, 150].includes(value)],
+    [
+      'companionSections',
+      (value) =>
+        Array.isArray(value) &&
+        value.length <= 3 &&
+        new Set(value).size === value.length &&
+        value.every((key) => ['advice', 'opportunities', 'milestones'].includes(key)),
+    ],
     ['compactOpacity', (value) => Number.isFinite(value) && value >= 0.65 && value <= 1],
     [
       'companionPosition',

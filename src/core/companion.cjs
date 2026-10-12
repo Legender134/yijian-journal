@@ -58,32 +58,44 @@ function companionSnapshot(state, catalog, reference, error = '') {
   }
   const flow = flowSnapshot(profile, reference, error);
   const hints = [];
-  if (flow.warnings[0]) {
-    const warning = flow.warnings[0];
+  if (flow.decisions[0]) {
+    const decision = flow.decisions[0];
+    hints.push({
+      type: 'flow-choice',
+      id: `quest-${decision.questId}`,
+      title: decision.recommendation?.hint || decision.recommendation?.action || decision.warning,
+      label: '选择前的建议 · ' + decision.name,
+    });
+  }
+  const warning = flow.warnings.find((row) => !flow.decisions.some((decision) => decision.id === row.id));
+  if (warning) {
     hints.push({
       type: 'flow-warning',
       id: warning.questId ? `quest-${warning.questId}` : null,
       title: warning.message,
       label: '推进前留意 · ' + warning.name,
     });
-  } else if (flow.decisions[0]) {
-    const decision = flow.decisions[0];
-    hints.push({
-      type: 'flow-choice',
-      id: `quest-${decision.questId}`,
-      title: decision.warning,
-      label: '当前步骤的选择 · ' + decision.name,
-    });
   }
   for (const quest of flow.active) {
     if (hints.length >= 2) break;
+    if (hints.some((hint) => hint.id === quest.id)) continue;
     hints.push({
       type: 'quest',
       id: quest.id,
       title: quest.steps[0]?.nextAction || quest.name,
       label: '当前任务下一步',
     });
+    break;
   }
+  const suggestion = flow.advice.find((row) => row.proactive);
+  if (hints.length < 2 && suggestion && (state.settings.companionSections || ['advice']).includes('advice'))
+    hints.push({
+      type: 'flow-advice',
+      id: suggestion.questId ? `quest-${suggestion.questId}` : null,
+      title:
+        suggestion.recommendation?.hint || suggestion.recommendation?.action || suggestion.pickup?.action,
+      label: '顺路建议 · ' + suggestion.name,
+    });
   if (hints.length < 2 && itinerary?.status === 'active' && itinerary.next)
     hints.push({
       type: 'journey',

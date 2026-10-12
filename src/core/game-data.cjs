@@ -2,6 +2,8 @@
 const data = require('../data/game-index.json');
 const world = require('../data/world-index.json');
 const images = require('../data/game-images.json');
+const itemStats = require('../data/item-stats.json');
+if (String(itemStats.build) !== String(data.build)) throw Error('物品数值与图鉴版本不一致');
 const { recipeOutputs } = require('./recipe-outputs.cjs');
 const entries = new Map(data.entries.map((e) => [e.id, e]));
 const difficulty = {
@@ -85,12 +87,23 @@ function encyclopedia() {
       ...new Map(
         [...data.entries, ...world.people].map((e) => [
           e.id,
-          e.kind === '配方' ? { ...e, outputReference: recipeOutputs(e, 1) } : e,
+          e.kind === '配方'
+            ? { ...e, outputReference: recipeOutputs(e, 1) }
+            : e.kind === '物品'
+              ? { ...e, stats: itemStats.items[e.gameId] || null }
+              : e,
         ]),
       ).values(),
     ],
     images: images.entries,
     merchants: data.merchants || [],
+    itemStats: {
+      build: itemStats.build,
+      notice: itemStats.notice,
+      attributes: itemStats.attributes,
+      pools: itemStats.pools,
+      buffs: itemStats.buffs,
+    },
     world: { ...world, placeAliases: require('../data/world-place-aliases.json') },
   };
 }

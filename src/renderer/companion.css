@@ -28,6 +28,79 @@
 .companion .flow-reference {
   font-size: 12px;
 }
+.flow-compact-reference {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+.flow-compact-reference > .flow-reference {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--muted);
+}
+.flow-compact-reference > .row {
+  flex-shrink: 0;
+}
+.companion .flow-now {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--card);
+}
+.companion .flow-now h2 {
+  margin-bottom: 4px;
+  font-size: 14px;
+  color: var(--green);
+}
+.companion .flow-now h3 .text-btn {
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+}
+.companion .flow-panel > section {
+  margin-bottom: 12px;
+}
+.companion .flow-current-decisions h3 {
+  font-size: 13px;
+}
+.companion .flow-risks {
+  border-left: 3px solid var(--orange);
+  padding-left: 10px;
+}
+.companion .flow-risks h2 {
+  font-size: 14px;
+  margin-bottom: 3px;
+}
+.companion .flow-impact-summary {
+  font-size: 13px;
+  color: var(--orange);
+}
+.companion .flow-suggestion {
+  padding: 8px 10px;
+  background: var(--green-soft);
+  border-radius: 7px;
+}
+.companion-section-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+}
+.companion-section-option input {
+  accent-color: var(--green);
+}
+.compact-foot .save-health:not(.warning) small {
+  display: none;
+}
+.compact-foot .save-health {
+  padding: 5px 8px;
+}
 .companion .flow-personal {
   border-top: 1px solid var(--line);
   margin-top: 16px;

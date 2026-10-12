@@ -152,6 +152,14 @@ async function attach() {
     const currentChoice = win.locator('[data-flow-decision="early-woodcutter-axe-choice"]');
     assert.equal(await currentChoice.isVisible(), true);
     assert.match(await currentChoice.innerText(), /700.*2000/s);
+    assert.match(
+      await currentChoice.locator('.flow-recommendation').innerText(),
+      /推荐做法.*重新锻造.*为什么.*亮银甲.*取舍.*武学笔记/s,
+    );
+    assert.equal(
+      await currentChoice.locator('.flow-recommendation').evaluate((el) => !!el.closest('details')),
+      false,
+    );
     assert.equal(
       await currentChoice.locator('.flow-choices').evaluate((el) => !!el.closest('details')),
       false,
@@ -164,7 +172,7 @@ async function attach() {
     const compactRisk = choiceCompact.locator('.flow-compact-risks');
     assert.equal(await compactRisk.evaluate((el) => el.open), false);
     const currentPosition = await choiceCompact
-      .locator('[data-flow-quest="quest-11002"] .flow-next-action')
+      .locator('[data-flow-decision="early-woodcutter-axe-choice"] .flow-recommended-action')
       .evaluate((el) => ({
         top: el.getBoundingClientRect().top,
         bottom: el.getBoundingClientRect().bottom,
@@ -174,15 +182,276 @@ async function attach() {
       currentPosition.top >= 0 && currentPosition.bottom <= currentPosition.viewport,
       JSON.stringify(currentPosition),
     );
+    assert.equal(
+      await choiceCompact.locator('.flow-current-decisions').evaluate((el) => !!el.closest('details')),
+      false,
+    );
+    assert.equal(
+      await choiceCompact
+        .locator('.flow-current-decisions')
+        .evaluate(
+          (el) =>
+            el.compareDocumentPosition(document.querySelector('.flow-risks')) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+      4,
+    );
     assert.match(await compactRisk.locator('summary').first().innerText(), /7 项推进提醒/);
+    assert.equal(await choiceCompact.locator('.companion-reference').count(), 0);
+    assert.equal(await choiceCompact.locator('.flow-compact-reference').count(), 1);
+    const actionPosition = await choiceCompact
+      .locator('[data-flow-now] > .flow-next-action')
+      .evaluate((el) => ({ bottom: el.getBoundingClientRect().bottom, viewport: innerHeight }));
+    assert(actionPosition.bottom <= actionPosition.viewport, JSON.stringify(actionPosition));
+    await choiceCompact.screenshot({
+      animations: 'disabled',
+      path: path.join(results, '01-compact-first-screen.png'),
+    });
+    const compactChoiceDetails = choiceCompact.locator('.flow-choice-details');
+    await compactChoiceDetails.locator('summary').click();
+    assert.match(await compactChoiceDetails.innerText(), /700.*2000/s);
+    await compactChoiceDetails.locator('summary').click();
     await compactRisk.locator('summary').first().click();
     assert.equal(await compactRisk.locator('.flow-risk').first().isVisible(), true);
     await compactRisk.locator('summary').first().click();
+    await choiceCompact.locator('.compact-body').evaluate((el) => {
+      el.scrollTop = 0;
+    });
     await choiceCompact.screenshot({
       animations: 'disabled',
       path: path.join(results, '01-compact-current-choice.png'),
     });
+    await choiceCompact.locator('[data-action="companion-display"]').click();
+    for (const key of ['advice', 'opportunities', 'milestones'])
+      await choiceCompact.locator('#companion-section-' + key).uncheck();
+    await choiceCompact.locator('[data-action="companion-display-save"]').click();
+    assert.deepEqual(
+      await choiceCompact.evaluate(
+        async () => (await window.journal.bootstrap()).data.state.settings.companionSections,
+      ),
+      [],
+    );
+    assert.equal(await choiceCompact.locator('.flow-opportunities, .flow-stage-details').count(), 0);
+    assert.equal(await choiceCompact.locator('[data-flow-now]').count(), 1);
+    assert.equal(await choiceCompact.locator('.flow-current-decisions').count(), 1);
+    await choiceCompact.locator('[data-action="companion-display"]').click();
+    for (const key of ['advice', 'opportunities', 'milestones']) {
+      assert.equal(await choiceCompact.locator('#companion-section-' + key).isChecked(), false);
+      await choiceCompact.locator('#companion-section-' + key).check();
+    }
+    await choiceCompact.locator('[data-action="companion-display-save"]').click();
+    const beforeNpcProbe = fs.readFileSync(path.join(fakeSaves, '2.sav'));
+    const newSlot = path.join(fakeSaves, '3.sav');
+    fs.writeFileSync(
+      newSlot,
+      syntheticSave({ full: true, trackingMainQuest: 5062, quests: [{ id: 5062, step: 1 }] }),
+    );
+    await choiceCompact.locator('[data-action="save-slot"]').click();
+    assert.equal(await choiceCompact.locator('#save-slot-select option[value="3.sav"]').count(), 1);
+    assert.equal(await choiceCompact.locator('#save-slot-select').inputValue(), '2.sav');
+    await choiceCompact.locator('[data-action="close-overlay"]').first().click();
+    fs.unlinkSync(newSlot);
+    await choiceCompact.locator('[data-action="save-slot"]').click();
+    assert.equal(await choiceCompact.locator('#save-slot-select option[value="3.sav"]').count(), 0);
+    await choiceCompact.locator('[data-action="close-overlay"]').first().click();
+    fs.writeFileSync(newSlot, 'synthetic unreadable slot');
+    await choiceCompact.locator('[data-action="save-slot"]').click();
+    assert.equal(await choiceCompact.locator('#save-slot-select option[value="3.sav"]').count(), 0);
+    await choiceCompact.locator('[data-action="close-overlay"]').first().click();
+    fs.unlinkSync(newSlot);
+    await choiceCompact.locator('.companion-tabs [data-action="navigate"][data-id="duels"]').click();
+    fs.writeFileSync(
+      path.join(fakeSaves, '2.sav'),
+      syntheticSave({
+        full: true,
+        trackingMainQuest: 5062,
+        quests: [
+          { id: 5062, step: 1 },
+          { id: 5063, step: 4 },
+          { id: 5072, step: 1 },
+        ],
+      }),
+    );
+    const innChallenge = choiceCompact.locator('[data-duel-current] [data-duel="npc051-inn-lei"]');
+    await innChallenge.waitFor({ timeout: 18000 });
+    assert.match(await innChallenge.innerText(), /静态等级 30.*梧桐村.*客栈.*七品拳套图纸/s);
+    await choiceCompact.locator('.companion-tabs [data-action="navigate"][data-id="home"]').click();
+    await choiceCompact.locator('.flow-impact-summary').waitFor();
+    assert.match(await choiceCompact.locator('.flow-impact-summary').innerText(), /吕轻祈.*雷万钧.*岳九/);
+    await choiceCompact.locator('.companion-tabs [data-action="navigate"][data-id="duels"]').click();
+    await choiceCompact.screenshot({
+      animations: 'disabled',
+      path: path.join(results, '01-compact-duels.png'),
+    });
+    await innChallenge.locator(':scope > summary').click();
+    assert.match(await innChallenge.innerText(), /准备与实力.*2932/s);
+    await innChallenge.locator('details > summary').click();
+    fs.writeFileSync(
+      path.join(fakeSaves, '2.sav'),
+      syntheticSave({
+        full: true,
+        trackingMainQuest: 5062,
+        quests: [
+          { id: 5062, step: 1 },
+          { id: 5072, step: 1 },
+        ],
+      }),
+    );
+    await choiceCompact.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-duel-current] [data-duel="npc051-inn-lei"]')
+          ?.textContent.includes('前置记录仍待核对'),
+      null,
+      { timeout: 18000 },
+    );
+    assert.equal(await innChallenge.evaluate((el) => el.open), true);
+    assert.equal(await innChallenge.locator('details').evaluate((el) => el.open), true);
+    fs.writeFileSync(
+      path.join(fakeSaves, '2.sav'),
+      syntheticSave({
+        full: true,
+        trackingMainQuest: 5062,
+        quests: [
+          { id: 5062, step: 1 },
+          { id: 5063, step: 4 },
+          { id: 5072, step: 4 },
+        ],
+      }),
+    );
+    await innChallenge.waitFor({ state: 'detached', timeout: 18000 });
+    fs.writeFileSync(
+      path.join(fakeSaves, '2.sav'),
+      syntheticSave({
+        full: true,
+        trackingMainQuest: 5780,
+        quests: [
+          { id: 5780, step: 1 },
+          { id: 5789, step: 4 },
+          { id: 5790, step: 1 },
+          { id: 5803, step: 0 },
+        ],
+      }),
+    );
+    const tianshuiChallenge = choiceCompact.locator('[data-duel-current] [data-duel="npc052-zhidu"]');
+    await tianshuiChallenge.waitFor({ timeout: 18000 });
+    assert.match(await tianshuiChallenge.innerText(), /智度上人.*三转洗髓丹.*没药/s);
+    await choiceCompact.locator('.companion-tabs [data-action="navigate"][data-id="home"]').click();
+    await choiceCompact.waitForFunction(
+      () => document.querySelector('.flow-impact-summary')?.textContent.includes('智度上人'),
+      null,
+      { timeout: 18000 },
+    );
+    assert.doesNotMatch(await choiceCompact.locator('.flow-impact-summary').innerText(), /吕轻祈/);
+    fs.writeFileSync(path.join(fakeSaves, '2.sav'), beforeNpcProbe);
+    await choiceCompact.locator('.companion-tabs [data-action="navigate"][data-id="home"]').click();
+    await choiceCompact
+      .locator('[data-flow-decision="early-woodcutter-axe-choice"]')
+      .waitFor({ timeout: 18000 });
     await win.locator('[data-action="compact"]').first().click();
+    const choiceSave = fs.readFileSync(path.join(fakeSaves, '2.sav'));
+    fs.writeFileSync(
+      path.join(fakeSaves, '2.sav'),
+      syntheticSave({
+        full: true,
+        quests: [
+          { id: 11002, step: 1 },
+          { id: 11005, step: 4 },
+          { id: 11007, step: 1 },
+        ],
+      }),
+    );
+    // No manual refresh: ordinary five-second saved-progress polling must retire the finished choice.
+    await win.waitForFunction(
+      () => !document.querySelector('[data-flow-decision="early-woodcutter-axe-choice"]'),
+      null,
+      { timeout: 18000 },
+    );
+    assert.match(
+      await win.locator('[data-flow-quest="quest-11002"] .flow-next-action').innerText(),
+      /斧子.*河里/,
+    );
+    assert.deepEqual(fs.readFileSync(path.join(fakeSaves, '1.sav')), originalSave);
+    fs.writeFileSync(
+      path.join(fakeSaves, '2.sav'),
+      syntheticSave({
+        full: true,
+        trackingMainQuest: 8830,
+        quests: [
+          { id: 8830, step: 1 },
+          { id: 8879, step: 1 },
+        ],
+      }),
+    );
+    await win.locator('[data-action="refresh"]').click();
+    const rosterWarning = win.locator('[data-flow-warning="late-roster-before-wudang"]');
+    await rosterWarning.waitFor();
+    assert.match(await rosterWarning.locator('.flow-warning-message').innerText(), /回武当前.*旧版/);
+    assert.match(
+      await win.locator('[data-flow-quest="quest-8830"] .flow-next-action').innerText(),
+      /返回武当/,
+    );
+    const returnPlaces = win.locator('[data-flow-quest="quest-8830"] .flow-places p');
+    assert.equal(await returnPlaces.count(), 2);
+    assert.match(await returnPlaces.nth(0).innerText(), /武当派/);
+    assert.match(await returnPlaces.nth(1).innerText(), /名剑山庄/);
+    await rosterWarning.locator('summary').click();
+    assert.match(await rosterWarning.innerText(), /v1\.23\.24.*不能保证当前版本/s);
+    assert.match(await rosterWarning.innerText(), /商葶苧.*叶飞.*冷无情/s);
+    await win.screenshot({
+      animations: 'disabled',
+      path: path.join(results, '01-late-roster-preparation.png'),
+    });
+    fs.writeFileSync(
+      path.join(fakeSaves, '2.sav'),
+      syntheticSave({
+        full: true,
+        trackingMainQuest: 5920,
+        quests: [
+          { id: 8830, step: 4 },
+          { id: 5920, step: 1 },
+          { id: 5921, step: 1 },
+        ],
+      }),
+    );
+    await win.locator('[data-action="refresh"]').click();
+    assert.equal(await rosterWarning.count(), 0);
+    assert.match(await win.locator('[data-flow-quest="quest-5920"] .flow-next-action').innerText(), /阎浮镇/);
+    assert.match(await win.locator('.flow-chapter').innerText(), /少林后续路线待核对.*原版.*烟尘回响/s);
+    fs.writeFileSync(
+      path.join(fakeSaves, '2.sav'),
+      syntheticSave({
+        full: true,
+        trackingMainQuest: 20000,
+        quests: [
+          { id: 20000, step: 1 },
+          { id: 20001, step: 1 },
+          { id: 20012, step: 4 },
+          { id: 20050, step: 4 },
+          { id: 20100, step: 1 },
+          { id: 20101, step: 1 },
+        ],
+      }),
+    );
+    await win.locator('[data-action="refresh"]').click();
+    const yuanqiWarning = win.locator('[data-flow-warning="yuanqi-return-followthrough"]');
+    await yuanqiWarning.waitFor();
+    assert.match(await win.locator('.flow-chapter').innerText(), /下一主线关键节点.*天佛窟/s);
+    assert.equal(
+      await win.locator('.flow-chapter [data-action="source"][data-id="flow:biliLateFlow"]').count(),
+      1,
+    );
+    assert.match(await yuanqiWarning.locator('.flow-warning-message').innerText(), /前半段.*不等于/);
+    assert.match(
+      await win.locator('[data-flow-quest="quest-20100"] .flow-next-action').innerText(),
+      /天剑宗/,
+    );
+    await yuanqiWarning.locator('summary').click();
+    assert.match(await yuanqiWarning.innerText(), /断剑.*笔记.*上官虹.*叶飞/s);
+    assert.match(await yuanqiWarning.innerText(), /不保证.*必然存活/s);
+    fs.writeFileSync(path.join(fakeSaves, '2.sav'), choiceSave);
+    fs.utimesSync(path.join(fakeSaves, '2.sav'), new Date('2025-01-01'), new Date('2025-01-01'));
+    await win.locator('[data-action="refresh"]').click();
     fs.renameSync(path.join(fakeSaves, '2.sav'), path.join(data, 'held-2.sav'));
     await win.locator('[data-action="refresh"]').click();
     assert.ok((await win.locator('.content').innerText()).includes('不会自动改用其他槽位'));
@@ -246,6 +515,33 @@ async function attach() {
     assert.equal(await win.locator('#list-search').evaluate((e) => e === document.activeElement), true);
     assert.ok(await win.locator('.database-card').count());
     await win.locator('[data-action="database-kind"][data-id="物品"]').click();
+    await win.locator('#list-search').fill('腾空剑');
+    const swordCard = win.locator('.database-card[data-id="item-1029"]');
+    assert.match(await swordCard.locator('.database-numeric').innerText(), /攻击力.*637\.89.*暴击率.*15%/);
+    await swordCard.click();
+    const swordStats = win.locator('[data-item-statistics]');
+    assert.match(await swordStats.innerText(), /装备基础数值.*637\.89.*15%/s);
+    assert.equal(await swordStats.locator('.item-random-stats').evaluate((el) => el.open), false);
+    await win.screenshot({ animations: 'disabled', path: path.join(results, '10-item-base-stats.png') });
+    await swordStats.locator('.item-random-stats > summary').click();
+    assert.match(await swordStats.locator('.item-random-stats').innerText(), /172.*4\.5%/s);
+    await win.locator('[data-action="close-overlay"]').click();
+    await win.locator('#list-search').fill('金疮药');
+    await win.locator('.database-card[data-id="item-133"]').click();
+    assert.match(await win.locator('[data-item-statistics]').innerText(), /恢复气血.*400/s);
+    await win.locator('[data-action="close-overlay"]').click();
+    await win.locator('#list-search').fill('锻骨法上篇');
+    await win.locator('.database-card[data-id="item-10460"]').click();
+    const boneConditions = win.locator('[data-item-statistics] .item-stat-restrictions');
+    assert.match(await boneConditions.innerText(), /需同时满足.*锻骨法下篇.*1.*惔神秘鉴.*残.*1/s);
+    assert.equal(
+      await boneConditions.locator('[data-action="database-detail"][data-id="item-10486"]').count(),
+      1,
+    );
+    await win.screenshot({ animations: 'disabled', path: path.join(results, '10-item-use-conditions.png') });
+    await boneConditions.locator('[data-id="item-10486"]').click();
+    assert.match(await win.locator('.drawer .game-detail-title h1').innerText(), /惔神秘鉴/);
+    await win.locator('[data-action="close-overlay"]').click();
     await win.locator('#list-search').fill('铁矿石');
     await win.locator('.database-card[data-id="item-10201"]').click();
     assert.ok((await win.locator('.drawer').innerText()).includes('梧桐村'));
@@ -375,10 +671,10 @@ async function attach() {
     assert.ok(automaticTasks.length);
     assert.equal(automaticTasks[0].id, 11077);
     assert.equal(
-      await quick.locator('[data-flow-quest] [data-action="flow-quest"]').first().getAttribute('data-id'),
+      await quick.locator('[data-flow-now] [data-action="flow-quest"]').first().getAttribute('data-id'),
       'quest-11077',
     );
-    await quick.locator('[data-flow-quest] [data-action="flow-quest"]').first().click();
+    await quick.locator('[data-flow-now] [data-action="flow-quest"]').first().click();
     await quick.locator('.world-drawer').waitFor();
     await quick.locator('[data-action="close-overlay"]').click();
     // Renderer presentation under a synthetic passive-mode event; controller focus/input
