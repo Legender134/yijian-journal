@@ -339,6 +339,58 @@ test('Chenghuang Yufeng item route distinguishes formation from conditional comb
   assert.deepEqual(raw, before);
 });
 
+test('golden scorpion codex shares the task cave route without changing native identity or implying shop availability', () => {
+  const raw = require('../src/data/game-index.json');
+  const material = require('../src/data/material-guide.cjs').items[10498].routes[0];
+  const before = structuredClone(raw);
+  const item = encyclopedia().entries.find((row) => row.id === 'item-10498');
+  const { stats, acquisitionRoutes, ...native } = item;
+  assert.deepEqual(
+    native,
+    raw.entries.find((row) => row.id === item.id),
+  );
+  assert.equal(item.typeKey, 'QuestItem');
+  assert.equal(item.buyPrice, 1000);
+  assert.equal(item.sellPrice, 500);
+  assert.equal(acquisitionRoutes.length, 1);
+  assert.equal(acquisitionRoutes[0].questId, 16000);
+  assert.equal(acquisitionRoutes[0].detail, material.detail);
+  assert.equal(acquisitionRoutes[0].uncertainty, material.uncertainty);
+  assert.equal(acquisitionRoutes[0].placeId, 'place-75');
+  assert.equal(acquisitionRoutes[0].kind, 'combat');
+  assert.equal(new Set(acquisitionRoutes[0].sources.map((row) => row.author)).size, 2);
+  assert.deepEqual(raw, before);
+});
+
+test('Tanlang manual route links the later reconstruction choice without changing native item facts', () => {
+  const raw = require('../src/data/game-index.json');
+  const before = structuredClone(raw);
+  const entries = encyclopedia().entries;
+  const item = entries.find((row) => row.id === 'item-13362');
+  const { stats, acquisitionRoutes, ...native } = item;
+  assert.deepEqual(
+    native,
+    raw.entries.find((row) => row.id === item.id),
+  );
+  assert.equal(item.name, '贪狼枪法');
+  assert.equal(item.typeKey, 'SpearBook');
+  assert.equal(item.buyPrice, 6000);
+  assert.equal(item.sellPrice, 1200);
+  assert(entries.some((row) => row.id === 'skill-362' && row.name === item.name));
+  assert.equal(acquisitionRoutes.length, 1);
+  const route = acquisitionRoutes[0];
+  assert.equal(route.questId, 24020);
+  assert.match(
+    route.detail,
+    /天佛窟后.*峋谷关.*欧阳衡.*先另存.*两位社区作者.*贪狼枪法.*天机再现.*不把点选.*到账/,
+  );
+  assert.match(route.uncertainty, /全部前置.*未实测.*同意重建后.*不能保证本次已获得.*唯一来源/);
+  assert.equal(route.sources.length, 2);
+  assert.equal(new Set(route.sources.map((row) => row.author)).size, 2);
+  assert(route.sources.every((row) => row.date && row.version && row.url.startsWith('https://')));
+  assert.deepEqual(raw, before);
+});
+
 test('save detail filename validation and scan cache invalidation', (t) => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-detail-'));
   t.after(() => {

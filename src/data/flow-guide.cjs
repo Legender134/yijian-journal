@@ -1,5 +1,7 @@
 'use strict';
 const duelGuide = require('./duel-guide.cjs');
+const materialGuide = require('./material-guide.cjs');
+const goldenScorpionRoute = materialGuide.items[10498].routes[0];
 const wudangNightChest = {
   title: '武当夜间 · 祖师殿右侧宝箱',
   questId: 5830,
@@ -27,6 +29,15 @@ const changshengFormationReward = {
     '两位2025碧海仙踪作者均记第二战24回合目标及单人／三人路线的乘黄御风；鞋子等图纸记载略有不同。精确游戏构建未标，当前速杀阈值、奖励全部条件未实测；不保证本次可取得，也不证明其他来源不存在。',
   sourceIds: ['flow062FormationXu', 'biliChangshengChoice'],
 };
+const tianjiRebuildReward = {
+  title: '峋谷关 · 同意重建天机宫的后续',
+  questId: 24020,
+  detail:
+    '天佛窟后随玉龙吟到峋谷关，欧阳衡请求重建天机宫时，想保留该路线可先另存再同意。两位社区作者记这条路线有贪狼枪法秘籍与天机再现成就；随后按任务栏完成剧情，不把点选本身当作秘籍已经到账。',
+  uncertainty:
+    '社区版本化收集路线；当前构建的发放时点、全部前置及成就条件未实测。它是同意重建后的剧情收益线索，不能保证本次已获得，也不证明这是唯一来源。',
+  sourceIds: ['flow063TianjiXu', 'gs52'],
+};
 // Community flow clues; unknown task records never prove availability.
 module.exports = {
   itemRoutes: {
@@ -34,9 +45,29 @@ module.exports = {
     140: [wudangNightChest],
     10393: [xiaotongWoodenSword],
     13721: [changshengFormationReward],
+    13362: [tianjiRebuildReward],
+    10498: [{ ...goldenScorpionRoute, title: goldenScorpionRoute.label, questId: 16000 }],
   },
   sources: {
     ...duelGuide.sources,
+    ...Object.fromEntries(goldenScorpionRoute.sourceIds.map((id) => [id, materialGuide.sources[id]])),
+    flow063SouthXu: {
+      title: '虚饮茶：通幽沼、景陇之约、长生殿与返回中原',
+      author: '虚饮茶',
+      url: 'https://www.bilibili.com/opus/1090176752596025364',
+      date: '2025-07-16 19:22',
+      version: '碧海仙踪流程；具体构建未标',
+      confidence: '已读相邻主线与南疆结束后的丐帮求援；只作节点衔接参考，不证明任务已接取或解锁。',
+    },
+    flow063TianjiXu: {
+      title: '虚饮茶：掌门承诺、后期接任与重建天机宫',
+      author: '虚饮茶',
+      url: 'https://www.bilibili.com/opus/1090176752596025364',
+      date: '2025-07-16 19:22',
+      version: '碧海仙踪流程；具体构建未标',
+      confidence:
+        '已读初次承诺、天佛窟后接任与欧阳衡请求三个独立段落；支持阶段顺序和重建取舍，不把后期接任记录当作最初的隐藏选择标记，也不保证全部结局条件。',
+    },
     flow062OriginalRoute: {
       title: '木林风：玄火不灭、重返武当与天山决战',
       author: '木林风',
@@ -379,6 +410,7 @@ module.exports = {
     },
     gs48: {
       title: '全图鉴全成就流程：长生殿后、返回武当前的准备',
+      author: '力拔山兮气盖世呐 · 游民转载',
       url: 'https://www.gamersky.com/handbook/202608/2188490_48.shtml',
       date: '2026-08-13',
       version: '正文声明 ver1.24.25',
@@ -519,6 +551,7 @@ module.exports = {
     },
     gs52: {
       title: '全图鉴全成就流程：天佛窟、武当、峋谷关',
+      author: '力拔山兮气盖世呐 · 游民星空转载',
       url: 'https://www.gamersky.com/handbook/202608/2188490_52.shtml',
       date: '2026-08-13',
       version: '正文声明 ver1.24.25；部分章节另记后续更新',
@@ -597,6 +630,9 @@ module.exports = {
   },
   // Sourced story transitions, independent of quest-ID order or unlock status.
   milestones: {
+    8499: { next: 8800, sourceIds: ['flow063SouthXu', 'biliChangshengRoute'] },
+    8800: { next: 8830, sourceIds: ['flow063SouthXu', 'biliChangshengRoute'] },
+    8830: { next: 5920, sourceIds: ['flow063SouthXu', 'gs48'] },
     6050: { next: 6080, sourceIds: ['flow062LinyaFinale', 'flow062OriginalRoute'] },
     6080: { next: 6110, sourceIds: ['flow062LinyaFinale', 'flow062OriginalRoute'] },
     6110: { next: 6150, sourceIds: ['flow062LinyaFinale', 'flow062OriginalRoute'] },
@@ -2779,18 +2815,23 @@ module.exports = {
     },
     {
       id: 'ending-commitment',
+      kind: 'stage',
       recommendation: {
         goal: '优先保留天机宫、救商颂与武学收集路线',
-        action: '与清虚谈接任时，先另存一份，默认选「不愿意」；后续仍须核对重建天机宫。',
+        action:
+          '玄火神丹回报后、与清虚作初次掌门表态时，先另存一份，默认选「不愿意」；后续仍须核对重建天机宫。',
         reason:
           '答应掌门会关闭天机宫主方向，并影响救商颂；暂不承诺可保留这些后续，所引流程还记贪狼枪法收益。',
         tradeoff: '这一周目不走掌门承诺路线。若目标就是掌门，改选愿意；两条互斥，不能保证一份进度同时完成。',
       },
-      title: '后期承诺：掌门与重建天机宫路线',
+      title: '清虚初次承诺：掌门与重建天机宫路线',
       questId: null,
-      chapterRoots: [5980, 20000, 22000, 24000, 24020],
+      chapterRoots: [5980, 20000],
       afterAllComplete: [],
-      untilAnyStarted: [],
+      untilAnyStarted: [
+        22000, 22050, 22060, 22100, 22170, 24000, 24011, 24012, 24013, 24014, 24015, 24016, 24020,
+      ],
+      untilAnyComplete: [20000, 22000, 22100, 22170, 24000],
       deadlineLabel: '',
       pickup: {
         place: '武当；后续峋谷关',
@@ -2812,9 +2853,117 @@ module.exports = {
           effect: '保留天机宫主方向；仍需满足后续剧情与重建选择。',
         },
       ],
-      sourceIds: ['gs50', 'gs52', 'gs53'],
+      sourceIds: ['gs50', 'gs52', 'gs53', 'flow063TianjiXu'],
       uncertainty:
-        '初次承诺的隐藏根未确认，不能误挂天佛窟后武当之事24000。源文对掌门、宗师图鉴名称表述不同，未承诺精确评分与全部结局条件。',
+        '初次承诺的隐藏根未确认，不能把天佛窟后的接任记录当作当初的愿意或不愿意标记。社区将初次表态安排在少林剑决前的玄火神丹回报后；已进入天佛窟主线或后期接任时撤下当前预选提醒，完整资料仍可回看。源文对掌门、宗师图鉴名称表述不同，未承诺精确评分与全部结局条件。',
     },
+    {
+      id: 'tianji-rebuild-choice',
+      kind: 'stage',
+      title: '欧阳衡的请求：选择是否重建天机宫',
+      questId: 24020,
+      requireDecisionWindow: true,
+      chapterRoots: [],
+      afterAllComplete: [],
+      decisionSteps: [24062, 24069],
+      decisionAfterAnyComplete: [24062, 24069],
+      untilAnyStarted: [24088, 24089],
+      untilAnyComplete: [24063, 24064, 24065, 24066, 24067, 24068, 24070, 24071, 24072, 24073, 24074],
+      deadlineLabel: '欧阳衡请求之后、保存重建或回绝分支之前',
+      pickup: {
+        place: '峋谷关 · 换衣后离开时的剧情',
+        person: '欧阳衡；叶飞',
+        action: '出现欧阳衡的请求时先另存，再按本周目的结局与收集目标回答。',
+      },
+      recommendation: {
+        hint: '欧阳衡请求：想保留后续与收集时同意重建',
+        goal: '优先保留重建天机宫、商颂后续与武学收集路线',
+        action: '先另存；若游戏提供该选项且想保留这条路线，选「重建天机宫」，随后按任务栏完成剧情。',
+        reason: '两位独立作者都记同意路线可得贪狼枪法秘籍与天机再现成就；虚饮茶还将回绝与后续商颂身亡关联。',
+        tradeoff:
+          '同意与回绝不能在同一份进度同时选择。若想看回绝剧情，先留另一份记录；早先掌门承诺可能限制选项，不能保证当前可选或一次选择就满足所有结局条件。',
+      },
+      warning: '重建与回绝会改变天机宫收集及商颂后续；请在保存选答前核对取舍。',
+      advanceEffects: [
+        {
+          name: '重建天机宫、天机再现与贪狼枪法收集',
+          scope: 'story',
+          effect: '社区流程把重建、成就及秘籍关联到同意路线；回绝不会取得该路线收益，发放仍需后续剧情。',
+          evidence: '两位独立作者的版本化流程；实际秘籍发放仍须核对当前游戏，未验证本次取得。',
+        },
+        {
+          name: '玄火教救援与商颂后续',
+          scope: 'continue',
+          effect:
+            '虚饮茶记回绝后商颂会死，想保留救援方向时同意重建；仍需完成天山与玄火教后续，不等于此时已救成功。',
+          evidence: '2025碧海仙踪作者流程，不作为所有构建或全部隐藏条件的保证。',
+        },
+      ],
+      steps: [
+        '核对当前保存步骤为欧阳衡的请求，先保留一份可回读记录；这不是早先向清虚表态的场景。',
+        '以保留后续和收集为目标时选重建天机宫，想看回绝分支则在另一份记录探索。',
+        '同意后按剧情继续，核对贪狼枪法秘籍是否到账；之后先去天山，再按任务栏继续玄火教救援。',
+      ],
+      choices: [
+        { label: '重建天机宫', effect: '社区记天机再现成就、贪狼枪法秘籍与后续救援方向；仍需完成后续剧情。' },
+        { label: '回绝此事', effect: '不走重建路线；虚饮茶记没有该路线收益并关联后续商颂身亡，可另档探索。' },
+      ],
+      sourceIds: ['flow063TianjiXu', 'gs52'],
+      uncertainty:
+        '提示只依据已保存的欧阳衡请求，未保存的对话不能识别。初次掌门承诺、实际可选项及结局条件仍以当前游戏为准。',
+    },
+    ...[
+      { step: 24064, accepted: true },
+      { step: 24071, accepted: true },
+      { step: 24067, accepted: false },
+      { step: 24074, accepted: false },
+    ].map(({ step, accepted }) => ({
+      id: `tianji-rebuild-saved-${step}`,
+      kind: 'stage',
+      proactive: true,
+      severity: 'reminder',
+      title: accepted ? '已保存重建天机宫：继续核对秘籍与后续救援' : '已保存回绝重建：按当前路线继续',
+      questId: null,
+      requireStageMatch: true,
+      chapterRoots: [24020],
+      afterAllComplete: [step],
+      afterLabels: { [step]: accepted ? '同意重建分支' : '回绝重建分支' },
+      untilAnyStarted: [],
+      untilAnyComplete: [24020, ...(accepted ? [24067, 24074] : [24064, 24071])],
+      untilAnyFailed: [24020],
+      deadlineLabel: '',
+      pickup: {
+        place: '峋谷关 → 天山 → 玄火教；以当前任务栏为准',
+        person: '欧阳衡；叶飞；商颂',
+        action: accepted
+          ? '按玉龙吟继续剧情，核对重建路线的秘籍及后续救援。'
+          : '按玉龙吟当前行动继续；想改选时先核对选择前的另一份记录。',
+      },
+      recommendation: {
+        goal: accepted ? '把已选择的重建路线继续做完' : '按已保存的回绝路线继续，不折返旧选择',
+        action: accepted
+          ? '同意已经保存，按当前任务栏继续；核对贪狼枪法秘籍到账，随后完成天山和玄火教救援，不把同意当作商颂已获救。'
+          : '回绝已经保存，按当前任务栏继续。若想改走重建路线，先核对选择前的另一份记录；不能在当前已保存分支重新作早先的掌门选择。',
+        reason: '这份存档已有对应选择分支，应结束选择前建议，改看当前路线的下一步。',
+        tradeoff:
+          '社区收益与人物后果有版本和隐藏前置限制；回读会放弃此后进度，当前分支与另一分支不能同次兼得。',
+      },
+      warning: accepted
+        ? '重建分支已保存，继续核对秘籍和后续救援；不重复推荐尚未选择。'
+        : '回绝分支已保存，按当前路线继续；另一分支需选择前的记录。',
+      steps: accepted
+        ? [
+            '核对已保存的同意分支和当前任务栏；贪狼枪法秘籍未到账时先继续剧情，不把它当作已经持有。',
+            '按玉龙吟先前往天山，后续再核对玄火教救援及商颂结果。',
+          ]
+        : [
+            '核对已保存的回绝分支并继续玉龙吟。',
+            '想看重建路线时使用选择前另存的记录；先确认保护副本，再自行决定是否回读。',
+          ],
+      choices: [],
+      sourceIds: ['flow063TianjiXu', 'gs52'],
+      uncertainty:
+        '分支依据已保存的重建或回绝结果，不把它当作最初掌门表态。后续人物生死、秘籍实际持有及全部结局条件仍需核对。',
+    })),
   ],
 };

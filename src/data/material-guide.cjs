@@ -4,6 +4,22 @@
 // Cooldown units, per-action quantities and actual drop probabilities remain unverified.
 module.exports = {
   sources: {
+    'material-scorpion-xu': {
+      title: '虚饮茶：拜师后猴儿林寻蝎与交付分支',
+      author: '虚饮茶',
+      url: 'https://www.bilibili.com/opus/1090176314524041253',
+      date: '2025-07-16 19:20',
+      version: '碧海仙踪流程；具体构建未标',
+      confidence: '已读猴儿林左上山洞、拜师前后差异与三条交付路线；当前出现条件和战斗难度未实测。',
+    },
+    'material-scorpion-song': {
+      title: '宋确：猴儿林山洞与异种金蝎的交付取舍',
+      author: '宋确',
+      url: 'https://www.bilibili.com/opus/1083464358677184516',
+      date: '编辑于2025-07-26 16:06',
+      version: '烟尘回响与碧海仙踪自用路线；具体构建未标',
+      confidence: '已读拜师后的清河村、猴儿林最里面左侧山洞与交蝎分支；不套用修改多只金蝎的路线。',
+    },
     'material-wiki-05': {
       title: '逸剑风云决Wiki：物品/铁矿石',
       url: 'https://yijianwiki.cn/index.php?title=%E7%89%A9%E5%93%81%2F%E9%93%81%E7%9F%BF%E7%9F%B3&oldid=43601',
@@ -181,6 +197,23 @@ module.exports = {
     },
   },
   items: {
+    10498: {
+      name: '异种金蝎',
+      routes: [
+        {
+          kind: 'combat',
+          label: '猴儿林左上山洞 · 无名岩洞',
+          placeId: 'place-75',
+          detail:
+            '两位社区作者都在拜师武当后前往猴儿林左上、深处左侧的山洞寻找异种金蝎；先留可回读进度，击败洞内金蝎后核对背包。出洞遇娜乌时先选定路线，想走药圣线就拒绝索蝎、留给姑苏柳麻衣；娜乌与毒物商人路线的收益不同。',
+          efficiency:
+            '该委托需1只；已有可直接核对交付。需跑图和战斗，虚饮茶提醒初期可能打不过，可整备后再来。没有可确认的刷新、重复取得或单位时间产量，不按普通蝎子刷取。',
+          uncertainty:
+            '版本化社区来源，不证明当前洞内一定有金蝎或玩家一定能打赢；普通流程三条交付线互斥，不能把同一只交给多人，也不保证全部后续条件。',
+          sourceIds: ['material-scorpion-xu', 'material-scorpion-song'],
+        },
+      ],
+    },
     10261: {
       name: '白芍',
       routes: [
