@@ -1,9 +1,56 @@
 'use strict';
 const duelGuide = require('./duel-guide.cjs');
+const wudangNightChest = {
+  title: '武当夜间 · 祖师殿右侧宝箱',
+  questId: 5830,
+  detail:
+    '天水归来、赞成程钰留在武当后，去伙房喝粥前先核对祖师殿右侧宝箱。攻略列清风步秘籍、二转洗髓丹；拿过可跳过。',
+  uncertainty:
+    '社区路线，不是宝箱当前未开启的证明。2025作者记过时不候，2026流程列两件奖励；当前构建的精确失效时点未实测，也不表示这是物品的唯一来源。',
+  sourceIds: ['flow061WudangNight', 'npc053WudangReturn'],
+};
 // Community flow clues; unknown task records never prove availability.
 module.exports = {
+  itemRoutes: { 13701: [wudangNightChest], 140: [wudangNightChest] },
   sources: {
     ...duelGuide.sources,
+    flow061WudangNight: {
+      title: '三瓶卡尔：天水归来后的武当夜间宝箱',
+      url: 'https://www.bilibili.com/opus/1085489014869327875',
+      date: '2025-07-14 23:27（编辑）',
+      version: '作者称双DLC完成流程；具体构建未标',
+      confidence:
+        '正文在留住程钰、喝粥前标注祖师殿右侧秘籍宝箱过时不候；奖励名称与2026独立流程交叉核对，未实测当前截止。',
+    },
+    flow061DamoXu: {
+      title: '虚饮茶：天佛窟前的达摩武经与队伍整备',
+      url: 'https://www.bilibili.com/opus/1090176752596025364',
+      date: '2025-07-16 19:22',
+      version: '碧海仙踪流程；具体构建未标',
+      confidence: '作者明确报告跳过佛生诸想的断臂、无法战斗后果；未实测当前构建的精确触发步骤。',
+    },
+    flow061DamoCat: {
+      title: '猫耳稀神サグメ：佛生诸想与天佛窟分支',
+      url: 'https://www.bilibili.com/opus/1096462471632257045',
+      date: '2025-08-02 17:54',
+      version: '作者标注 v1.24.29、极难8+0',
+      confidence: '独立流程支持达摩洞调查、三战与出发前整备；后文非完美路线断臂不能简化为唯一由此任务决定。',
+    },
+    flow061Kushui: {
+      title: 'shuffleDJ_共祭：碧海仙踪甘泉苦水、再探苦水与涤罪僧招募',
+      url: 'https://www.bilibili.com/opus/1088626943739297793',
+      date: '2025-07-12 15:08；作者记当日完成',
+      version: '碧海仙踪版；具体构建未标',
+      confidence: '独立作者实玩流程；首访村长前置与后续招募关联，未在当前游戏构建实测最后截止步骤。',
+    },
+    flow061KushuiVideo: {
+      title: '蹬车进村：甘泉苦水、再探苦水（上）',
+      url: 'https://www.bilibili.com/video/BV18Q4y1G7JN/',
+      date: '2023-12-13 01:19:57',
+      version: '旧正式版视频的作者说明；具体构建未标',
+      confidence:
+        '已读独立作者说明；支持先访村长、再带冷鹰调查和苍岚至天水顺序，未把说明中的战力和奖励当作当前实测。',
+    },
     biliWeapon: {
       title: '继承点选择与武当入门功法',
       url: 'https://www.bilibili.com/opus/994077546563764225',
@@ -477,6 +524,210 @@ module.exports = {
     24000: { next: 24020, sourceIds: ['biliLateFlow', 'gs52'] },
   },
   rules: [
+    {
+      id: 'wudang-night-chest-before-porridge',
+      kind: 'stage',
+      title: '喝粥前：先核对祖师殿右侧夜间宝箱',
+      questId: null,
+      chapterRoots: [],
+      stageSteps: [5830],
+      requireStageMatch: true,
+      afterAllComplete: [5829],
+      untilAnyStarted: [5831, 5832, 5833, 5835],
+      untilAnyComplete: [5830],
+      deadlineLabel: '天水归来留住程钰、前往伙房喝粥及休息之前；精确失效时点未实测',
+      pickup: {
+        place: '武当夜间 · 祖师殿右侧宝箱',
+        person: '',
+        action: wudangNightChest.detail,
+      },
+      recommendation: {
+        hint: '喝粥前：先查祖师殿右侧宝箱',
+        goal: '优先保留当晚的秘籍与丹药收集机会',
+        action: '先核对祖师殿右侧宝箱，取清风步秘籍、二转洗髓丹后再去伙房喝粥；已经拿过可直接继续。',
+        reason: '两位独立作者都把这次夜间取箱安排在喝粥前，2025作者提醒过时不候，2026流程列出两件奖励。',
+        tradeoff:
+          '需要在武当多走一小段；是否已开箱、精确失效条件尚不能自动读取，不必仅因背包没有秘籍就重复寻找。',
+      },
+      warning: '喝粥前先核对祖师殿右侧夜间宝箱：社区列清风步秘籍、二转洗髓丹，并提醒别留到之后；拿过可跳过。',
+      advanceEffects: [
+        {
+          name: '当晚祖师殿宝箱的清风步秘籍、二转洗髓丹',
+          scope: 'phase',
+          effect:
+            '喝粥、休息会继续当晚剧情。2025作者记此箱过时不候，建议推进前取；当前构建的精确失效时点未实测，不能据已推进就判物品永久不可得。',
+        },
+      ],
+      steps: [
+        '带程钰返武当、赞成留下后，确认当前仍是前往伙房喝粥的夜间步骤。',
+        wudangNightChest.detail,
+        '确认收集后再喝粥、休息，继续道玄与莫离的剧情；无需为拿过的宝箱重复跑图。',
+      ],
+      choices: [],
+      sourceIds: wudangNightChest.sourceIds,
+      uncertainty: wudangNightChest.uncertainty,
+    },
+    {
+      id: 'damo-before-tianfo-departure',
+      kind: 'stage',
+      title: '誓师出发前：先核对佛生诸想与涤罪僧整备',
+      questId: 23020,
+      chapterRoots: [22100],
+      afterAllComplete: [],
+      untilAnyStarted: [22170, 22171, 22179, 24000, 24020],
+      untilAnyComplete: [23070],
+      deadlineLabel: '无瘢刀的誓师大会、启程天佛窟之前；精确内部截止未实测',
+      pickup: {
+        place: '少林寺圆悟处 → 左上禁地达摩洞 → 囚室；整备后再回武当誓师',
+        person: '圆悟；涤罪僧',
+        action: '核对少林山门剧情、竹简与佛生诸想任务栏，找圆悟问线索，再入达摩洞调查、修行。',
+      },
+      recommendation: {
+        hint: '誓师前：先完成佛生诸想，整备涤罪僧与出战队友',
+        goal: '优先保留涤罪僧的战斗能力与达摩武经路线',
+        action:
+          '先另存可回读进度；把佛生诸想的达摩洞调查和三场修行做完，补好装备、武学、气血内力与补给，再参与誓师。',
+        reason:
+          '虚饮茶报告跳过本段直接赴天佛窟会使涤罪僧断臂、无法战斗；另一位1.24.29作者也先完成本段并记非完美路线断臂。',
+        tradeoff:
+          '多一段调查与三场战斗；若专收断臂图鉴，应保留分支前的不同存档。完成本任务不保证天佛窟全部完美条件，不能把后续所有结果都归于这一项。',
+      },
+      warning: '誓师前先核对「佛生诸想」：社区报告跳过达摩武经修行会影响涤罪僧后续战斗能力；出发前整备队伍。',
+      advanceEffects: [
+        {
+          questId: 23020,
+          scope: 'continue',
+          effect:
+            '建议在武当誓师、启程天佛窟前完成达摩洞调查与三场修行。当前构建的精确截止未实测，已接任务也不自动视为完成。',
+        },
+        {
+          name: '涤罪僧的战斗能力与断臂图鉴',
+          scope: 'continue',
+          effect:
+            '2025攻略记跳过本任务会走断臂、无法战斗及专属图鉴路线；想保留战斗能力时优先完成，专看另一分支用另档。',
+          evidence: '社区版本化后果，不是已读取到涤罪僧当前断臂状态，也不保证完成一项就满足全部完美条件。',
+        },
+        {
+          name: '天佛窟期间的队伍整备与自由活动',
+          scope: 'continue',
+          effect:
+            '作者记出发后部分队友分批离队、任务期间无法离开天佛窟；先核对各出战队友装备、武学及补给，再确认出发。',
+        },
+      ],
+      steps: [
+        '在少林山门剧情后核对佛生诸想与圆觉的竹简线索；没接到时先找圆悟、涤罪僧和任务栏确认，不据空记录断言可接。',
+        '进少林左上禁地达摩洞，调查经文、外侧通道、画像、刀架；找不到机关时再询问圆悟。',
+        '进入囚室后检查血字墙、蒲团、铁索；修行前另存，确认主力与涤罪僧的装备、武学和补给。',
+        '按任务栏完成同参绝技、同参心法与达摩秘传三场修行。若仍显示继续参悟，先核对是否已经完成，不把开始修行当作完成。',
+        '完成想保留的支线与队伍整备后，再回武当参加誓师大会；想探索断臂图鉴则从分支前另档走。',
+      ],
+      choices: [],
+      sourceIds: ['flow061DamoXu', 'flow061DamoCat'],
+      uncertainty:
+        '静态任务数据核对了达摩洞调查、准备和三段参悟记录；伤残后果及活动限制来自社区，未验证每个版本与隐藏条件。已有完成、失败或出征记录后撤下当前提醒，仍可查完整攻略。',
+    },
+    {
+      id: 'kushui-chief-before-qiongshan',
+      kind: 'stage',
+      title: '穷山出发前：先访苦水村村长，保留涤罪僧线索',
+      questId: 13250,
+      chapterRoots: [],
+      stageSteps: [12819, 12831, 12838, 12839, 12841, 12842, 12843, 12844, 12875, 12881],
+      afterAllComplete: [],
+      untilAnyStarted: [12896, 12905, 12910, 13000, 13250],
+      untilAnyComplete: [13269],
+      deadlineLabel: '四方求援、与冷鹰出发刺探穷山之前核对；精确最后截止仍需确认',
+      pickup: {
+        place: '苦水村入口内的村长处；之后返回甘泉村',
+        person: '苦水村村长；冷鹰',
+        action: '先到苦水村和村长交谈，确认首访剧情，再继续求援及刺探穷山。',
+      },
+      recommendation: {
+        hint: '穷山出发前：先与苦水村村长交谈',
+        goal: '优先保留再探苦水及涤罪僧后续招募路线',
+        action: '若尚未首访，先去苦水村找村长，完成交谈后再继续四方求援、随冷鹰赴穷山。',
+        reason: '两位独立作者把首访村长放在穷山之前；2025攻略明确将此作为再探苦水、涤罪僧招募的前置。',
+        tradeoff:
+          '需要额外回访；已看过首访剧情即可继续，不必重复跑图。没有读到首访事件，不能据此判定已错过。',
+      },
+      warning: '赴穷山前先核对苦水村村长的首访剧情：社区记这会影响「再探苦水」及后续涤罪僧招募。',
+      advanceEffects: [
+        {
+          questId: 13250,
+          scope: 'accept',
+          effect:
+            '2025攻略报告漏掉首访村长会无法触发再探苦水；建议穷山出发前完成。当前构建的精确截止未实测。',
+          evidence: '独立社区路线与当前任务文字交叉核对；存档未提供首访事件的可靠识别。',
+        },
+        {
+          name: '涤罪僧后续招募',
+          scope: 'continue',
+          effect: '作者将再探苦水关联后续入队；未做首访应先核对，不直接判定涤罪僧已经无法招募。',
+        },
+      ],
+      steps: [
+        '先去苦水村入口内找村长，完成首访交谈；这次与穷山之后的回访不是同一次。',
+        '继续四方求援与穷山调查，出发前确认冷鹰同行并整备。',
+        '完成据点调查后先考虑再访苦水村，进入村内墓地调查，再按线索去苍岚村与天水。',
+      ],
+      choices: [],
+      sourceIds: ['flow061Kushui', 'flow061KushuiVideo'],
+      uncertainty:
+        '首访剧情属于未可靠识别的事件，不能用没有再探苦水记录推断首访未做；提醒只在已保存的早期甘泉、穷山步骤出现。',
+    },
+    {
+      id: 'kushui-return-before-ganquan',
+      title: '穷山归来：再探苦水，沿涤罪僧线索到苍岚、天水',
+      questId: 13250,
+      chapterRoots: [],
+      stageSteps: [12905, 12910, 13001],
+      afterAllComplete: [],
+      untilAnyStarted: [13006, 13026, 13046, 13081, 13085, 13090, 13280, 13300],
+      untilAnyComplete: [13269],
+      deadlineLabel: '穷山调查归来、甘泉休整及赴一线天之前优先核对；不把回村直接当作永久截止',
+      pickup: {
+        place: '苦水村右侧墓地 → 苍岚村铁匠左侧高地 → 天水外城城墙 → 程家堡',
+        person: '冷鹰；涤罪僧',
+        action: '核对首访村长与冷鹰在队，再去苦水村墓地触发调查，按苍岚、天水、程家堡顺序跟进。',
+      },
+      recommendation: {
+        hint: '穷山归来：先带冷鹰再探苦水',
+        goal: '优先保留涤罪僧剧情与后续招募',
+        action:
+          '先留可回读进度，确认之前访过苦水村村长及冷鹰当前在队；回访苦水村右侧墓地，再追往苍岚村和天水。',
+        reason: '两位独立作者都在穷山之后安排第二次苦水村调查；本地再探苦水文字明确要求冷鹰在队。',
+        tradeoff:
+          '需要多段跑图与剧情战斗，先整备冷鹰；如果已经回到甘泉，仍先检查任务栏和冷鹰能否同行，不因旧版路线顺序就判定失败。',
+      },
+      warning: '穷山归来先核对「再探苦水」：需此前访过村长并带冷鹰调查墓地，后接苍岚、天水与涤罪僧招募路线。',
+      advanceEffects: [
+        {
+          questId: 13250,
+          scope: 'accept',
+          effect:
+            '先确认首访村长和冷鹰同行，再回苦水村触发。已回甘泉仍应核对能否继续，不把回村或无任务记录直接判为错过。',
+          evidence:
+            '2025攻略把回访安排在甘泉休整后；另一作者在穷山出来后先调查。顺序有差异，精确截止未实测。',
+        },
+        {
+          name: '涤罪僧后续招募',
+          scope: 'continue',
+          effect:
+            '再探苦水是社区记载的招募前置。完成本段仍需一线天后续及拜谒神鹰门等流程，不会立刻正式入队。',
+        },
+      ],
+      steps: [
+        '核对之前是否来过苦水村并与村长交谈；冷鹰必须能同行。未触发时检查这两项，不要直接继续一线天。',
+        '与冷鹰回苦水村，向右到村长家附近墓地调查；出现再探苦水后按任务栏继续。',
+        '到苍岚村铁匠左侧高地寻找涤罪僧，整备后完成剧情战斗。',
+        '追到天水外城城墙与涤罪僧交谈；临时入队后随他去程家堡，完成除掉程万清及离开程家堡。',
+        '继续甘泉、一线天后续；2025攻略在拜谒神鹰门、冷鹰正式入队后，再去少林寺后院找涤罪僧招募。临时同行不等于正式招募成功。',
+      ],
+      choices: [],
+      sourceIds: ['flow061Kushui', 'flow061KushuiVideo'],
+      uncertainty:
+        '已接步骤按任务栏前进；首访事件和当前队伍未可靠识别。仅凭没有13250记录不能断言可接或失败。提示依保存步骤出现，未保存的对话不会触发即时更新。',
+    },
     {
       id: 'ganquan-prison-before-yixiantian',
       kind: 'stage',

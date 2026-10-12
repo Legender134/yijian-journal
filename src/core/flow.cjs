@@ -412,7 +412,13 @@ function createFlowProjector({
       const failed = status === 2;
       const anchors = rule.afterAllComplete || [];
       const anchorsMet = anchors.length > 0 && anchors.every((id) => step(id) === 4);
-      const stageMatch = main && (rule.chapterRoots || []).includes(main.gameId);
+      // Side-story windows follow their saved steps, independently of the tracked main quest.
+      const stageMatch =
+        (main && (rule.chapterRoots || []).includes(main.gameId)) ||
+        (rule.stageSteps || []).some((id) => {
+          const task = quests.get(id);
+          return task && step(id) === 1 && !blocked(task);
+        });
       const relevant =
         activeRule ||
         (rule.requireStageMatch ? stageMatch && (!anchors.length || anchorsMet) : stageMatch || anchorsMet);
