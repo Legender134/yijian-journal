@@ -33,7 +33,11 @@ function fixture() {
     revision: 'synthetic-revision',
     token: 'a'.repeat(64),
     timeline: {
-      data: { source: path.join('synthetic-only', '76561190000000000', 'SaveGames'), pending: null, nativeProtocol: 2 },
+      data: {
+        source: path.join('synthetic-only', '76561190000000000', 'SaveGames'),
+        pending: null,
+        nativeProtocol: 2,
+      },
       summary: () => ({ enabled: true, pending: bridge.timeline.data.pending }),
     },
     grantBinding: 'inert synthetic fixture; no command is dispatched',
@@ -104,6 +108,55 @@ test('passive, battle and busy hints avoid compatibility scans and respond immed
     assert.equal(s.bridge.hintQuiet(), false, 'no valid connection means passive hints');
   }
   assert.equal(s.counts().checks, 1);
+});
+
+test('dialogue keeps saved-progress hints visible while native save and load remain blocked', async () => {
+  const s = fixture();
+  s.pulse({ ...s.state(), ready: false, reason: '菜单或对话中暂停保存' });
+  assert.equal(s.bridge.hintQuiet(), false);
+  assert.equal(s.bridge.summary().ready, false);
+  for (const verb of ['save', 'load']) {
+    await assert.rejects(s.bridge.request('synthetic-not-dispatched', verb), (error) => {
+      assert.equal(error.skipped, true);
+      assert.equal(error.notDispatched, true);
+      assert.match(error.message, /菜单或对话中暂停保存/);
+      return true;
+    });
+  }
+});
+
+test('dialogue hint visibility retains battle, unavailable and pending-operation guards', () => {
+  const s = fixture();
+  const pulse = { ...s.state(), ready: false, reason: '菜单或对话中暂停保存' };
+  s.pulse(pulse);
+  assert.equal(s.bridge.hintQuiet(), false);
+  for (const reason of [
+    '战斗、过场或切换场景中暂停保存',
+    '正在读档',
+    '正在保存',
+    '等待进入可游玩场景',
+    '',
+    '未知状态',
+  ]) {
+    s.pulse({ ...pulse, reason });
+    assert.equal(s.bridge.hintQuiet(), true, reason);
+  }
+  s.pulse(pulse);
+  for (const property of ['busy', 'loadQueued', 'quiescing', 'disposed']) {
+    s.bridge[property] = true;
+    assert.equal(s.bridge.hintQuiet(), true, property);
+    s.bridge[property] = false;
+    assert.equal(s.bridge.hintQuiet(), false, property);
+  }
+  s.bridge.timeline.data.pending = { id: 'synthetic-only' };
+  assert.equal(s.bridge.hintQuiet(), true);
+  s.bridge.timeline.data.pending = null;
+  s.blocked(true);
+  assert.equal(s.bridge.hintQuiet(), true);
+  s.blocked(false);
+  s.installed(false);
+  s.bridge.summary();
+  assert.equal(s.bridge.hintQuiet(), true, 'dialogue cannot bypass current component/account availability');
 });
 
 test('healthy hint polls share a five-second availability snapshot and fresh summaries invalidate it', () => {

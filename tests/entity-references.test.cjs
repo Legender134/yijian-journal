@@ -200,6 +200,71 @@ test('detailed relations remain traversable, typed and escaped with per-step sta
   assert.match(person, /不推断亲属/);
 });
 
+test('community pickup clues follow exact NPC identity and root or child tasks without implying live location', async () => {
+  const [{ entityCatalog }, { createEntityReferences }, { createEntityDetailViews }] = await loaded;
+  const index = fixture(),
+    data = entityCatalog(index);
+  const view = createEntityDetailViews({
+    esc,
+    act: (action, label, cls, id) => `<button data-action="${action}" data-id="${esc(id)}">${label}</button>`,
+    pill: esc,
+    richText: factory(createEntityReferences, index).text,
+    guide: () => [
+      {
+        questId: 100,
+        pickup: { personId: 'npc-2', place: '<城门>西侧', action: '找莫弃问询后核对金疮药。' },
+        uncertainty: '不同版本位置待核对。',
+        sources: [{ id: 'flow:place', title: '<作者>', date: '2025-01-21', version: '具体构建未标' }],
+      },
+    ],
+  });
+  for (const id of ['quest-100', 'quest-101']) {
+    const html = view.task(index, data.entries.get(id), null);
+    assert.match(html, /data-community-pickup/);
+    assert.match(html, /&lt;城门&gt;西侧/);
+    assert.match(html, /data-id="npc-2"/);
+    assert.match(html, /data-entity-id="item-11"/);
+    assert.match(html, /data-action="entity-choice" data-id="name:莫弃"/);
+    assert.match(html, /不代表人物当前在场、任务可接或本步骤的目的地/);
+    assert.match(html, /data-action="source" data-id="flow:place">&lt;作者&gt;/);
+    assert.match(html, /2025-01-21 · 具体构建未标/);
+    assert(!html.includes('<城门>'));
+  }
+  assert.match(view.person(index, data.entries.get('npc-2'), null), /data-community-pickup/);
+  assert.doesNotMatch(view.person(index, data.entries.get('npc-3'), null), /data-community-pickup/);
+  assert.doesNotMatch(view.task(index, data.entries.get('quest-200'), null), /data-community-pickup/);
+});
+
+test('shipped merchant location connects NPC, root and exchange-step codex with material references and dated sources', async () => {
+  const [{ entityCatalog }, { createEntityReferences }, { createEntityDetailViews }] = await loaded;
+  const { flowSnapshot } = require('../src/core/flow.cjs');
+  const index = encyclopedia(),
+    data = entityCatalog(index);
+  const view = createEntityDetailViews({
+    esc,
+    act: (action, label, cls, id) => `<button data-action="${action}" data-id="${esc(id)}">${label}</button>`,
+    pill: esc,
+    richText: factory(createEntityReferences, index).text,
+    guide: () => flowSnapshot({ id: 'lookup', referenceMode: 'none' }, null).guide,
+  });
+  for (const [type, id] of [
+    ['person', 'npc-16030'],
+    ['task', 'quest-18500'],
+    ['task', 'quest-18501'],
+  ]) {
+    const html = view[type](index, data.entries.get(id), null);
+    assert.match(html, /data-community-pickup/);
+    assert.match(html, /天水城.*客栈院内.*门口/);
+    assert.match(html, /data-id="quest-18500"/);
+    assert.match(html, /data-entity-id="item-10306"/);
+    assert.match(html, /10 个/);
+    assert.match(html, /2025-01-21.*2025-07-16/s);
+    assert.match(html, /flow:flow064MerchantStar/);
+    assert.match(html, /flow:flow064MerchantXu/);
+    assert.match(html, /具体构建未标/);
+  }
+});
+
 test('shipped character and root quest relationships include actual descendants and preserve exact IDs', async () => {
   const [{ entityCatalog }] = await loaded,
     index = encyclopedia(),
