@@ -466,6 +466,18 @@ function createFlowProjector({
         });
       return {
         ...rule,
+        recommendation: rule.recommendation
+          ? {
+              ...rule.recommendation,
+              materials: decisionActive
+                ? (rule.recommendation.materialQuestIds || []).flatMap((id) => {
+                    const task = quests.get(id);
+                    if (!task || rootOf(task)?.gameId !== rule.questId) return [];
+                    return projectStep(task).materials;
+                  })
+                : [],
+            }
+          : undefined,
         name: rule.title,
         activeRule,
         done,

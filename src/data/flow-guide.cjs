@@ -737,6 +737,7 @@ module.exports = {
     {
       ...tianshanTravelWindow,
       id: 'tianshan-final-preparation',
+      compactWarning: '天山前核对蜃楼岛挑战；此后自由活动受限',
       title: '进入天山前：核对蜃楼岛挑战与最后整备',
       deadlineLabel: '玉龙吟「前往天山」期间，进入天山推进剧情之前',
       warning: '天山前先核对蜃楼岛挑战与技艺、武学、装备收集；社区提醒此后自由活动受限。',
@@ -794,6 +795,7 @@ module.exports = {
       },
     ].map(({ id, questId, delivered, name, origin }) => ({
       id: `wuling-poison-${id}`,
+      compactWarning: `闭关前交${name}；关系五灵心经收益`,
       kind: 'stage',
       title: `闭关前交给蓝孔雀：${name}`,
       questId,
@@ -806,6 +808,7 @@ module.exports = {
       untilAnyFailed: [8499],
       untilAnyStarted: [8560, 8561, 8572, 8573, 8577, 8579, 8800, 8830],
       deadlineLabel: '前往五仙教东北侧禁地期间，开始闭关修炼之前',
+      compactDeadline: '禁地阶段，开始闭关修炼之前',
       pickup: {
         place: '五仙教 · 五神殿',
         person: '蓝孔雀',
@@ -824,6 +827,7 @@ module.exports = {
           questId,
           name: `${name}交付`,
           scope: 'continue',
+          compactEffect: '关系五灵心经修炼收益；已交可跳过，闭关后补交机会未实测。',
           effect:
             '任务文字与两位作者都要求闭关前交已有毒物；已交类别不用重复，缺少不等于主线或结局已经失败。',
           evidence: '按同类别任一已完成交付记录撤下；闭关后的当前精确补交机会未实测。',
@@ -871,6 +875,7 @@ module.exports = {
     },
     {
       id: 'wudang-night-chest-before-porridge',
+      compactWarning: '喝粥前取清风步宝箱；攻略提醒过时不候',
       kind: 'stage',
       title: '喝粥前：先核对祖师殿右侧夜间宝箱',
       questId: null,
@@ -914,6 +919,7 @@ module.exports = {
     },
     {
       id: 'damo-before-tianfo-departure',
+      compactWarning: '誓师前完成佛生诸想；漏做可能失去涤罪僧战力',
       kind: 'stage',
       title: '誓师出发前：先核对佛生诸想与涤罪僧整备',
       questId: 23020,
@@ -973,6 +979,7 @@ module.exports = {
     },
     {
       id: 'xiaotong-visit-before-tianfo',
+      compactWarning: '出发前访小彤；关联解药、阵营与人物存亡',
       kind: 'stage',
       title: '少林共议后：赴天佛窟前回访小彤',
       questId: 23230,
@@ -1069,6 +1076,7 @@ module.exports = {
     },
     {
       id: 'kushui-chief-before-qiongshan',
+      compactWarning: '穷山前访村长；漏访影响再探苦水和涤罪僧招募',
       kind: 'stage',
       title: '穷山出发前：先访苦水村村长，保留涤罪僧线索',
       questId: 13250,
@@ -1118,6 +1126,7 @@ module.exports = {
     },
     {
       id: 'kushui-return-before-ganquan',
+      compactWarning: '穷山归来再探苦水；关系涤罪僧后续招募',
       title: '穷山归来：再探苦水，沿涤罪僧线索到苍岚、天水',
       questId: 13250,
       chapterRoots: [],
@@ -1240,6 +1249,7 @@ module.exports = {
       },
       recommendation: {
         hint: '莫问送礼：好感优先选棋盘，省事可选剑或茶',
+        caution: '棋盘路线需3000银钱，还要完成六博与战斗。',
         goal: '优先提高莫问好感，保留后续人物与结局选择空间',
         action: '好感优先时选「棋盘」，去程家村找陆博枭；六博选择可按虚饮茶路线选「全力杀枭」。',
         reason: '两位独立作者一致记棋盘路线好感+20、剑+10、茶不加好感。',
@@ -1272,6 +1282,7 @@ module.exports = {
     },
     {
       id: 'nightcat-before-caged-bird',
+      compactWarning: '夜猫子身亡：画舫旧事、烟霞剑客、旧比武招亲受限',
       kind: 'stage',
       phaseChange: true,
       severity: 'warning',
@@ -1326,6 +1337,7 @@ module.exports = {
     ...duelGuide.advice,
     {
       id: 'inn-before-delivering-wine',
+      compactWarning: '交酒结束客栈比武窗口；想要私物先挑战',
       kind: 'stage',
       phaseChange: true,
       requireStageMatch: true,
@@ -1369,6 +1381,7 @@ module.exports = {
     },
     {
       id: 'tianshui-before-banquet-duel',
+      compactWarning: '入席前看智度上人：三转洗髓丹、没药',
       kind: 'stage',
       phaseChange: true,
       requireStageMatch: true,
@@ -1410,6 +1423,7 @@ module.exports = {
     },
     {
       id: 'tianshui-before-yixiantian-duel',
+      compactWarning: '追击途中看天水守卫：一转洗髓丹，非永久截止',
       kind: 'stage',
       phaseChange: true,
       requireStageMatch: true,
@@ -1451,10 +1465,12 @@ module.exports = {
     },
     {
       id: 'early-jingyin-weapon-choice',
+      compactWarning: '江吟风授武三选一，改变碗子山宝箱秘籍',
       decisionSteps: [5076],
       decisionAfterAllComplete: [5076],
       recommendation: {
         hint: '江吟风授武：新档可选剑；收集档先查缺哪本',
+        caution: '会决定碗子山宝箱秘籍，三选一。',
         goal: '普通新档顺畅推进；继承或收集档按缺少的秘籍调整',
         action:
           '普通新档可先选「剑系武器」；已有流派、继承或专门收集时，先核对剑、刀、拳对应秘籍，再选缺少的一系。',
@@ -1499,6 +1515,7 @@ module.exports = {
     },
     {
       id: 'bai-jin-rescue-route',
+      compactWarning: '直接交军情会让白锦身亡；保留他须先救人',
       title: '塞外风光：想保留白锦，先赴临昌救人',
       questId: 12030,
       chapterRoots: [],
@@ -1510,6 +1527,7 @@ module.exports = {
       deadlineLabel: '取回军情、返回峋谷关交付之前',
       recommendation: {
         hint: '塞外风光：先去临昌救白锦',
+        caution: '与霹雳雷火弹、绝笔图鉴分支不能同次兼得。',
         goal: '保留白锦存活与后续队友内容',
         action: '先留一份可回读进度；去临昌左下的渊军营寨找白锦，完成救人战斗后再回峋谷关将军府。',
         reason: '葬龙谷取军情只是其中一路；临昌救人走「危机解除」，保留白锦并获得天罗地网钉。',
@@ -1556,6 +1574,7 @@ module.exports = {
     },
     {
       id: 'chengyu-stay-choice',
+      compactWarning: '送走程钰会失去这段武当对话与切磋',
       title: '程钰去留：留在武当可继续人物内容',
       questId: 5820,
       chapterRoots: [5820],
@@ -1609,11 +1628,17 @@ module.exports = {
       id: 'early-woodcutter-axe-choice',
       decisionSteps: [11004, 11005],
       recommendation: {
+        materialQuestIds: [11010],
+        materialLabel: '仅选重锻时备料；未计入当前任务合计',
         hint: '樵夫：优先重锻，先备铁矿石×4',
+        caution: '换新独有武学笔记；本次不能兼得。',
+        summary: '樵夫：推荐重锻旧斧',
+        materialSources: { 'item-10201': '后山山洞附近采集 → 村西铁匠' },
         goal: '前期装备、铜钱与樵夫好感',
         action: '优先选「重新锻造一番吧」，准备铁矿石×4。',
         reason: '所引 v1.24.32 表中，重锻多给亮银甲、铜钱与好感，适合前期补装备。',
-        tradeoff: '要采矿和往返；换新独有武学笔记。若更需要笔记，可改选换新，两边奖励不能在同一次结算兼得。',
+        tradeoff:
+          '矿石不足时需采集，并往返铁匠处；换新独有武学笔记。若更需要笔记，可改选换新，两边奖励不能在同一次结算兼得。',
       },
       title: '樵夫的斧子：换新与重锻奖励不同',
       questId: 11002,
@@ -1960,6 +1985,7 @@ module.exports = {
     },
     {
       id: 'licheng-team-departure',
+      compactWarning: '黎城后瑶姬离队；先核对沙盘演武同行安排',
       kind: 'stage',
       phaseChange: true,
       title: '赶赴黎城前：先核对瑶姬同行的支线',
@@ -1993,6 +2019,7 @@ module.exports = {
     },
     {
       id: 'beggar-rest-order',
+      compactWarning: '休息前先看玉伯；直接休息会进入不同结局',
       recommendation: {
         goal: '保留调查与较完整的剧情路线',
         action: '暂不让李元兴安排休息，先离开丐帮去客栈核对玉伯剧情。',
@@ -2025,6 +2052,7 @@ module.exports = {
     },
     {
       id: 'xiliang-training-choice',
+      compactWarning: '李元兴打狗棍法升满，会影响后期分支图鉴',
       kind: 'stage',
       title: '同游西凉：李元兴武学升级前核对后期图鉴',
       questId: null,
@@ -2081,6 +2109,7 @@ module.exports = {
     },
     {
       id: 'qin-score-window',
+      compactWarning: '祝寿前接绝响难求；只限制接取窗口',
       recommendation: {
         goal: '欧阳雪好感与支线内容',
         action: '祝寿前先找琴谱，再探望欧阳雪。',
@@ -2124,9 +2153,11 @@ module.exports = {
     },
     {
       id: 'chenlinxi-critical-choice',
+      compactWarning: '北山寒尸：好感与选项影响陈麟熙生死、入队',
       decisionSteps: [12078],
       recommendation: {
-        hint: '陈麟熙：先存档；好感60再义正词严',
+        hint: '陈麟熙：先存档；好感60且低于70，再选义正词严',
+        caution: '其他好感组合未确认；此处影响生死与入队。',
         goal: '保留陈麟熙入队与后续剧情',
         action: '先保存并核对好感；按所引路线控制在60且低于70，再选「义正词严」。',
         reason: '该作者将此组合对应心灰意冷并保留后续招募；高于70时好言相劝反而对应死亡。',
@@ -2190,6 +2221,7 @@ module.exports = {
     },
     {
       id: 'lotus-meeting',
+      compactWarning: '拜入武当前接莲湖会晤；只限制接取窗口',
       title: '莲湖会晤：拜师前绕行莲心湖',
       questId: 11942,
       chapterRoots: [5176, 5200, 5213],
@@ -2258,9 +2290,11 @@ module.exports = {
     },
     {
       id: 'golden-scorpion-choice',
+      compactWarning: '金蝎只能选交付路线：娜乌、药圣或商人',
       decisionSteps: [16006],
       recommendation: {
         hint: '金蝎：剧情与治疗优先，留给柳麻衣',
+        caution: '本次不能兼得娜乌的挂坠或商人的截脉三式。',
         goal: '一周目优先药圣剧情与治疗武学',
         action: '先保留选择前的存档；默认拒绝娜乌索蝎，把金蝎交柳麻衣，继续药圣线。',
         reason: '可获得岐黄剑术并继续药圣之约；独立流程还记有后续救治与治疗武学机会，适合保留这条人物线。',
@@ -2304,9 +2338,11 @@ module.exports = {
     },
     {
       id: 'kongliang-choice',
+      compactWarning: '救孔亮影响冷鹰合作，也放弃漫天花雨分支',
       decisionSteps: [12293],
       recommendation: {
         hint: '孔亮：队友优先选帮助，取舍见展开',
+        caution: '救孔亮会放弃本分支的漫天花雨收集线。',
         goal: '本周目优先保留队友与同行剧情',
         action: '默认建议「帮助孔亮」，保留招募路线。',
         reason: '可继续招募孔亮、请教天罡刀法并看同行内容，符合尽量不漏人物剧情的目标。',
@@ -2342,6 +2378,7 @@ module.exports = {
     },
     {
       id: 'counterattack-window',
+      compactWarning: '围攻不风山前接反攻前奏；只限制接取窗口',
       title: '反攻前奏：围攻不风山前找冷无情',
       questId: 12540,
       chapterRoots: [5304, 5330, 5500, 5550, 5580, 5600],
@@ -2374,6 +2411,7 @@ module.exports = {
     },
     {
       id: 'hepu-sandtable',
+      compactWarning: '武家沙盘第五战失败后仍有后续',
       title: '武家线路：沙盘第五战受挫后仍有后续',
       questId: 29800,
       chapterRoots: [5550, 5580],
@@ -2404,6 +2442,7 @@ module.exports = {
     },
     {
       id: 'pili-investigation',
+      compactWarning: '霹雳门线索不足会空忙；先查箱子、油布与名单',
       title: '门内生变：调查库房后再汇报',
       questId: 16120,
       chapterRoots: [5750, 5755, 5780],
@@ -2427,6 +2466,7 @@ module.exports = {
     },
     {
       id: 'qiluo-window',
+      compactWarning: '晋升执法会限制绮罗筵出发；先核对请托与准备',
       recommendation: {
         goal: '优先保留队友互动与本段玄阳离火功路线',
         action: '出发前另存一份，默认保留白锦、冷无情等队友，先按队友路线核对准备。',
@@ -2479,6 +2519,7 @@ module.exports = {
     },
     {
       id: 'east-sea-dark-market',
+      compactWarning: '暗市战斗后商人死亡；先买需要的物品',
       title: '海寇内应：战斗前完成暗市购买',
       questId: 32520,
       chapterRoots: [5755, 5780, 5820, 5850],
@@ -2523,6 +2564,7 @@ module.exports = {
     },
     {
       id: 'bottomless-gourd',
+      compactWarning: '无底葫芦需留三酒：五宝花蜜酒、波斯美酒、琼华泉',
       title: '无底葫芦：留住武家线路的花蜜酒',
       questId: 32775,
       chapterRoots: [5755, 5780, 5820, 5850, 5860],
@@ -2568,6 +2610,7 @@ module.exports = {
     },
     {
       id: 'southern-pursuit',
+      compactWarning: '燕未还第三战关系心诀，第四战胜负分开图鉴',
       title: '南疆追击：燕未还第三、四战影响收集',
       questId: 8000,
       chapterRoots: [7300, 8000],
@@ -2622,6 +2665,7 @@ module.exports = {
     },
     {
       id: 'changsheng-formation-choice',
+      compactWarning: '赴战人数影响乘黄御风与鞋图；还需第二战速杀',
       kind: 'stage',
       title: '禁地前：按收集目标决定赴战人数',
       questId: 8499,
@@ -2640,10 +2684,18 @@ module.exports = {
       },
       recommendation: {
         hint: '禁地前先另存；想收集乘黄御风优先三人赴战',
+        caution: '固定三人；还需第二战速杀，选三人不保证获奖。',
+        compact: {
+          action: '先另存；收集乘黄御风优先核对三人赴战。',
+          reason: '保留奖励路线，并有燕未还、荀杳杳协战。',
+          goal: '乘黄御风收集',
+          tradeoff:
+            '固定三人阵容；奖励还需第二战速杀条件，当前阈值未实测。多人可自由组队，但攻略记没有这次轻功与鞋图收益。',
+        },
         goal: '保留乘黄御风秘籍的收集路线，并有燕未还、荀杳杳协助',
         action: '先另存；想收集乘黄御风时优先选三人赴战，再准备第二战的速杀目标。',
         reason:
-          '两位独立作者都把单人／三人路线与乘黄御风关联；三人路线由主角、燕未还、荀杳杳共同对敌，较孤身多两位同伴。',
+          '三人路线可保留乘黄御风的收集机会，并由燕未还、荀杳杳协战，比孤身多两位同伴。奖励仍需满足后续战斗条件。',
         tradeoff:
           '人数选择会限制出战阵容；多人赴战可自由组队，但虚饮茶记此路线没有这次轻功与鞋图收益。选三人本身不保证获奖，还需满足战斗条件；不把作者的24回合直接当当前保证。',
       },
@@ -2746,6 +2798,7 @@ module.exports = {
       },
       recommendation: {
         hint: '长生殿决战：先另存；保留人物优先救援',
+        caution: '还受此前剧情与好感影响，不保证全员存活。',
         goal: '优先保留人物存活与长生殿的后续剧情',
         action: '出发前另存可回读记录；若战后出现「出手相救」，保留人物路线优先选它。',
         reason: '两位作者均采用救援路线；任务文字也将救治白惟一与为皓首一族作保相连。',
@@ -2775,6 +2828,7 @@ module.exports = {
     },
     {
       id: 'late-roster-before-wudang',
+      compactWarning: '回武当前先存档整队；旧版攻略记进门后锁队',
       recommendation: {
         goal: '保留后期结局与队友线的选择空间',
         action: '先完成想走的队友个人线、补好装备，另存一份，再返回武当进入山门。',
@@ -2823,6 +2877,7 @@ module.exports = {
     },
     {
       id: 'yuanqi-return-followthrough',
+      compactWarning: '元启寻物或比剑后还要回天剑宗；关联后续存亡',
       recommendation: {
         goal: '尽量保留元启的后续',
         action: '先核对弟子房断剑与笔记；寻物或比剑之后都再回天剑宗，完成解开心结的对话。',
@@ -2863,6 +2918,7 @@ module.exports = {
     },
     {
       id: 'yanfu-investigation-choice',
+      compactWarning: '阎浮镇选放弃调查，会关闭查明真相路线',
       title: '阎浮镇凶案：勘验尸体后是否继续调查',
       questId: 21050,
       chapterRoots: [20000],
@@ -2913,6 +2969,7 @@ module.exports = {
     },
     {
       id: 'cold-wuqing-night-choice',
+      compactWarning: '冷无情夜谈关系隐藏路线；也须核对先前调查',
       title: '赴天佛窟前夜：冷无情夜谈别跳过',
       questId: 22100,
       chapterRoots: [22100],
@@ -2924,6 +2981,7 @@ module.exports = {
       deadlineLabel: '弟子房夜谈选答、次日誓师之前',
       recommendation: {
         hint: '冷无情夜谈：保留相关路线，可选矢志于此',
+        caution: '先存档；还需此前继续调查阎浮镇凶案。',
         goal: '沿社区的冷无情相关隐藏剧情路线继续',
         action: '回弟子房前先保存；想沿所引路线继续，夜谈选「矢志于此」，并核对此前是否继续追查阎浮镇凶案。',
         reason:
@@ -2964,6 +3022,7 @@ module.exports = {
     },
     {
       id: 'xiaotong-one-time-grove',
+      compactWarning: '追踪小彤的林地：先搜两个宝箱，攻略称离开不返',
       title: '追踪小彤：林地离开前核对两个宝箱',
       questId: null,
       chapterRoots: [20000],
@@ -2983,6 +3042,7 @@ module.exports = {
     },
     {
       id: 'xiaotong-transmission',
+      compactWarning: '征询莫问会使小彤不入队，后续场景不同',
       recommendation: {
         goal: '保留小彤同行与额外剧情',
         action: '想尽量不漏人物内容，选「传功小彤」。',
@@ -3021,6 +3081,7 @@ module.exports = {
     },
     {
       id: 'ice-lotus',
+      compactWarning: '救隆大松后继续追问，才能沿冰潭雪莲线索调查',
       title: '冰潭雪莲：救人后再追问线索',
       questId: 18930,
       chapterRoots: [24000, 24020],
@@ -3040,6 +3101,7 @@ module.exports = {
     },
     {
       id: 'ending-commitment',
+      compactWarning: '答应清虚任掌门，会关闭天机宫路线并影响救商颂',
       kind: 'stage',
       recommendation: {
         goal: '优先保留天机宫、救商颂与武学收集路线',
@@ -3084,6 +3146,7 @@ module.exports = {
     },
     {
       id: 'tianji-rebuild-choice',
+      compactWarning: '回绝重建影响天机宫收益与商颂后续；先另存',
       kind: 'stage',
       title: '欧阳衡的请求：选择是否重建天机宫',
       questId: 24020,
@@ -3102,6 +3165,7 @@ module.exports = {
       },
       recommendation: {
         hint: '欧阳衡请求：想保留后续与收集时同意重建',
+        caution: '先另存；早先掌门承诺可能限制选项。',
         goal: '优先保留重建天机宫、商颂后续与武学收集路线',
         action: '先另存；若游戏提供该选项且想保留这条路线，选「重建天机宫」，随后按任务栏完成剧情。',
         reason: '两位独立作者都记同意路线可得贪狼枪法秘籍与天机再现成就；虚饮茶还将回绝与后续商颂身亡关联。',

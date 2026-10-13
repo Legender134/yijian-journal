@@ -74,6 +74,7 @@ const { WindowLayout, fitBounds, applyBounds } = require('./core/window-layout.c
 const { QuitHandoff } = require('./core/quit-handoff.cjs');
 const quitHandoff = new QuitHandoff();
 const { companionSnapshot } = require('./core/companion.cjs');
+const { handbookContext } = require('./core/handbook-context.cjs');
 const { flowSnapshot } = require('./core/flow.cjs');
 let companion, windowMonitor, windowLayout;
 let protectionArchives,
@@ -270,28 +271,16 @@ function updateTray() {
     t = snapshot.timeline,
     protection = snapshot.protection,
     status = protection.label;
-  const colour = protection.warning ? '#df514b' : protection.ready ? '#2aa66e' : '#dda83c';
-  if (!trayImages.has(colour)) {
-    const image = nativeImage
-      .createFromPath(path.join(__dirname, 'assets', 'icon.png'))
-      .resize({ width: 16, height: 16 });
-    const pixels = image.toBitmap();
-    const rgb = colour
-      .slice(1)
-      .match(/../g)
-      .map((v) => parseInt(v, 16));
-    for (let y = 8; y < 16; y++)
-      for (let x = 8; x < 16; x++)
-        if ((x - 12) ** 2 + (y - 12) ** 2 <= 12) {
-          const i = (y * 16 + x) * 4;
-          pixels[i] = rgb[2];
-          pixels[i + 1] = rgb[1];
-          pixels[i + 2] = rgb[0];
-          pixels[i + 3] = 255;
-        }
-    trayImages.set(colour, nativeImage.createFromBitmap(pixels, { width: 16, height: 16 }));
+  const state = protection.warning ? 'warning' : protection.ready ? 'ready' : 'pending';
+  if (!trayImages.has(state)) {
+    const image = nativeImage.createFromPath(path.join(__dirname, 'assets', `tray-${state}-16.png`));
+    for (const size of [20, 24, 32]) image.addRepresentation({
+      scaleFactor: size / 16,
+      buffer: fs.readFileSync(path.join(__dirname, 'assets', `tray-${state}-${size}.png`)),
+    });
+    trayImages.set(state, image);
   }
-  tray.setImage(trayImages.get(colour));
+  tray.setImage(trayImages.get(state));
   tray.setToolTip(
     '逸剑手札 · ' +
       status +
@@ -1084,7 +1073,7 @@ app.whenReady().then(async () => {
       if (owner(event) === companion.window) companion.rendererReady();
       const action = pendingActions.get(event.sender.id);
       pendingActions.delete(event.sender.id);
-      if (action) event.sender.send('journal:action', { action });
+      if (action) event.sender.send('journal:action', typeof action === 'string' ? { action } : action);
       return true;
     });
     handle('shortcuts-configure', (_event, value) => {
@@ -1890,14 +1879,21 @@ app.whenReady().then(async () => {
     });
     handle('launch-game', launchGame);
     handle('compact', () => toggleCompact());
-    handle('window', async (event, action) => {
+    handle('window', async (event, action, context) => {
       const w = owner(event);
       if (action === 'minimize') w.minimize();
       else if (action === 'maximize') w.isMaximized() ? w.unmaximize() : w.maximize();
       else if (action === 'close') w.close();
       else if (action === 'main') {
-        if (w === companion.window) companion.collapse(false);
-        showMain();
+        const reading = context === undefined ? null : handbookContext(context);
+        if (reading && reading.profileId !== store.get().activeProfileId) throw Error('手札周目已变化，请重新打开');
+        if (w === companion.window) await companion.collapse(false);
+        const main = showMain();
+        if (reading) {
+          const message = { action: 'handbook', context: reading };
+          if (rendererReady.has(main.webContents.id)) main.webContents.send('journal:action', message);
+          else pendingActions.set(main.webContents.id, message);
+        }
       } else if (action === 'tuck' || action === 'untuck') {
         if (w !== companion.window) throw Error('只可收放随行面板');
         if (action === 'tuck') {

@@ -62,7 +62,7 @@ contextBridge.exposeInMainWorld('journal', {
     ipcRenderer.on('journal:companion', listener);
     return () => ipcRenderer.removeListener('journal:companion', listener);
   },
-  window: (action) => call('window', action),
+  window: (action, context) => call('window', action, context),
   onState: (callback) => {
     const listener = (_event, state) => callback(state);
     ipcRenderer.on('journal:state', listener);

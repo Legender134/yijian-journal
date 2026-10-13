@@ -386,7 +386,7 @@ test('saved Tianshan travel connects companion advice and task details with dist
   assert.match(pickup, /怎么接/);
 });
 
-test('compact pre-closure reminders name all poison hand-ins and link the actual giver and item alternatives', async () => {
+test('folded pre-closure reminders retain every poison hand-in, giver, alternative and affected task', async () => {
   const [{ entityCatalog }, { createEntityReferences }, , { createFlowViews }] = await loaded;
   const index = encyclopedia(),
     data = entityCatalog(index),
@@ -415,9 +415,28 @@ test('compact pre-closure reminders name all poison hand-ins and link the actual
     },
   );
   const compact = view.panel(flow, { compact: true });
-  const visible = compact.match(/<p class="flow-impact-summary">[\s\S]*?<\/p>/)[0];
-  assert.match(visible, /人面蛛.*人面蛛毒元.*异种金蝎.*金蝎毒元.*通幽蜈/);
-  assert(compact.includes('data-entity-id="npc-8510"'));
+  const risks = compact.match(/<section class="flow-risks">([\s\S]*?)<\/details><\/section>/)?.[1];
+  assert(risks, 'advance reminders remain inside an expandable risk section');
+  const folded = risks.match(/^<details\b([^>]*)><summary>([\s\S]*?)<\/summary>/);
+  assert.match(folded[1], /class="flow-compact-risks"/);
+  assert.match(folded[1], /\bopen(?:\s|=|$)/);
+  assert.match(folded[2], /推进前核对/);
+  assert.doesNotMatch(folded[2], /data-flow-impact|资料需 1 件|数量还缺 1 件/);
+  const windows = [
+    ...risks.matchAll(/<details\b([^>]*class="flow-risk-window"[^>]*)><summary>([\s\S]*?)<\/summary>/g),
+  ];
+  assert(windows.length > 0);
+  assert(windows.every(([, attributes]) => !/\bopen(?:\s|=|$)/.test(attributes)));
+  assert.match(risks, /人面蛛.*人面蛛毒元.*异种金蝎.*金蝎毒元.*通幽蜈/);
+  const decisionIds = new Set(flow.decisions.map((row) => row.id));
+  for (const warning of flow.warnings.filter((row) => !decisionIds.has(row.id))) {
+    assert(risks.includes(`data-flow-impact="${esc(warning.id)}"`), warning.id);
+    for (const task of warning.affectedTasks || []) {
+      assert(risks.includes(esc(task.name)), task.name);
+      assert(risks.includes(references.text(task.effect)), task.effect);
+    }
+  }
+  assert(risks.includes('data-entity-id="npc-8510"'));
   for (const [name, itemId] of [
     ['人面蛛', 10488],
     ['人面蛛毒元', 10471],
@@ -425,13 +444,16 @@ test('compact pre-closure reminders name all poison hand-ins and link the actual
     ['金蝎毒元', 10472],
     ['通幽蜈', 10473],
   ]) {
-    assert(compact.includes(`data-entity-id="name:${name}"`), name);
+    assert(risks.includes(`data-entity-id="name:${name}"`), name);
     assert(data.resolve('name:' + name).some((entity) => entity.id === `item-${itemId}`));
   }
-  assert.match(compact, /五神殿/);
-  assert.match(compact, /2024-12-11/);
-  assert.match(compact, /2025-07-16/);
-  for (const id of [10488, 10471, 10498, 10472, 10473])
-    assert(compact.includes(`data-entity-id="item-${id}"`));
-  assert.match(compact, /资料需 1 件.*保存持有 0 件.*数量还缺 1 件/);
+  assert.match(risks, /五神殿/);
+  assert.match(risks, /2024-12-11/);
+  assert.match(risks, /2025-07-16/);
+  for (const id of [10488, 10471, 10498, 10472, 10473]) assert(risks.includes(`data-entity-id="item-${id}"`));
+  assert.match(risks, /资料需 1 件.*保存持有 0 件.*数量还缺 1 件/);
+  const main = view.panel(flow);
+  assert.match(main, /人面蛛.*人面蛛毒元.*异种金蝎.*金蝎毒元.*通幽蜈/);
+  assert(main.includes('data-entity-id="npc-8510"'));
+  assert.doesNotMatch(main, /class="flow-compact-risks"|class="flow-risk-window"/);
 });

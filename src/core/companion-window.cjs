@@ -111,6 +111,7 @@ class CompanionWindow {
       tracking: !!this.monitor?.state,
       windowError: this.monitor?.error || '',
       edge: this.mode === 'tucked' ? this.edgeSide : null,
+      dockSide: this.dockSide || (preferences(this.settings()).position.endsWith('left') ? 'left' : 'right'),
     };
   }
   publish() {
@@ -215,6 +216,8 @@ class CompanionWindow {
           )
         : boundsFor(rect, expanded, p.position, scale);
     const previous = win.getBounds();
+    const dockArea = customArea || rect;
+    this.dockSide = next.x + next.width / 2 < dockArea.x + dockArea.width / 2 ? 'left' : 'right';
     const minWidth = Math.min(expanded ? 360 : tucked ? 32 : 200, next.width);
     const minHeight = Math.min(expanded ? 360 : tucked ? 64 : 90, next.height);
     const config = `${this.mode}:${p.opacity}:${minWidth}:${minHeight}`;

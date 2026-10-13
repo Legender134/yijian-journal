@@ -296,6 +296,10 @@ function backupPreviewSetup() {
   };
   const context = {
     overlay,
+    compact: false,
+    handbookSuspended: false,
+    handbookRequest: 0,
+    handbookPresentation: () => null,
     entityPreviews: { close: noop },
     root: { inert: false, querySelector: () => null },
     document: { activeElement: null, querySelector: () => null },

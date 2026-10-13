@@ -26,7 +26,7 @@ const cachedElectron = path.join(base, '.downloads', `electron-v${electronVersio
     appCopyright: 'Personal local companion. Unofficial fan utility.',
     win32metadata: {
       CompanyName: 'Personal Tools',
-      FileDescription: '逸剑风云决个人桌面助手',
+      FileDescription: '逸剑手札 · 《逸剑风云决》流程助手',
       ProductName: '逸剑手札',
       InternalName: 'YijianJournal',
     },

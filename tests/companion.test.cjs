@@ -83,7 +83,9 @@ function setup({ layout } = {}) {
     },
   };
 }
-test('manual companion geometry survives polling, passive mode and reopen while defaults remain selectable', async () => {
+test('manual companion geometry survives polling, passive mode and reopen while defaults remain selectable', async (t) => {
+  // Geometry checks must not expire the separate foreground grace period under CI load.
+  t.mock.method(Date, 'now', () => 1_800_000_000_000);
   const { WindowLayout } = require('../src/core/window-layout.cjs');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-companion-layout-'));
   try {
