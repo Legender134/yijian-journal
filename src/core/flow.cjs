@@ -475,6 +475,18 @@ function createFlowProjector({
         decisionActive,
         decisionResolved,
         affectedTasks,
+        deliveryOptions: (rule.deliveryQuestIds || []).flatMap((id) => {
+          const task = quests.get(id);
+          return (task?.requirements || [])
+            .filter((row) => row.type === 'Item')
+            .map((row) => ({
+              questId: id,
+              id: `item-${row.id}`,
+              name: row.name || items.get(`item-${row.id}`)?.name || `物品 #${row.id}`,
+              required: row.value,
+              owned: inventory ? inventory.get(row.id) || 0 : null,
+            }));
+        }),
         state: done
           ? 'done'
           : failed

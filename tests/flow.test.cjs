@@ -28,6 +28,219 @@ function lateSavedReference(quests, main = 24020, tracked = 24089) {
   return ref(metadata.quests, metadata);
 }
 
+test('the saved Tianshan journey gives its secret-pass route and names the final preparation window', () => {
+  const reference = lateSavedReference([
+    { id: 24020, step: 1 },
+    { id: 24064, step: 4 },
+    { id: 24088, step: 4 },
+    { id: 24089, step: 1 },
+  ]);
+  const flow = flowSnapshot(profile(), reference);
+  const warning = flow.warnings.find((row) => row.id === 'tianshan-final-preparation');
+  assert(warning, 'the player needs the route when the saved objective says only 前往天山');
+  assert.match(warning.pickup.place, /白龟洞.*关外.*天山/);
+  assert.match(warning.recommendation.action, /蜃楼岛.*白龟洞.*暗道.*天山/);
+  assert.match(warning.recommendation.reason, /交通.*整备/);
+  assert.match(warning.recommendation.tradeoff, /已完成.*跳过.*战斗/);
+  assert(warning.affectedTasks.some((row) => row.name === '蜃楼岛挑战'));
+  assert(warning.affectedTasks.some((row) => /生活技艺.*武学.*装备/.test(row.name)));
+  assert.match(flow.changes.find((row) => row.id === warning.id).triggerName, /进入天山/);
+  assert.equal(warning.sources.length, 2);
+  assert.equal(new Set(warning.sources.map((source) => source.author)).size, 2);
+  assert(warning.sources.every((source) => source.date && source.version));
+  assert.match(warning.uncertainty, /已保存.*当前.*未实测/);
+  assert(
+    !flow.opportunities.some((row) => row.id === warning.id),
+    'route preparation is not an unaccepted quest',
+  );
+  assert(!flow.decisions.some((row) => row.id === warning.id), 'travel preparation is not a dialogue choice');
+});
+
+test('Tianshan preparation waits for the actual travel step and respects the selected reference', () => {
+  const id = 'tianshan-final-preparation';
+  for (const records of [
+    [{ id: 5020, step: 1 }],
+    [{ id: 24020, step: 1 }],
+    [
+      { id: 24020, step: 1 },
+      { id: 24062, step: 1 },
+    ],
+    [
+      { id: 24020, step: 1 },
+      { id: 24089, step: 3 },
+    ],
+  ]) {
+    const flow = flowSnapshot(profile(), lateSavedReference(records));
+    assert(!flow.warnings.some((row) => row.id === id));
+    assert(!flow.changes.some((row) => row.id === id));
+    assert(
+      flow.guide.some((row) => row.id === id),
+      'the sourced route remains available as reference',
+    );
+  }
+  const reference = lateSavedReference([
+    { id: 24020, step: 1 },
+    { id: 24089, step: 1 },
+  ]);
+  for (const scoped of [
+    profile({ referenceMode: 'none' }),
+    profile({ referenceMode: 'slot', saveSlot: '1.sav' }),
+  ])
+    assert(!flowSnapshot(scoped, reference).warnings.some((row) => row.id === id));
+});
+
+test('saved arrival, later travel or a closed root retires Tianshan preparation without erasing its reference', () => {
+  const id = 'tianshan-final-preparation';
+  const cases = [2, 4].flatMap((step) => [
+    [
+      { id: 24020, step: 1 },
+      { id: 24089, step },
+    ],
+    [
+      { id: 24020, step },
+      { id: 24089, step: 1 },
+    ],
+  ]);
+  for (const later of [24200, 24241, 24260, 24334])
+    for (const step of [1, 2, 4])
+      cases.push([
+        { id: 24020, step: 1 },
+        { id: 24089, step: 1 },
+        { id: later, step },
+      ]);
+  for (const records of cases) {
+    const flow = flowSnapshot(profile(), lateSavedReference(records));
+    for (const channel of ['warnings', 'changes', 'advice', 'decisions', 'opportunities'])
+      assert(!flow[channel].some((row) => row.id === id), `${channel}: ${JSON.stringify(records)}`);
+    assert(flow.guide.some((row) => row.id === id));
+  }
+});
+
+test('poison hand-ins are named before entering closure, with concrete giver, alternatives and reasons', () => {
+  const flow = flowSnapshot(
+    profile(),
+    ref(
+      [
+        { id: 8499, step: 1 },
+        { id: 8536, step: 1 },
+      ],
+      {
+        trackingMainQuest: 8499,
+        inventory: [
+          { id: 10471, count: 1 },
+          { id: 10472, count: 1 },
+          { id: 10473, count: 1 },
+        ],
+      },
+    ),
+  );
+  const rules = flow.warnings.filter((row) => row.id.startsWith('wuling-poison-'));
+  assert.equal(rules.length, 3);
+  for (const row of rules) {
+    assert.match(row.recommendation.action, /五神殿.*蓝孔雀.*已有/);
+    assert.match(row.recommendation.reason, /五灵心经/);
+    assert.match(row.recommendation.tradeoff, /已交.*跳过.*不保证/);
+    assert.equal(new Set(row.sources.map((source) => source.author)).size, 2);
+    assert(row.sources.every((source) => source.date && source.version));
+    assert(row.affectedTasks.length > 0);
+    assert.match(row.uncertainty, /当前.*未实测/);
+    assert(!flow.opportunities.some((lead) => lead.id === row.id));
+  }
+  assert(rules.some((row) => /人面蛛.*人面蛛毒元/.test(row.recommendation.action)));
+  assert(rules.some((row) => /异种金蝎.*金蝎毒元/.test(row.recommendation.action)));
+  assert(rules.some((row) => /通幽蜈/.test(row.recommendation.action)));
+  assert.deepEqual(
+    rules.flatMap((row) => row.deliveryOptions).map((row) => [row.id, row.required, row.owned]),
+    [
+      ['item-10488', 1, 0],
+      ['item-10471', 1, 1],
+      ['item-10498', 1, 0],
+      ['item-10472', 1, 1],
+      ['item-10473', 1, 1],
+    ],
+  );
+  const unknown = flowSnapshot(
+    profile(),
+    ref(
+      [
+        { id: 8499, step: 1 },
+        { id: 8536, step: 1 },
+      ],
+      { inventory: undefined },
+    ),
+  );
+  assert(
+    unknown.warnings
+      .filter((row) => row.id.startsWith('wuling-poison-'))
+      .every((row) => row.deliveryOptions.every((option) => option.owned === null)),
+  );
+});
+
+test('poison hand-in warnings retire either alternative already delivered, retaining unfinished groups', () => {
+  for (const [id, delivered] of [
+    ['wuling-poison-spider', 8537],
+    ['wuling-poison-spider', 8538],
+    ['wuling-poison-scorpion', 8539],
+    ['wuling-poison-scorpion', 8540],
+    ['wuling-poison-centipede', 8588],
+  ]) {
+    const flow = flowSnapshot(
+      profile(),
+      ref(
+        [
+          { id: 8499, step: 1 },
+          { id: 8536, step: 1 },
+          { id: delivered, step: 4 },
+        ],
+        { trackingMainQuest: 8499 },
+      ),
+    );
+    assert(!flow.warnings.some((row) => row.id === id));
+    assert.equal(flow.warnings.filter((row) => row.id.startsWith('wuling-poison-')).length, 2);
+    assert(flow.guide.some((row) => row.id === id));
+  }
+});
+
+test('poison hand-in preparation survives the saved party choice but exits closure and later stages', () => {
+  const isPoison = (row) => row.id.startsWith('wuling-poison-');
+  for (const choice of [8554, 8555, 8593]) {
+    const flow = flowSnapshot(
+      profile(),
+      ref(
+        [
+          { id: 8499, step: 1 },
+          { id: 8536, step: 4 },
+          { id: choice, step: 4 },
+        ],
+        { trackingMainQuest: 8499 },
+      ),
+    );
+    assert.equal(flow.warnings.filter(isPoison).length, 3);
+  }
+  const closed = [
+    [{ id: 5000, step: 1 }],
+    [{ id: 8499, step: 1 }],
+    [
+      { id: 8499, step: 4 },
+      { id: 8536, step: 1 },
+    ],
+    [
+      { id: 8499, step: 2 },
+      { id: 8536, step: 4 },
+    ],
+    ...[8560, 8561, 8572, 8573, 8577, 8579, 8800, 8830].map((id) => [
+      { id: 8499, step: 1 },
+      { id: 8536, step: 4 },
+      { id, step: 1 },
+    ]),
+  ];
+  for (const records of closed) {
+    const flow = flowSnapshot(profile(), ref(records, { trackingMainQuest: 8499 }));
+    for (const channel of ['warnings', 'advice', 'changes', 'decisions', 'opportunities'])
+      assert(!flow[channel].some(isPoison), `${channel}: ${JSON.stringify(records)}`);
+  }
+});
+
 test('late appointment or progression retires the earlier commitment instruction, retaining reference only', () => {
   for (const id of [24011, 24012, 24013, 24014, 24015, 24016]) {
     for (const step of [1, 4]) {
@@ -715,7 +928,12 @@ test('formation guidance precedes the native choice and follows each saved outco
     assert.match(selected[0].recommendation.action, /气血.*真气.*装备.*食物.*另存/);
     assert.match(selected[0].steps.join(' '), /七杀幻蛇剑.*五灵心经.*不要求.*互斥/);
     assert.match(
-      current.compact.hints.find((row) => row.type === 'flow-advice').title,
+      current.compact.hints.find((row) => row.type === 'flow-warning').title,
+      /闭关前.*蓝孔雀.*交付/,
+    );
+    const afterClosure = snapshot([...records, { id: 8560, step: 1 }]);
+    assert.match(
+      afterClosure.compact.hints.find((row) => row.type === 'flow-advice').title,
       new RegExp(`已选${name}`),
     );
     for (const ending of [
