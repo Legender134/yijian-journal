@@ -38,6 +38,23 @@ const tianjiRebuildReward = {
     '社区版本化收集路线；当前构建的发放时点、全部前置及成就条件未实测。它是同意重建后的剧情收益线索，不能保证本次已获得，也不证明这是唯一来源。',
   sourceIds: ['flow063TianjiXu', 'gs52'],
 };
+const tianshanTravelWindow = {
+  kind: 'stage',
+  questId: 24089,
+  chapterRoots: [],
+  afterAllComplete: [],
+  untilAnyStarted: [24200, 24241, 24260, 24334],
+  untilAnyComplete: [24089, 24020],
+  untilAnyFailed: [24089, 24020],
+  pickup: {
+    place: '白龟洞暗道 → 关外 → 天山',
+    action: '这是已接「前往天山」的行进路线；从白龟洞暗道去关外，再按任务栏前往天山。',
+  },
+  choices: [],
+  sourceIds: ['flow065TianshanXu', 'flow065TianshanMiao'],
+  uncertainty:
+    '只随烟尘回响玉龙吟中已保存的「前往天山」出现。2025碧海仙踪社区路线，当前构建的暗道入口、交通限制和精确失效时点未实测；不能识别挑战是否已完成，也不据此判定所有未完支线永久失败。',
+};
 // Community flow clues; unknown task records never prove availability.
 module.exports = {
   itemRoutes: {
@@ -51,6 +68,42 @@ module.exports = {
   sources: {
     ...duelGuide.sources,
     ...Object.fromEntries(goldenScorpionRoute.sourceIds.map((id) => [id, materialGuide.sources[id]])),
+    flow065PoisonXu: {
+      title: '虚饮茶：禁地闭关前向蓝孔雀交付五灵奇毒',
+      author: '虚饮茶',
+      url: 'https://www.bilibili.com/opus/1090176752596025364',
+      date: '2025-07-16 19:22',
+      version: '碧海仙踪流程；具体构建未标',
+      confidence:
+        '已读五灵心经毒元段落：药圣线赠金蝎毒元、人面蛛毒元，配合通幽蜈，禁地闭关前交给五神殿蓝孔雀。当前精确交付截止与经脉收益未实测，不保证所有路线都能补齐。',
+    },
+    flow065PoisonWall: {
+      title: '透明城墙：南疆决战前的毒物交付与闭关准备',
+      author: '透明城墙',
+      url: 'https://www.bilibili.com/opus/847119382165323842',
+      date: '2024-12-11 07:04（编辑）',
+      version: '烟尘回响 v1.23.26；作者南疆正文以药圣线展开',
+      confidence:
+        '已读南疆第二部分，作者要求将已有毒物交给蓝孔雀再进禁地；非药圣线数量说明与后续版本不同。以本地任务所列替代交付项核对，不将作者路线视为当前全部隐藏条件的证明。',
+    },
+    flow065TianshanXu: {
+      title: '虚饮茶：玉龙吟封路后的白龟洞暗道与天山前整备',
+      author: '虚饮茶',
+      url: 'https://www.bilibili.com/opus/1090176752596025364',
+      date: '2025-07-16 19:22',
+      version: '碧海仙踪流程；具体构建未标',
+      confidence:
+        '已读终章交通锁定、白龟洞暗道前往关外及蜃楼岛最后挑战窗口正文；作者的中间地名与本地地图命名不同，不据此指定未经核对的中间场景。当前构建的入口与精确截止未实测。',
+    },
+    flow065TianshanMiao: {
+      title: '神奇的喵喵人：玉龙吟天山前培养与白龟洞路线',
+      author: '神奇的喵喵人',
+      url: 'https://www.bilibili.com/opus/1098750804429373478',
+      date: '2025-12-11 00:58（编辑）',
+      version: '碧海仙踪二周目流程；默认有继承战力，具体构建未标',
+      confidence:
+        '已读玉龙吟正文，作者在进天山前安排技艺、武学整备，并通过白龟洞前往漠北；不能把二周目战力和奖励保证套用于新角色，也未实测当前精确返回边界。',
+    },
     flow064MerchantStar: {
       title: '星1辰2之3羽：天水客栈院内的西域胡商',
       author: '星1辰2之3羽',
@@ -662,6 +715,130 @@ module.exports = {
     24000: { next: 24020, sourceIds: ['biliLateFlow', 'gs52'] },
   },
   rules: [
+    {
+      ...tianshanTravelWindow,
+      id: 'tianshan-secret-pass-route',
+      title: '前往天山：从白龟洞暗道去关外',
+      severity: 'reminder',
+      warning: '已保存目标是前往天山；社区在这段交通受限时使用白龟洞暗道。',
+      recommendation: {
+        action: '到白龟洞，走暗道前往关外，再按当前任务栏去天山；出发前先核对下方的最后整备提醒。',
+        reason:
+          '两位独立作者都通过白龟洞前往关外；虚饮茶说明这时马车与部分道路受剧情限制，明确入口能减少绕路。',
+        goal: '接上前往天山的具体路线',
+        tradeoff:
+          '这是该剧情阶段的社区路线，入口需在当前游戏核对；不要把它当作旧版或所有阶段都能双向通行的保证。',
+      },
+      steps: [
+        '先核对天山前尚需完成的收集与整备。',
+        '前往白龟洞，走通往关外的暗道；按当前任务栏继续前往天山。',
+      ],
+    },
+    {
+      ...tianshanTravelWindow,
+      id: 'tianshan-final-preparation',
+      title: '进入天山前：核对蜃楼岛挑战与最后整备',
+      deadlineLabel: '玉龙吟「前往天山」期间，进入天山推进剧情之前',
+      warning: '天山前先核对蜃楼岛挑战与技艺、武学、装备收集；社区提醒此后自由活动受限。',
+      recommendation: {
+        action: '想保留收集，先核对蜃楼岛挑战与技艺、武学、装备整备；再到白龟洞走暗道前往关外、天山。',
+        reason: '两位作者都在这一段给出白龟洞交通路线与天山前整备；虚饮茶另将蜃楼岛挑战记为最后一次机会。',
+        goal: '保留当前周目的可选挑战和收集机会',
+        tradeoff:
+          '已完成的内容可跳过；挑战需要额外战斗和培养时间，想尽快推进主线可以按当前任务继续，不承诺所有收集同次兼得。',
+      },
+      advanceEffects: [
+        {
+          name: '蜃楼岛挑战',
+          scope: 'continue',
+          effect: '虚饮茶把这次安排在进入天山之前，并注明是最后挑战机会；还想挑战时先核对，已完成可跳过。',
+          evidence: '2025碧海仙踪作者流程；挑战完成状态和当前构建精确边界未识别。',
+        },
+        {
+          name: '生活技艺、武学与装备收集',
+          scope: 'continue',
+          effect:
+            '两位作者都建议天山前完成需要自由跑图的整备；进入后交通和自由活动受限，需留用的材料与队伍装备先检查。',
+          evidence: '不同周目的社区流程，不把未完收集直接判定为失败或无法达成结局。',
+        },
+      ],
+      steps: [
+        '另存一份进度，核对本周目是否还想挑战蜃楼岛。',
+        '按自己的收集目标检查生活技艺、武学、装备与材料，已完成的项目不重复跑。',
+        '整备后从白龟洞暗道前往关外，再继续天山主线；抵达后的新任务以游戏任务栏为准。',
+      ],
+    },
+    ...[
+      {
+        id: 'spider',
+        questId: 8537,
+        delivered: [8537, 8538],
+        name: '人面蛛或人面蛛毒元',
+        origin:
+          '药圣线可向商葶苧核对人面蛛毒元；其他路线先查人面蛛的实际持有与可交选项，不把两种视为都要收集。',
+      },
+      {
+        id: 'scorpion',
+        questId: 8539,
+        delivered: [8539, 8540],
+        name: '异种金蝎或金蝎毒元',
+        origin:
+          '药圣线可向商葶苧核对金蝎毒元；异种金蝎的早期取得路线见物品图鉴，不保证此时还能重新获取或改变此前交付路线。',
+      },
+      {
+        id: 'centipede',
+        questId: 8588,
+        delivered: [8588],
+        name: '通幽蜈',
+        origin: '两位作者都记通幽沼左侧战斗取得通幽蜈；当前是否还能返回与战斗收益须在游戏核对。',
+      },
+    ].map(({ id, questId, delivered, name, origin }) => ({
+      id: `wuling-poison-${id}`,
+      kind: 'stage',
+      title: `闭关前交给蓝孔雀：${name}`,
+      questId,
+      deliveryQuestIds: delivered,
+      chapterRoots: [],
+      stageSteps: [8536],
+      afterAllComplete: [8536],
+      afterLabels: { 8536: '前往五仙教东北侧禁地' },
+      untilAnyComplete: [8499, ...delivered],
+      untilAnyFailed: [8499],
+      untilAnyStarted: [8560, 8561, 8572, 8573, 8577, 8579, 8800, 8830],
+      deadlineLabel: '前往五仙教东北侧禁地期间，开始闭关修炼之前',
+      pickup: {
+        place: '五仙教 · 五神殿',
+        person: '蓝孔雀',
+        action: `回五神殿找蓝孔雀，核对已有${name}的交付选项；已交可跳过。`,
+      },
+      warning: `去禁地闭关前，先向蓝孔雀交付已有${name}；缺少时核对来源，不把未交视为剧情已失败。`,
+      recommendation: {
+        action: `先回五神殿找蓝孔雀，核对并交付已有${name}，再继续禁地闭关。`,
+        reason: '任务说明明确要求提前交付五灵奇毒；两位作者也安排先交再闭关，这会影响五灵心经的修炼收益。',
+        goal: '保留本路线可取得的五灵心经修炼收益',
+        tradeoff:
+          '已交的类别可跳过；不同支线可能给毒物或毒元替代项，不必同时收集两种。不保证现在仍能补齐、回头重取或获得全部收益。',
+      },
+      advanceEffects: [
+        {
+          questId,
+          name: `${name}交付`,
+          scope: 'continue',
+          effect:
+            '任务文字与两位作者都要求闭关前交已有毒物；已交类别不用重复，缺少不等于主线或结局已经失败。',
+          evidence: '按同类别任一已完成交付记录撤下；闭关后的当前精确补交机会未实测。',
+        },
+      ],
+      steps: [
+        origin,
+        `在五神殿核对蓝孔雀的交付选项，每类按游戏要求提交，不合计互斥替代项。`,
+        '确认已交项目和自己的收集目标后，再按任务栏进入禁地闭关。',
+      ],
+      choices: [],
+      sourceIds: ['flow065PoisonXu', 'flow065PoisonWall'],
+      uncertainty:
+        '已读取的交付记录用于撤下已交类别；背包没有物品不能证明错过。2024烟尘回响与2025碧海仙踪社区路线，当前截止、回头机会和收益数值未实测，不冒充全条件已满足。',
+    })),
     // Reference-only: unaccepted leads still require the native request conditions.
     {
       id: 'tianshui-merchant-pickup',

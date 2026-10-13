@@ -4,6 +4,7 @@ const test = require('node:test'),
 const fs = require('node:fs'),
   path = require('node:path');
 const { encyclopedia } = require('../src/core/game-data.cjs');
+const { flowSnapshot } = require('../src/core/flow.cjs');
 const url = (name) => {
   let source = fs.readFileSync(path.join(__dirname, '../src/renderer', name), 'utf8');
   source = source.replace(
@@ -313,4 +314,124 @@ test('expanded community steps and choice effects retain escaped entity previews
   assert.match(choices, /data-entity-id="item-11"/);
   assert.match(choices, /data-id="name:莫弃"/);
   assert.doesNotMatch(html, /<img onerror/);
+});
+
+test('saved Tianshan travel connects companion advice and task details with distinct action labels', async () => {
+  const [{ entityCatalog }, { createEntityReferences }, { createEntityDetailViews }, { createFlowViews }] =
+    await loaded;
+  const index = encyclopedia(),
+    data = entityCatalog(index),
+    references = factory(createEntityReferences, index);
+  const view = createFlowViews({
+    esc,
+    act: references.button,
+    icon: esc,
+    pill: esc,
+    when: esc,
+    richText: references.text,
+  });
+  const flow = flowSnapshot(
+    { id: 'travel', referenceMode: 'latest' },
+    {
+      name: '0.sav',
+      modifiedAt: '2026-10-13T00:00:00Z',
+      metadata: {
+        trackingMainQuest: 24020,
+        trackingQuest: 24089,
+        quests: [
+          { id: 24020, step: 1 },
+          { id: 24089, step: 1 },
+        ],
+        inventory: [],
+      },
+    },
+  );
+  assert.equal(flow.advice[0].id, 'tianshan-secret-pass-route');
+  const compact = view.panel(flow, { compact: true });
+  const route = compact.match(
+    /<article class="flow-suggestion" data-flow-suggestion="tianshan-secret-pass-route">[\s\S]*?<details/,
+  )[0];
+  assert.match(route, /白龟洞/);
+  assert.match(route, /暗道.*关外.*天山/);
+  const main = view.panel(flow);
+  const preparation = main.match(
+    /<article[^>]*data-flow-rule="tianshan-final-preparation"[\s\S]*?<\/article>/,
+  )[0];
+  assert.match(preparation, /行动地点/);
+  assert.match(preparation, /接下来/);
+  assert.doesNotMatch(preparation, /接取地点|怎么接/);
+  assert.match(preparation, /蜃楼岛挑战/);
+  assert.match(preparation, /2025-07-16/);
+  assert.match(preparation, /2025-12-11/);
+  assert.match(preparation, /data-entity-id="quest-24089"/);
+  assert.match(preparation, /data-picture="quest-24089"/);
+  const details = createEntityDetailViews({
+    esc,
+    act: references.button,
+    pill: esc,
+    richText: references.text,
+    guide: () => flow.guide,
+  });
+  for (const id of ['quest-24020', 'quest-24089']) {
+    const html = details.task(index, data.entries.get(id), null);
+    assert.match(html, /白龟洞.*暗道.*关外.*天山/s);
+    assert.match(html, /蜃楼岛/);
+    assert.match(html, /data-action="source" data-id="flow:flow065TianshanXu"/);
+    assert.match(html, /data-action="source" data-id="flow:flow065TianshanMiao"/);
+  }
+  const pickup = view.panel({
+    guide: [{ id: 'pickup', name: '未接任务', pickup: { place: '村口', action: '找人询问' } }],
+  });
+  assert.match(pickup, /接取地点/);
+  assert.match(pickup, /怎么接/);
+});
+
+test('compact pre-closure reminders name all poison hand-ins and link the actual giver and item alternatives', async () => {
+  const [{ entityCatalog }, { createEntityReferences }, , { createFlowViews }] = await loaded;
+  const index = encyclopedia(),
+    data = entityCatalog(index),
+    references = factory(createEntityReferences, index);
+  const view = createFlowViews({
+    esc,
+    act: references.button,
+    icon: esc,
+    pill: esc,
+    when: esc,
+    richText: references.text,
+  });
+  const flow = flowSnapshot(
+    { id: 'closure', referenceMode: 'latest' },
+    {
+      name: '0.sav',
+      modifiedAt: '2026-10-13T00:00:00Z',
+      metadata: {
+        trackingMainQuest: 8499,
+        quests: [
+          { id: 8499, step: 1 },
+          { id: 8536, step: 1 },
+        ],
+        inventory: [],
+      },
+    },
+  );
+  const compact = view.panel(flow, { compact: true });
+  const visible = compact.match(/<p class="flow-impact-summary">[\s\S]*?<\/p>/)[0];
+  assert.match(visible, /人面蛛.*人面蛛毒元.*异种金蝎.*金蝎毒元.*通幽蜈/);
+  assert(compact.includes('data-entity-id="npc-8510"'));
+  for (const [name, itemId] of [
+    ['人面蛛', 10488],
+    ['人面蛛毒元', 10471],
+    ['异种金蝎', 10498],
+    ['金蝎毒元', 10472],
+    ['通幽蜈', 10473],
+  ]) {
+    assert(compact.includes(`data-entity-id="name:${name}"`), name);
+    assert(data.resolve('name:' + name).some((entity) => entity.id === `item-${itemId}`));
+  }
+  assert.match(compact, /五神殿/);
+  assert.match(compact, /2024-12-11/);
+  assert.match(compact, /2025-07-16/);
+  for (const id of [10488, 10471, 10498, 10472, 10473])
+    assert(compact.includes(`data-entity-id="item-${id}"`));
+  assert.match(compact, /资料需 1 件.*保存持有 0 件.*数量还缺 1 件/);
 });

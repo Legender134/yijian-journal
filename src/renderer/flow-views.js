@@ -54,12 +54,19 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     if (!value?.action || !value.reason) return '';
     return `<div class="flow-recommendation"><p class="flow-recommended-action"><strong>推荐做法：</strong>${prose(value.action)}</p><p><strong>为什么：</strong>${prose(value.reason)}</p>${value.goal ? `<p class="small muted">适合：${text(value.goal)}</p>` : ''}${value.tradeoff ? `<p class="small"><strong>取舍：</strong>${prose(value.tradeoff)}</p>` : ''}</div>`;
   }
+  function delivery(row) {
+    const options = list(row.deliveryOptions);
+    return options.length
+      ? `<section class="flow-delivery" data-flow-delivery><h4>这一类的交付项</h4><p class="small save-note">按当前路线选一项核对，不合计替代物品；持有数量不证明其他交付条件已满足。</p><ul>${options.map((option) => `<li>${button('database-detail', option.name, option.id)}<p class="small">资料需 ${text(option.required)} 件 · ${option.owned === null ? '保存持有待核对' : `保存持有 ${text(option.owned)} 件${option.owned < option.required ? ` · 数量还缺 ${text(option.required - option.owned)} 件` : ' · 数量已齐'}`}</p>${questButton(option.questId, '查看交付步骤')}</li>`).join('')}</ul></section>`
+      : '';
+  }
   function advancement(row) {
     const affected = list(row.affectedTasks);
     if (!affected.length) return '';
     return `<div class="flow-affected" data-flow-affected><h4>推进后受影响的任务</h4><p class="small">触发：${text(row.deadlineLabel || row.triggerName || '见下列条件')}</p><ul>${affected.map((task) => `<li><strong>${questButton(task.questId, task.name) || text(task.name)}</strong>：${prose(task.effect)}${task.evidence ? `<p class="small save-note">${text(task.evidence)}</p>` : ''}</li>`).join('')}</ul></div>`;
   }
   function rule(row, warning = false) {
+    const stage = row.kind === 'stage';
     const choices = list(row.choices);
     const steps = list(row.steps);
     const conditionRows = list(row.conditions);
@@ -80,10 +87,10 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const message = row.message || row.warning;
     const pickupBody =
       location || person || pickup.action
-        ? `<div class="flow-pickup">${location || person ? `<p>${location ? `<span class="small muted">接取地点 </span>${location}` : ''}${location && person ? ' · ' : ''}${person ? `<span class="small muted">人物 </span>${person}` : ''}</p>` : ''}${pickup.action ? `<p><span class="small muted">怎么接 </span>${prose(pickup.action)}</p>` : ''}${pickup.executionPlace ? `<p class="small"><span class="muted">接取后的目的地线索 </span>${text(pickup.executionPlace)}</p>` : ''}</div>`
+        ? `<div class="flow-pickup">${location || person ? `<p>${location ? `<span class="small muted">${stage ? '行动地点' : '接取地点'} </span>${location}` : ''}${location && person ? ' · ' : ''}${person ? `<span class="small muted">人物 </span>${person}` : ''}</p>` : ''}${pickup.action ? `<p><span class="small muted">${stage ? '接下来' : '怎么接'} </span>${prose(pickup.action)}</p>` : ''}${pickup.executionPlace ? `<p class="small"><span class="muted">接取后的目的地线索 </span>${text(pickup.executionPlace)}</p>` : ''}</div>`
         : '';
     return persist(
-      `<article class="flow-rule${warning ? ' flow-risk' : ''}" data-flow-rule="${text(row.id || '')}"${warning ? ` data-flow-warning="${text(row.id || row.questId || '')}"` : ''}><div class="row between"><h3>${text(row.name || row.title || '任务线索')}</h3>${stateLabel ? pill(stateLabel, row.state === 'done' ? 'green' : row.state === 'failed' ? 'orange' : '') : ''}</div>${row.done || row.failed ? `<p class="small save-note">存档已记录${row.done ? '完成' : '失败'}；以下攻略供回顾，不表示全部分支均已经历。</p>` : ''}${message ? `<p class="flow-warning-message">${text(message)}</p>` : ''}${advancement(row)}${recommendation(row)}${row.deadlineReached && !row.done && !row.failed ? '<p class="small flow-warning-message">已到资料提示的推进边界，请先核对任务状态与来源。</p>' : ''}${warning ? '' : pickupBody + conditions(conditionRows) + questButton(row.questId || row.id)}${hasDetails ? `<details class="flow-rule-details"><summary>${warning ? '接取位置、选择影响与来源' : '查看步骤、选择影响与来源'}</summary>${warning ? pickupBody + conditions(conditionRows) + questButton(row.questId || row.id) : ''}${row.uncertainty ? `<p class="small save-note">${text(row.uncertainty)}</p>` : ''}${steps.length ? `<ol class="flow-guide-steps">${steps.map((step) => `<li>${prose(step)}</li>`).join('')}</ol>` : ''}${choices.length ? `<div class="flow-choices"><h4>选择与各自影响 · 涉及剧情</h4><dl>${choices.map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响尚待核对')}</dd>`).join('')}</dl></div>` : ''}${sources(row.sources)}</details>` : ''}</article>`,
+      `<article class="flow-rule${warning ? ' flow-risk' : ''}" data-flow-rule="${text(row.id || '')}"${warning ? ` data-flow-warning="${text(row.id || row.questId || '')}"` : ''}><div class="row between"><h3>${text(row.name || row.title || '任务线索')}</h3>${stateLabel ? pill(stateLabel, row.state === 'done' ? 'green' : row.state === 'failed' ? 'orange' : '') : ''}</div>${row.done || row.failed ? `<p class="small save-note">存档已记录${row.done ? '完成' : '失败'}；以下攻略供回顾，不表示全部分支均已经历。</p>` : ''}${message ? `<p class="flow-warning-message">${text(message)}</p>` : ''}${advancement(row)}${recommendation(row)}${delivery(row)}${row.deadlineReached && !row.done && !row.failed ? '<p class="small flow-warning-message">已到资料提示的推进边界，请先核对任务状态与来源。</p>' : ''}${warning ? '' : pickupBody + conditions(conditionRows) + questButton(row.questId || row.id)}${hasDetails ? `<details class="flow-rule-details"><summary>${warning ? (stage ? '行动地点、选择影响与来源' : '接取位置、选择影响与来源') : '查看步骤、选择影响与来源'}</summary>${warning ? pickupBody + conditions(conditionRows) + questButton(row.questId || row.id) : ''}${row.uncertainty ? `<p class="small save-note">${text(row.uncertainty)}</p>` : ''}${steps.length ? `<ol class="flow-guide-steps">${steps.map((step) => `<li>${prose(step)}</li>`).join('')}</ol>` : ''}${choices.length ? `<div class="flow-choices"><h4>选择与各自影响 · 涉及剧情</h4><dl>${choices.map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响尚待核对')}</dd>`).join('')}</dl></div>` : ''}${sources(row.sources)}</details>` : ''}</article>`,
       'rule-' + row.id,
     );
   }

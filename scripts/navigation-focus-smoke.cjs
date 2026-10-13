@@ -17,7 +17,18 @@ process.env.TEMP = process.env.TMP = temp;
 const save = path.join(saves, '1.sav');
 fs.writeFileSync(
   save,
-  syntheticSave({ full: true, inventory: [{ id: 10216, count: 3 }], fusionRecipes: [1000] }),
+  syntheticSave({
+    full: true,
+    inventory: [{ id: 10216, count: 3 }],
+    fusionRecipes: [1000],
+    quests: [
+      { id: 5820, step: 1 },
+      { id: 5829, step: 4 },
+      { id: 5830, step: 1 },
+    ],
+    trackingMainQuest: 5820,
+    trackingQuest: 5830,
+  }),
 );
 const settled = new Date(Date.now() - 5000);
 fs.utimesSync(save, settled, settled);
@@ -119,6 +130,45 @@ async function changeState(win) {
     await companion.keyboard.press('Escape');
     assert.equal(await companion.evaluate(() => document.activeElement.dataset.id), 'home');
     report.checks.push('compact search closes back to the current navigation button');
+    await navigate(companion, 'duels', true);
+    const duel = companion.locator('[data-duel="npc053-chengyu"]');
+    await duel.locator('.duel-readiness-preview').click();
+    await duel.locator('details > summary').first().click();
+    await duel.locator(':scope > summary [data-id="item-10176"]').click();
+    await companion.locator('[data-action="close-overlay"]').first().click();
+    const position = await companion.locator('.compact-body').evaluate((body) => {
+      body.scrollTop = Math.min(700, body.scrollHeight - body.clientHeight);
+      return body.scrollTop;
+    });
+    assert(position > 200, 'the player is reading below a previously closed item detail');
+    await companion.screenshot({ path: path.join(out, 'compact-before-tuck.png'), animations: 'disabled' });
+    for (let repetition = 0; repetition < 2; repetition++) {
+      await companion.locator('[data-action="companion-tuck"]').click();
+      await companion.locator('#companion-edge').waitFor({ state: 'visible' });
+      await companion.locator('#companion-edge').click();
+      await companion.waitForFunction(
+        (expected) =>
+          !document.body.classList.contains('tucked') &&
+          Math.abs(document.querySelector('.compact-body').scrollTop - expected) < 2,
+        position,
+      );
+      assert.equal(
+        await companion.locator('.companion-tabs [aria-current]').getAttribute('data-id'),
+        'duels',
+      );
+      assert.equal(await duel.evaluate((node) => node.open), true);
+      assert.equal(
+        await duel
+          .locator('details')
+          .first()
+          .evaluate((node) => node.open),
+        true,
+      );
+    }
+    await companion.screenshot({ path: path.join(out, 'compact-after-unfold.png'), animations: 'disabled' });
+    report.checks.push(
+      'tuck and unfold twice preserve the page, reading position and expanded preparation after closing an item detail',
+    );
     await page.screenshot({ path: path.join(out, 'main-focus.png'), animations: 'disabled' });
     await companion.screenshot({ path: path.join(out, 'compact-focus.png'), animations: 'disabled' });
     await app.close();

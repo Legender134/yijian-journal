@@ -6310,8 +6310,8 @@ async function handle(action, id, target, navigationFocused = false) {
       await call('companionCollapse');
       break;
     case 'companion-tuck':
-      closeOverlay();
       companionTuckedScroll = root.querySelector('.compact-body')?.scrollTop || 0;
+      if (overlay.firstChild) closeOverlay();
       await call('window', 'tuck');
       break;
     case 'companion-untuck':
