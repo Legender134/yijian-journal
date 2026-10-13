@@ -51,6 +51,24 @@ module.exports = {
   sources: {
     ...duelGuide.sources,
     ...Object.fromEntries(goldenScorpionRoute.sourceIds.map((id) => [id, materialGuide.sources[id]])),
+    flow064MerchantStar: {
+      title: '星1辰2之3羽：天水客栈院内的西域胡商',
+      author: '星1辰2之3羽',
+      url: 'https://www.bilibili.com/opus/1016246720342786071',
+      date: '2025-01-21 21:31（编辑）',
+      version: '西域南疆流程；具体构建未标',
+      confidence:
+        '已读天水城支线正文，支持客栈院内接取和后续台盏交换线索；不证明当前人物在场或所有交互条件。',
+    },
+    flow064MerchantXu: {
+      title: '虚饮茶：天水客栈门口的安东尼与玉石交换',
+      author: '虚饮茶',
+      url: 'https://www.bilibili.com/opus/1090176752596025364',
+      date: '2025-07-16 19:22',
+      version: '碧海仙踪流程；具体构建未标',
+      confidence:
+        '已读天水祝寿后客栈门口胡商及两次任务交换正文；材料正式名称和数量以游戏任务索引为准，不保证当前奖励或宝石转换已开放。',
+    },
     flow063SouthXu: {
       title: '虚饮茶：通幽沼、景陇之约、长生殿与返回中原',
       author: '虚饮茶',
@@ -644,6 +662,36 @@ module.exports = {
     24000: { next: 24020, sourceIds: ['biliLateFlow', 'gs52'] },
   },
   rules: [
+    // Reference-only: unaccepted leads still require the native request conditions.
+    {
+      id: 'tianshui-merchant-pickup',
+      title: '西域胡商：到天水客栈附近找安东尼',
+      questId: 18500,
+      chapterRoots: [],
+      afterAllComplete: [],
+      pickup: {
+        personId: 'npc-16030',
+        place: '天水城 · 客栈院内／门口附近（社区线索）',
+        person: '胡商安东尼',
+        action:
+          '到天水城客栈附近找胡商安东尼，询问「西域胡商」；第一步需锦缎 10 个，确认当前任务与交付选项后再交换。',
+      },
+      recommendation: {
+        action: '经过天水客栈时先与胡商安东尼问询；核对背包中的锦缎和任务需求，再决定是否交换玉石。',
+        reason:
+          '两位独立作者都把胡商安排在客栈附近，游戏任务索引列出第一步需要锦缎 10 个，先核对可减少往返。',
+        tradeoff: '交换会消耗材料；具体玉石奖励以当前游戏交付界面为准，不必为这条可选支线中断主线。',
+      },
+      steps: [
+        '在天水城客栈院内及门口附近找胡商安东尼；这是社区接取地点，不是当前在场证明。',
+        '第一步用锦缎 10 个交换玉石；数量来自任务资料，已有材料不等于交付条件已全部满足。',
+        '后续寻找天青台盏，任务资料列需 1 个；已有可先核对交付，分支触发和宝石转换开放仍以游戏为准。',
+      ],
+      choices: [],
+      sourceIds: ['flow064MerchantStar', 'flow064MerchantXu'],
+      uncertainty:
+        '地点来自两位2025年社区作者，分别记客栈院内与门口；具体游戏构建未标。当前人物在场、隐藏条件、后续分支及奖励仍需在游戏中核对，完成过可跳过。',
+    },
     {
       id: 'wudang-night-chest-before-porridge',
       kind: 'stage',

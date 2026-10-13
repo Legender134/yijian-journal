@@ -176,7 +176,9 @@ class GameBridge {
     const state = this.heartbeat();
     if (!this.connected(state)) return false;
     if (this.disposed || this.blocked()) return true;
-    if (!state.ready) return true;
+    // Dialogue pauses native saving, but saved-progress advice is useful at
+    // precisely this moment. Command readiness remains guarded by assertReady.
+    if (!state.ready && state.reason !== '菜单或对话中暂停保存') return true;
     const now = performance.now();
     if (!this.hintAvailability || now - this.hintAvailability.at >= 5000) this.summary();
     return !this.hintAvailability.available;

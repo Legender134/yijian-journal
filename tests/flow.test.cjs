@@ -2266,6 +2266,62 @@ test('public prerequisite leads expose unknown hidden exclusions and suppress po
   assert(!project(profile(), ref([])).opportunities.some((q) => q.questId === 13407));
 });
 
+test('Tianshui merchant pickup uses dated community location only after saved request prerequisites match', () => {
+  const records = [
+    { id: 5780, step: 1 },
+    { id: 5806, step: 1 },
+    { id: 13208, step: 4 },
+  ];
+  const flow = flowSnapshot(profile(), lateSavedReference(records, 5780, 5806));
+  const merchant = flow.opportunities.find((row) => row.questId === 18500);
+  assert(merchant);
+  assert.equal(merchant.id, 'conditions-18501');
+  assert.equal(merchant.state, 'conditions-match');
+  assert.match(merchant.pickup.place, /天水城.*客栈院内.*门口.*社区/);
+  assert.equal(merchant.pickup.person, '胡商安东尼');
+  assert.match(merchant.pickup.action, /锦缎 10 个/);
+  assert.match(merchant.steps.join(' '), /天青台盏.*1 个/);
+  assert.equal(merchant.sources.length, 2);
+  assert.deepEqual(new Set(merchant.sources.map((row) => row.author)), new Set(['星1辰2之3羽', '虚饮茶']));
+  assert(merchant.sources.every((row) => row.date.startsWith('2025-') && /构建未标/.test(row.version)));
+  assert.match(merchant.uncertainty, /NPC 当前所在位置仍需/);
+  assert(!flow.warnings.some((row) => row.id === 'tianshui-merchant-pickup'));
+
+  for (const prerequisite of [undefined, 0, 1, 2, 3]) {
+    const quests = records.slice(0, 2);
+    if (prerequisite !== undefined) quests.push({ id: 13208, step: prerequisite });
+    const unconfirmed = flowSnapshot(profile(), ref(quests, { inventory: [{ id: 10306, count: 10 }] }));
+    assert(!unconfirmed.opportunities.some((row) => row.questId === 18500), String(prerequisite));
+  }
+  assert(!flowSnapshot(profile(), null).opportunities.some((row) => row.questId === 18500));
+});
+
+test('merchant acceptance and saved outcomes retire the unaccepted lead while keeping location for reference', () => {
+  for (const id of [18500, 18501]) {
+    for (const step of [1, 2, 4]) {
+      const flow = flowSnapshot(
+        profile(),
+        lateSavedReference(
+          [
+            { id: 5780, step: 1 },
+            { id: 5806, step: 1 },
+            { id: 13208, step: 4 },
+            { id, step },
+          ],
+          5780,
+          5806,
+        ),
+      );
+      assert(!flow.opportunities.some((row) => row.questId === 18500), `${id}:${step}`);
+      const reference = flow.guide.find((row) => row.id === 'tianshui-merchant-pickup');
+      assert.equal(reference.pickup.personId, 'npc-16030');
+      assert.match(reference.pickup.place, /天水城.*客栈/);
+      assert.match(reference.uncertainty, /当前人物在场.*仍需/);
+      assert(!flow.decisions.some((row) => row.questId === 18500));
+    }
+  }
+});
+
 test('money alone cannot recommend a later quest with an unknown explicit story prerequisite', () => {
   const records = [
     { id: 5020, step: 4 },
