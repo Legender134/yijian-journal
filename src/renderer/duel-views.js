@@ -4,6 +4,19 @@ export function createDuelViews({ esc, act, pill, richText = esc }) {
     reward.itemId
       ? act('database-detail', text(reward.name), 'text-btn', 'item-' + reward.itemId)
       : text(reward.name);
+  function preparationPreview(ready) {
+    const checks = (ready?.checks || []).filter((check) => !check.optional);
+    const basics = ['health', 'mana', 'weapon', 'armor'];
+    const check =
+      (ready?.status === 'defer' && checks.find((entry) => entry.id === 'level' && entry.status !== 'met')) ||
+      checks.find((entry) => entry.status === 'unmet' && basics.includes(entry.id)) ||
+      checks.find((entry) => entry.status === 'unmet') ||
+      checks.find((entry) => entry.status === 'unknown');
+    const priority = check
+      ? `${check.label ? `${text(check.label)}：` : ''}${check.detail ? text(check.detail) : richText(check.next || (check.status === 'unmet' ? '需准备' : '待核对'))}`
+      : richText(ready?.action || '到场观察切磋条件与当前私物。');
+    return `<span class="duel-readiness-preview">${text(ready?.label || '准备待核对')}${check?.label ? ' · ' : '：'}${priority}</span>`;
+  }
   function card(row, compact = false, scope = '') {
     const rewards = row.rewards || [];
     const key = text(scope + '-' + row.id);
@@ -24,7 +37,7 @@ export function createDuelViews({ esc, act, pill, richText = esc }) {
           .slice(0, 2)
           .map((reward) => `${item(reward)}<small>（${text(reward.method)}）</small>`)
           .join(' · ') || '先观察当前私物'
-      }${rewards.length > 2 ? ` 等 ${rewards.length} 项` : ''}</span>${ready ? `<span class="duel-readiness-preview">${text(ready.label)}</span>` : ''}</summary><div class="duel-compact-detail">${row.personId ? act('database-detail', '查看人物资料', 'text-btn', row.personId) : ''}${fullBody}</div></details>`;
+      }${rewards.length > 2 ? ` 等 ${rewards.length} 项` : ''}</span>${preparationPreview(ready)}${row.conditions?.some((condition) => condition.status === 'unmet' || condition.status === 'unknown') ? `<span class="duel-readiness-preview">${row.conditions.some((condition) => condition.status === 'unmet') ? '前置未完成' : ''}${row.conditions.some((condition) => condition.status === 'unmet') && row.conditions.some((condition) => condition.status === 'unknown') ? ' · ' : ''}${row.conditions.some((condition) => condition.status === 'unknown') ? '前置待核对' : ''}</span>` : ''}</summary><div class="duel-compact-detail">${fullBody}</div></details>`;
     return `<article class="duel-card" data-duel="${text(row.id)}">${header}<p class="duel-place">${text(row.place)}</p>${fullBody}</article>`;
   }
   function page(flow, { compact = false, scope = '' } = {}) {
@@ -32,6 +45,8 @@ export function createDuelViews({ esc, act, pill, richText = esc }) {
     const candidates = data?.candidates || [];
     const ids = new Set(candidates.map((row) => row.id));
     const others = (data?.guide || []).filter((row) => !ids.has(row.id));
+    if (compact)
+      return `<section class="duel-page"><h2>本阶段比武</h2><div data-duel-current>${candidates.length ? candidates.map((entry) => card(entry, true, scope)).join('') : `<p class="small">${data?.available ? '当前阶段暂无已整理线索。' : '尚未对照可读存档。'}</p>`}</div>${others.length ? `<details class="duel-all" data-persist-detail="duel-all-${text(scope)}"><summary>其他阶段 · ${others.length} 人</summary><p class="small save-note">仅供查阅，不能据此判断这些人物当前在场或可挑战。</p>${others.map((entry) => card(entry, true, scope)).join('')}</details>` : ''}<details class="duel-combat-limit" data-persist-detail="duel-combat-${text(scope)}"><summary>依据与覆盖</summary><p class="small save-note">${text(data?.reason || '正在核对比武资料。')}${data?.difficultyName ? ` 难度：${text(data.difficultyName)}。` : ''}</p><p>${text(data?.combatLimit || '尚未读取玩家实时战斗面板，不保证能够战胜。')}</p><p>先观察人物的招式、私物和比武条件，按准备建议判断；首次挑战前保留可回读存档，打不过可以先继续低风险任务。</p><p class="small save-note">已整理 ${data?.guide?.length || 0} 位人物。切磋私物、武学请教和剧情奖励分别标注；未列人物不代表没有重要物品。</p></details></section>`;
     return `<section class="duel-page"><h2>${compact ? '本阶段比武' : '本阶段比武与重要收益'}</h2><p class="small save-note">${compact && data?.available ? `${text(flow.reference?.name || '当前存档')} · ${candidates.length} 条阶段线索；到场核对人物与私物。` : text(data?.reason || '正在核对比武资料。')}${data?.difficultyName ? ` 难度：${text(data.difficultyName)}。` : ''}</p><details class="duel-combat-limit" data-persist-detail="duel-combat-${text(scope)}"><summary>怎样判断现在能不能打</summary><p>${text(data?.combatLimit || '尚未读取玩家实时战斗面板，不保证能够战胜。')}</p><p>先观察人物的招式、私物和比武条件，按下方准备建议判断；首次挑战前保留可回读存档，打不过可以先继续低风险任务。</p></details><div data-duel-current>${candidates.length ? candidates.map((entry) => card(entry, compact, scope)).join('') : '<p class="small">当前未匹配已整理的比武候选，可在下方按人物查资料。</p>'}</div>${others.length ? `<details class="duel-all" data-persist-detail="duel-all-${text(scope)}"><summary>其他阶段的比武资料 · ${others.length} 人</summary><p class="small save-note">仅供查阅，不能据此判断这些人物当前在场或可挑战。</p>${others.map((entry) => card(entry, compact, scope)).join('')}</details>` : ''}<p class="small save-note">已整理 ${data?.guide?.length || 0} 位人物。切磋私物、武学请教和剧情奖励分别标注；未列人物不代表没有重要物品。</p></section>`;
   }
   return { page };

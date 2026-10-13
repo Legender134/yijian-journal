@@ -1510,6 +1510,7 @@ module.exports = {
   advice: [
     {
       id: 'npc060-before-tanlin-yuanjue',
+      compactWarning: '圆觉后续身亡会失去切磋请教；赴檀林前核对',
       kind: 'stage',
       phaseChange: true,
       requireStageMatch: true,
@@ -1556,6 +1557,7 @@ module.exports = {
     },
     {
       id: 'npc059-conference-collection',
+      compactWarning: '休息后左江龙、刘雄离庄；先核对图纸与请教',
       kind: 'stage',
       phaseChange: true,
       requireStageMatch: true,

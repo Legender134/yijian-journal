@@ -892,7 +892,7 @@ test('formation guidance precedes the native choice and follows each saved outco
     const choice = current.flow.decisions.find((row) => row.id === id);
     assert(choice, `visible step ${step} bridges the unnamed dialogue`);
     assert.match(choice.recommendation.action, /另存.*乘黄御风.*三人赴战.*第二战/);
-    assert.match(choice.recommendation.reason, /两位.*单人.*三人.*燕未还.*荀杳杳/);
+    assert.match(choice.recommendation.reason, /三人.*乘黄御风.*燕未还.*荀杳杳.*战斗条件/);
     assert.match(choice.recommendation.tradeoff, /多人.*自由组队.*没有.*轻功.*鞋图.*不保证.*24回合.*当前/);
     assert.deepEqual(
       choice.choices.map((row) => row.label),
