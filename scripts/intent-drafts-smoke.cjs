@@ -188,7 +188,12 @@ async function collectionQuantityJourney() {
   p = await until((p) => p.journey.itinerary.steps.some((s) => s.actionId === action.id));
   const selection = p.journey.itinerary.steps.find((s) => s.actionId === action.id);
   const todoAction = journeyPlan(p, null).actions.find((a) => a.kind === 'todo');
-  await page.locator('[data-action="journey-itinerary-remove"][data-id="' + todoAction.id + '"]').click();
+  const queuedTodo = page.locator(
+    '[data-action="journey-itinerary-remove"][data-id="' + todoAction.id + '"]',
+  );
+  await reveal(queuedTodo);
+  assert.equal(await queuedTodo.isVisible(), true);
+  await queuedTodo.click();
   await page.locator('[data-action="journey-itinerary-status"][data-id="active"]').first().click();
   await until((p) => p.journey.itinerary.status === 'active');
   const created = app.waitForEvent('window');
