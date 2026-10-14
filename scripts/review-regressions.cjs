@@ -60,6 +60,27 @@ const launch = async (data, tray = false) => {
     env,
   });
   const win = await app.firstWindow();
+  await app.evaluate(({ app }, expectedData) => {
+    if (process.env.YIJIAN_TEST_DATA !== expectedData || app.getPath('userData') !== expectedData)
+      throw Error('Synthetic restore checks require the isolated test directory');
+    const path = process.mainModule.require('node:path');
+    const { GameBridge } = process.mainModule.require(
+      path.join(app.getAppPath(), 'src/core/game-bridge.cjs'),
+    );
+    const canStop = GameBridge.prototype.canStop;
+    // Host process discovery is external to these synthetic restore scenarios.
+    // Retain the real busy/heartbeat checks and all protection-copy verification.
+    GameBridge.prototype.canStop = function () {
+      if (!this.test) throw Error('Process fixture cannot run outside the test bridge');
+      const stopped = this.stopped;
+      this.stopped = () => true;
+      try {
+        return canStop.call(this);
+      } finally {
+        this.stopped = stopped;
+      }
+    };
+  }, data);
   win.on('dialog', (dialog) => dialog.dismiss().catch(() => {}));
   win.on('pageerror', (e) => report.errors.push(e.message));
   win.on('request', (r) => {
