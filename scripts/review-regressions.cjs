@@ -2406,6 +2406,8 @@ async function importedReferences() {
     assert.match(await win.locator('.person-gifts h3').innerText(), /可送礼物/);
     assert.doesNotMatch(await win.locator('.person-gifts').innerText(), /仅列可用库存/);
     await close(win);
+    // Shared Settings changed the profile itself; restore the pinned import fixture.
+    await selectProgress(win, '1.sav', { reopen: false });
     await nav(win, 'settings');
     const file = path.join(data, 'exported-journal.json');
     await app.evaluate(({ dialog }, file) => {
@@ -2430,7 +2432,7 @@ async function importedReferences() {
     await win.locator('[data-action="import"]').click();
     await win.waitForFunction(() =>
       [...document.querySelectorAll('.toast')].some((t) =>
-        t.textContent.includes('1 个周目已改为跟随最新存档'),
+        t.textContent.includes('1 个周目已改为跟随最新进度'),
       ),
     );
     assert.equal(journal(data).profiles[0].referenceMode, 'latest');
