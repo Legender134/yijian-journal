@@ -964,14 +964,14 @@ test('compact disclosure state follows advice, task and material identities acro
     '做法与理由',
   );
   assert.deepEqual(reordered, [after[0], before[0]]);
-  const flow = current([material(), material({ id: 'item-6', name: '第二材料' })]);
-  const initial = keys(view.taskMaterials(flow, { compact: true }), '获取详情');
-  flow.active[0].steps[0].materials.reverse();
-  assert.deepEqual(keys(view.taskMaterials(flow, { compact: true }), '获取详情'), [...initial].reverse());
-  flow.active[0].steps[0].id = 'quest-7';
-  assert(
-    keys(view.taskMaterials(flow, { compact: true }), '获取详情').every((key) => !initial.includes(key)),
-  );
+  for (const compact of [false, true]) {
+    const flow = current([material(), material({ id: 'item-6', name: '第二材料' })]);
+    const initial = keys(view.taskMaterials(flow, { compact }), '获取详情');
+    flow.active[0].steps[0].materials.reverse();
+    assert.deepEqual(keys(view.taskMaterials(flow, { compact }), '获取详情'), [...initial].reverse());
+    flow.active[0].steps[0].id = 'quest-7';
+    assert(keys(view.taskMaterials(flow, { compact }), '获取详情').every((key) => !initial.includes(key)));
+  }
 });
 
 test('critical branch losses and prerequisites remain outside the collapsed choice explanation', async () => {

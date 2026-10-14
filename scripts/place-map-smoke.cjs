@@ -71,12 +71,16 @@ delete env.ELECTRON_RUN_AS_NODE;
     await small.locator('#entity-preview').waitFor({ state: 'visible' });
     assert.equal(await small.locator('#entity-preview .place-map').count(), 1);
     await snap(small, 'location-hover');
-    await small.locator('.drawer h1').click();
+    await small.keyboard.press('Escape');
+    await small.locator('#entity-preview').waitFor({ state: 'hidden' });
+    assert.equal(await small.locator('.drawer h1').innerText(), '梧桐村');
     await small.mouse.move(8, 8);
     await nearby.hover();
     await small.locator('#entity-preview .place-map').waitFor({ state: 'visible' });
     await snap(small, 'location-pointer-hover');
-    await small.locator('.drawer h1').click();
+    await small.keyboard.press('Escape');
+    await small.locator('#entity-preview').waitFor({ state: 'hidden' });
+    assert.equal(await small.locator('.drawer h1').innerText(), '梧桐村');
     await win.bringToFront();
     await win.locator('.sidebar [data-id="world"]').click();
     await win.locator('[data-action="world-kind"][data-id="places"]').click();
@@ -135,6 +139,7 @@ delete env.ELECTRON_RUN_AS_NODE;
     await small.locator('#global-results [data-action="detail"][data-id="wei-huo"]').click();
     await small.locator('.drawer [data-entity-id="name:梧桐村"]').first().click();
     await small.locator('.drawer [data-action="world-place"][data-id="place-9"]').click();
+    await small.locator('.drawer summary').filter({ hasText: '关联任务与步骤' }).click();
     const savedQuest = small.locator('.drawer .world-steps .world-step').filter({
       has: small.locator('[data-id="quest-5059"]'),
     });

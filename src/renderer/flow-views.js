@@ -218,15 +218,15 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       })
       .join('');
   }
-  function materials(rows, sharedMaterials = [], heading = '这一步需要的材料') {
+  function materials(rows, sharedMaterials = [], heading = '这一步需要的材料', scope = heading) {
     return list(rows).length
-      ? `<div class="flow-materials"><h4>${icon('bag')} ${text(heading)}</h4>${materialRows(rows, sharedMaterials, { scope: heading })}</div>`
+      ? `<div class="flow-materials">${heading ? `<h4>${icon('bag')} ${text(heading)}</h4>` : ''}${materialRows(rows, sharedMaterials, { scope })}</div>`
       : '';
   }
   function sharedMaterialSummary(rows) {
     const shared = list(rows);
     return shared.length
-      ? `<aside class="flow-shared-materials"><h3>这些步骤会共用材料</h3><p class="small save-note">若都要交付，请按合计量预留；未纳入未接任务和未显示的后续步骤。</p>${shared
+      ? `<aside class="flow-shared-materials"><h3>多任务共用材料</h3>${shared
           .map(
             (material) =>
               `<p>${button('database-detail', material.name, material.id)} · 合计需 ${text(material.required)}${material.owned === null ? ' · 库存待核对' : ` · 持有 ${text(material.owned)} · 还差 ${text(material.missing)}`}</p><details data-persist-detail="shared-material-${text(material.id)}-${text(
@@ -234,7 +234,9 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
                   .map((row) => row.id)
                   .sort()
                   .join('-'),
-              )}"><summary>哪些步骤会用到</summary><ul>${list(material.steps)
+              )}"><summary>哪些步骤会用到</summary><p class="small save-note">按下列步骤的合计量预留，不包含其他未接任务与后续步骤。</p><ul>${list(
+                material.steps,
+              )
                 .map(
                   (row) =>
                     `<li>${questButton(row.id, row.taskName + ' · ' + row.name)} · ${text(row.required)}</li>`,
@@ -289,7 +291,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
         ? needs
             .map(
               ({ task, row }) =>
-                `<article data-flow-quest="${text(task.id)}"><h3>${questButton(task.id, task.name) || text(task.name)}</h3>${!compact && row.id !== task.id && row.name !== task.name ? `<p class="small">${questButton(row.id, row.name) || text(row.name)}</p>` : ''}${compact ? compactMaterials(row.materials, flow.sharedMaterials, { scope: `${task.id}-${row.id}` }) : materials(row.materials, flow.sharedMaterials)}</article>`,
+                `<article data-flow-quest="${text(task.id)}"><h3>${questButton(task.id, task.name) || text(task.name)}</h3>${!compact && row.id !== task.id && row.name !== task.name ? `<p class="small">${questButton(row.id, row.name) || text(row.name)}</p>` : ''}${compact ? compactMaterials(row.materials, flow.sharedMaterials, { scope: `${task.id}-${row.id}` }) : materials(row.materials, flow.sharedMaterials, '', `${task.id}-${row.id}`)}</article>`,
             )
             .join('')
         : recommended.length

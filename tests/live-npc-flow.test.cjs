@@ -104,6 +104,52 @@ test('historical lookup suppresses live NPC and route projection; withdrawal ret
   assert(withdrawn.active.some((r) => r.gameId === 5020));
 });
 
+test('current checkpoint consequences are visible before disclosure in both windows', async () => {
+  const { createFlowViews } = await import('../src/renderer/flow-views.js');
+  const view = createFlowViews({
+    esc: String,
+    icon: () => '',
+    pill: String,
+    when: String,
+    act: (action, label, cls, id) => `<button data-action="${action}" data-id="${id}">${label}</button>`,
+  });
+  const id = 'chenlinxi-recruit-followup';
+  for (const [friend, affectedStep, expected] of [
+    [69, 1, /好感 69.*低于 70.*保留人物.*赠礼可能改变结果/],
+    [70, 1, /好感 70.*取胜会让他离场.*线索也会失败.*先不要推进/],
+    [90, 1, /好感 90.*取胜会让他离场.*线索也会失败/],
+    [90, 4, /好感 90.*取胜会让他离场/],
+    [null, 1, /先核对.*达到 70.*取胜会让他离场.*线索也会失败/],
+  ]) {
+    const observed = observation(friend ?? 70);
+    if (friend === null) observed.npcStates = [];
+    observed.questStates.find((row) => row.id === 11272).step = affectedStep;
+    const flow = flowSnapshot(profile, saved, '', { npcState: observed });
+    assert(flow.warnings.some((row) => row.id === id));
+    assert(!flow.advice.some((row) => row.id === id));
+    for (const compact of [false, true]) {
+      const html = view.panel(flow, { compact });
+      const start = html.indexOf(
+        compact ? `data-persist-detail="flow-risk-window-${id}"` : `data-flow-warning="${id}"`,
+      );
+      assert(start > 0);
+      const visible = html.slice(start, html.indexOf(compact ? '</summary>' : '<details', start));
+      assert.match(visible, expected);
+      assert.doesNotMatch(visible, /再在武馆与他对话/);
+      if (affectedStep === 4) assert.doesNotMatch(visible, /线索也会失败/);
+    }
+  }
+  for (const branch of [12095, 12098]) {
+    const flow = flowSnapshot(profile, saved, '', { npcState: observation(90, [{ id: branch, step: 1 }]) });
+    assert(!flow.warnings.some((row) => row.id === id));
+    assert(!flow.advice.some((row) => row.id === id));
+  }
+  const fixed = flowSnapshot({ ...profile, referenceMode: 'slot', saveSlot: '1.sav' }, saved, '', {
+    npcState: observation(90),
+  });
+  assert(!fixed.warnings.some((row) => row.id === id), 'fixed save cannot inherit a live checkpoint');
+});
+
 test('a live flow without any readable save preserves its cohort through actual namesake navigation', async () => {
   const fs = require('node:fs'),
     path = require('node:path'),

@@ -3074,6 +3074,15 @@ async function loadGiftStock(draft) {
     /* A missing or changed reference is shown as unknown, never as empty stock. */
   }
 }
+function revealJourneyEntry(entry) {
+  if (!entry) return;
+  const focus = entry.querySelector('[data-itinerary-continuation] select') || entry;
+  for (let parent = focus.parentElement; parent; parent = parent.parentElement)
+    if (parent.tagName === 'DETAILS') parent.open = true;
+  if (focus === entry) entry.tabIndex = -1;
+  focus.scrollIntoView({ block: 'center' });
+  focus.focus({ preventScroll: true });
+}
 function journeyDialog(kind, id = '', savedDraft = null) {
   const p = profile(),
     state = p.journey || { places: [], todos: [], gifts: [] };
@@ -5862,10 +5871,10 @@ async function handle(action, id, target, navigationFocused = false) {
           (s) => s.actionId === id,
         )?.action?.id || id;
       render();
-      (
+      const entry =
         document.querySelector(`[data-journey-id="${CSS.escape(resolvedId)}"]`) ||
-        document.querySelector(`[data-itinerary-step="${CSS.escape(id)}"]`)
-      )?.scrollIntoView({ block: 'center' });
+        document.querySelector(`[data-itinerary-step="${CSS.escape(id)}"]`);
+      revealJourneyEntry(entry);
       break;
     }
     case 'journey-todo-dialog':
@@ -5904,10 +5913,10 @@ async function handle(action, id, target, navigationFocused = false) {
           (s) => s.actionId === id,
         )?.action?.id || id;
       render();
-      (
+      const entry =
         document.querySelector(`[data-journey-id="${CSS.escape(resolvedId)}"]`) ||
-        document.querySelector(`[data-itinerary-step="${CSS.escape(id)}"]`)
-      )?.scrollIntoView({ block: 'center' });
+        document.querySelector(`[data-itinerary-step="${CSS.escape(id)}"]`);
+      revealJourneyEntry(entry);
       break;
     }
     case 'journey-intent-save': {

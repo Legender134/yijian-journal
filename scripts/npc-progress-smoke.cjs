@@ -71,7 +71,7 @@ const liveNpc = (id, extra = {}) => ({
   ...extra,
 });
 const hmac = (bytes) => crypto.createHmac('sha256', Buffer.from(token, 'hex')).update(bytes).digest('hex');
-const publish = (bag) => {
+const publish = (bag, overrides = {}) => {
   blobVersion++;
   const body = {
     schema: 1,
@@ -99,6 +99,7 @@ const publish = (bag) => {
       liveNpc(10047, { rawFriendliness: 60, inventory: [{ id: 100073, count: 1 }] }),
       liveNpc(10131, { rawFriendliness: 30, inventory: [{ id: 100034, count: 1 }] }),
     ],
+    ...overrides,
   };
   const bytes = Buffer.from(JSON.stringify(body));
   fs.writeFileSync(path.join(data, 'game-bridge/npc-observation.json'), bytes);
@@ -349,11 +350,65 @@ const pulse = () => {
       document.querySelector('#overlay [data-npc-progress="10016"]')?.textContent.includes('私物已清空'),
     );
     assert.match(await main.locator('#overlay').innerText(), /保存后更新/);
+    await main.keyboard.press('Escape');
+    if (await small.locator('#overlay .drawer').isVisible()) await small.keyboard.press('Escape');
+    await main.evaluate(async () => {
+      const result = await window.journal.mutate({ type: 'save-slot', value: '', mode: 'latest' });
+      if (!result.ok) throw Error(result.error);
+    });
+    await main.locator('.sidebar-nav [data-id="home"]').click();
+    await main.locator('[data-action="compact"]').first().click();
+    const closeSmallDetail = small.locator('#overlay [data-action="close-overlay"]').first();
+    if (await closeSmallDetail.isVisible()) await closeSmallDetail.click();
+    await small.locator('.companion-tabs [data-id="home"]').click();
+    const checkpointQuests = [
+      { id: 12071, step: 4 },
+      { id: 12075, step: 4 },
+      { id: 12090, step: 1 },
+      { id: 12094, step: 1 },
+      { id: 11272, step: 1 },
+    ];
+    for (const [friend, pattern] of [
+      [70, '好感 70.*取胜会让他离场.*线索也会失败'],
+      [90, '好感 90.*取胜会让他离场.*线索也会失败'],
+      [69, '好感 69.*低于 70.*保留人物.*赠礼可能改变结果'],
+      [null, '先核对.*达到 70.*取胜会让他离场.*线索也会失败'],
+    ]) {
+      publish([], {
+        quests: checkpointQuests,
+        npcs: [liveNpc(0), ...(friend === null ? [] : [liveNpc(10221, { rawFriendliness: friend })])],
+      });
+      pulse();
+      for (const [page, selector] of [
+        [main, '[data-flow-warning="chenlinxi-recruit-followup"] .flow-warning-message'],
+        [small, '[data-persist-detail="flow-risk-window-chenlinxi-recruit-followup"] > summary'],
+      ]) {
+        await page.waitForFunction(
+          ([selector, pattern]) =>
+            new RegExp(pattern).test(document.querySelector(selector)?.textContent || ''),
+          [selector, pattern],
+        );
+        assert.equal(await page.locator(selector).isVisible(), true);
+      }
+      await small.screenshot({
+        animations: 'disabled',
+        path: path.join(output, `checkpoint-${friend ?? 'unknown'}.png`),
+      });
+    }
+    publish([], {
+      quests: [...checkpointQuests, { id: 12095, step: 1 }],
+      npcs: [liveNpc(0), liveNpc(10221, { rawFriendliness: 90 })],
+    });
+    pulse();
+    await main.locator('[data-flow-warning="chenlinxi-recruit-followup"]').waitFor({ state: 'detached' });
+    await small
+      .locator('[data-persist-detail="flow-risk-window-chenlinxi-recruit-followup"]')
+      .waitFor({ state: 'detached' });
     assert.deepEqual(fs.readFileSync(latestFile), latestBytes);
     assert.deepEqual(fs.readFileSync(file), expected, 'only the fixture writer changes the synthetic save');
     assert.deepEqual(errors, []);
     console.log(
-      'NPC progress PASS: saved and live private bags, learning, caps, both windows, live codex refresh, withdrawal fallback and unchanged save;',
+      'NPC progress PASS: saved and live private bags, learning, caps, both windows, live codex refresh, withdrawal fallback, visible conditional checkpoint consequences and unchanged save;',
       output,
     );
   } finally {

@@ -538,14 +538,16 @@ function createFlowProjector({
         const friendship = person?.friendship.value;
         checkpointWarning =
           friendship === null || friendship === undefined
-            ? `共饮前先核对陈麟熙好感：达到 ${c.threshold} 时，取胜会让他离场。`
+            ? `共饮前先核对陈麟熙好感：达到 ${c.threshold} 时，取胜会让他离场${step(c.affectedQuestId) === 1 ? '，进行中的灭门之案线索也会失败' : ''}。`
             : friendship >= c.threshold
               ? `陈麟熙好感 ${friendship}：共饮后取胜会让他离场${step(c.affectedQuestId) === 1 ? '，进行中的灭门之案线索也会失败' : ''}。想保留人物内容，先不要推进。`
               : `陈麟熙好感 ${friendship}：当前低于 ${c.threshold}，共饮会走保留人物的分支；此时继续赠礼可能改变结果。`;
       }
       return {
         ...rule,
-        ...(checkpointWarning ? { warning: checkpointWarning, compactWarning: checkpointWarning } : {}),
+        ...(checkpointWarning
+          ? { severity: 'warning', warning: checkpointWarning, compactWarning: checkpointWarning }
+          : {}),
         recommendation: rule.recommendation
           ? {
               ...rule.recommendation,
