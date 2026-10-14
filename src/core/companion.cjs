@@ -68,9 +68,11 @@ function companionSnapshot(state, catalog, reference, error = '', dialogue = nul
       title: decision.recommendation?.hint || decision.recommendation?.action || decision.warning,
       label: '选择前的建议 · ' + decision.name,
     });
+    const caution = decision.recommendation?.caution || decision.compactWarning;
+    if (caution) hints.push({ type: 'flow-caution', title: caution, label: '选择后果' });
   }
   const warning = flow.warnings.find((row) => !flow.decisions.some((decision) => decision.id === row.id));
-  if (warning) {
+  if (warning && hints.length < 2) {
     hints.push({
       type: 'flow-warning',
       id: warning.questId ? `quest-${warning.questId}` : null,

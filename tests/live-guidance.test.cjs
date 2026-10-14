@@ -200,6 +200,9 @@ test('a first single-option window reaches the bridge and removes old choices fr
 test('closed live choices retire stale saved advice and a newly observed opening can restore it', () => {
   assert(flowSnapshot(profile, reference()).decisions.some((row) => row.id === choiceId));
   const closed = flowSnapshot(profile, reference(), '', context(null, [11004]));
+  assert(!closed.active.some((task) => task.steps.some((step) => step.id === 'quest-11004')));
+  const passive = companionSnapshot(defaults(), catalog, reference(), '', context(null, [11004]));
+  assert(!passive.hints.some((hint) => /告诉樵夫两个选择/.test(hint.title)));
   for (const rows of [closed.decisions, closed.warnings, closed.advice, closed.opportunities])
     assert(!rows.some((row) => row.id === choiceId));
   assert(
@@ -208,6 +211,49 @@ test('closed live choices retire stale saved advice and a newly observed opening
   );
   const reopened = flowSnapshot(profile, reference(), '', context(dialogue({ sequence: 2 })));
   assert.equal(reopened.decisions[0].liveSequence, 2);
+});
+
+test('retirement removes only stale choice actions and recalculates their shared-material display', () => {
+  const saved = flowSnapshot(profile, reference());
+  const material = {
+    id: 'item-10201',
+    owned: 2,
+    required: 12,
+    missing: 10,
+    steps: [
+      { id: 'quest-11004', required: 7 },
+      { id: 'quest-900001', required: 3 },
+      { id: 'quest-900002', required: 2 },
+    ],
+  };
+  const base = {
+    ...saved,
+    active: [
+      {
+        id: 'quest-11002',
+        steps: [
+          { id: 'quest-11004', nextAction: '旧选择' },
+          { id: 'quest-900001', nextAction: '交付材料' },
+          { id: 'quest-900002', nextAction: '回访樵夫' },
+        ],
+      },
+    ],
+    sharedMaterials: [material],
+  };
+  const before = structuredClone(base);
+  for (const live of [context(null, [11004]), context(dialogue({ questId: 999999 }))]) {
+    const after = withLiveDialogue(base, live, new Map());
+    assert.deepEqual(
+      after.active[0].steps.map((step) => step.id),
+      ['quest-900001', 'quest-900002'],
+    );
+    assert.equal(after.sharedMaterials[0].required, 5);
+    assert.equal(after.sharedMaterials[0].missing, 3);
+    assert.equal(after.active[0].steps[0].nextAction, '交付材料', 'ordinary saved tasks remain available');
+  }
+  assert.deepEqual(base, before, 'saved facts and offline source are not modified');
+  const fixed = withLiveDialogue({ ...base, referenceMode: 'slot' }, context(null, [11004]), new Map());
+  assert.equal(fixed.active[0].steps[0].id, 'quest-11004', 'explicit historical lookup keeps saved actions');
 });
 
 test('retirement is bounded by known choice steps and survives more than 64 unrelated dialogues', () => {
@@ -377,4 +423,147 @@ test('same-session interruption preserves retirement until a fresh choice or a n
     null,
     'never share retirement with another source',
   );
+});
+
+test('restarting the assistant retains closed choices only for the same verified game session', (t) => {
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-guidance-restart-'));
+  t.after(() => fs.rmSync(data, { recursive: true, force: true }));
+  const root = path.join(data, 'bridge'),
+    guidanceFile = path.join(data, 'live-guidance.json'),
+    source = path.join(data, '76561190000000000', 'SaveGames');
+  let state = { session: '1800000000-123456', source, ready: true, dialogue: dialogue() };
+  const restart = () => {
+    const bridge = new GameBridge(
+      root,
+      { data: { source: state.source } },
+      {
+        test: true,
+        blocked: () => false,
+        guidanceFile,
+      },
+    );
+    bridge.heartbeat = () => ({ ...state, token: bridge.token, revision: bridge.revision });
+    return bridge;
+  };
+  let bridge = restart();
+  bridge.liveGuidance(source);
+  state.dialogue = null;
+  assert.deepEqual(bridge.liveGuidance(source), context(null, [11004]));
+  const stamp = fs.statSync(guidanceFile, { bigint: true }).mtimeNs;
+  bridge.liveGuidance(source);
+  assert.equal(
+    fs.statSync(guidanceFile, { bigint: true }).mtimeNs,
+    stamp,
+    'unchanged heartbeats do not write',
+  );
+  bridge = restart();
+  const restored = bridge.liveGuidance(source);
+  assert.deepEqual(restored, context(null, [11004]));
+  assert.deepEqual(flowSnapshot(profile, reference(), '', restored).decisions, []);
+  state.dialogue = dialogue({ sequence: 2 });
+  assert.deepEqual(
+    bridge.liveGuidance(source),
+    context(state.dialogue),
+    'a genuine reopening clears retirement',
+  );
+  bridge = restart();
+  state.dialogue = null;
+  assert.deepEqual(
+    bridge.liveGuidance(source),
+    context(null, [11004]),
+    'close while the assistant is off also retires its last observed choice',
+  );
+  fs.writeFileSync(guidanceFile, '{broken');
+  bridge = restart();
+  assert.deepEqual(
+    bridge.liveGuidance(source),
+    context(null, [11004]),
+    'recover the previous complete record',
+  );
+  state.session = '1800000001-123456';
+  bridge = restart();
+  assert.deepEqual(
+    bridge.liveGuidance(source),
+    context(null, []),
+    'new game session does not inherit retirement',
+  );
+  state.dialogue = dialogue({ sequence: 3 });
+  bridge.liveGuidance(source);
+  state.dialogue = null;
+  bridge.liveGuidance(source);
+  state.source = path.join(data, 'foreign', 'SaveGames');
+  bridge = restart();
+  assert.deepEqual(bridge.liveGuidance(state.source), context(null, []), 'another source starts fresh');
+  state.source = source;
+  bridge = restart();
+  assert.deepEqual(
+    bridge.liveGuidance(source),
+    context(null, []),
+    'valid foreign record cannot revive a matching previous copy',
+  );
+  state.dialogue = dialogue({ sequence: 4 });
+  bridge.liveGuidance(source);
+  state.dialogue = null;
+  bridge.liveGuidance(source);
+  bridge = restart();
+  bridge.revision = 'c'.repeat(64);
+  assert.deepEqual(
+    bridge.liveGuidance(source),
+    context(null, []),
+    'script changes invalidate stored retirement',
+  );
+  state.dialogue = dialogue({ sequence: 5 });
+  bridge.liveGuidance(source);
+  state.dialogue = null;
+  bridge.liveGuidance(source);
+  bridge = restart();
+  bridge.revision = 'c'.repeat(64);
+  bridge.token = 'd'.repeat(64);
+  assert.deepEqual(
+    bridge.liveGuidance(source),
+    context(null, []),
+    'another bridge identity cannot inherit retirement',
+  );
+  assert.equal(fs.existsSync(source), false, 'no save directory was created or written');
+  assert.equal(
+    bridge.timeline.data.enabled,
+    undefined,
+    'reminder persistence grants no timeline permissions',
+  );
+});
+
+test('default choice hints retain permanent consequences before ordinary task hints', async () => {
+  const { pathToFileURL } = require('node:url');
+  const { createCompanionViews } = await import(
+    pathToFileURL(path.join(__dirname, '../src/renderer/companion-view.js')).href
+  );
+  const render = createCompanionViews({ esc: String, icon: () => '', act: () => '', qualityText: {} });
+  const rules = require('../src/data/flow-guide.cjs').rules;
+  for (const id of [
+    'chenlinxi-critical-choice',
+    'tianji-rebuild-choice',
+    'changsheng-rescue-choice',
+    'bai-jin-rescue-route',
+  ]) {
+    const rule = rules.find((r) => r.id === id);
+    const value = dialogue({
+      questId: rule.decisionSteps[0],
+      npcId: 0,
+      options: rule.choices.map((c, i) => ({ index: i + 1, text: c.label })),
+    });
+    // Known NPC constraints still apply to the actual flow producer.
+    const task = require('../src/data/world-index.json').quests.find((q) => q.id === value.questId);
+    value.npcId = task?.requestNPCs?.[0] || task?.finishNPCs?.[0] || 0;
+    const data = companionSnapshot(defaults(), catalog, reference(), '', context(value));
+    assert.equal(data.flow.liveDialogue.matched, true, id);
+    assert.deepEqual(
+      data.hints.map((h) => h.type),
+      ['flow-choice', 'flow-caution'],
+    );
+    assert.equal(data.hints[1].title, rule.recommendation.caution);
+    assert(
+      render.passive(data).includes(rule.recommendation.caution),
+      id + ' exposes its complete critical consequence',
+    );
+  }
 });

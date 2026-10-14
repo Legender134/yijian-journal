@@ -3250,21 +3250,43 @@ function render(preserve = false, navigationId = null) {
   entityPreviews.closeWithin(root);
   captureIntentDrafts();
   const replaceRoot = (html) => {
-    const note = preserve ? root.querySelector('#note') : null;
-    if (!note) {
+    const journalFilters = preserve
+      ? root.querySelector('#journal-filter-form, #historical-journal-filter-form')
+      : null;
+    const focusedSearch =
+      root.contains(document.activeElement) &&
+      ['list-search', 'timeline-search'].includes(document.activeElement?.id)
+        ? document.activeElement
+        : null;
+    const field = preserve ? journalFilters || focusedSearch || root.querySelector('#note') : null;
+    if (!field) {
       root.innerHTML = html;
       return;
     }
     const template = document.createElement('template');
     template.innerHTML = html;
-    const next = template.content.querySelector('#note');
-    if (!next || note.dataset.profileId !== next.dataset.profileId || note.value !== next.value) {
+    const next = template.content.querySelector('#' + field.id);
+    if (!next || field.dataset.profileId !== next.dataset.profileId || field.value !== next.value) {
       root.replaceChildren(template.content);
       return;
     }
+    if (journalFilters) {
+      // Keep the whole pending filter group connected, including native input
+      // history. Only the available tags can change during a background update.
+      for (const select of journalFilters.querySelectorAll('select')) {
+        const replacement = next.querySelector('#' + select.id);
+        const options = (node) => [...node.options].map((o) => [o.value, o.textContent]);
+        if (JSON.stringify(options(select)) === JSON.stringify(options(replacement))) continue;
+        const value = select.value;
+        const pending = [...select.options].find((option) => option.value === value)?.cloneNode(true);
+        select.replaceChildren(...[...replacement.options].map((option) => option.cloneNode(true)));
+        if (pending && ![...select.options].some((option) => option.value === value)) select.append(pending);
+        select.value = value;
+      }
+    }
     const oldPath = [],
       newPath = [];
-    for (let node = note; node !== root; node = node.parentNode) oldPath.unshift(node);
+    for (let node = field; node !== root; node = node.parentNode) oldPath.unshift(node);
     for (let node = next; node !== template.content; node = node.parentNode) newPath.unshift(node);
     if (
       oldPath.length !== newPath.length ||
@@ -3275,7 +3297,7 @@ function render(preserve = false, navigationId = null) {
     }
     oldPath.unshift(root);
     newPath.unshift(template.content);
-    // Chromium discards native undo even if the same textarea is reattached.
+    // Chromium discards native undo even if the same field/form is reattached.
     // Keep its entire ancestor chain connected; update only surrounding nodes.
     for (let i = 0; i < oldPath.length - 1; i++) {
       const current = oldPath[i],

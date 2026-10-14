@@ -136,6 +136,27 @@
   white-space: nowrap;
   font-size: 12px;
 }
+.hint-choice .hint-line {
+  align-items: flex-start;
+  margin-top: 3px;
+}
+.hint-choice .hint-line > span {
+  white-space: normal;
+  overflow: visible;
+  line-height: 16px;
+}
+.hint-caution {
+  color: #ffd7ab;
+}
+@media (max-width: 280px) {
+  .hint-choice .hint-head {
+    display: none;
+  }
+  .hint-choice .hint-line > span {
+    font-size: 11px;
+    line-height: 14px;
+  }
+}
 .companion .compact-title {
   height: 42px;
   flex-shrink: 0;

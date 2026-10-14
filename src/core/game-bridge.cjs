@@ -8,6 +8,7 @@ const { readStable, writeBytes, safeId, SLOT } = require('./timeline.cjs');
 const provenance = require('../game-bridge/provenance.json');
 const { PROTOCOL, assertNativePath, grantFrame, commandFrame } = require('./native-io.cjs');
 const { readDialogue, isKnownChoiceStep } = require('./live-guidance.cjs');
+const { atomicWrite } = require('./store.cjs');
 const resources = path.join(__dirname, '..', 'game-bridge');
 const NATIVE_MOD = 'YijianJournalUnicode';
 const slash = (p) => p.replaceAll('\\', '/');
@@ -53,6 +54,7 @@ class GameBridge {
       account = activeSteamId,
       now = Date.now,
       test = false,
+      guidanceFile,
     } = {},
   ) {
     fs.mkdirSync(root, { recursive: true });
@@ -76,6 +78,7 @@ class GameBridge {
     this.quiescing = false;
     this.grantBinding = '';
     this.guidanceSource = '';
+    this.guidanceFile = guidanceFile;
     if (timeline.data.enabled && timeline.data.nativeProtocol !== PROTOCOL) {
       timeline.stop();
       this.error = '接入协议已升级，请保护存档并重新明确开启时间线；原历史副本已保留';
@@ -188,6 +191,66 @@ class GameBridge {
         : '')
     );
   }
+  restoreDialogueContext(session, source) {
+    const fresh = { session, source, lastQuestId: 0, suppressed: new Set() };
+    if (!this.guidanceFile) return fresh;
+    for (const file of [this.guidanceFile, this.guidanceFile + '.previous']) {
+      try {
+        if (fs.lstatSync(file).size > 65536) throw Error('Invalid guidance record');
+        const saved = json(file);
+        if (
+          saved?.schema !== 1 ||
+          typeof saved.source !== 'string' ||
+          saved.source.length > 4096 ||
+          !/^\d+-\d+$/.test(saved.session) ||
+          !/^[a-f0-9]{64}$/.test(saved.revision) ||
+          !/^[a-f0-9]{64}$/.test(saved.tokenHash) ||
+          !(saved.lastQuestId === 0 || isKnownChoiceStep(saved.lastQuestId)) ||
+          !Array.isArray(saved.suppressed) ||
+          saved.suppressed.length > 256 ||
+          saved.suppressed.some((id) => !isKnownChoiceStep(id))
+        )
+          throw Error('Invalid guidance record');
+        // A valid record for a different game session/source must never fall
+        // back to an older, coincidentally matching previous copy.
+        if (
+          saved.session === session &&
+          same(saved.source, source) &&
+          saved.revision === this.revision &&
+          saved.tokenHash === sha(Buffer.from(this.token))
+        ) {
+          fresh.lastQuestId = saved.lastQuestId;
+          fresh.suppressed = new Set(saved.suppressed);
+        }
+        break;
+      } catch {
+        if (file === this.guidanceFile && fs.existsSync(file)) this.guidanceRecovering = true;
+      }
+    }
+    return fresh;
+  }
+  persistDialogueContext() {
+    if (!this.guidanceFile || !this.dialogueContext) return;
+    const current = this.dialogueContext;
+    const saved = {
+      schema: 1,
+      session: current.session,
+      source: current.source,
+      revision: this.revision,
+      tokenHash: sha(Buffer.from(this.token)),
+      lastQuestId: isKnownChoiceStep(current.lastQuestId) ? current.lastQuestId : 0,
+      suppressed: [...current.suppressed],
+    };
+    const signature = JSON.stringify(saved);
+    if (signature === this.guidanceStoredSignature) return;
+    try {
+      atomicWrite(this.guidanceFile, saved, !!this.guidanceRecovering);
+      this.guidanceRecovering = false;
+      this.guidanceStoredSignature = signature;
+    } catch {
+      this.error = '现场提醒记录未能保存，重启手札后可能重复提示；请检查手札数据目录是否可写。';
+    }
+  }
   liveGuidance(source) {
     const withdraw = () => {
       const current = this.dialogueContext;
@@ -200,6 +263,7 @@ class GameBridge {
         return null;
       if (isKnownChoiceStep(current.lastQuestId)) current.suppressed.add(current.lastQuestId);
       current.lastQuestId = 0;
+      this.persistDialogueContext();
       return { dialogue: null, suppressedQuestIds: [...current.suppressed] };
     };
     if (
@@ -223,7 +287,7 @@ class GameBridge {
       return withdraw();
     }
     if (this.dialogueContext?.session !== state.session || !same(this.dialogueContext.source, source)) {
-      this.dialogueContext = { session: state.session, source, lastQuestId: 0, suppressed: new Set() };
+      this.dialogueContext = this.restoreDialogueContext(state.session, source);
     }
     const current = this.dialogueContext;
     const dialogue = readDialogue(state.dialogue);
@@ -236,6 +300,7 @@ class GameBridge {
       if (isKnownChoiceStep(current.lastQuestId)) current.suppressed.add(current.lastQuestId);
       current.lastQuestId = 0;
     }
+    this.persistDialogueContext();
     return { dialogue, suppressedQuestIds: [...current.suppressed] };
   }
   hintQuiet() {

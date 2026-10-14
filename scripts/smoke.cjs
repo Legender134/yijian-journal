@@ -269,6 +269,10 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
   await page.mouse.move(2, 2);
   await page.keyboard.press('Tab');
   await trigger.focus();
+  await page.waitForFunction(
+    (node) => document.activeElement === node && node.getAttribute('aria-describedby') === 'entity-preview',
+    await trigger.elementHandle(),
+  );
   await preview.waitFor({ state: 'visible' });
   assert.match(await preview.innerText(), expected);
   await page.keyboard.press('Escape');

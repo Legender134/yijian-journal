@@ -854,6 +854,7 @@ app.whenReady().then(async () => {
       ? path.join(app.getPath('userData'), recoveredIsolation.bridgeDirectory)
       : bridgeStateRoot(game, app.getPath('userData'), isTest);
     bridge = new GameBridge(bridgeRoot, timeline, {
+      guidanceFile: path.join(app.getPath('userData'), 'live-guidance.json'),
       getGame: () => (isTest ? game : detectGame()),
       stopped: gameStopped,
       blocked: () =>

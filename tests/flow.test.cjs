@@ -823,11 +823,15 @@ test('Kushui return lead names recruitment route, handles missing prerequisites 
     assert.match(lead.affectedTasks[0].effect, /不把回村.*判为错过/);
     assert(current.flow.changes.some((row) => row.id === id && row.affectedTasks.length === 2));
     assert(!current.flow.warnings.some((row) => row.id === earlyId));
-    assert(
-      companionSnapshot(defaults(), catalog, current.reference).hints.some(
-        (row) => row.type === 'flow-warning' && /再探苦水.*涤罪僧/.test(row.title),
-      ),
-    );
+    const companion = companionSnapshot(defaults(), catalog, current.reference);
+    assert(companion.flow.warnings.some((row) => /再探苦水.*涤罪僧/.test(row.message)));
+    const choice = companion.flow.decisions[0];
+    const caution = choice?.recommendation?.caution || choice?.compactWarning;
+    if (caution) assert.equal(companion.hints[1].title, caution, 'current choice consequences take priority');
+    else
+      assert(
+        companion.hints.some((row) => row.type === 'flow-warning' && /再探苦水.*涤罪僧/.test(row.title)),
+      );
     assert.deepEqual(records, before);
   }
   const accepted = snapshot(middle.concat({ id: 13250, step: 1 }, { id: 13260, step: 1 })).flow;
@@ -2215,7 +2219,8 @@ test('current choice recommendations lead ordinary warnings and follow the track
   );
   assert.equal(snapshot.hints[0].type, 'flow-choice');
   assert.match(snapshot.hints[0].title, /孙老.*返乡/);
-  assert.equal(snapshot.hints[1].type, 'flow-warning');
+  assert.equal(snapshot.hints[1].type, 'flow-caution');
+  assert.match(snapshot.hints[1].title, /另一答法.*铜钱.*铁匠好感/);
   const updated = structuredClone(saved);
   updated.metadata.quests.find((row) => row.id === 11061).step = 4;
   const after = companionSnapshot(state, catalog, updated);

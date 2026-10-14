@@ -15,11 +15,11 @@ export function createCompanionViews({
   }
   function passive(data) {
     const hints = data?.hints || [{ type: 'help', title: 'Ctrl＋Alt＋J 展开查询', label: '逸剑手札' }];
-    return `<section class="hint-shell" aria-label="随行轻提示"><div class="hint-head">${icon('leaf')}<span>逸剑手札</span><kbd>Ctrl Alt J</kbd></div>${hints
+    return `<section class="hint-shell${hints.some((h) => h.type === 'flow-choice') ? ' hint-choice' : ''}" aria-label="随行轻提示"><div class="hint-head">${icon('leaf')}<span>逸剑手札</span><kbd>Ctrl Alt J</kbd></div>${hints
       .slice(0, 2)
       .map(
         (h) =>
-          `<div class="hint-line">${h.type === 'material' && h.id ? picture(h.id) : icon(h.type === 'material' ? 'bag' : 'pin')}<span>${hintContent(h)}</span></div>`,
+          `<div class="hint-line${h.type === 'flow-caution' ? ' hint-caution' : ''}">${h.type === 'material' && h.id ? picture(h.id) : icon(h.type === 'material' ? 'bag' : h.type === 'flow-caution' ? 'info' : 'pin')}<span>${hintContent(h)}</span></div>`,
       )
       .join('')}</section>`;
   }

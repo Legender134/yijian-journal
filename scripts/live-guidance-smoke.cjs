@@ -30,6 +30,15 @@ const original = writeSave([{ id: 5020, step: 1 }]);
 const store = new Store(data, catalog);
 store.setPath('savePath', source);
 store.mutate({ type: 'settings', value: { autoBackup: false } });
+store.mutate({
+  type: 'journal-entry-put',
+  title: '筛选连续性',
+  body: '白锦的合成记录',
+  tags: ['支线'],
+  links: [],
+  snapshotMode: 'none',
+  occurredAt: '2026-10-14T00:00:00.000Z',
+});
 const revision = crypto
   .createHash('sha256')
   .update(fs.readFileSync(path.join(base, 'src/game-bridge/main.lua')))
@@ -89,11 +98,19 @@ const pulse = () =>
           await reference.focus();
         }
         await surface.locator('#entity-preview').waitFor({ state: 'visible' });
+        await surface.waitForFunction(
+          (node) => node.getAttribute('aria-describedby') === 'entity-preview',
+          await reference.elementHandle(),
+        );
         const name = await surface.locator('#entity-preview strong').first().innerText();
         const oldEntry = await reference.elementHandle();
         current = packet({ sequence: firstSequence + offset });
         pulse();
         await surface.waitForFunction((node) => !node.isConnected, oldEntry);
+        await surface.waitForFunction(
+          (node) => node.getAttribute('aria-describedby') === 'entity-preview',
+          await reference.elementHandle(),
+        );
         await surface.locator('#entity-preview').waitFor({ state: 'visible' });
         assert.equal(
           await reference.getAttribute('aria-describedby'),
@@ -470,6 +487,134 @@ const pulse = () =>
       await visibleDock.waitFor({ state: 'detached' });
       await surface.locator('.drawer .place-map-frame').waitFor({ state: 'visible' });
       await surface.locator('#overlay [data-action="close-overlay"]').first().click();
+    }
+    async function checkPageSearch(surface, field, sequence) {
+      const input = surface.locator('#' + field);
+      await input.scrollIntoViewIfNeeded();
+      await input.fill('铁');
+      await input.pressSequentially('矿石');
+      const kept = await input.elementHandle();
+      await input.press('Control+z');
+      const undoValue = await input.inputValue();
+      assert.notEqual(undoValue, '铁矿石', field + ' supports native undo after typing');
+      await input.press('Control+y');
+      assert.equal(await input.inputValue(), '铁矿石');
+      current = packet({ sequence });
+      pulse();
+      await surface.locator('.live-choice-dock').waitFor({ state: 'visible' });
+      assert.equal(await kept.evaluate((el) => el.isConnected && document.activeElement === el), true);
+      await input.press('Control+z');
+      assert.equal(await input.inputValue(), undoValue, field + ' preserves undo across live arrival');
+      await input.press('Control+y');
+      current = null;
+      pulse();
+      await surface.locator('.live-choice-dock').waitFor({ state: 'detached' });
+      assert.equal(await kept.evaluate((el) => el.isConnected && document.activeElement === el), true);
+      await input.press('Control+z');
+      assert.equal(await input.inputValue(), undoValue, field + ' preserves undo across live retirement');
+      await input.press('Control+y');
+      assert.equal(await input.inputValue(), '铁矿石');
+    }
+    await win.locator('.sidebar-nav [data-id="database"]').click();
+    await checkPageSearch(win, 'list-search', 120);
+    for (const [index, surface] of [win, small].entries()) {
+      await surface
+        .locator(index ? '.companion-tabs [data-id="saves"]' : '.sidebar-nav [data-id="saves"]')
+        .click();
+      const timelineFold = surface.locator('details[data-persist-detail="unused-timeline"] > summary');
+      if (await timelineFold.count()) await timelineFold.click();
+      await checkPageSearch(surface, 'timeline-search', 121 + index);
+    }
+    {
+      const surface = win;
+      await surface.locator('.sidebar-nav [data-id="journal"]').click();
+      const form = surface.locator('#journal-filter-form');
+      await form.waitFor();
+      await surface.locator('#journal-search').fill('白');
+      await surface.locator('#journal-search').pressSequentially('锦');
+      await surface.locator('#journal-from').fill('2026-10-01');
+      await surface.locator('#journal-to').fill('2026-10-14');
+      await surface.locator('#journal-kind').selectOption('manual');
+      await surface.locator('#journal-tag').selectOption('支线');
+      await surface.locator('#journal-from').focus();
+      const keptForm = await form.elementHandle();
+      const expected = ['白锦', '2026-10-01', '2026-10-14', 'manual', '支线'];
+      const values = () => form.locator('input,select').evaluateAll((rows) => rows.map((el) => el.value));
+      current = packet({ sequence: 125 });
+      pulse();
+      await surface.locator('.live-choice-dock').waitFor({ state: 'visible' });
+      assert.equal(
+        await keptForm.evaluate((el) => el.isConnected && el.contains(document.activeElement)),
+        true,
+      );
+      assert.deepEqual(await values(), expected, 'live arrival preserves the complete pending filter group');
+      current = null;
+      pulse();
+      await surface.locator('.live-choice-dock').waitFor({ state: 'detached' });
+      assert.deepEqual(await values(), expected, 'retirement does not submit or clear pending filters');
+      {
+        await surface.evaluate(() =>
+          window.journal.mutate({
+            type: 'journal-entry-put',
+            title: '其他记录',
+            body: '合成标签更新',
+            tags: ['探索'],
+            links: [],
+            snapshotMode: 'none',
+            occurredAt: '2026-10-14T00:00:00.000Z',
+          }),
+        );
+        await form.locator('#journal-tag option[value="探索"]').waitFor({ state: 'attached' });
+        assert.deepEqual(await values(), expected, 'new tags update without clearing pending criteria');
+      }
+      const search = surface.locator('#journal-search');
+      await search.focus();
+      await search.press('Control+z');
+      assert.equal(await search.inputValue(), '白', 'the inactive query keeps its native undo history');
+      await search.press('Control+y');
+      assert.equal(await search.inputValue(), '白锦');
+      await form.locator('[data-action="journal-filter"]').click();
+      assert.equal(
+        await surface.locator('[data-journal-id]').count(),
+        1,
+        'the preserved filters still apply normally',
+      );
+    }
+    await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));
+      w.setMinimumSize(200, 90);
+      w.setBounds({ ...w.getBounds(), width: 320, height: 112 });
+      w.webContents.send('journal:companion', { mode: 'hint', visible: true });
+    });
+    const rules = require('../src/data/flow-guide.cjs').rules;
+    const tasks = require('../src/data/world-index.json').quests;
+    for (const [index, id] of [
+      'chenlinxi-critical-choice',
+      'tianji-rebuild-choice',
+      'changsheng-rescue-choice',
+    ].entries()) {
+      const rule = rules.find((row) => row.id === id);
+      const task = tasks.find((row) => row.id === rule.decisionSteps[0]);
+      current = packet({
+        sequence: 130 + index,
+        questId: rule.decisionSteps[0],
+        npcId: task?.requestNPCs?.[0] || task?.finishNPCs?.[0] || 0,
+        options: rule.choices.map((row, i) => ({ index: i + 1, text: row.label })),
+      });
+      pulse();
+      await small.locator('.hint-caution').filter({ hasText: rule.recommendation.caution }).waitFor();
+      assert.equal(await small.locator('.hint-line').count(), 2);
+      assert.equal(
+        await small.locator('.hint-caution > span').evaluate((el) => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const box = range.getBoundingClientRect();
+          return box.bottom <= innerHeight && box.right <= innerWidth && box.left >= 0;
+        }),
+        true,
+        id + ' complete consequence fits the default passive window',
+      );
+      await small.screenshot({ path: path.join(output, 'passive-' + id + '.png'), animations: 'disabled' });
     }
     assert.deepEqual(fs.readFileSync(saveFile), lastStock);
     assert.deepEqual(errors, []);

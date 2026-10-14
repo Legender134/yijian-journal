@@ -58,15 +58,41 @@ function withLiveDialogue(flow, context, quests) {
   );
   const original = (row) => rules.get(row.id) || row;
   const visible = (row) => !(original(row).decisionSteps || []).some((id) => suppressed.has(id));
+  const dialogue = readDialogue(context.dialogue);
+  const active = (flow.active || [])
+    .map((task) => ({
+      ...task,
+      steps: task.steps.filter((step) => {
+        const id = Number(String(step.id).replace(/^quest-/, ''));
+        return !suppressed.has(id) && !(dialogue && choiceSteps.has(id));
+      }),
+    }))
+    .filter((task) => task.steps.length);
+  const activeSteps = new Set(active.flatMap((task) => task.steps.map((step) => step.id)));
+  const sharedMaterials = (flow.sharedMaterials || [])
+    .map((material) => {
+      const steps = material.steps.filter((step) => activeSteps.has(step.id));
+      const required = steps.reduce((sum, step) => sum + step.required, 0);
+      return {
+        ...material,
+        steps,
+        required,
+        missing: material.owned === null ? null : Math.max(0, required - material.owned),
+      };
+    })
+    .filter((material) => new Set(material.steps.map((step) => step.id)).size > 1);
   const base = {
     ...flow,
+    // Retire only the observed/superseded action, without inventing its outcome
+    // or changing the saved reference and offline task details.
+    active,
+    sharedMaterials,
     decisions: (flow.decisions || []).filter(visible),
     warnings: (flow.warnings || []).filter(visible),
     advice: (flow.advice || []).filter(visible),
     opportunities: (flow.opportunities || []).filter(visible),
     changes: (flow.changes || []).filter(visible),
   };
-  const dialogue = readDialogue(context.dialogue);
   if (!dialogue) return base;
   const candidates = [];
   for (const rule of flow.guide || []) {
