@@ -176,7 +176,17 @@ function createFlowProjector({
   function snapshot(profile, reference, error = '', dialogue = null) {
     const selected = selectedReference(profile, reference, error);
     const referenceMode = profile.referenceMode || (profile.saveSlot ? 'slot' : 'latest');
-    const metadata = selected?.metadata || {};
+    const live =
+      referenceMode === 'latest' && dialogue?.npcState?.origin === 'live' ? dialogue.npcState : null;
+    const liveMap = live ? maps.get(live.world.split('.').pop()) || maps.get(live.player.mapKey) : null;
+    const metadata = live
+      ? {
+          questStates: live.questStates,
+          map: liveMap?.key || '',
+          mapName: liveMap?.name || '',
+          combat: { origin: 'live', player: live.player, npcStates: live.npcStates },
+        }
+      : selected?.metadata || {};
     const states = Array.isArray(metadata.questStates) ? metadata.questStates : metadata.quests;
     const available = Array.isArray(states);
     const records = new Map((available ? states : []).map((r) => [r.id, r]));
@@ -190,6 +200,7 @@ function createFlowProjector({
           hash: selected.hash,
           modifiedAt: selected.modifiedAt,
           mapName: metadata.mapName || '',
+          ...(live ? { origin: 'live' } : {}),
         }
       : null;
     const step = (id) => records.get(id)?.step;
@@ -208,13 +219,29 @@ function createFlowProjector({
       if (r.type === 'PreQuest')
         return {
           text: `${cleanName(name)}：需${labels[r.value] || '状态 ' + r.value}`,
-          status: step(r.id) === undefined ? 'unknown' : step(r.id) === r.value ? 'met' : 'unmet',
+          status: live
+            ? (step(r.id) ?? 0) === r.value
+              ? 'met'
+              : 'unmet'
+            : step(r.id) === undefined
+              ? 'unknown'
+              : step(r.id) === r.value
+                ? 'met'
+                : 'unmet',
         };
       // Absence in the public quest array does not prove a hidden flag is absent.
       if (r.type === 'NoQuest')
         return {
           text: `${cleanName(name)}：需尚未触发`,
-          status: step(r.id) === undefined ? 'unknown' : [1, 2, 4].includes(step(r.id)) ? 'unmet' : 'unknown',
+          status: live
+            ? records.has(r.id)
+              ? 'unmet'
+              : 'met'
+            : step(r.id) === undefined
+              ? 'unknown'
+              : [1, 2, 4].includes(step(r.id))
+                ? 'unmet'
+                : 'unknown',
         };
       if (r.type === 'Item')
         return {
@@ -419,6 +446,15 @@ function createFlowProjector({
               : null,
         }
       : null;
+    const duelProgress = projectDuels({
+      available,
+      states: available ? states : [],
+      mainQuestId: main?.gameId,
+      mapName: metadata.mapName || '',
+      difficultyName: metadata.difficultyName || '',
+      combat: metadata.combat || null,
+      metadata,
+    });
     const projectedRules = (content.rules || []).map((rule) => {
       const status = rule.questId ? step(rule.questId) : undefined;
       const knownFamily = rule.questId && quests.get(rule.questId) ? family(quests.get(rule.questId)) : [];
@@ -486,8 +522,21 @@ function createFlowProjector({
                 : effect.effect,
           };
         });
+      let checkpointWarning = '';
+      if (rule.checkpoint && step(rule.checkpoint.questId) === 1) {
+        const c = rule.checkpoint;
+        const person = duelProgress.progress.people.find((row) => row.npcId === c.npcId);
+        const friendship = person?.friendship.value;
+        checkpointWarning =
+          friendship === null || friendship === undefined
+            ? `共饮前先核对陈麟熙好感：达到 ${c.threshold} 时，取胜会让他离场。`
+            : friendship >= c.threshold
+              ? `陈麟熙好感 ${friendship}：共饮后取胜会让他离场${step(c.affectedQuestId) === 1 ? '，进行中的灭门之案线索也会失败' : ''}。想保留人物内容，先不要推进。`
+              : `陈麟熙好感 ${friendship}：当前低于 ${c.threshold}，共饮会走保留人物的分支；此时继续赠礼可能改变结果。`;
+      }
       return {
         ...rule,
+        ...(checkpointWarning ? { warning: checkpointWarning, compactWarning: checkpointWarning } : {}),
         recommendation: rule.recommendation
           ? {
               ...rule.recommendation,
@@ -688,14 +737,16 @@ function createFlowProjector({
             active.findIndex((row) => row.gameId === a.questId) -
             active.findIndex((row) => row.gameId === b.questId),
         ),
-      duels: projectDuels({
-        available,
-        states: available ? states : [],
-        mainQuestId: main?.gameId,
-        mapName: metadata.mapName || '',
-        difficultyName: metadata.difficultyName || '',
-        combat: metadata.combat || null,
-      }),
+      duels: duelProgress,
+      stateOrigin: live ? 'live' : 'saved',
+      npcStateKey: live?.key || '',
+      liveReference: live
+        ? {
+            origin: 'live',
+            key: live.key,
+            metadata: { quests: live.questStates, map: metadata.map, mapName: metadata.mapName },
+          }
+        : null,
       changes,
       coverage: {
         tasks: quests.size,

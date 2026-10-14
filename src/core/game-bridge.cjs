@@ -9,6 +9,7 @@ const provenance = require('../game-bridge/provenance.json');
 const { PROTOCOL, assertNativePath, grantFrame, commandFrame } = require('./native-io.cjs');
 const { readDialogue, isKnownChoiceStep } = require('./live-guidance.cjs');
 const { atomicWrite } = require('./store.cjs');
+const { NpcObservationReader } = require('./live-npc-state.cjs');
 const resources = path.join(__dirname, '..', 'game-bridge');
 const NATIVE_MOD = 'YijianJournalUnicode';
 const slash = (p) => p.replaceAll('\\', '/');
@@ -99,6 +100,12 @@ class GameBridge {
       writeBytes(keyFile, Buffer.from(this.token));
     }
     if (!/^[a-f0-9]{64}$/.test(this.token)) throw Error('游戏接入密钥损坏，原文件已保留');
+    this.npcReader = new NpcObservationReader({
+      read: () => readStable(path.join(this.root, 'npc-observation.json')),
+      token: this.token,
+      revision: this.revision,
+      now: this.now,
+    });
     if (timeline.data.source && !test) {
       try {
         this.connect(timeline.data.source);
@@ -253,6 +260,7 @@ class GameBridge {
   }
   liveGuidance(source) {
     const withdraw = () => {
+      this.npcReader.withdraw();
       const current = this.dialogueContext;
       if (
         !current ||
@@ -301,7 +309,8 @@ class GameBridge {
       current.lastQuestId = 0;
     }
     this.persistDialogueContext();
-    return { dialogue, suppressedQuestIds: [...current.suppressed] };
+    const npcState = this.npcReader.sample(state);
+    return { dialogue, suppressedQuestIds: [...current.suppressed], ...(npcState ? { npcState } : {}) };
   }
   hintQuiet() {
     if (this.busy || this.loadQueued || this.timeline.data.pending || this.quiescing) return true;

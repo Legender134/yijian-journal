@@ -14,7 +14,7 @@ class Channel {
     return name==L"config.txt"||name==L"command.txt"||name==L"expected.sav"||name==L"last-command.txt";
   }
   static bool root_write(std::wstring_view name) {
-    return name==L"state.json"||name==L"response.json"||name==L"last-command.txt"||name==L"started.txt"||name==L"schedule-error.txt"||
+    return name==L"state.json"||name==L"npc-observation.json"||name==L"response.json"||name==L"last-command.txt"||name==L"started.txt"||name==L"schedule-error.txt"||
       std::regex_match(std::wstring(name),std::wregex(L"receipts\\\\[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.sav"));
   }
 public:
@@ -73,9 +73,13 @@ public:
     const auto file=checked_path(utf16(input));
     if(!file.starts_with(root+L"\\")||!root_write(file.substr(root.size()+1)))throw std::runtime_error("write scope");
     const auto name=file.substr(root.size()+1);
-    if(name!=L"state.json" && name!=L"started.txt" && name!=L"schedule-error.txt" && !grant().writable)
+    if(name!=L"state.json" && name!=L"npc-observation.json" && name!=L"started.txt" && name!=L"schedule-error.txt" && !grant().writable)
       throw std::runtime_error("observation write scope");
     write_file(file,bytes);
+  }
+  std::string observation_mac(std::string_view bytes) const {
+    if(bytes.size()>4*1024*1024)throw std::runtime_error("observation limit");
+    return hmac(grant().key,bytes);
   }
 };
 }

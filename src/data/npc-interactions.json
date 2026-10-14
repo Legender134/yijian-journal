@@ -1,0 +1,3790 @@
+{
+  "schema": 1,
+  "build": "21798996",
+  "source": {
+    "build": "21798996",
+    "exeSha256": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c",
+    "npcUassetSha256": "9a450475646b2b267fe39178cb9ac2c27b9bb51d0500a0282a194f534490ead8",
+    "npcUexpSha256": "0c3dcfdb36901efc70d65446064c5a97d44c1629d1e2cf418eb586ff3c131ec3",
+    "skillsUassetSha256": "fc7018b0b3644f5ffbbae6aea40bfefc3b7990abdcbba9d2ea4fa254936d0d81",
+    "skillsUexpSha256": "a2fd448cc404f316f3013611b94b131e7489a7fad3d363153dbc670be2bd6c88",
+    "blueprints": [
+      {
+        "member": "Wandering_Sword/Content/JH/Core/GameSystem/BP_CompareSystem_Base.uasset",
+        "bytes": 12572,
+        "sha256": "1f6dea0b4df60e33f14a4ceee116163bd9aa41fdcf22256d2a6b2bb8907c37da"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/GameSystem/BP_CompareSystem_Base.uexp",
+        "bytes": 20221,
+        "sha256": "8e8dbc8706e0a981f539fc3a1791092a372ae42d742b424d28151cf2920e6bbf"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/GameSystem/BP_ConsultSystem_Base.uasset",
+        "bytes": 11609,
+        "sha256": "dadcdb0bae23279f1c8c9c10b3477dac9fd7a14d0656a0fb95572c25c3ad8bfb"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/GameSystem/BP_ConsultSystem_Base.uexp",
+        "bytes": 18560,
+        "sha256": "8261ed195dcbf3cc4470683ba31b6c32f0862102778f59f4d6711cd78cfefc58"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/GameSystem/BP_Gift_Base.uasset",
+        "bytes": 8533,
+        "sha256": "3edf1bb1fd8af4472921d8662cf8bde4e1251489bbcd6bfc2f7417f745f72f86"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/GameSystem/BP_Gift_Base.uexp",
+        "bytes": 13613,
+        "sha256": "84030b4746ecbcd7a1faaedf6f752b53f9b4b7c248b11377d313cb26532f41d5"
+      }
+    ]
+  },
+  "friendlyLimits": {
+    "Compare": 20
+  },
+  "compare": {
+    "friendliness": 20,
+    "basis": "raw",
+    "vigor": 10,
+    "talentVigor": 5,
+    "talentId": 105006,
+    "otherRequirements": "NPCSetting.CompareRequirements",
+    "bCantFighting": "not checked by audited Compare path; do not gate with this raw flag",
+    "parentCheck": "JHGameSystem.CheckRequirement(0) resolves virtual+0x268 to 0x14081f740 returning true",
+    "scope": "Build21798996 BP_CompareSystem_Base"
+  },
+  "gift": {
+    "friendlinessBasis": "effective",
+    "titleDifferenceMax": 1,
+    "blockedWhen": "npcTitleLevel - playerTitleLevel >= 2",
+    "titleSource": "GetTitleLevel(GetFightingCapacity(noObject,false)), not NPC level",
+    "powerUnavailable": "unknown; no approximation from level",
+    "evidence": "BP_Gift_Base ExecuteUbergraph instructions81..93 (projected JSON)"
+  },
+  "martialCost": {
+    "base": "trunc(SkillSetting.ConsultSExpCost), then abs in modern UI",
+    "guild1FreeQuality": "First consecutive complete (step4) quests in [5218,5317,5323,5748,5858] unlock free grades2..6; stop at first incomplete",
+    "easyDifficulty1": "half-adjusted integer cost; exact rounding not asserted",
+    "talent105026": "zero cost",
+    "levelMultiplier": "none in audited 0x14124c630 and 0x1410578da..0x14105790f",
+    "evidence": "0x14124c630,0x1410576d0"
+  },
+  "vigorCost": {
+    "normal": 60,
+    "talent105006": 30
+  },
+  "people": {
+    "0": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5003": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5006": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5007": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5008": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5011": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5013": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5014": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5015": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5022": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5024": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5027": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5028": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5029": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5031": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5037": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5055": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5056": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5500": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5501": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5502": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5503": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5504": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5505": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5507": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5508": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5509": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5513": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "5516": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "6004": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "6005": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "6006": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "6506": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "6507": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "7500": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "7501": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "7502": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "7506": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "8000": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "8001": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "8506": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "8508": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "8509": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "8510": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "8514": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "9000": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "9004": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10000": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10001": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10002": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10003": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10005": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10006": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10007": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10008": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10015": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10016": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10017": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10019": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10023": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10025": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10027": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10029": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10033": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10034": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10038": {
+      "compareRequirements": [],
+      "cannotFight": true
+    },
+    "10047": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10048": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10101": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10102": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10118": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10119": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10121": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10124": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10125": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10126": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10128": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10129": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10131": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10132": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10201": {
+      "compareRequirements": [],
+      "cannotFight": true
+    },
+    "10202": {
+      "compareRequirements": [],
+      "cannotFight": true
+    },
+    "10210": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10212": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10217": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10218": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10219": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10220": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10221": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10226": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10227": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10235": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10236": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10237": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10238": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10239": {
+      "compareRequirements": [],
+      "cannotFight": true
+    },
+    "10240": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10245": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10247": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10248": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10249": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10250": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10251": {
+      "compareRequirements": [],
+      "cannotFight": true
+    },
+    "10253": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10254": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10256": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10259": {
+      "compareRequirements": [],
+      "cannotFight": true
+    },
+    "10260": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10268": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10269": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10270": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10271": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10279": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10281": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10282": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10301": {
+      "compareRequirements": [],
+      "cannotFight": true
+    },
+    "10302": {
+      "compareRequirements": [],
+      "cannotFight": true
+    },
+    "10304": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10305": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10310": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10351": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10352": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10353": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10356": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10357": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10401": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10402": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10404": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10700": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10701": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10703": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10704": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10705": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10800": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10801": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10802": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10803": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10804": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10805": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10807": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11100": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11101": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11106": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11107": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11200": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11201": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11202": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11203": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11205": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11300": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11301": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11304": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11400": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11401": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11402": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11403": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11404": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11405": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11506": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11507": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11508": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11509": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11510": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11511": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11512": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11600": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11603": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11604": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11605": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11606": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11607": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11608": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11609": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11610": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11611": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11617": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11700": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11703": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11705": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11708": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11709": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11900": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11901": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11902": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11903": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11904": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11905": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11906": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "11907": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12000": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12001": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12002": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12003": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12004": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12005": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12006": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12007": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12008": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12010": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12011": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12013": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12101": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12102": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12103": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12104": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12105": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12106": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12502": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12503": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12504": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12505": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12506": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12508": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12600": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12602": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12604": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12605": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12606": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12607": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12608": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12609": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12610": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12700": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12702": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12703": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12800": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "12803": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13100": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13101": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13102": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13103": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13105": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13107": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13108": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13200": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13201": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13202": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13203": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13204": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13205": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13206": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13207": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "13208": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16005": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16006": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16007": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16009": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16012": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16017": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16020": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16022": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16023": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16028": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16029": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16030": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16033": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16036": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16039": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16040": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16041": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16100": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16101": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16200": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16205": {
+      "compareRequirements": [],
+      "cannotFight": true
+    },
+    "16207": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16208": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16214": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16215": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16300": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16301": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16401": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16402": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16403": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16404": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16406": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "16408": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17002": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17005": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17008": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17009": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17010": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17012": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17014": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17017": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17023": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17027": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17032": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17034": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17036": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17037": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17038": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17039": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17100": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17102": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17104": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17107": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17115": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "17120": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19001": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19002": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19003": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19103": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19104": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19109": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19111": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19113": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19114": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19115": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19118": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19121": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19122": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19300": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19303": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19304": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19305": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19306": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19407": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19408": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19409": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19410": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19411": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19500": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19501": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19502": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19503": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19505": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19506": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19507": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19509": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19510": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19511": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19512": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19600": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19602": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19603": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19701": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19702": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19703": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19706": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19714": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19722": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19754": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19821": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19830": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19835": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19837": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19840": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19841": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19846": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19847": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19852": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19881": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19883": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19884": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19887": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19892": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19895": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19896": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19897": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19898": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19950": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19951": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19952": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19954": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19955": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19965": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19967": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19969": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19970": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28200": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28201": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28202": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28203": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28204": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28205": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28206": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28208": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28209": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28210": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28211": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28212": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28214": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28215": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28216": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28217": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28218": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28219": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28220": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28221": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28222": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28223": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28224": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28225": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28226": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28227": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28228": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28229": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28230": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28231": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28232": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28233": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28234": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28235": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28236": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28237": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28238": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28239": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28240": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28241": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28242": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28243": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28244": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28245": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28246": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28247": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28248": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28254": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28255": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28256": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28257": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28258": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28261": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28262": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28263": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28265": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "28266": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29155": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29156": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29157": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29176": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29214": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29215": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29216": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29305": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29306": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29500": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29501": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29502": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "29503": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "45111": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "45112": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "45113": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "45136": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "46004": {
+      "compareRequirements": [],
+      "cannotFight": false
+    }
+  },
+  "skills": {
+    "100": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "101": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "102": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "103": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "104": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "105": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "106": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "107": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "108": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "109": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "110": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "111": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "112": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "113": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "114": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "116": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "117": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "118": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "119": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "135": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "137": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "151": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "152": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "153": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "154": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "155": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "156": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "157": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "158": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "159": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "160": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "161": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "162": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "163": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "164": {
+      "friendliness": 40,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 40
+    },
+    "165": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "166": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "167": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "168": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "169": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "170": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "181": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "183": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "184": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "200": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "201": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "202": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "203": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "204": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "205": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "206": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "207": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "208": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "209": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "210": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "211": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "212": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "213": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "214": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "215": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "216": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "217": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "218": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "219": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "222": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "223": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "224": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "225": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "226": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "228": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "229": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "230": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "231": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "251": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "252": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "253": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "254": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "255": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "256": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "257": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "258": {
+      "friendliness": 40,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 40
+    },
+    "259": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "260": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "261": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "265": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "270": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "300": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "301": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "302": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "303": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "304": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "305": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "306": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "309": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "310": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "311": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "312": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "313": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "314": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "351": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "352": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "353": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "354": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "355": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "356": {
+      "friendliness": 40,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 40
+    },
+    "357": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "358": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "359": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "361": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "362": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "363": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "369": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "370": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "371": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "372": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "373": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "374": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "375": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "400": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "401": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "402": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "403": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "404": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "405": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "406": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "407": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "408": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "409": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "410": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "411": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "412": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "413": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "416": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "417": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "418": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "419": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "420": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "421": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "422": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "423": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "424": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "425": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "432": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "433": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "434": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "436": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "437": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "443": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "444": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "451": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "452": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "453": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "454": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "455": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "458": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "459": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "460": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "461": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "463": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "464": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "465": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "466": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "469": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "470": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "471": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "475": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "477": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "478": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "479": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "482": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "483": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "484": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "500": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "501": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "502": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "503": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "505": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "506": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "507": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "508": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "509": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "510": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "511": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "512": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "513": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "551": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "552": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "553": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "554": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "555": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "558": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "560": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "570": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "571": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "572": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "573": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "576": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "577": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "578": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "579": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "700": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "701": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "702": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "703": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "704": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "705": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "706": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "707": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "709": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "710": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "711": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "720": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "721": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "750": {
+      "friendliness": 40,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 40
+    },
+    "752": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "753": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "800": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "801": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "802": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "803": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "804": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "805": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "806": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "807": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "808": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "809": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "810": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "811": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "812": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "813": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "814": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "815": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "816": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "818": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "819": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "820": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "823": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "824": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "827": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "828": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "829": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "830": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "831": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "832": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "833": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "834": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "835": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "837": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "840": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "850": {
+      "friendliness": 40,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 40
+    },
+    "851": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "853": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "860": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "861": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "862": {
+      "friendliness": 40,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 40
+    },
+    "863": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "864": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "865": {
+      "friendliness": 60,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 1300
+    },
+    "866": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": true,
+      "skillPointCost": 3400
+    },
+    "867": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "869": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "871": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "872": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "873": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "875": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "877": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "878": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "879": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "884": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "885": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    },
+    "886": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "894": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 6900
+    },
+    "896": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "897": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 3400
+    },
+    "899": {
+      "friendliness": 50,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 400
+    },
+    "906": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": true,
+      "excluded": false,
+      "skillPointCost": 12400
+    }
+  }
+}

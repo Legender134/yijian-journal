@@ -55,11 +55,15 @@ int wmain(int argc,wchar_t** argv) {
     const auto readonly=observation.grant();
     check(!readonly.writable,"observation grants timeline permission");
     check(observation.read(observationRoot+"/config.txt",131072).value==readonly.key+"\n"+readonly.sourceBytes+"\nobserve\n","observation config projection");
+    observation.write(observationRoot+"/npc-observation.json","synthetic NPC observation");
+    // Independent Node crypto HMAC-SHA256 vector: key=32 bytes of 0xbb.
+    check(observation.observation_mac("synthetic NPC observation")=="784373e5e13d6ad6d850a0037402314eacc3b301889de69eab0e75dcb22fa8cc","observation MAC grant binding");
     const auto denied=[&](auto work,const char* reason) {
       bool rejected=false;
       try {work();}catch(const std::runtime_error&){rejected=true;}
       check(rejected,reason);
     };
+    denied([&]{observation.observation_mac(std::string(4*1024*1024+1,'x'));},"observation MAC limit bypassed");
     for(const auto& file:{observationRoot+"/command.txt",observationRoot+"/expected.sav",readonly.sourceBytes+"/29.sav",readonly.sourceBytes+"/JHSaveConfig.sav"})
       denied([&]{observation.read(file,1024);},"observation read escaped scope");
     for(const auto& file:{"response.json","last-command.txt","receipts/00000000-0000-0000-0000-000000000001.sav"})

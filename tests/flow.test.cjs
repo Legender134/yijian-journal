@@ -2247,8 +2247,8 @@ test('critical recommendations state conditional goals and incompatible rewards 
     assert(entry.sources.length, entry.id);
   }
   const find = (id) => entries.find((row) => row.id === id).recommendation;
-  assert.match(find('chenlinxi-critical-choice').action, /先保存.*好感.*60.*低于70.*义正词严/);
-  assert.match(find('chenlinxi-critical-choice').tradeoff, /70.*其他组合.*未确认/);
+  assert.match(find('chenlinxi-critical-choice').action, /先另存.*义正辞严.*降低10.*共饮.*低于70/);
+  assert.match(find('chenlinxi-critical-choice').tradeoff, /赠礼.*共饮.*恰好70.*对战/);
   assert.match(find('kongliang-choice').goal, /队友.*剧情/);
   assert.match(find('kongliang-choice').tradeoff, /漫天花雨.*一周目.*不救/);
   assert.match(find('golden-scorpion-choice').tradeoff, /不能兼走.*灵蝎挂坠.*截脉三式.*三条线/);
@@ -2856,7 +2856,11 @@ test('the shipped guide warns about the score window and consequential recruitme
   const chen = flowSnapshot(profile(), ref([{ id: 5246, step: 1 }])).warnings.find(
     (q) => q.id === 'chenlinxi-critical-choice',
   );
-  assert(chen.choices.some((choice) => /恰好70/.test(choice.label) && /没有完整说明/.test(choice.effect)));
+  assert.deepEqual(
+    chen.choices.map((choice) => choice.label),
+    ['好言相劝', '义正辞严'],
+  );
+  assert.match(chen.choices[1].effect, /大于等于70.*对战.*取胜/);
 });
 
 test('offline guide cards retain known outcomes rather than relabeling them as unknown', () => {

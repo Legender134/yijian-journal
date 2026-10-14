@@ -11,15 +11,13 @@
   "gameExeSha256": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c",
   "nativeIO": {
     "protocol": 2,
-    "version": "unicode-v2.0.2",
+    "version": "unicode-v2.0.3",
     "license": "MIT",
     "ue4ssCommit": "e3ba1016562d6c0868c410d0a71e88bfcdbf691b",
     "ue4ssDllSha256": "680a026890abb4d0df2211251f8defc1681a584275f1521dcc0fe30af480006f",
-    "sha256": "0c1c3f1453c3368f8adf2a7c07aaa75e4fa2a1adfe12e5b8f287c407abcdaae4",
-    "upgradeFromSha256": [
-      "f632791ed6fce524a49d068de3f5f175eff99f932973bbc562d9f1a48433f6ae"
-    ],
-    "sourceSha256": "8806baa06d648e98e04fb60d39687a3a0ccb7cf68c51f14477dcd1949f5466e8",
+    "sha256": "9c5eca08ee4e843014cf0f0d54dc895d0d7531a75d32448ae3a006b0b5823a90",
+    "upgradeFromSha256": ["f632791ed6fce524a49d068de3f5f175eff99f932973bbc562d9f1a48433f6ae"],
+    "sourceSha256": "89992d1f9eb1d5a44a2664e542dd8746aee2ee93bb5abae248dd0e3328c150e6",
     "sources": [
       "UnicodeBridge.cpp",
       "UnicodeIo.hpp",

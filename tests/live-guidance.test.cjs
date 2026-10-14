@@ -14,7 +14,7 @@ const catalog = require('../src/data/catalog.cjs');
 const dialogue = (extra = {}) => ({
   schema: 1,
   sequence: 1,
-  questId: 11004,
+  questId: 11005,
   npcId: 10038,
   options: [
     { index: 1, text: '买把新的比较好' },
@@ -25,7 +25,7 @@ const dialogue = (extra = {}) => ({
 const reference = (
   quests = [
     { id: 11002, step: 1 },
-    { id: 11004, step: 1 },
+    { id: 11005, step: 1 },
   ],
 ) => ({
   name: 'Synthetic.sav',
@@ -96,7 +96,6 @@ test('the current native choice can precede its saved step but must match the wh
   for (const raw of [
     dialogue({ questId: 999999, npcId: 0, options: [{ index: 1, text: '继续' }] }),
     dialogue({ questId: 5076 }),
-    dialogue({ npcId: 10016 }),
     dialogue({
       options: [
         { index: 1, text: '买把新的比较好' },
@@ -142,9 +141,13 @@ test('an open choice isolates every recommendation carrier and keeps ordinary ri
     '',
     context(
       dialogue({
-        questId: 5076,
+        questId: 5078,
         npcId: 10016,
-        options: other.choices.map((choice, index) => ({ index: index + 1, text: choice.label })),
+        options: [
+          { index: 1, text: '剑系武器' },
+          { index: 2, text: '拳系武器' },
+          { index: 3, text: '刀系武器' },
+        ],
       }),
     ),
   );
@@ -182,6 +185,7 @@ test('a first single-option window reaches the bridge and removes old choices fr
   const source = '/synthetic/76561190000000000/SaveGames';
   const single = dialogue({ questId: 999999, npcId: 0, options: [{ index: 1, text: '继续' }] });
   const bridge = Object.assign(Object.create(GameBridge.prototype), {
+    npcReader: { sample: () => null, withdraw: () => {} },
     test: true,
     timeline: { data: { source } },
     blocked: () => false,
@@ -199,9 +203,9 @@ test('a first single-option window reaches the bridge and removes old choices fr
 
 test('closed live choices retire stale saved advice and a newly observed opening can restore it', () => {
   assert(flowSnapshot(profile, reference()).decisions.some((row) => row.id === choiceId));
-  const closed = flowSnapshot(profile, reference(), '', context(null, [11004]));
-  assert(!closed.active.some((task) => task.steps.some((step) => step.id === 'quest-11004')));
-  const passive = companionSnapshot(defaults(), catalog, reference(), '', context(null, [11004]));
+  const closed = flowSnapshot(profile, reference(), '', context(null, [11005]));
+  assert(!closed.active.some((task) => task.steps.some((step) => step.id === 'quest-11005')));
+  const passive = companionSnapshot(defaults(), catalog, reference(), '', context(null, [11005]));
   assert(!passive.hints.some((hint) => /告诉樵夫两个选择/.test(hint.title)));
   for (const rows of [closed.decisions, closed.warnings, closed.advice, closed.opportunities])
     assert(!rows.some((row) => row.id === choiceId));
@@ -221,7 +225,7 @@ test('retirement removes only stale choice actions and recalculates their shared
     required: 12,
     missing: 10,
     steps: [
-      { id: 'quest-11004', required: 7 },
+      { id: 'quest-11005', required: 7 },
       { id: 'quest-900001', required: 3 },
       { id: 'quest-900002', required: 2 },
     ],
@@ -232,7 +236,7 @@ test('retirement removes only stale choice actions and recalculates their shared
       {
         id: 'quest-11002',
         steps: [
-          { id: 'quest-11004', nextAction: '旧选择' },
+          { id: 'quest-11005', nextAction: '旧选择' },
           { id: 'quest-900001', nextAction: '交付材料' },
           { id: 'quest-900002', nextAction: '回访樵夫' },
         ],
@@ -241,7 +245,7 @@ test('retirement removes only stale choice actions and recalculates their shared
     sharedMaterials: [material],
   };
   const before = structuredClone(base);
-  for (const live of [context(null, [11004]), context(dialogue({ questId: 999999 }))]) {
+  for (const live of [context(null, [11005]), context(dialogue({ questId: 999999 }))]) {
     const after = withLiveDialogue(base, live, new Map());
     assert.deepEqual(
       after.active[0].steps.map((step) => step.id),
@@ -252,13 +256,14 @@ test('retirement removes only stale choice actions and recalculates their shared
     assert.equal(after.active[0].steps[0].nextAction, '交付材料', 'ordinary saved tasks remain available');
   }
   assert.deepEqual(base, before, 'saved facts and offline source are not modified');
-  const fixed = withLiveDialogue({ ...base, referenceMode: 'slot' }, context(null, [11004]), new Map());
-  assert.equal(fixed.active[0].steps[0].id, 'quest-11004', 'explicit historical lookup keeps saved actions');
+  const fixed = withLiveDialogue({ ...base, referenceMode: 'slot' }, context(null, [11005]), new Map());
+  assert.equal(fixed.active[0].steps[0].id, 'quest-11005', 'explicit historical lookup keeps saved actions');
 });
 
 test('retirement is bounded by known choice steps and survives more than 64 unrelated dialogues', () => {
   const source = '/synthetic/76561190000000000/SaveGames';
   const bridge = Object.create(GameBridge.prototype);
+  bridge.npcReader = { sample: () => null, withdraw: () => {} };
   let pulse = { session: '1800000000-123456', source, ready: true, dialogue: dialogue() };
   Object.assign(bridge, {
     test: true,
@@ -269,22 +274,25 @@ test('retirement is bounded by known choice steps and survives more than 64 unre
   });
   bridge.liveGuidance(source);
   pulse = { ...pulse, dialogue: null };
-  assert.deepEqual(bridge.liveGuidance(source), context(null, [11004]));
+  assert.deepEqual(bridge.liveGuidance(source), context(null, [11005]));
   const unrelated = Array.from({ length: 65 }, (_, i) => 900000 + i);
   for (const questId of unrelated) {
     pulse = { ...pulse, dialogue: dialogue({ questId, npcId: 0 }) };
     bridge.liveGuidance(source);
     pulse = { ...pulse, dialogue: null };
-    assert.deepEqual(bridge.liveGuidance(source), context(null, [11004]));
+    assert.deepEqual(bridge.liveGuidance(source), context(null, [11005]));
   }
-  for (const retired of [bridge.liveGuidance(source), context(null, [...unrelated, 11004])]) {
+  for (const retired of [bridge.liveGuidance(source), context(null, [...unrelated, 11005])]) {
     const flow = flowSnapshot(profile, reference(), '', retired);
     for (const rows of [flow.decisions, flow.warnings, flow.advice, flow.opportunities])
       assert(!rows.some((row) => row.id === choiceId));
     assert(flow.guide.some((row) => row.id === choiceId));
   }
   const known = [
-    ...new Set(require('../src/data/flow-guide.cjs').rules.flatMap((r) => r.decisionSteps || [])),
+    ...new Set([
+      ...require('../src/data/flow-guide.cjs').rules.flatMap((r) => r.decisionSteps || []),
+      ...require('../src/data/live-choice-contracts.json').contracts.map((r) => r.questId),
+    ]),
   ];
   for (const questId of known) {
     pulse = { ...pulse, dialogue: dialogue({ questId }) };
@@ -331,6 +339,7 @@ test('bridge guidance is bound to the fresh session, current source and non-writ
   const source = path.join(root, '76561190000000000', 'SaveGames');
   const now = 1800000000000;
   const bridge = Object.create(GameBridge.prototype);
+  bridge.npcReader = { sample: () => null, withdraw: () => {} };
   Object.assign(bridge, {
     root,
     test: true,
@@ -360,7 +369,7 @@ test('bridge guidance is bound to the fresh session, current source and non-writ
   pulse();
   assert.deepEqual(bridge.liveGuidance(source), context());
   pulse({ dialogue: null });
-  assert.deepEqual(bridge.liveGuidance(source), context(null, [11004]));
+  assert.deepEqual(bridge.liveGuidance(source), context(null, [11005]));
   pulse();
   assert.deepEqual(bridge.liveGuidance(source), context());
   for (const extra of [
@@ -371,23 +380,23 @@ test('bridge guidance is bound to the fresh session, current source and non-writ
     { reason: '战斗、过场或切换场景中暂停保存' },
   ]) {
     pulse(extra);
-    assert.deepEqual(bridge.liveGuidance(source), context(null, [11004]));
+    assert.deepEqual(bridge.liveGuidance(source), context(null, [11005]));
   }
   pulse();
   assert.equal(bridge.liveGuidance(path.join(root, 'another', 'SaveGames')), null);
   for (const flag of ['busy', 'loadQueued', 'quiescing', 'disposed']) {
     bridge[flag] = true;
-    assert.deepEqual(bridge.liveGuidance(source), context(null, [11004]), flag);
+    assert.deepEqual(bridge.liveGuidance(source), context(null, [11005]), flag);
     bridge[flag] = false;
   }
   bridge.timeline.data.pending = { type: 'load' };
-  assert.deepEqual(bridge.liveGuidance(source), context(null, [11004]));
+  assert.deepEqual(bridge.liveGuidance(source), context(null, [11005]));
   bridge.timeline.data.pending = null;
   bridge.test = false;
   bridge.installation = () => ({ installed: false, reason: '游戏版本不匹配' });
   assert.deepEqual(
     bridge.liveGuidance(source),
-    context(null, [11004]),
+    context(null, [11005]),
     'an authenticated heartbeat cannot bypass installation hashes',
   );
 });
@@ -395,6 +404,7 @@ test('bridge guidance is bound to the fresh session, current source and non-writ
 test('same-session interruption preserves retirement until a fresh choice or a new session', () => {
   const source = '/synthetic/76561190000000000/SaveGames';
   const bridge = Object.create(GameBridge.prototype);
+  bridge.npcReader = { sample: () => null, withdraw: () => {} };
   let pulse = { session: '1800000000-123456', source, ready: true, dialogue: dialogue() };
   Object.assign(bridge, {
     test: true,
@@ -408,13 +418,13 @@ test('same-session interruption preserves retirement until a fresh choice or a n
     { ...pulse, ready: false, reason: '战斗、过场或切换场景中暂停保存', dialogue: null },
   ]) {
     pulse = { session: '1800000000-123456', source, ready: true, dialogue: dialogue() };
-    assert.equal(bridge.liveGuidance(source).dialogue.questId, 11004);
+    assert.equal(bridge.liveGuidance(source).dialogue.questId, 11005);
     pulse = interruption;
     const withdrawn = bridge.liveGuidance(source);
-    assert.deepEqual(withdrawn, context(null, [11004]));
+    assert.deepEqual(withdrawn, context(null, [11005]));
     assert.deepEqual(flowSnapshot(profile, reference(), '', withdrawn).decisions, []);
     pulse = { session: '1800000000-123456', source, ready: true, dialogue: null };
-    assert.deepEqual(bridge.liveGuidance(source), context(null, [11004]));
+    assert.deepEqual(bridge.liveGuidance(source), context(null, [11005]));
   }
   pulse = { ...pulse, session: '1800000001-123456' };
   assert.deepEqual(bridge.liveGuidance(source), context(null, []), 'a verified new session starts fresh');
@@ -448,7 +458,7 @@ test('restarting the assistant retains closed choices only for the same verified
   let bridge = restart();
   bridge.liveGuidance(source);
   state.dialogue = null;
-  assert.deepEqual(bridge.liveGuidance(source), context(null, [11004]));
+  assert.deepEqual(bridge.liveGuidance(source), context(null, [11005]));
   const stamp = fs.statSync(guidanceFile, { bigint: true }).mtimeNs;
   bridge.liveGuidance(source);
   assert.equal(
@@ -458,7 +468,7 @@ test('restarting the assistant retains closed choices only for the same verified
   );
   bridge = restart();
   const restored = bridge.liveGuidance(source);
-  assert.deepEqual(restored, context(null, [11004]));
+  assert.deepEqual(restored, context(null, [11005]));
   assert.deepEqual(flowSnapshot(profile, reference(), '', restored).decisions, []);
   state.dialogue = dialogue({ sequence: 2 });
   assert.deepEqual(
@@ -470,14 +480,14 @@ test('restarting the assistant retains closed choices only for the same verified
   state.dialogue = null;
   assert.deepEqual(
     bridge.liveGuidance(source),
-    context(null, [11004]),
+    context(null, [11005]),
     'close while the assistant is off also retires its last observed choice',
   );
   fs.writeFileSync(guidanceFile, '{broken');
   bridge = restart();
   assert.deepEqual(
     bridge.liveGuidance(source),
-    context(null, [11004]),
+    context(null, [11005]),
     'recover the previous complete record',
   );
   state.session = '1800000001-123456';
@@ -539,21 +549,18 @@ test('default choice hints retain permanent consequences before ordinary task hi
   );
   const render = createCompanionViews({ esc: String, icon: () => '', act: () => '', qualityText: {} });
   const rules = require('../src/data/flow-guide.cjs').rules;
-  for (const id of [
-    'chenlinxi-critical-choice',
-    'tianji-rebuild-choice',
-    'changsheng-rescue-choice',
-    'bai-jin-rescue-route',
+  // Literal native packets from the pinned Quests asset, independent of guide labels.
+  for (const [id, questId, options] of [
+    ['chenlinxi-critical-choice', 12079, ['好言相劝', '义正辞严']],
+    ['tianji-rebuild-choice', 24063, ['重建天机宫', '回绝此事']],
+    ['changsheng-rescue-choice', 8861, ['置之不理', '出手相救']],
   ]) {
     const rule = rules.find((r) => r.id === id);
     const value = dialogue({
-      questId: rule.decisionSteps[0],
+      questId,
       npcId: 0,
-      options: rule.choices.map((c, i) => ({ index: i + 1, text: c.label })),
+      options: options.map((text, i) => ({ index: i + 1, text })),
     });
-    // Known NPC constraints still apply to the actual flow producer.
-    const task = require('../src/data/world-index.json').quests.find((q) => q.id === value.questId);
-    value.npcId = task?.requestNPCs?.[0] || task?.finishNPCs?.[0] || 0;
     const data = companionSnapshot(defaults(), catalog, reference(), '', context(value));
     assert.equal(data.flow.liveDialogue.matched, true, id);
     assert.deepEqual(

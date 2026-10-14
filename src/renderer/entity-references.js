@@ -131,7 +131,14 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       ];
     } else if (e.kind === '人物') {
       const variant = variantSummary(id, context.reference);
-      if (variant) lines.push(variant);
+      const current = context.npcProgress?.people.find((row) => row.npcId === e.gameId);
+      if (current) {
+        lines.push(
+          current.remainingItems.length ? `私物还剩 ${current.remainingItems.length} 种` : '私物已清空',
+        );
+        if (current.learning.length) lines.push(`${current.learning.length} 项技艺与功法可提升`);
+        if (current.place) lines.push(current.place.name);
+      } else if (variant) lines.push(variant);
       else if (e.npcFacts)
         lines.push(
           `初始等级 ${e.npcFacts.level} · ${new Set((e.npcFacts.fixedItems || []).map((item) => item.id)).size} 种固定私物`,

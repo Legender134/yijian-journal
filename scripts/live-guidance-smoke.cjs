@@ -48,7 +48,7 @@ delete env.ELECTRON_RUN_AS_NODE;
 const packet = (extra = {}) => ({
   schema: 1,
   sequence: 1,
-  questId: 11004,
+  questId: 11005,
   npcId: 10038,
   options: [
     { index: 1, text: '买把新的比较好' },
@@ -126,6 +126,10 @@ const pulse = () =>
     assert.equal(await win.locator(choice).count(), 0, 'the saved reference has not reached the choice');
     await win.locator('.sidebar-nav [data-id="duels"]').click();
     await win.locator('.duel-all > summary').click();
+    await win.waitForFunction(() => {
+      const content = document.querySelector('.content');
+      return document.querySelector('.duel-all')?.open && content.scrollHeight > content.clientHeight + 400;
+    });
     const mainScroll = await win.locator('.content').evaluate((el) => {
       el.scrollTop = 650;
       return el.scrollTop;
@@ -237,7 +241,7 @@ const pulse = () =>
     await small.screenshot({ path: path.join(output, 'live-choice-on-duels.png'), animations: 'disabled' });
     const oldChoice = writeSave([
       { id: 11002, step: 1 },
-      { id: 11004, step: 1 },
+      { id: 11005, step: 1 },
     ]);
     current = null;
     pulse();
@@ -317,12 +321,12 @@ const pulse = () =>
     }
     current = packet({
       sequence: 11,
-      questId: 5076,
+      questId: 5078,
       npcId: 10016,
       options: [
         { index: 1, text: '剑系武器' },
-        { index: 2, text: '刀系武器' },
-        { index: 3, text: '拳系武器' },
+        { index: 2, text: '拳系武器' },
+        { index: 3, text: '刀系武器' },
       ],
     });
     pulse();
@@ -517,6 +521,18 @@ const pulse = () =>
     }
     await win.locator('.sidebar-nav [data-id="database"]').click();
     await checkPageSearch(win, 'list-search', 120);
+    for (const [index, [route, field]] of [
+      ['world', 'world-search'],
+      ['materials', 'craft-search'],
+      ['journey', 'journey-search'],
+      ['recipe-discovery', 'recipe-discovery-search'],
+    ].entries()) {
+      if (route === 'recipe-discovery') {
+        await win.locator('.sidebar-nav [data-id="materials"]').click();
+        await win.locator('[data-action="recipe-discovery-open"]').first().click();
+      } else await win.locator('.sidebar-nav [data-id="' + route + '"]').click();
+      await checkPageSearch(win, field, 150 + index);
+    }
     for (const [index, surface] of [win, small].entries()) {
       await surface
         .locator(index ? '.companion-tabs [data-id="saves"]' : '.sidebar-nav [data-id="saves"]')
@@ -587,19 +603,18 @@ const pulse = () =>
       w.webContents.send('journal:companion', { mode: 'hint', visible: true });
     });
     const rules = require('../src/data/flow-guide.cjs').rules;
-    const tasks = require('../src/data/world-index.json').quests;
-    for (const [index, id] of [
-      'chenlinxi-critical-choice',
-      'tianji-rebuild-choice',
-      'changsheng-rescue-choice',
-    ].entries()) {
+    const nativePackets = [
+      ['chenlinxi-critical-choice', 12079, ['好言相劝', '义正辞严']],
+      ['tianji-rebuild-choice', 24063, ['重建天机宫', '回绝此事']],
+      ['changsheng-rescue-choice', 8861, ['置之不理', '出手相救']],
+    ];
+    for (const [index, [id, questId, options]] of nativePackets.entries()) {
       const rule = rules.find((row) => row.id === id);
-      const task = tasks.find((row) => row.id === rule.decisionSteps[0]);
       current = packet({
         sequence: 130 + index,
-        questId: rule.decisionSteps[0],
-        npcId: task?.requestNPCs?.[0] || task?.finishNPCs?.[0] || 0,
-        options: rule.choices.map((row, i) => ({ index: i + 1, text: row.label })),
+        questId,
+        npcId: 0,
+        options: options.map((text, i) => ({ index: i + 1, text })),
       });
       pulse();
       await small.locator('.hint-caution').filter({ hasText: rule.recommendation.caution }).waitFor();

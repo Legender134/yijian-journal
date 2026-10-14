@@ -34,6 +34,7 @@ end
 local worldName,pawnName='World LV_Synthetic','Pawn Synthetic'
 local world=obj(worldName); local pawn=obj(pawnName)
 local gi=obj('GI',{bIsFighting=false,bDisableInputMove=false})
+gi.GetAddress=function() return 100 end
 local pc=obj('PC',{K2_GetPawn=function() return pawn end})
 local ready, viewVisible, optionVisible, worldType = true, false, false, 1
 local optionTexts={'买把新的比较好','重新锻造一番吧'}
@@ -64,7 +65,7 @@ local ui=obj('UI',{IsInDefaultStatus=function() return ready end,
     GetDialogModule=function() if failGetter then error('synthetic getter failure') end; return vm end,
     GetDialogView=function() return view end})
 local saved,loaded=0,0
-local sm=obj('SM',{AutoSaveIndex=7,GetSaveGameName=function() return {ToString=function() return 'previous' end} end,
+local sm=obj('SM',{AutoSaveIndex=7,YijianJournalLoadBusy=0,GetSaveGameName=function() return {ToString=function() return 'previous' end} end,
     SetSaveGameName=function(_,name) assert(name=='previous') end,
     SaveSlot=function(_,slot,auto,name) assert(slot==29 and auto==true and name=='Yijian Journal Timeline'); saved=saved+1;
         files[source..'/JHSaveConfig.sav']='config-2'; return true end,
@@ -72,6 +73,14 @@ local sm=obj('SM',{AutoSaveIndex=7,GetSaveGameName=function() return {ToString=f
 local lib=obj('ManagerFuncLib',{GetGameInstance=function() return gi end,GetSaveManager=function() return sm end,
     GetCurrentWorld=function() return world end,GetPlayerController=function() return pc end,
     GetWorldType=function() return worldType end})
+sm.GetOuter=function() return gi end
+sm.IsA=function(_,name) return name=='/Script/JH.SaveManager' end
+sm.Reflection=function() return {GetProperty=function(_,name)
+    local offset,target=name=='GameSaveConfig' and 0x38 or 0x50,name=='GameSaveConfig' and '/Script/JH.JHSaveGameConfig' or '/Script/JH.JHSaveGame'
+    return {IsValid=function() return true end,IsA=function(_,t) return t==PropertyTypes.ObjectProperty end,
+        GetOffset_Internal=function() return offset end,GetPropertyClass=function() return obj('Class '..target) end}
+end} end
+function FindAllOf(name) if name=='SaveManager' then return {sm} end; return {} end
 local system=obj('KismetSystemLibrary',{GetProjectSavedDirectory=function() return {ToString=function() return 'C:/Synthetic' end} end})
 function StaticFindObject(name)
     objectLookups=objectLookups+1
@@ -81,8 +90,11 @@ function StaticFindObject(name)
     error('unapproved object lookup '..name)
 end
 function FindFirstOf(name) objectLookups=objectLookups+1; assert(name=='JHNeoUISubsystem'); return ui end
-PropertyTypes={IntProperty={Name='IntProperty',Size=4}}
+PropertyTypes={IntProperty={Name='IntProperty',Size=4},ObjectProperty={Name='ObjectProperty',Size=8},Int8Property={Name='Int8Property',Size=1}}
 function RegisterCustomProperty(info)
+    if info.Name=='YijianJournalLoadBusy' then
+        assert(info.Type==PropertyTypes.Int8Property and info.BelongsToClass=='/Script/JH.SaveManager' and info.OffsetInternal==0x9c); return
+    end
     if failRegistration then error('synthetic registration failure') end
     assert(info.Name=='YijianJournalQuestId' and info.Type==PropertyTypes.IntProperty)
     assert(info.Type.Name=='IntProperty' and info.Type.Size==4)
@@ -359,4 +371,23 @@ assert(${verb === 'save' ? 'saved==1 and loaded==0' : 'loaded==1 and saved==0'})
     (f) => absent(f, 'busy'),
   );
 }
+run(
+  'loaded receipt waits for native busy and pending to clear even with a new pawn',
+  String.raw`
+pulse('before')
+local session=files['SYNTHETIC/state.json']:match('"session":"([^"]+)"')
+sm.LoadSlot=function(_,slot) assert(slot==29); loaded=loaded+1; sm.YijianJournalLoadBusy=1; sm.LastLoadSaveData=obj('JHSaveGame Pending') end
+files['SYNTHETIC/command.txt']=token..'\t'..session..'\t00000000-0000-0000-0000-000000000001\tload\t'..(now+10)..'\towned\n'
+pulse('command'); assert(loaded==1)
+pawn=obj('Pawn New Synthetic'); pulse('native-busy'); assert(files['SYNTHETIC/response.json']==nil)
+sm.YijianJournalLoadBusy=0; pulse('pending'); assert(files['SYNTHETIC/response.json']==nil)
+sm.LastLoadSaveData=nil; pulse('finished')
+io.write('receipt\t'..files['SYNTHETIC/response.json']..'\n')
+`,
+  (f) => {
+    assert.equal(f.get('native-busy').ready, false);
+    assert.equal(f.get('pending').ready, false);
+    assert.equal(f.get('receipt').status, 'loaded');
+  },
+);
 console.log('Lua synthetic dialogue smoke passed; game and personal saves were never accessed.');

@@ -1991,7 +1991,13 @@ app.whenReady().then(async () => {
     guidanceTimer = setInterval(() => {
       if (quitRequested) return;
       const state = store.get();
-      const key = JSON.stringify([state.activeProfileId, readGuidance(state)]);
+      const guidance = readGuidance(state);
+      const key = JSON.stringify([
+        state.activeProfileId,
+        guidance?.dialogue,
+        guidance?.suppressedQuestIds,
+        guidance?.npcState?.key || null,
+      ]);
       if (key !== lastGuidance) {
         lastGuidance = key;
         broadcast('guidance', { profileId: state.activeProfileId });

@@ -1,8 +1,10 @@
 'use strict';
 
-const knownChoiceSteps = new Set(
-  require('../data/flow-guide.cjs').rules.flatMap((rule) => rule.decisionSteps || []),
-);
+const nativeContracts = require('../data/live-choice-contracts.json').contracts;
+const nativeSteps = (rule) =>
+  nativeContracts.filter((row) => row.ruleId === rule.id).map((row) => row.questId);
+const stepsForRule = (rule) => [...(rule.decisionSteps || []), ...nativeSteps(rule)];
+const knownChoiceSteps = new Set(require('../data/flow-guide.cjs').rules.flatMap(stepsForRule));
 const isKnownChoiceStep = (id) => knownChoiceSteps.has(id);
 
 function readDialogue(value) {
@@ -50,21 +52,23 @@ const optionText = (value) =>
 function withLiveDialogue(flow, context, quests) {
   if (flow.referenceMode !== 'latest' || !context) return flow;
   const rules = new Map((flow.guide || []).map((rule) => [rule.id, rule]));
-  const choiceSteps = new Set((flow.guide || []).flatMap((rule) => rule.decisionSteps || []));
+  const choiceSteps = new Set((flow.guide || []).flatMap(stepsForRule));
   const suppressed = new Set(
     (Array.isArray(context.suppressedQuestIds) ? context.suppressedQuestIds : []).filter((id) =>
       choiceSteps.has(id),
     ),
   );
   const original = (row) => rules.get(row.id) || row;
-  const visible = (row) => !(original(row).decisionSteps || []).some((id) => suppressed.has(id));
+  const visible = (row) => !stepsForRule(original(row)).some((id) => suppressed.has(id));
+  // A native hidden button row also retires its named saved lead step.
+  const retiredSteps = new Set((flow.guide || []).filter((rule) => !visible(rule)).flatMap(stepsForRule));
   const dialogue = readDialogue(context.dialogue);
   const active = (flow.active || [])
     .map((task) => ({
       ...task,
       steps: task.steps.filter((step) => {
         const id = Number(String(step.id).replace(/^quest-/, ''));
-        return !suppressed.has(id) && !(dialogue && choiceSteps.has(id));
+        return !retiredSteps.has(id) && !(dialogue && choiceSteps.has(id));
       }),
     }))
     .filter((task) => task.steps.length);
@@ -95,20 +99,18 @@ function withLiveDialogue(flow, context, quests) {
   };
   if (!dialogue) return base;
   const candidates = [];
-  for (const rule of flow.guide || []) {
-    if (!(rule.decisionSteps || []).includes(dialogue.questId)) continue;
+  for (const contract of nativeContracts) {
+    if (contract.questId !== dialogue.questId) continue;
+    const rule = rules.get(contract.ruleId);
+    if (!rule || contract.rootQuestId !== rule.questId) continue;
     const choices = rule.choices || [];
     if (choices.length < 2 || choices.length !== dialogue.options.length) continue;
-    let task = quests.get(dialogue.questId);
-    const people = [...(task?.requestNPCs || []), ...(task?.finishNPCs || [])];
-    if (people.length && !people.includes(dialogue.npcId)) continue;
-    const seen = new Set();
-    while (task?.parentId && !seen.has(task.gameId)) {
-      seen.add(task.gameId);
-      task = quests.get(task.parentId);
-    }
-    if (task?.gameId !== rule.questId) continue;
-    const byText = new Map(choices.map((choice) => [optionText(choice.label), choice]));
+    // Positive quest identity is proved through QuestInfo.GetFuncId -> OpenDlg
+    // -> DialogModuleVM. Hidden button rows need not exist in the public index.
+    // CurrentNPCId is the requesting event's context, not its last speaker.
+    const byText = new Map(
+      contract.options.map((option) => [optionText(option.text), choices[option.choiceIndex]]),
+    );
     if (byText.size !== choices.length || byText.has('')) continue;
     const matched = dialogue.options.map((option) => ({
       option,

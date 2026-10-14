@@ -1,0 +1,324 @@
+{
+  "schema": 1,
+  "build": "21798996",
+  "source": {
+    "kind": "Game data and read-only static native/Blueprint analysis",
+    "pins": {
+      "Quests.uasset": "ca4fb2762930e4473fa10301678874e9ebbe4d0ee97b4a193b6ae71badcf3e41",
+      "Quests.uexp": "2d84daae1fc93fc6f098fd5897091704960581d305adffd2f42a26315a881a86",
+      "UAssetAPI.dll": "d7b9fd4341ac22dd9ab8d9f49455ea5ebcf571abced64313ab15eb1944de07d9",
+      "Newtonsoft.Json.dll": "22c649f75fce5be7c7ccda8880473b634ef69ecf33f5d1ab8ad892caf47d5a07",
+      "ZstdSharp.dll": "5d597fb07c93f99bcbbcf1265bfc60de1f1f8fc070a3acc36f0371a86c326b16",
+      "JH-Win64-Shipping.exe": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c"
+    },
+    "proof": {
+      "build": "21798996",
+      "programSha256": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c",
+      "quests": {
+        "package": "Wandering_Sword/Content/JH/Tables/Quests",
+        "uassetSha256": "ca4fb2762930e4473fa10301678874e9ebbe4d0ee97b4a193b6ae71badcf3e41",
+        "uexpSha256": "2d84daae1fc93fc6f098fd5897091704960581d305adffd2f42a26315a881a86"
+      },
+      "dialogue": {
+        "questTypes": {
+          "package": "Wandering_Sword/Content/JH/Tables/QuestTypes",
+          "uassetSha256": "949770232b9074079916293b48860139299c6fed3189c6f2e9d9ef064418efd7",
+          "uexpSha256": "07a85c011165dda368932fc1a0a0ca1d2df1c9a6f26a1b3893b55aadf2f08308"
+        },
+        "base": {
+          "package": "Wandering_Sword/Content/JH/Core/Quest/BP_QuestInfoBase",
+          "uassetSha256": "b09ddfa3924cf967e54f7468dde26143ac1b1cac744912c67fc681cc33129bc0",
+          "uexpSha256": "6360430339745576d70dccf72800cc214ad853226e638e27e1b49dfbdd32b0a1"
+        },
+        "talk": {
+          "package": "Wandering_Sword/Content/JH/Core/Quest/BP_TalkQuestInfo",
+          "uassetSha256": "0a40ea438d0628861f2c9c808497164796a6ffccbcf046acb014ddd2831d8ee0",
+          "uexpSha256": "d22592fcbf387000fc2f348722652ad0c7c2b1fd914a1c57a4f172853e759606"
+        },
+        "kongliang": {
+          "package": "Wandering_Sword/Content/JH/Maps/JiangNan/Map56_YanFuzhen/Quest/Quest_12297",
+          "uassetSha256": "26168b48242f72e77c802632f542520f7464331b4dc296a6fb83ae2f8ced8551",
+          "uexpSha256": "98590ed3c1f7d6ccdb93cb3e0f034daa865e33efb57028f7e267d244b131ed76"
+        }
+      },
+      "chenlinxi": {
+        "checkpoint": {
+          "package": "Wandering_Sword/Content/JH/Maps/JiangNan/Map26/Quest/Quest_12094",
+          "uassetSha256": "8d7baea737c67b472f791382d93386db406f112c90facf02716fdefbbe8f48ec",
+          "uexpSha256": "abfe12a5256c47329453b6116e27aa189f5f23ddb77967297a70f3fd29ff3fc4"
+        },
+        "fight": {
+          "package": "Wandering_Sword/Content/JH/Maps/JiangNan/Map26/Quest/Quest_12095",
+          "uassetSha256": "c7ab017d58d80eff798b03cb75a54fefd2e1d6b7f29252b89ca28b0a6daa4d60",
+          "uexpSha256": "b4399bde8ed4cb5346995f493726a60497c20dd7132be9dd92adf9dd44b945a6"
+        },
+        "afterFight": {
+          "package": "Wandering_Sword/Content/JH/Maps/JiangNan/Map26/Quest/Quest_12096",
+          "uassetSha256": "399b7d65bfede012c81819ff546acf74a9d51b363942b2dfc32dbf96f11b31d2",
+          "uexpSha256": "5d0c76269d3d8fd790508a03ae6f6e77624caefa8b347d4d65ced27bab77d26d"
+        },
+        "npcTable": {
+          "package": "Wandering_Sword/Content/JH/Tables/NPCs",
+          "uassetSha256": "9a450475646b2b267fe39178cb9ac2c27b9bb51d0500a0282a194f534490ead8",
+          "uexpSha256": "0c3dcfdb36901efc70d65446064c5a97d44c1629d1e2cf418eb586ff3c131ec3"
+        }
+      },
+      "notice": "Original game data and blueprint behavior are third-party material. Only minimum field/behavior projections are intended for source; no raw assets or complete dialogue."
+    },
+    "npcPolicy": "The event NPC is context, not the dialogue speaker. Matching uses the proved quest row and complete native option set."
+  },
+  "contracts": [
+    {
+      "ruleId": "mowen-thankyou-gift-choice",
+      "questId": 12406,
+      "rootQuestId": 12400,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "剑",
+          "choiceIndex": 1
+        },
+        {
+          "text": "茶",
+          "choiceIndex": 2
+        },
+        {
+          "text": "棋盘",
+          "choiceIndex": 0
+        }
+      ]
+    },
+    {
+      "ruleId": "early-jingyin-weapon-choice",
+      "questId": 5078,
+      "rootQuestId": 5074,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "剑系武器",
+          "choiceIndex": 0
+        },
+        {
+          "text": "拳系武器",
+          "choiceIndex": 2
+        },
+        {
+          "text": "刀系武器",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "chengyu-stay-choice",
+      "questId": 5826,
+      "rootQuestId": 5820,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "赞成留下程钰",
+          "choiceIndex": 0
+        },
+        {
+          "text": "同意把人送走",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "early-woodcutter-axe-choice",
+      "questId": 11005,
+      "rootQuestId": 11002,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "买把新的比较好",
+          "choiceIndex": 0
+        },
+        {
+          "text": "重新锻造一番吧",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "early-sun-homesickness-choice",
+      "questId": 11061,
+      "rootQuestId": 11060,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "先生倒是豁达",
+          "choiceIndex": 1
+        },
+        {
+          "text": "趁着还硬朗，回去看看吧",
+          "choiceIndex": 0
+        }
+      ]
+    },
+    {
+      "ruleId": "kongliang-choice",
+      "questId": 12297,
+      "rootQuestId": 12280,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "帮助孔亮",
+          "choiceIndex": 0
+        },
+        {
+          "text": "袖手旁观",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "changsheng-formation-choice",
+      "questId": 8553,
+      "rootQuestId": 8499,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "三人赴战",
+          "choiceIndex": 0
+        },
+        {
+          "text": "孤身赴战",
+          "choiceIndex": 1
+        },
+        {
+          "text": "多人赴战",
+          "choiceIndex": 2
+        }
+      ]
+    },
+    {
+      "ruleId": "changsheng-rescue-choice",
+      "questId": 8861,
+      "rootQuestId": 8830,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "置之不理",
+          "choiceIndex": 1
+        },
+        {
+          "text": "出手相救",
+          "choiceIndex": 0
+        }
+      ]
+    },
+    {
+      "ruleId": "changsheng-rescue-choice",
+      "questId": 8867,
+      "rootQuestId": 8830,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "置之不理",
+          "choiceIndex": 1
+        },
+        {
+          "text": "出手相救",
+          "choiceIndex": 0
+        }
+      ]
+    },
+    {
+      "ruleId": "yanfu-investigation-choice",
+      "questId": 21132,
+      "rootQuestId": 21050,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "继续调查",
+          "choiceIndex": 0
+        },
+        {
+          "text": "放弃调查",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "yanfu-investigation-choice",
+      "questId": 21141,
+      "rootQuestId": 21050,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "继续调查",
+          "choiceIndex": 0
+        },
+        {
+          "text": "放弃调查",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "cold-wuqing-night-choice",
+      "questId": 22132,
+      "rootQuestId": 22100,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "矢志于此",
+          "choiceIndex": 0
+        },
+        {
+          "text": "不负己心",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "tianji-rebuild-choice",
+      "questId": 24063,
+      "rootQuestId": 24020,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "重建天机宫",
+          "choiceIndex": 0
+        },
+        {
+          "text": "回绝此事",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "tianji-rebuild-choice",
+      "questId": 24070,
+      "rootQuestId": 24020,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "重建天机宫",
+          "choiceIndex": 0
+        },
+        {
+          "text": "回绝此事",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "chenlinxi-critical-choice",
+      "questId": 12079,
+      "rootQuestId": 12075,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "好言相劝",
+          "choiceIndex": 0
+        },
+        {
+          "text": "义正辞严",
+          "choiceIndex": 1
+        }
+      ]
+    }
+  ]
+}

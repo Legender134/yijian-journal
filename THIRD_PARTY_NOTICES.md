@@ -20,6 +20,8 @@ Copyright (c) 2018 Destiny Item Manager，MIT License。完整许可保留于 [s
 
 `src/data/npc-facts.json` 是同一 Build 的人物静态等级、初始私物及随机候选投影，沿用上述游戏数据权利声明。原始 `NPCs.uexp`、`DropPools.uexp` 与导出数据的 SHA-256 保存在文件的 `provenance` 中。私有原始游戏表不随项目提交或打包；`scripts/build-npc-facts.cjs` 可从本机导出数据复现这份投影。
 
+`src/data/live-choice-contracts.json`、`npc-interactions.json` 与 `npc-power.json` 是同一 Build 的选项节点、交互门槛及战力配置事实投影，沿用上述游戏内容权利声明。保留来源成员、程序与最小证据的 SHA-256；不分发原始游戏资产、反汇编或玩家现场状态，不将游戏数值与文字主张为原创代码。
+
 ## UE4SS
 
 原生游戏接入包含官方 [UE4SS-RE/RE-UE4SS](https://github.com/UE4SS-RE/RE-UE4SS) 的组件，版本 `3.0.1-1152-ge3ba1016`，MIT License，Copyright (c) 2022 Narknon。

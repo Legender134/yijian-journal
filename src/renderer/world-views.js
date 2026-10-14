@@ -202,7 +202,7 @@ export function createWorldViews({
               : r.type === 'NoQuest'
                 ? ''
                 : String(r.value);
-          return `<div class="world-rule"><span class="small muted">${label}</span><span>${link}${value ? ` · ${esc(value)}` : ''}</span>${q && saved.has(q.gameId) ? pill(`存档：${labels[saved.get(q.gameId).step]}`) : ''}</div>`;
+          return `<div class="world-rule"><span class="small muted">${label}</span><span>${link}${value ? ` · ${esc(value)}` : ''}</span>${q && (saved.has(q.gameId) || view.reference?.origin === 'live') ? pill(`${view.reference?.origin === 'live' ? '现场' : '存档'}：${labels[saved.get(q.gameId)?.step ?? 0]}`) : ''}</div>`;
         })
         .join('') || '<p class="small muted">未收录条件</p>'
     );

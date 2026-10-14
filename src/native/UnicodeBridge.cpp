@@ -48,6 +48,13 @@ int write(const Lua& lua) {
     lua.set_string("ok");return 1;
   }catch(const std::exception& e){lua.set_nil();lua.set_string(e.what());return 2;}
 }
+int observation_mac(const Lua& lua) {
+  std::scoped_lock lock(gate);
+  try {
+    if(lua.get_stack_size()!=1||!lua.is_string(1))throw std::runtime_error("observation arity");
+    lua.set_string(channel.observation_mac(lua.get_string(1)));return 1;
+  }catch(const std::exception& e){lua.set_nil();lua.set_string(e.what());return 2;}
+}
 class UnicodeBridge final:public RC::CppUserModBase {
 public:
   void on_lua_start(RC::StringViewType name,Lua& lua,Lua&,Lua&,Lua*) override {
@@ -55,6 +62,7 @@ public:
     lua.register_function("YijianNativeInitialize",initialize);
     lua.register_function("YijianNativeRead",read);
     lua.register_function("YijianNativeWrite",write);
+    lua.register_function("YijianNativeObservationMac",observation_mac);
   }
 };
 }

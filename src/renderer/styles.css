@@ -4201,3 +4201,47 @@ kbd {
 .start-panel-compact > details {
   margin-top: 5px;
 }
+.npc-progress-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.npc-progress-page > .search-input {
+  margin-bottom: 12px;
+}
+.npc-progress-card {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+}
+.npc-progress-card > summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.npc-progress-card summary > span {
+  overflow-wrap: anywhere;
+}
+.npc-progress-card summary .row {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.npc-progress-blocker {
+  color: var(--muted);
+  font-size: 12px;
+}
+.npc-progress-body {
+  padding-top: 8px;
+}
+.npc-progress-item {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.npc-key-item {
+  font-weight: 600;
+}
+.npc-curated-duels {
+  margin-top: 18px;
+}

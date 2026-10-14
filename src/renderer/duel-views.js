@@ -1,4 +1,6 @@
+import { createNpcProgressViews } from './npc-progress-views.js';
 export function createDuelViews({ esc, act, pill, richText = esc }) {
+  const progressViews = createNpcProgressViews({ esc, act, richText });
   const text = (value) => esc(String(value ?? ''));
   const item = (reward) =>
     reward.itemId
@@ -42,11 +44,19 @@ export function createDuelViews({ esc, act, pill, richText = esc }) {
       }${rewards.length > 2 ? ` 等 ${rewards.length} 项` : ''}</span>${preparationPreview(ready)}${row.conditions?.some((condition) => condition.status === 'unmet' || condition.status === 'unknown') ? `<span class="duel-readiness-preview">${row.conditions.some((condition) => condition.status === 'unmet') ? '前置未完成' : ''}${row.conditions.some((condition) => condition.status === 'unmet') && row.conditions.some((condition) => condition.status === 'unknown') ? ' · ' : ''}${row.conditions.some((condition) => condition.status === 'unknown') ? '前置待核对' : ''}</span>` : ''}</summary><div class="duel-compact-detail">${fullBody}</div></details>`;
     return `<article class="duel-card" data-duel="${text(row.id)}">${header}<p class="duel-place">${richText(row.place)}</p>${fullBody}</article>`;
   }
-  function page(flow, { compact = false, scope = '' } = {}) {
+  function page(flow, { compact = false, scope = '', npcProgress = {} } = {}) {
     const data = flow?.duels;
+    const progress = progressViews.page(data?.progress, { ...npcProgress, scope });
     const candidates = data?.candidates || [];
     const ids = new Set(candidates.map((row) => row.id));
     const others = (data?.guide || []).filter((row) => !ids.has(row.id));
+    if (data?.progress?.available) {
+      const { progress: ignored, ...guideData } = data;
+      return (
+        progress +
+        `<details class="npc-curated-duels" data-persist-detail="npc-curated-duels-${text(scope)}"><summary>攻略中的重要比武线索</summary>${page({ duels: guideData }, { compact, scope })}</details>`
+      );
+    }
     if (compact)
       return `<section class="duel-page"><h2>本阶段比武</h2><div data-duel-current>${candidates.length ? candidates.map((entry) => card(entry, true, scope)).join('') : `<p class="small">${data?.available ? '当前阶段暂无已整理线索。' : '尚未对照可读存档。'}</p>`}</div>${others.length ? `<details class="duel-all" data-persist-detail="duel-all-${text(scope)}"><summary>其他阶段 · ${others.length} 人</summary>${others.map((entry) => card(entry, true, scope)).join('')}</details>` : ''}<details class="duel-combat-limit" data-persist-detail="duel-combat-${text(scope)}"><summary>依据与覆盖</summary><p class="small save-note">${text(data?.reason || '正在核对比武资料。')}${data?.difficultyName ? ` 难度：${text(data.difficultyName)}。` : ''}</p><p>${text(data?.combatLimit || '尚未读取玩家实时战斗面板，不保证能够战胜。')}</p><p>先观察人物的招式、私物和比武条件，按准备建议判断；首次挑战前保留可回读存档，打不过可以先继续低风险任务。</p></details></section>`;
     return `<section class="duel-page"><h2>${compact ? '本阶段比武' : '本阶段比武与重要收益'}</h2><details class="duel-combat-limit" data-persist-detail="duel-combat-${text(scope)}"><summary>怎样判断现在能不能打</summary><p>${text(data?.combatLimit || '尚未读取玩家实时战斗面板，不保证能够战胜。')}</p><p>先观察人物的招式、私物和比武条件，按下方准备建议判断；首次挑战前保留可回读存档，打不过可以先继续低风险任务。</p></details><div data-duel-current>${candidates.length ? candidates.map((entry) => card(entry, compact, scope)).join('') : '<p class="small">当前未匹配已整理的比武候选，可在下方按人物查资料。</p>'}</div>${others.length ? `<details class="duel-all" data-persist-detail="duel-all-${text(scope)}"><summary>其他阶段的比武资料 · ${others.length} 人</summary>${others.map((entry) => card(entry, compact, scope)).join('')}</details>` : ''}</section>`;

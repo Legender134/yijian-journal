@@ -994,7 +994,7 @@ test('critical branch losses and prerequisites remain outside the collapsed choi
     ['qiluo-window', /晋升执法前.*火云神掌.*另一套队伍.*没有玄阳离火功/],
     ['beggar-rest-order', /直接休息可能进入坏结局.*玉伯/],
     ['mowen-thankyou-gift-choice', /3000.*六博.*战斗/],
-    ['chenlinxi-critical-choice', /60且低于70.*高于70.*好言相劝会致死.*其他组合未确认/],
+    ['chenlinxi-critical-choice', /义正辞严.*共饮.*低于70.*共饮时好感≥70.*陈麟熙离场.*灭门之案线索失败/],
     ['yanfu-investigation-choice', /放弃调查.*关闭查明真相/],
     ['chengyu-stay-choice', /送走程钰.*失去.*对话.*切磋/],
   ]) {

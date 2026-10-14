@@ -1,5 +1,7 @@
 'use strict';
 const { createDuelReadiness } = require('./duel-readiness.cjs');
+const { createNpcProgressProjector } = require('./npc-progress.cjs');
+const npcContracts = require('../data/npc-interactions.json');
 
 // Curated challenge leads describe a story window, never a live NPC presence or
 // a victory prediction. Missing saved conditions remain unknown.
@@ -9,6 +11,7 @@ function createDuelProjector({ guide, world, game }) {
   );
   const quests = new Map(world.quests.map((row) => [row.gameId, row]));
   const readiness = createDuelReadiness(game, world);
+  const projectProgress = createNpcProgressProjector({ game, world, contracts: npcContracts, guide });
   const taskName = (id) => String(quests.get(id)?.name || `剧情记录 #${id}`).replace(/^【[^】]+】\s*/, '');
   return function project({
     available,
@@ -17,6 +20,7 @@ function createDuelProjector({ guide, world, game }) {
     mapName = '',
     difficultyName = '',
     combat = null,
+    metadata = {},
   }) {
     const saved = new Map((available ? states : []).map((row) => [row.id, row.step]));
     const rows = (guide.duels || []).map((entry) => {
@@ -59,6 +63,7 @@ function createDuelProjector({ guide, world, game }) {
     });
     return {
       available,
+      progress: projectProgress(available ? { ...metadata, combat, questStates: states } : {}),
       difficultyName,
       candidates: rows.filter((row) => row.current),
       guide: rows,

@@ -6,6 +6,13 @@ const images = require('../data/game-images.json');
 const itemStats = require('../data/item-stats.json');
 const npcFacts = require('../data/npc-facts.json');
 const flowGuide = require('../data/flow-guide.cjs');
+const { createNpcProgressProjector } = require('./npc-progress.cjs');
+const projectNpcProgress = createNpcProgressProjector({
+  world,
+  game: data,
+  contracts: require('../data/npc-interactions.json'),
+  guide: require('../data/duel-guide.cjs'),
+});
 if (String(itemStats.build) !== String(data.build)) throw Error('物品数值与图鉴版本不一致');
 if (String(npcFacts.build) !== String(data.build)) throw Error('人物私物与图鉴版本不一致');
 if (String(mapAtlas.build) !== String(data.build)) throw Error('地图与图鉴版本不一致');
@@ -81,6 +88,7 @@ function enrich(metadata) {
     );
   }
   result.dataBuild = data.build;
+  if (metadata.combat?.npcStates) result.npcProgress = projectNpcProgress(result);
   return result;
 }
 function encyclopedia() {

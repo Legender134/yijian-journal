@@ -101,6 +101,42 @@ test('guide and other read-only drawer histories retain reading position before 
   }
 });
 
+test('live NPC and task handoff select a fresh observed cohort, with saved fallback after withdrawal', async () => {
+  const { context } = readingHistoryHarness();
+  const old = { name: '1.sav', hash: 'a'.repeat(64) };
+  const latest = { name: '2.sav', hash: 'b'.repeat(64) };
+  const live = { origin: 'live', key: 'cohort-new', metadata: { quests: [{ id: 12001, step: 1 }] } };
+  context.referenceSave = old;
+  context.referenceSaveName = old.name;
+  context.currentDrawer = { type: 'database', id: 'npc-10047', liveNpcContext: true, flowReference: old };
+  context.drawerHistory = [{ type: 'world-quest', id: 'quest-12001', liveContext: true }];
+  const wire = handbookContext(context.capture());
+  assert.deepEqual(wire.reference, { name: '', hash: '', follow: true, live: true });
+  assert.deepEqual(wire.history[0].reference, wire.reference);
+  assert.equal(
+    handbookContext({ profileId: 'p', reference: { follow: false, live: true } }).reference.live,
+    undefined,
+  );
+  const reads = [];
+  context.latestReference = () => latest.name;
+  context.call = async (_method, name) => {
+    reads.push(name);
+    return latest;
+  };
+  context.showWorldDetail = async (_id, _type, _replace, view) => {
+    context.currentDrawer = { type: 'world-quest', id: 'quest-12001', ...view };
+    return context.currentDrawer;
+  };
+  for (const observed of [live, null]) {
+    context.currentFlow = () => ({ liveReference: observed });
+    await context.open(wire.history[0]);
+    assert.equal(context.currentDrawer.reference, observed || latest);
+    assert.equal(context.currentDrawer.follow, true);
+    assert.equal(context.currentDrawer.liveContext, true, 'live intent survives a temporary withdrawal');
+  }
+  assert.deepEqual(reads, ['2.sav'], 'the old saved cohort must not be resurrected');
+});
+
 test('search result mode survives direct handoff and handbook history, with strict boolean display state', async () => {
   for (const personalAll of [true, false])
     for (const showSaved of [true, false]) {
@@ -1545,7 +1581,7 @@ test('latest and fixed-slot choosers refresh while explicit snapshots keep their
     vm.createContext(ctx);
     vm.runInContext(
       slice('async function showEntityChoice(', 'function render(') +
-        slice('async function refresh(', 'async function handle(') +
+        slice('async function refreshLiveNpcDetail(', 'async function handle(') +
         `async function select(id, target) { switch ('database-detail') {` +
         slice("    case 'database-detail': {", "    case 'database-uses': {") +
         '}}\nthis.poll = refresh; this.select = select;',
@@ -1621,7 +1657,7 @@ test('closing or replacing a pending world-detail return cancels the old drawer'
 
 test('new searches reject late historical refreshes and preview the Settings reference in latest, fixed and none modes', async () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
-  const a = source.indexOf('async function refresh('),
+  const a = source.indexOf('async function refreshLiveNpcDetail('),
     b = source.indexOf('async function handle(', a);
   const previewStart = source.indexOf(
     '  context: async (target) => {',
@@ -1780,7 +1816,7 @@ test('Settings updates from another window reload an open item or chooser and in
     vm.runInContext(
       part('function resetPlanningViews()', 'function worldPage()') +
         part('async function showEntityChoice(', 'function render(') +
-        part('async function refresh(', 'async function handle(') +
+        part('async function refreshLiveNpcDetail(', 'async function handle(') +
         part('  api.onState((next) => {', '  api.onEvent((event) => {'),
       context,
     );

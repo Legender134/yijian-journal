@@ -180,7 +180,7 @@ function rendererHarness() {
         '\nasync function refreshRecipeDiscovery(',
       ) +
       '\n' +
-      section(renderer, 'async function refresh(', '\nasync function handle(') +
+      section(renderer, 'async function refreshLiveNpcDetail(', '\nasync function handle(') +
       '\n' +
       'async function runExport() { switch ("protection-export") {' +
       section(renderer, "case 'protection-export': {", "    case 'protection-import-volumes':") +
