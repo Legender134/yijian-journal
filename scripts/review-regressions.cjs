@@ -60,6 +60,27 @@ const launch = async (data, tray = false) => {
     env,
   });
   const win = await app.firstWindow();
+  await app.evaluate(({ app }, expectedData) => {
+    if (process.env.YIJIAN_TEST_DATA !== expectedData || app.getPath('userData') !== expectedData)
+      throw Error('Synthetic restore checks require the isolated test directory');
+    const path = process.mainModule.require('node:path');
+    const { GameBridge } = process.mainModule.require(
+      path.join(app.getAppPath(), 'src/core/game-bridge.cjs'),
+    );
+    const canStop = GameBridge.prototype.canStop;
+    // Host process discovery is external to these synthetic restore scenarios.
+    // Retain the real busy/heartbeat checks and all protection-copy verification.
+    GameBridge.prototype.canStop = function () {
+      if (!this.test) throw Error('Process fixture cannot run outside the test bridge');
+      const stopped = this.stopped;
+      this.stopped = () => true;
+      try {
+        return canStop.call(this);
+      } finally {
+        this.stopped = stopped;
+      }
+    };
+  }, data);
   win.on('dialog', (dialog) => dialog.dismiss().catch(() => {}));
   win.on('pageerror', (e) => report.errors.push(e.message));
   win.on('request', (r) => {
@@ -1249,7 +1270,7 @@ async function recipeOutputUnits() {
       );
       assert.equal(await candidate.locator('[data-id="item-' + id + '"]').count(), 1);
     }
-    assert.match(await totals.innerText(), /不会同时得到全部最大数量/);
+    assert.match(await totals.innerText(), /各候选不会全部同时获得/);
     assert.doesNotMatch(await totals.innerText(), /NaN|Infinity|概率|%/);
     await zoom(150);
     for (const selector of [
@@ -2385,6 +2406,8 @@ async function importedReferences() {
     assert.match(await win.locator('.person-gifts h3').innerText(), /可送礼物/);
     assert.doesNotMatch(await win.locator('.person-gifts').innerText(), /仅列可用库存/);
     await close(win);
+    // Shared Settings changed the profile itself; restore the pinned import fixture.
+    await selectProgress(win, '1.sav', { reopen: false });
     await nav(win, 'settings');
     const file = path.join(data, 'exported-journal.json');
     await app.evaluate(({ dialog }, file) => {
@@ -2409,7 +2432,7 @@ async function importedReferences() {
     await win.locator('[data-action="import"]').click();
     await win.waitForFunction(() =>
       [...document.querySelectorAll('.toast')].some((t) =>
-        t.textContent.includes('1 个周目已改为跟随最新存档'),
+        t.textContent.includes('1 个周目已改为跟随最新进度'),
       ),
     );
     assert.equal(journal(data).profiles[0].referenceMode, 'latest');
