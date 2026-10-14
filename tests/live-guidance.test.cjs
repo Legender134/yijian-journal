@@ -291,6 +291,7 @@ test('bridge guidance is bound to the fresh session, current source and non-writ
     now: () => now,
     token: 'a'.repeat(64),
     revision: 'b'.repeat(64),
+    guidanceSource: source,
     timeline: { data: { source } },
     blocked: () => false,
   });

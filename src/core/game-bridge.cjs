@@ -75,6 +75,7 @@ class GameBridge {
     this.disposed = false;
     this.quiescing = false;
     this.grantBinding = '';
+    this.guidanceSource = '';
     if (timeline.data.enabled && timeline.data.nativeProtocol !== PROTOCOL) {
       timeline.stop();
       this.error = '接入协议已升级，请保护存档并重新明确开启时间线；原历史副本已保留';
@@ -169,7 +170,22 @@ class GameBridge {
       s.token === this.token &&
       s.revision === this.revision &&
       typeof s.source === 'string' &&
-      same(s.source, this.timeline.data.source)
+      same(s.source, this.guidanceSource || (this.test ? this.timeline.data.source : ''))
+    );
+  }
+  guidanceAccountIssue(source) {
+    if (!this.statusAccount || this.now() - this.statusAccount.at >= 5000) {
+      try {
+        this.statusAccount = { at: this.now(), account: this.account() };
+      } catch (e) {
+        this.statusAccount = { at: this.now(), error: e.message };
+      }
+    }
+    return (
+      this.statusAccount.error ||
+      (path.basename(path.dirname(source || '')) !== this.statusAccount.account
+        ? '存档目录与当前 Steam 账户不一致，已停止游戏接入'
+        : '')
     );
   }
   liveGuidance(source) {
@@ -179,7 +195,7 @@ class GameBridge {
         !current ||
         typeof source !== 'string' ||
         !same(source, current.source) ||
-        !same(source, this.timeline.data.source)
+        !same(source, this.guidanceSource || (this.test ? this.timeline.data.source : ''))
       )
         return null;
       if (isKnownChoiceStep(current.lastQuestId)) current.suppressed.add(current.lastQuestId);
@@ -193,7 +209,7 @@ class GameBridge {
       this.quiescing ||
       this.timeline.data.pending ||
       this.blocked() ||
-      (!this.test && !this.installation().installed)
+      (!this.test && (!this.installation().installed || this.guidanceAccountIssue(source)))
     ) {
       return withdraw();
     }
@@ -503,11 +519,16 @@ class GameBridge {
       throw Error('请选择 Steam 账户下的 SaveGames 目录');
     const pathIssue = this.nativePathIssue(directory);
     if (pathIssue) throw Error(pathIssue);
-    if (this.timeline.data.nativeProtocol !== PROTOCOL) {
+    const writable =
+      this.timeline.data.nativeProtocol === PROTOCOL && same(directory, this.timeline.data.source);
+    if (!writable && !this.installation().installed) {
       writeBytes(path.join(this.root, 'config.txt'), Buffer.from('disabled\n'));
       this.grantBinding = '';
+      this.guidanceSource = '';
       return;
     }
+    if (!writable && path.basename(path.dirname(directory)) !== this.account())
+      throw Error('存档目录与当前 Steam 账户不一致，已停止现场提醒');
     const grant = grantFrame({
       token: this.token,
       source: directory,
@@ -515,9 +536,11 @@ class GameBridge {
       revision: this.revision,
       build: provenance.gameBuild,
       epoch: crypto.randomUUID(),
+      access: writable ? 'timeline' : 'observe',
     });
     writeBytes(path.join(this.root, 'config.txt'), grant.bytes);
-    this.grantBinding = grant.binding;
+    this.grantBinding = writable ? grant.binding : '';
+    this.guidanceSource = directory;
   }
   assertReady() {
     if (this.disposed || this.blocked()) throw Error('请先完成未处理的完整存档恢复');
@@ -746,11 +769,24 @@ class GameBridge {
       this.loadQueued ||
       this.disposed ||
       this.quiescing ||
-      !this.timeline.data.enabled ||
       this.timeline.data.pending ||
       this.blocked()
     )
       return false;
+    if (!this.timeline.data.enabled) {
+      // Steam may become available after the journal starts. Retry only the
+      // installed component's read-only grant; never create timeline consent.
+      if (
+        !this.guidanceSource &&
+        this.timeline.data.source &&
+        this.timeline.data.nativeProtocol !== PROTOCOL
+      ) {
+        try {
+          if (this.installation().installed) this.connect(this.timeline.data.source);
+        } catch {}
+      }
+      return false;
+    }
     const installed = this.installation();
     if (installed.installed) return false;
     this.fail(Error(installed.reason || '游戏接入组件暂不可用'));
@@ -786,18 +822,7 @@ class GameBridge {
       s = this.heartbeat();
     let unavailable = this.disposed || this.blocked() ? '请先完成未处理的完整存档恢复' : '';
     if (installed.installed && !unavailable) {
-      if (!this.statusAccount || this.now() - this.statusAccount.at >= 5000) {
-        try {
-          this.statusAccount = { at: this.now(), account: this.account() };
-        } catch (e) {
-          this.statusAccount = { at: this.now(), error: e.message };
-        }
-      }
-      unavailable =
-        this.statusAccount.error ||
-        (path.basename(path.dirname(this.timeline.data.source)) !== this.statusAccount.account
-          ? '存档目录与当前 Steam 账户不一致，已停止存读档'
-          : '');
+      unavailable = this.guidanceAccountIssue(this.guidanceSource || this.timeline.data.source);
     }
     // Only presentation uses this short-lived availability snapshot. Every
     // native save, load, installation and launch keeps its own fresh guards.
@@ -810,7 +835,7 @@ class GameBridge {
       ...this.timeline.summary(),
       installed: installed.installed,
       connected,
-      ready: installed.installed && !unavailable && connected && !!s.ready,
+      ready: installed.installed && !unavailable && connected && !!s.ready && !!this.grantBinding,
       busy: this.busy || this.loadQueued,
       quiescing: this.quiescing,
       reason:
@@ -820,7 +845,7 @@ class GameBridge {
           : unavailable
             ? unavailable
             : connected
-              ? s.reason || '游戏已连接，可保存进度'
+              ? s.reason || (this.grantBinding ? '游戏已连接，可保存进度' : '游戏已连接，现场提醒已开启')
               : '等待游戏连接，请重启游戏并进入存档'),
       error: this.error || this.timeline.error,
       pathIssue: this.nativePathIssue(),

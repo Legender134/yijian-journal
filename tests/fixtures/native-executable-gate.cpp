@@ -48,6 +48,22 @@ int wmain(int argc,wchar_t** argv) {
     yijian::Channel fixture;
     fixture.initialize(syntheticRoot,syntheticRevision);
     check(fixture.grant().key==std::string(64,'b'),"invalid synthetic grant");
+    check(fixture.grant().writable,"timeline grant lost write permission");
+    yijian::Channel observation;
+    const auto observationRoot=syntheticRoot+"-observe";
+    observation.initialize(observationRoot,syntheticRevision);
+    const auto readonly=observation.grant();
+    check(!readonly.writable,"observation grants timeline permission");
+    check(observation.read(observationRoot+"/config.txt",131072).value==readonly.key+"\n"+readonly.sourceBytes+"\nobserve\n","observation config projection");
+    const auto denied=[&](auto work,const char* reason) {
+      bool rejected=false;
+      try {work();}catch(const std::runtime_error&){rejected=true;}
+      check(rejected,reason);
+    };
+    for(const auto& file:{observationRoot+"/command.txt",observationRoot+"/expected.sav",readonly.sourceBytes+"/29.sav",readonly.sourceBytes+"/JHSaveConfig.sav"})
+      denied([&]{observation.read(file,1024);},"observation read escaped scope");
+    for(const auto& file:{"response.json","last-command.txt","receipts/00000000-0000-0000-0000-000000000001.sav"})
+      denied([&]{observation.write(observationRoot+"/"+file,"synthetic");},"observation write escaped scope");
     RC::LuaMadeSimple::Lua lua;
     for(int attempt=0;attempt<2;++attempt) {
       returnedNil=false;returnedString.clear();

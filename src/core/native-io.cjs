@@ -17,7 +17,7 @@ function mac(key, bytes) {
   if (!/^[a-f0-9]{64}$/.test(key)) throw Error('游戏接入密钥无效');
   return crypto.createHmac('sha256', Buffer.from(key, 'hex')).update(bytes).digest('hex');
 }
-function grantFrame({ token, source, root, revision, build, epoch }) {
+function grantFrame({ token, source, root, revision, build, epoch, access = 'timeline' }) {
   if (!/^[a-f0-9]{64}$/.test(revision) || !/^\d+$/.test(build) ||
       !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(epoch))
     throw Error('游戏接入授权格式无效');
@@ -26,7 +26,9 @@ function grantFrame({ token, source, root, revision, build, epoch }) {
     throw Error('存档目录与 Steam 账户不一致');
   assertNativePath(root, '手札目录');
   assertNativePath(source, '存档目录');
-  const base = [PROTOCOL, token, slash(source), epoch, account, build, 29, revision].join('\n') + '\n';
+  if (!['timeline', 'observe'].includes(access)) throw Error('游戏接入权限无效');
+  const slot = access === 'observe' ? 'observe' : 29;
+  const base = [PROTOCOL, token, slash(source), epoch, account, build, slot, revision].join('\n') + '\n';
   const binding = base + slash(root) + '/\n';
   return { bytes: Buffer.from(base + mac(token, binding) + '\n'), binding };
 }

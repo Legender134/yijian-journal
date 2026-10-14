@@ -1130,10 +1130,10 @@ app.whenReady().then(async () => {
       if (isTest) throw Error('测试环境不安装游戏组件');
       const answer = await dialog.showMessageBox(owner(event), {
         type: 'question',
-        title: '接入游戏存读档',
+        title: '接入现场提醒',
         message: '安装或更新已校验的游戏接入组件？',
         detail:
-          '使用 UE4SS 官方组件接入游戏原生保存接口。会新增游戏目录下的组件文件，原游戏程序和资源包保留。请先退出游戏。\n\n安装前会建立完整存档保护副本。时间线使用 29 号手动槽，请保持这个槽专供时间线使用。',
+          '安装后可只读显示关键选项建议。会新增游戏目录下的组件文件，原游戏程序和资源包保留。请先退出游戏。\n\n安装前会建立完整存档保护副本。现场提醒不占用 29 号槽、不自动保存；时间线存读档需要另行明确开启。',
         buttons: ['取消', '保护存档并接入'],
         defaultId: 0,
         cancelId: 0,

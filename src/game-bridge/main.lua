@@ -110,13 +110,15 @@ local function state()
 end
 local function tick()
     local config = read(root .. 'config.txt', 131072) or ''
-    local token, source = config:match('^([a-f0-9]+)\n([^\r\n]+)\n$')
+    local token, source, access = config:match('^([a-f0-9]+)\n([^\r\n]+)\n(observe)\n$')
+    if not token then token, source = config:match('^([a-f0-9]+)\n([^\r\n]+)\n$') end
     local s = state()
     if not token or #token ~= 64 then s.ready=false; s.dialogueAllowed=false; s.reason='等待手札连接'; token=''; source='' end
     if source ~= '' then
         if not boundSource then boundSource=normalized(source) end
         if normalized(source) ~= boundSource then s.ready=false; s.dialogueAllowed=false; s.reason='存档目录已切换，请重启游戏后再保存' end
     end
+    if access == 'observe' then loading=nil; saving=nil end
     if loading then
         if s.ready and s.pawn ~= loading.pawn then respond(loading.id, loading.token, 'loaded'); loading=nil
         elseif os.time() > loading.untilTime then respond(loading.id, loading.token, 'uncertain', '已请求读档，但未能确认完成；请检查游戏'); loading=nil end
@@ -132,6 +134,7 @@ local function tick()
         else saving.lastBytes=bytes end
     end
     write(root .. 'state.json', '{"protocol":2,"revision":' .. quote(revision) .. ',"session":' .. quote(session) .. ',"token":' .. quote(token) .. ',"source":' .. quote(source or '') .. ',"at":' .. os.time() .. ',"ready":' .. tostring(s.ready == true and loading == nil and saving == nil) .. ',"reason":' .. quote(loading and '正在读档' or saving and '正在保存' or s.reason) .. ',"world":' .. quote(s.world or '') .. ',"pawn":' .. quote(s.pawn or '') .. ',"autoSaveIndex":' .. (valid(s.sm) and tostring(s.sm.AutoSaveIndex) or 'null') .. ',"dialogue":' .. dialogue(s) .. '}')
+    if access == 'observe' then return end
     local cmd = read(root .. 'command.txt', 1024)
     if not cmd or not token or loading or saving then return end
     local ct, cs, id, verb, expiry, mode = cmd:match('^([a-f0-9]+)\t([%d-]+)\t([a-f0-9-]+)\t([a-z]+)\t(%d+)\t([a-z]+)\n$')

@@ -48,11 +48,26 @@ const mac = crypto
 fs.writeFileSync(path.join(root, 'token.txt'), token);
 fs.writeFileSync(path.join(root, 'config.txt'), config + mac + '\n');
 fs.writeFileSync(path.join(source, '29.sav'), 'synthetic-save');
+const observationRoot = root + '-observe';
+fs.mkdirSync(observationRoot);
+const observationConfig = config
+  .split('\n')
+  .map((line, index) => (index === 6 ? 'observe' : line))
+  .join('\n');
+const observationMac = crypto
+  .createHmac('sha256', Buffer.from(token, 'hex'))
+  .update(observationConfig + observationRoot + '\n')
+  .digest('hex');
+fs.writeFileSync(path.join(observationRoot, 'token.txt'), token);
+fs.writeFileSync(path.join(observationRoot, 'config.txt'), observationConfig + observationMac + '\n');
+fs.writeFileSync(path.join(observationRoot, 'command.txt'), 'synthetic command must not be read');
 const unchanged = new Map(
-  [path.join(root, 'token.txt'), path.join(root, 'config.txt'), path.join(source, '29.sav')].map((file) => [
-    file,
-    hash(file),
-  ]),
+  [
+    path.join(root, 'token.txt'),
+    path.join(root, 'config.txt'),
+    path.join(source, '29.sav'),
+    ...['token.txt', 'config.txt', 'command.txt'].map((name) => path.join(observationRoot, name)),
+  ].map((file) => [file, hash(file)]),
 );
 const imageDir = path.join(out, '原生进程');
 fs.mkdirSync(imageDir);

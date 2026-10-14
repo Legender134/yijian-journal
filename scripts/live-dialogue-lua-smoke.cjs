@@ -333,7 +333,20 @@ pulse('before'); opened(); viewVisible=true; optionVisible=true; optionTexts={'�
 `,
   (f) => assert.equal(f.get('text').dialogue.options[0].text, '引号"与\\斜线\n换行'),
 );
-for (const verb of ['save', 'load'])
+for (const verb of ['save', 'load']) {
+  run(
+    'observation grant reports choices and ignores ' + verb + ' commands',
+    `
+files['SYNTHETIC/config.txt']=token..'\\n'..source..'\\nobserve\\n'
+viewVisible=true; optionVisible=true; pulse('before')
+local session=files['SYNTHETIC/state.json']:match('"session":"([^"]+)"')
+files['SYNTHETIC/command.txt']=token..'\\t'..session..'\\t00000000-0000-0000-0000-000000000001\\t${verb}\\t'..(now+10)..'\\towned\\n'
+pulse('observing'); assert(saved==0 and loaded==0)
+assert(files['SYNTHETIC/last-command.txt']==nil and files['SYNTHETIC/response.json']==nil)
+assert(files[source..'/29.sav']=='owned' and files[source..'/JHSaveConfig.sav']=='config-1')
+`,
+    (f) => observed(f.get('observing')),
+  );
   run(
     'native ' + verb + ' suppresses dialogue and preserves reserved-slot dispatch',
     `
@@ -345,4 +358,5 @@ assert(${verb === 'save' ? 'saved==1 and loaded==0' : 'loaded==1 and saved==0'})
 `,
     (f) => absent(f, 'busy'),
   );
+}
 console.log('Lua synthetic dialogue smoke passed; game and personal saves were never accessed.');

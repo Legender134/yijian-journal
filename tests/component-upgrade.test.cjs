@@ -17,7 +17,7 @@ const oldNative = Buffer.from('Synthetic published old Unicode component; never 
 const newNative = Buffer.from('Synthetic current Unicode component; never executable');
 const oldHash = sha(oldNative);
 
-function fixture(t, { legacy = false, mod = 'YijianJournalBridge' } = {}) {
+function fixture(t, { legacy = false, mod = 'YijianJournalBridge', fresh = false } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-component-upgrade-'));
   const dataRoot = path.join(root, 'journal-data');
   const game = { installed: true, build: shipped.gameBuild, path: path.join(root, 'synthetic-game') };
@@ -115,10 +115,11 @@ function fixture(t, { legacy = false, mod = 'YijianJournalBridge' } = {}) {
       return realRequire(name);
     },
   });
-  fs.mkdirSync(path.dirname(nativeTarget), { recursive: true });
-  fs.writeFileSync(nativeTarget, oldNative);
+  fs.mkdirSync(fresh ? bin : path.dirname(nativeTarget), { recursive: true });
+  if (!fresh) fs.writeFileSync(nativeTarget, oldNative);
   fs.writeFileSync(path.join(bin, 'JH-Win64-Shipping.exe'), exe);
-  for (const [name, bytes] of Object.entries(runtime)) fs.writeFileSync(path.join(bin, name), bytes);
+  if (!fresh)
+    for (const [name, bytes] of Object.entries(runtime)) fs.writeFileSync(path.join(bin, name), bytes);
   const timeline = new Timeline(path.join(dataRoot, 'game-timeline'));
   const bridge = new module.exports.GameBridge(
     legacy ? path.join(bin, 'ue4ss', 'YijianJournal') : path.join(dataRoot, 'game-bridge'),
@@ -134,7 +135,7 @@ function fixture(t, { legacy = false, mod = 'YijianJournalBridge' } = {}) {
     unicodeSha256: oldHash,
     version: 'synthetic-old',
   };
-  fs.writeFileSync(marker, JSON.stringify(oldMarker));
+  if (!fresh) fs.writeFileSync(marker, JSON.stringify(oldMarker));
   const saved = path.join(root, '76561190000000000', 'SaveGames', '1.sav');
   fs.mkdirSync(path.dirname(saved), { recursive: true });
   fs.writeFileSync(saved, 'Synthetic read-only saved progress');
@@ -208,6 +209,101 @@ test('only the released v1.17 Unicode DLL is an allowed upgrade source', () => {
   ]);
   assert.ok(!shipped.nativeIO.upgradeFromSha256.includes(shipped.nativeIO.sha256));
 });
+
+for (const fresh of [true, false])
+  test(`${fresh ? 'first installation' : 'component upgrade'} enables read-only guidance without reserving slot 29`, async (t) => {
+    const s = fixture(t, { fresh });
+    const source = path.join(s.root, '76561190000000000', 'SaveGames');
+    const before = structuredClone(s.timeline.data);
+    assert.equal(s.bridge.install().installed, true);
+    s.bridge.connect(source);
+    assert.deepEqual(s.timeline.data, before, 'observing must not grant timeline authority');
+    assert.equal(s.bridge.grantBinding, '');
+    const config = fs.readFileSync(path.join(s.bridge.root, 'config.txt'), 'utf8').trimEnd().split('\n');
+    assert.equal(config[6], 'observe');
+    const { mac } = require('../src/core/native-io.cjs');
+    assert.equal(
+      config[8],
+      mac(s.bridge.token, config.slice(0, 8).join('\n') + '\n' + s.bridge.root.replaceAll('\\', '/') + '/\n'),
+    );
+    const dialogue = {
+      schema: 1,
+      sequence: 1,
+      questId: 11004,
+      npcId: 10038,
+      options: [
+        { index: 1, text: '买把新的比较好' },
+        { index: 2, text: '重新锻造一番吧' },
+      ],
+    };
+    writeBytes(
+      path.join(s.bridge.root, 'state.json'),
+      Buffer.from(
+        JSON.stringify({
+          protocol: 2,
+          revision: s.bridge.revision,
+          token: s.bridge.token,
+          source,
+          session: '1800000000-123456',
+          at: Math.floor(Date.now() / 1000),
+          ready: false,
+          reason: '菜单或对话中暂停保存',
+          dialogue,
+        }),
+      ),
+    );
+    assert.equal(s.bridge.connected(), true);
+    assert.deepEqual(s.bridge.liveGuidance(source).dialogue, dialogue);
+    assert.equal(s.bridge.summary().ready, false, 'connection is not save permission');
+    await assert.rejects(
+      s.bridge.request('00000000-0000-0000-0000-000000000001', 'save'),
+      (e) => e.notDispatched === true,
+    );
+    await assert.rejects(
+      s.bridge.request('00000000-0000-0000-0000-000000000001', 'load'),
+      (e) => e.notDispatched === true,
+    );
+    const grant = fs.readFileSync(path.join(s.bridge.root, 'config.txt'));
+    s.bridge.account = () => '76561190000000001';
+    assert.throws(() => s.bridge.connect(source), /Steam/);
+    assert.deepEqual(fs.readFileSync(path.join(s.bridge.root, 'config.txt')), grant);
+    s.bridge.statusAccount = null;
+    assert.deepEqual(structuredClone(s.bridge.liveGuidance(source)), {
+      dialogue: null,
+      suppressedQuestIds: [11004],
+    });
+    s.bridge.account = () => '76561190000000000';
+    s.timeline.configure(source, false, 10); // Main prepares this on startup without native consent.
+    const restarted = new s.bridge.constructor(s.bridge.root, s.timeline, {
+      getGame: () => s.game,
+      stopped: () => true,
+      account: s.bridge.account,
+    });
+    t.after(() => restarted.dispose());
+    assert.equal(restarted.connected(), true);
+    assert.deepEqual(restarted.liveGuidance(source).dialogue, dialogue);
+    assert.equal(restarted.grantBinding, '');
+    assert.equal(s.timeline.data.nativeProtocol, 0);
+    assert.equal(s.timeline.data.enabled, false);
+    const waiting = new s.bridge.constructor(s.bridge.root, s.timeline, {
+      getGame: () => s.game,
+      stopped: () => true,
+      account: () => {
+        throw Error('Steam not ready');
+      },
+    });
+    t.after(() => waiting.dispose());
+    assert.equal(waiting.connected(), false);
+    waiting.account = () => '76561190000000000';
+    waiting.reconcileEnvironment();
+    assert.equal(
+      waiting.connected(),
+      true,
+      'Steam becoming ready resumes only the installed read-only connection',
+    );
+    assert.equal(waiting.grantBinding, '');
+    assert.equal(s.timeline.data.nativeProtocol, 0);
+  });
 
 test('recognized old native components upgrade only after preserving verified original bytes in app data', (t) => {
   for (const mod of ['YijianJournalBridge', 'YijianSaveProbe']) {
