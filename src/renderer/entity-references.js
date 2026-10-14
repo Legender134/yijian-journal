@@ -134,27 +134,31 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       const current = context.npcProgress?.people.find((row) => row.npcId === e.gameId);
       if (current) {
         lines.push(
-          current.remainingItems.length ? `私物还剩 ${current.remainingItems.length} 种` : '私物已清空',
+          [
+            current.remainingItems.length ? `私物还剩 ${current.remainingItems.length} 种` : '私物已清空',
+            current.learning.length ? `${current.learning.length} 项技艺与功法可提升` : '',
+          ]
+            .filter(Boolean)
+            .join(' · '),
         );
-        if (current.learning.length) lines.push(`${current.learning.length} 项技艺与功法可提升`);
         if (current.place) lines.push(current.place.name);
-      } else if (variant) lines.push(variant);
-      else if (e.npcFacts)
-        lines.push(
-          `初始等级 ${e.npcFacts.level} · ${new Set((e.npcFacts.fixedItems || []).map((item) => item.id)).size} 种固定私物`,
-        );
-      if (e.hobbies?.length) lines.push('赠礼偏好：' + e.hobbies.join('、'));
-      const place = index().world?.maps?.find((m) => m.key === e.walkMap);
-      if (place) lines.push('行走场景：' + place.name);
-      const related = catalog().personRelations(e);
-      if (!variant)
-        lines.push(
-          '相关任务：' +
-            (related.quests
-              .slice(0, 2)
-              .map((row) => row.entity.name.replace(/^【[^】]+】/, ''))
-              .join('、') || '暂无具名关联'),
-        );
+        const blocked = [
+          ['比武', current.compare],
+          ['赠礼', current.gift],
+          ['请教', current.consult],
+        ].find(([, gate]) => gate?.checks?.some((check) => check.status !== 'met'));
+        if (blocked)
+          lines.push(blocked[0] + '：' + blocked[1].checks.find((check) => check.status !== 'met').text);
+      } else {
+        if (variant) lines.push(variant);
+        else if (e.npcFacts)
+          lines.push(
+            `初始等级 ${e.npcFacts.level} · ${new Set((e.npcFacts.fixedItems || []).map((item) => item.id)).size} 种固定私物`,
+          );
+        if (e.hobbies?.length) lines.push('赠礼偏好：' + e.hobbies.join('、'));
+        const place = index().world?.maps?.find((m) => m.key === e.walkMap);
+        if (place && !variant) lines.push('行走场景：' + place.name);
+      }
     } else if (e.kind === '任务') {
       const state = context.statuses?.get(e.id) || questStatus(e.gameId, context.reference);
       lines.push(state);
@@ -177,26 +181,11 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
               .map((row) => row.entity.name)
               .join('、'),
         );
-      if (relation.items.length)
-        lines.push(
-          '涉及材料：' +
-            relation.items
-              .slice(0, 3)
-              .map((row) => row.entity.name)
-              .join('、'),
-        );
       const conditions = (e.requirements || []).filter((condition) => condition.name).slice(0, 2);
       if (conditions.length) lines.push('条件：' + conditions.map((condition) => condition.name).join('、'));
     } else if (e.kind === '物品') {
       const numeric = itemNumericSummary(e, index());
       if (numeric) lines.push(numeric);
-      if (typeof e.buyPrice === 'number')
-        lines.push(
-          '买价：' +
-            e.buyPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) +
-            ' 文' +
-            (e.giftable ? ' · 可赠礼' : ''),
-        );
       const inventory = context.reference?.metadata?.inventory;
       if (Array.isArray(inventory))
         lines.push(
@@ -223,6 +212,8 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
           (entry) => entry.kind === '配方' && entry.results?.some((result) => result.id === e.gameId),
         );
         if (recipe) lines.push('制作：' + recipe.name);
+        else if (!numeric && typeof e.buyPrice === 'number')
+          lines.push('参考买价：' + e.buyPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + ' 文');
       }
     } else if (e.kind === '配方') {
       lines.push(
@@ -260,7 +251,7 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
         );
     }
     const description =
-      choices.length === 1 && e.kind !== '任务' ? String(e.description || '').slice(0, 100) : '';
+      choices.length === 1 && !lines.length ? String(e.description || '').slice(0, 100) : '';
     const placeKeys = choices
       .filter((row) => row.kind === '地点')
       .map((row) => index().world?.mapAtlas?.locations?.[row.key]?.markerKey);
@@ -274,7 +265,6 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
         ? placeMaps.render(index(), e.id, { compact: true, interactive: false })
         : '';
     return `<div class="entity-preview-heading">${artwork(id, 'card')}<div><small>${esc(choices.length > 1 ? groupLabel : e.kind)}${choices.length === 1 && e.quality ? ' · ' + esc(e.quality) + '色' : ''}</small><strong>${esc(name)}</strong></div></div>${description ? `<p class="entity-preview-description">${esc(description)}</p>` : ''}${lines
-      .slice(0, 4)
       .map((line) => `<p>${esc(line)}</p>`)
       .join('')}${map}<small class="entity-preview-hint">点击查看详情 · Esc 收起</small>`;
   }

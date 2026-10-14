@@ -15,8 +15,10 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
       ) + text(check.text.slice(name.length))
     );
   };
-  const reason = (checks) =>
-    unmet(checks)
+  const checkKey = (check) => JSON.stringify([check.text, check.entityId, check.status]);
+  const reason = (checks, excluded = new Set()) =>
+    [...new Map(unmet(checks).map((check) => [checkKey(check), check])).values()]
+      .filter((check) => !excluded.has(checkKey(check)))
       .filter((row) => row.text)
       .map(checkText)
       .filter(Boolean)
@@ -29,11 +31,27 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
       )
       .join('');
   }
+  function sharedChecks(row) {
+    const operations = [row.gift, row.compare, row.consult];
+    return [
+      ...new Map(
+        [
+          ...unmet(row.friendship.checks),
+          ...unmet(row.compare.checks).filter((check) =>
+            operations.every((operation) =>
+              unmet(operation.checks).some((other) => checkKey(other) === checkKey(check)),
+            ),
+          ),
+        ].map((check) => [checkKey(check), check]),
+      ).values(),
+    ];
+  }
   function learning(row) {
+    const excluded = new Set([...sharedChecks(row), ...unmet(row.consult.checks)].map(checkKey));
     return row.learning
       .map(
         (item) =>
-          `<li>${link(item)}${item.kind === 'life' ? ` · ${text(item.playerLevel)} → ${text(item.teacherLevel)} 级` : ''}${item.status !== 'met' ? `<p class="small">${reason(item.checks)}</p>` : ''}</li>`,
+          `<li>${link(item)}${item.kind === 'life' ? ` · ${text(item.playerLevel)} → ${text(item.teacherLevel)} 级` : ''}${reason(item.checks, excluded) ? `<p class="small">${reason(item.checks, excluded)}</p>` : ''}</li>`,
       )
       .join('');
   }
@@ -44,8 +62,13 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
         ? `<p>战力参考：你 ${Math.round(row.ownPower.value)}，对方 ${Math.round(row.power.value)} · ${text(row.power.title)}${row.power.value > row.ownPower.value ? '。建议先检查主修武学与配装。' : ''}</p>`
         : '';
     const giftQuality = row.gift.checks.find((check) => check.text.startsWith('礼物至少'))?.text;
-    const giftReason = reason(row.gift.checks).replace(/^赠礼[：:]?/, '');
-    return `<p>好感 ${friend.value === null ? '待确认' : text(friend.value)}${friend.cap !== null && friend.cap < 100 ? ` · 暂时上限 ${text(friend.cap)}` : ''}</p>${power}${friend.checks?.length ? `<p>${reason(friend.checks)}</p>` : ''}${row.gift.status !== 'met' ? `<p>赠礼：${giftReason}</p>` : ''}${giftQuality ? `<p>${text(giftQuality)}</p>` : ''}${row.compare.status !== 'met' ? `<p>比武：${reason(row.compare.checks)}</p>` : ''}${row.consult.status !== 'met' ? `<p>请教：${reason(row.consult.checks)}</p>` : ''}`;
+    const common = sharedChecks(row);
+    const excluded = new Set(common.map(checkKey));
+    const operation = (label, gate) => {
+      const detail = reason(gate.checks, excluded).replace(new RegExp(`^${label}[：:]?`), '');
+      return detail ? `<p>${label}：${detail}</p>` : '';
+    };
+    return `<p>好感 ${friend.value === null ? '待确认' : text(friend.value)}${friend.cap !== null && friend.cap < 100 ? ` · 暂时上限 ${text(friend.cap)}` : ''}</p>${power}${common.length ? `<p>${reason(common)}</p>` : ''}${operation('赠礼', row.gift)}${giftQuality ? `<p>${text(giftQuality)}</p>` : ''}${operation('比武', row.compare)}${operation('请教', row.consult)}`;
   }
   function person(row, embedded = false, origin = 'saved') {
     if (!row)
@@ -69,7 +92,12 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
     const blocker =
       tab === 'learning'
         ? reason(row.learning.find((item) => item.status !== 'met')?.checks)
-        : reason(row.compare.checks);
+        : tab === 'locked'
+          ? reason(
+              [row.compare, row.gift, row.consult, ...row.learning].find((gate) => gate.status !== 'met')
+                ?.checks,
+            )
+          : reason(row.compare.checks);
     return `<details class="npc-progress-card" data-npc-progress-card="${text(row.npcId)}" data-persist-detail="npc-progress-${text(scope)}-${text(row.npcId)}"><summary><span class="row between"><strong>${act('database-detail', text(row.name), 'text-btn', row.id)}</strong><small>${row.place ? act('world-place', text(row.place.name), 'text-btn', row.place.id) : '位置待确认'}</small></span><span>${row.collection === 'cleared' && tab !== 'learning' ? '私物已清空' : preview}${row.importantCount && tab !== 'learning' ? ` · 重点 ${row.importantCount} 种` : ''}</span>${blocker ? `<span class="npc-progress-blocker">${blocker}</span>` : ''}</summary><div class="npc-progress-body">${person(row, true)}</div></details>`;
   }
   function page(data, { tab = 'remaining', query = '', page = 0, scope = '' } = {}) {

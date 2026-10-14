@@ -1351,7 +1351,13 @@ function materialPage() {
     taskMaterialsSection() +
     journeyTrashViews.entry(p) +
     recipeDiscoveryViews.entry() +
-    materialViews.page(gameIndex, p, materialView, readableSaves(), plans) +
+    materialViews.page(
+      gameIndex,
+      p,
+      materialView,
+      readableSaves(),
+      p.craftList?.length || p.craftPlans?.length || p.previousCraftList ? plans : '',
+    ) +
     allocationLedger()
   );
 }
@@ -1360,7 +1366,7 @@ function taskMaterialsSection(compact = false) {
   return `<section class="task-material-page" data-flow>${flowViews.taskMaterials(flow, { compact })}</section>`;
 }
 function compactMaterialsPage() {
-  const own = companionViews.materials(companionData);
+  const own = companionViews.materials(companionData, { managementLink: false });
   return `${taskMaterialsSection(true)}<details class="companion-crafting" data-persist-detail="compact-own-crafting"><summary>我的制作</summary>${own || '<p class="small muted">还没有制作清单。</p>'}${act('main-materials', '打开制作与留用管理', 'btn soft', '', 'external')}</details>`;
 }
 
@@ -2981,7 +2987,7 @@ function settingsPage() {
   return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">游戏进度</h2><div class="setting-row"><div><h3>${profile().referenceMode === 'none' ? '仅查资料' : profile().saveSlot ? esc(profile().saveSlot) : '自动使用最新进度'}</h3><p>流程、图鉴和备料共用。游戏保存后自动更新。</p></div>${act('save-slot', '更改', 'btn', '', 'edit')}</div></section><section class="card"><h2 class="mb">阅读与陪伴</h2><div class="setting-row"><div><label for="reading-scale"><strong>界面大小</strong></label><p>快捷键 Ctrl + / −，Ctrl + 0 恢复默认。</p></div><div class="row wrap"><select id="reading-scale" class="input" aria-label="界面大小">${[100, 110, 125, 150].map((size) => `<option value="${size}"${(state.settings.readingScale || 100) === size ? ' selected' : ''}>${size}%${size === 100 ? ' · 默认' : ''}</option>`).join('')}</select>${act('reading-scale-reset', '恢复默认大小', 'text-btn')}</div></div><div class="setting-row"><div><h3>第一次使用这本手札</h3></div>${act('help', '打开使用说明', 'btn', '', 'book')}</div><div class="setting-row"><div><h3>少剧透提示</h3><p>详细剧情折叠显示。</p></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3>随行小窗</h3><p>Ctrl + Alt + J 展开或收起。</p></div>${act('compact', '打开随行小窗', 'btn', '', 'pin')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3></div>${act('profiles', '管理周目', 'btn', '', 'person')}</div></section>
  ${windowLayoutSettings()}${companionSettings()}${shortcutSettings()}<section class="card"><h2 class="mb">本机连接</h2><div class="setting-row"><div><h3>逸剑风云决 ${environment.game.installed ? '· 已找到' : '· 由 Steam 启动'}</h3><p>${esc(environment.game.path || '使用 Steam 游戏入口启动')}${environment.game.build ? ` · Build ${esc(environment.game.build)}` : ''}</p></div>${act('launch', '启动游戏', 'btn', '', 'game')}</div><div class="setting-row"><div><h3>游戏存档目录</h3><p class="mono">${esc(state.settings.savePath || '尚未选择')}</p></div>${act('choose-saves', '选择目录', 'btn', '', 'folder')}</div>${environment.detected.length > 1 ? `<div class="setting-row"><div><h3>检测到多个存档目录</h3><p>请选择你本次游玩的账户目录。</p></div><select id="detected-save" class="input">${environment.detected.map((p) => `<option value="${esc(p)}" ${p === state.settings.savePath ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>` : ''}<div class="setting-row"><div><h3>完整自动备份 · ${backupStatus()}</h3><p>保存后自动留存副本；游戏内自动存档在存档匣设置。</p></div><button class="switch ${state.settings.autoBackup ? 'on' : ''}" role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" data-action="auto-backup"></button></div></section>
  ${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${protectionViews.controls(protectionView)}<section class="card"><h2 class="mb">记录与数据</h2><div class="setting-row"><div><h3>手札备份</h3><p>导出全部周目的记录。导入前会保留当前手札副本；此功能不包含游戏存档。</p></div><div class="row">${act('import', '导入', 'btn', '', 'upload')}${act('export', '导出手札', 'btn', '', 'download')}</div></div><div class="setting-row"><div><h3>本地数据目录</h3><p class="mono">${esc(environment.userData)}</p></div>${act('folder', '打开', 'btn', 'data', 'folder')}</div><div class="setting-row"><div><h3>游戏存档备份目录</h3><p class="mono">${esc(environment.backupRoot)}</p></div>${act('folder', '打开', 'btn', 'backups', 'folder')}</div></section>
- <section class="card"><div class="card-header"><h2>资料与版本</h2>${pill(`v${version}`)}</div><p class="small muted mb">${esc(gameIndex.source)} · Build ${esc(gameIndex.build)}。非官方助手。</p><details data-persist-detail="settings-reading-source"><summary>读取方式与资料说明</summary><p>普通流程按游戏存档更新。启用游戏接入后，可识别已支持的现场选择。</p><p>人物等级、商品和数值为基础资料，可能随剧情、难度和培养变化。</p><p>${esc(catalog.notice)}</p></details><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></section></div>`;
+ <section class="card"><div class="card-header"><h2>资料与版本</h2>${pill(`v${version}`)}</div><p class="small muted mb">${esc(gameIndex.source)} · Build ${esc(gameIndex.build)}。非官方助手。</p><details data-persist-detail="settings-reading-source"><summary>读取方式与资料说明</summary><p>普通流程按游戏存档更新。启用游戏接入后，可识别已支持的现场选择。</p><p>人物等级、商品和数值为基础资料，可能随剧情、难度和培养变化。</p><p>${esc(catalog.notice)}</p></details><details data-persist-detail="settings-sources"><summary>资料来源</summary><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></details></section></div>`;
 }
 function homeJourney() {
   const plan = environment.journey;
@@ -3638,7 +3644,7 @@ function showOverlay(html, drawer = false, preserve = false, opener = null, reta
   const focusedId = preserve && overlay.contains(document.activeElement) ? document.activeElement.id : null;
   const opened = preserve
     ? [...overlay.querySelectorAll('details[open]')].map(
-        (e) => e.id || e.querySelector('summary')?.textContent,
+        (e) => e.dataset?.persistDetail || e.id || e.querySelector('summary')?.textContent,
       )
     : [];
   if (!overlay.firstChild) lastFocus = opener || document.activeElement;
@@ -3691,7 +3697,7 @@ function showOverlay(html, drawer = false, preserve = false, opener = null, reta
   ((focusedId && overlay.querySelector('#' + CSS.escape(focusedId))) || focusable)?.focus();
   if (preserve)
     for (const e of overlay.querySelectorAll('details'))
-      e.open = opened.includes(e.id || e.querySelector('summary')?.textContent);
+      e.open = opened.includes(e.dataset?.persistDetail || e.id || e.querySelector('summary')?.textContent);
   if (preserve && overlay.querySelector('.drawer-body'))
     overlay.querySelector('.drawer-body').scrollTop = oldScroll;
   if (preserve) {
@@ -5979,11 +5985,11 @@ async function handle(action, id, target, navigationFocused = false) {
       worldView.referenceName = referenceSaveName;
       worldView.follow = referenceFollow;
       worldView.reference = referenceSave;
-      worldView.liveContext = !!(currentDrawer?.liveNpcContext && currentFlow()?.liveReference);
+      worldView.liveContext = defaultFollow() && currentDrawer?.liveNpcContext === true;
       if (worldView.liveContext) {
         worldView.follow = true;
         worldView.referenceName = undefined;
-        worldView.reference = currentFlow().liveReference;
+        worldView.reference = currentFlow()?.liveReference || null;
       }
       closeOverlay();
       route = 'world';

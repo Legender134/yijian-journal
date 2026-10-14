@@ -479,6 +479,11 @@
   background: #bd86440b;
   border-radius: 0 6px 6px 0;
 }
+.companion .flow-risk-deadline {
+  display: block;
+  color: var(--ink);
+  margin-bottom: 3px;
+}
 .companion .flow-risk-preview {
   color: var(--text);
   font-size: 12px;
@@ -566,10 +571,7 @@
   border: 0;
   margin: 4px 0;
 }
-.companion .flow-risk-window .flow-rule > .row,
-.companion .flow-risk-window .flow-rule > .flow-warning-message {
-  margin-bottom: 5px;
-}
+
 .companion .entity-inline .game-picture {
   width: 18px;
   height: 18px;

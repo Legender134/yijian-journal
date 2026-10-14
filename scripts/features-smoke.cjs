@@ -141,6 +141,8 @@ const shot = async (name) => {
     await close();
     await win.locator('[data-action="world-kind"][data-id="places"]').click();
     await win.locator('#world-search').fill('梧桐村');
+    if (await win.locator('[data-persist-detail="world-places-list"]:not([open])').count())
+      await win.locator('[data-persist-detail="world-places-list"] > summary').click();
     await win.locator('.world-place-card').first().click();
     await win.locator('.world-drawer .place-map-frame').waitFor();
     assert.equal(await win.locator('.world-drawer .place-map-pin.is-selected').count(), 1);
@@ -154,6 +156,8 @@ const shot = async (name) => {
     await win.locator('#list-search').fill('卫霍');
     await win.locator('.database-card[data-id="npc-10047"]').click();
     await selectProgress(win, '1.sav');
+    if (await win.locator('.person-gifts:not([open])').count())
+      await win.locator('.person-gifts > summary').click();
     await win.locator('.person-gifts').filter({ hasText: gift.name }).waitFor();
     assert.ok((await win.locator('.person-gifts').innerText()).includes('7 件'));
     await shot('15-gifts');
@@ -161,6 +165,8 @@ const shot = async (name) => {
     await win.locator('[data-action="drawer-back"]').click();
     assert.equal(await progressValue(win), '1.sav');
     await selectProgress(win, '2.sav');
+    if (await win.locator('.person-gifts:not([open])').count())
+      await win.locator('.person-gifts > summary').click();
     await win.locator('.person-gifts').filter({ hasText: '背包中暂无合适礼物' }).waitFor();
     await selectProgress(win, '3.sav');
     assert.ok((await win.locator('.person-gifts').innerText()).includes('可送礼物'));

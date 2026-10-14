@@ -1,7 +1,7 @@
 export function createRecipeDiscoveryViews({ esc, act, pill, notice, empty, when }) {
   const format = (number) => (Number.isSafeInteger(number) ? number.toLocaleString() : '未知');
   function entry() {
-    return `<section class="card mb recipe-discovery-entry"><div class="row between wrap"><div><h2>看看余料能支持什么</h2></div>${act('recipe-discovery-open', '用现有材料找配方', 'btn', '', 'search')}</div></section>`;
+    return `<div class="mb recipe-discovery-entry">${act('recipe-discovery-open', '用现有材料找配方', 'text-btn', '', 'search')}</div>`;
   }
   function candidate(row, projection, view, index, profile) {
     const itemName = (id) =>

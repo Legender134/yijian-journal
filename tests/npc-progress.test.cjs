@@ -248,3 +248,32 @@ test('effective friendship 100 blocks further gift instead of inviting waste', (
   assert.equal(row.gift.status, 'unmet');
   assert(row.gift.checks.some((check) => check.status === 'unmet' && /好感已满/.test(check.text)));
 });
+
+test('NPC details show shared story blockers once and the locked summary exposes its actual restricted operation', async () => {
+  const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
+  const view = createNpcProgressViews({
+    esc: String,
+    act: (action, label, cls, id) => `<button data-action="${action}" data-id="${id}">${label}</button>`,
+  });
+  const data = project(
+    metadata([
+      npc(10047, {
+        rawFriendliness: 90,
+        inventory: [{ id: 100034, count: 1 }],
+        skills: [{ id: 151, level: 5 }],
+      }),
+    ]),
+  );
+  const row = data.people[0];
+  const html = view.person(row);
+  for (const check of row.friendship.checks.filter((check) => check.status !== 'met')) {
+    if (check.entityId)
+      assert.equal((html.match(new RegExp(`data-id="${check.entityId}"`, 'g')) || []).length, 1);
+  }
+  assert.match(html, /暂时上限/);
+  assert.match(html, /比武|请教/);
+  assert.equal(row.compare.status, 'met', 'raw affinity may permit compare while gifts are story-capped');
+  const card = view.page(data, { tab: 'locked' }).split('</summary>')[0];
+  assert.match(card, /npc-progress-blocker.*好感暂时上限/s);
+  assert.match(html, /剩余私物/);
+});

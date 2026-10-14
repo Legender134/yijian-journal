@@ -372,7 +372,7 @@ export function createEventJournalViews({
   }
   function card(entry, readOnly, profile, index, sources) {
     const action = (name) => (readOnly ? 'historical-' : '') + name;
-    return `<article class="card mb" id="journal-entry-${esc(entry.id)}" data-journal-id="${esc(entry.id)}"><div class="row between"><div>${pill(JOURNAL_KIND_LABELS[entry.kind] || '记录')}<h2>${act(action('journal-entry-open'), esc(entry.title), 'text-btn', entry.id, 'book')}</h2></div><time datetime="${esc(entry.occurredAt)}">${when(entry.occurredAt)}</time></div><p class="preserve-text">${esc(entry.body.length > 240 ? entry.body.slice(0, 240) + '…' : entry.body)}</p><div class="tag-row">${entry.tags.map((tag) => act(action('journal-tag-filter'), esc(tag), 'chip', tag)).join('')}${entry.links.map((item) => link(item, readOnly, profile, index, sources)).join('')}</div>${act(action('journal-entry-open'), '打开原记录', 'text-btn', entry.id, 'arrow')}</article>`;
+    return `<article class="card mb" id="journal-entry-${esc(entry.id)}" data-journal-id="${esc(entry.id)}"><div class="row between"><div>${pill(JOURNAL_KIND_LABELS[entry.kind] || '记录')}<h2>${act(action('journal-entry-open'), esc(entry.title), 'text-btn', entry.id, 'book')}</h2></div><time datetime="${esc(entry.occurredAt)}">${when(entry.occurredAt)}</time></div><p class="preserve-text">${esc(entry.body.length > 240 ? entry.body.slice(0, 240) + '…' : entry.body)}</p><div class="tag-row">${entry.tags.map((tag) => act(action('journal-tag-filter'), esc(tag), 'chip', tag)).join('')}${entry.links.map((item) => link(item, readOnly, profile, index, sources)).join('')}</div></article>`;
   }
   function page(profile, view = {}, index = {}) {
     const readOnly = view.readOnly === true,

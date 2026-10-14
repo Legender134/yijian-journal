@@ -1462,8 +1462,17 @@ test('mining puts the exact task route before distant merchants and retires the 
   );
   const iron = flow.active.find((row) => row.gameId === 11002).steps.find((row) => row.id === 'quest-11010')
     .materials[0];
-  assert.equal(iron.routes[0].kind, 'quest');
-  assert.match(iron.routes[0].detail, /后山山洞.*四个铁矿石/);
+  assert.equal(iron.routes[0].kind, 'gather');
+  assert(
+    !iron.routes.some((route) => route.kind === 'quest'),
+    'full task prose is not repeated per material when dedicated routes exist',
+  );
+  assert.equal(iron.routes[0].label, '后山山洞附近采集');
+  assert.equal(
+    iron.routes[0].placeId,
+    undefined,
+    'a task area mention must not select an arbitrary scene variant',
+  );
   assert.equal(iron.routes[0].alternative, false);
   const merchants = iron.routes.filter((row) => row.personId?.startsWith('npc-'));
   assert(merchants.some((row) => /平康城/.test(row.label) && row.placeId === 'place-15'));

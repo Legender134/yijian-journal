@@ -42,7 +42,7 @@ const material = (extra = {}) => ({
   required: 5,
   owned: 2,
   missing: 3,
-  routes: [{ kind: 'gather', detail: '测试山坡', efficiency: '效率待核对' }],
+  routes: [{ kind: 'gather', detail: '测试山坡', efficiency: '合成效率：每次 1 件' }],
   ...extra,
 });
 function detailsWithClass(html, className) {
@@ -291,18 +291,24 @@ test('a pending choice shows conditional material stock and sources without decl
     assert.equal(requirement.missing, owned === null ? null : Math.max(0, 4 - owned));
     for (const html of [view.panel(flow, { compact: true }), view.taskMaterials(flow)]) {
       assert.match(html, /仅选重锻时备料/);
-      assert.match(html, /主要来源/);
-      assert.match(html, owned === null ? /库存待核对/ : new RegExp(`需 4 · 持有 ${owned}`));
+      assert.match(html, /flow-source-brief/);
+      assert.match(html, owned === null ? /库存未读取/ : new RegExp(`需 4 · 持有 ${owned}`));
     }
     const compact = view.panel(flow, { compact: true });
     const visible = compact.split('<details')[0];
     assert.match(visible, /flow-recommended-action">樵夫：推荐重锻旧斧/);
     assert.match(visible, /铁矿石.*需 4.*后山山洞附近采集 → 村西铁匠/s);
     assert.doesNotMatch(visible, /flow-choice-location|为什么：|取舍：/);
-    assert.equal(detailsWithClass(compact, 'flow-material-details').length, 0);
+    assert.equal(
+      detailsWithClass(compact.slice(0, compact.indexOf('</aside>')), 'flow-material-details').length,
+      0,
+    );
     const [details] = detailsWithClass(compact, 'flow-choice-details');
     assert.doesNotMatch(details.opening, /\bopen(?:\s|=|>)/);
-    assert.match(details.body, /仅选重锻时备料.*主要来源.*flow-choice-location.*梧桐村.*铁匠/s);
+    assert.match(details.body, /flow-choice-location.*梧桐村.*铁匠/s);
+    assert.doesNotMatch(details.body, /需 4 · 持有|仅选重锻时备料/);
+    assert.match(details.body, /未计入当前任务合计.*data-flow-choice-acquisition/s);
+    assert.equal((compact.slice(0, compact.indexOf('</aside>')).match(/仅选重锻时备料/g) || []).length, 1);
   }
   for (const branch of [11007, 11010]) {
     const flow = flowSnapshot(
@@ -350,9 +356,9 @@ test('shared task inventory is counted once in companion materials and action su
       .map((match) => match[0])
       .filter((card) => card.includes('item-10262'));
     assert.equal(cards.length, 2);
-    assert(cards.every((card) => card.includes(owned === 1 ? '多任务合计缺 1' : '合计持有量已足')));
+    assert(cards.every((card) => card.includes(owned === 1 ? '多任务合计缺 1' : '需 1 · 持有 2')));
     const compact = view.panel(flow, { compact: true });
-    assert.match(compact, owned === 1 ? /多任务合计缺 1/ : /合计持有量已足/);
+    assert.match(compact, owned === 1 ? /多任务合计缺 1/ : /需 1 · 持有 2/);
     if (owned === 1) assert.doesNotMatch(cards.join(''), /持有量已足/);
   }
 });
@@ -410,7 +416,7 @@ test('compact current action exposes person, place and saved quantities before o
     1,
     'the lead action is not repeated in full-step details',
   );
-  assert.match(html, /测试山坡.*效率待核对/s, 'route details remain available');
+  assert.match(html, /测试山坡.*合成效率：每次 1 件/s, 'route details remain available');
   assert.match(html, /前置待核对/, 'conditions remain available');
 });
 
@@ -474,13 +480,13 @@ test('unknown or invalid saved material values never become zero or sufficient s
     { missing: NaN },
   ]) {
     const html = (await views).panel(current([material(extra)]), { compact: true });
-    assert.match(html, /缺口待核对/);
+    assert.match(html, /需求未读取|库存未读取|缺口未读取/);
     assert.doesNotMatch(html, /持有量已足|持有 -1|缺 -1|需 undefined/);
   }
   const unknown = (await views).panel(current([material({ required: null, owned: null, missing: null })]), {
     compact: true,
   });
-  assert.match(unknown, /需求数量待核对 · 库存待核对 · 缺口待核对/);
+  assert.match(unknown, /需求未读取 · 库存未读取/);
   const zero = (await views).panel(current([material({ owned: 0, missing: 5 })]), { compact: true });
   assert.match(zero, /需 5 · 持有 0 · 缺 5/);
 });
@@ -498,7 +504,7 @@ test('folded full steps retain parallel current actions and the main view retain
   const compact = view.panel(flow, { compact: true });
   assert.match(
     compact,
-    /另一路交付.*把另一种材料交给第二位测试人物.*data-id="npc-7".*另一种测试材料.*需 1 · 持有 1 · 持有量已足/s,
+    /另一路交付.*把另一种材料交给第二位测试人物.*data-id="npc-7".*另一种测试材料.*需 1 · 持有 1/s,
   );
   const main = view.panel(flow);
   assert.match(main, /<h3>.*data-id="quest-1">合成测试任务<\/button>/s);
@@ -533,6 +539,9 @@ test('compact choice keeps the action and caution visible while folding its comp
                   {
                     kind: 'gather',
                     detail: '测试山坡采集点',
+                    label: '山坡采集',
+                    placeName: '测试山坡',
+                    personName: '测试采药人',
                     personId: 'npc-11',
                     placeId: 'place-10',
                     efficiency: '采集效率待确认',
@@ -562,12 +571,14 @@ test('compact choice keeps the action and caution visible while folding its comp
     assert.equal(details.length, 1);
     assert.doesNotMatch(details[0].opening, /\bopen(?:\s|=|>)/);
     assert.match(details[0].summary, /为什么这样选.*各选项影响/);
-    assert.match(
-      details[0].body,
-      /和同伴协作.*保留测试奖励目标.*收集路线.*24 回合内完成两战；其他路线收益不同。/s,
-    );
-    assert.match(details[0].body, /测试药草.*需 5 · 持有 2 · 缺 3.*主要来源.*测试山坡采集点/s);
-    assert.match(details[0].body, /data-id="npc-11".*data-id="place-10".*采集效率待确认.*材料路线依据/s);
+    assert.match(details[0].body, /保留测试奖励目标.*收集路线.*24 回合内完成两战；其他路线收益不同。/s);
+    if (expected === '和同伴协作') assert.doesNotMatch(details[0].body, /和同伴协作/);
+    else assert.match(details[0].body, /和同伴协作/);
+    assert.doesNotMatch(details[0].body, /需 5 · 持有 2 · 缺 3|class="flow-material-details"/);
+    const acquisition = { body: details[0].body };
+    assert.match(acquisition.body, /data-flow-choice-acquisition/);
+    assert.match(acquisition.body, /测试山坡采集点/);
+    assert.match(acquisition.body, /data-id="npc-11".*data-id="place-10".*采集效率待确认.*材料路线依据/s);
     assert.match(details[0].body, /先核对条件.*同伴在队情况待核对.*同伴参加测试战斗.*合成来源/s);
     assert.match(
       view.panel(flow),
@@ -611,7 +622,8 @@ test('compact advancement retains each distinct deadline and its own affected ta
     const window = windows[index],
       affected = warning.affectedTasks[0];
     assert.doesNotMatch(window.opening, /\bopen(?:\s|=|>)/);
-    assert(window.body.includes(warning.deadlineLabel));
+    assert(window.summary.includes(warning.deadlineLabel));
+    assert(!window.body.includes(warning.deadlineLabel), 'deadline is not repeated in the expanded body');
     assert(window.summary.includes(affected.name));
     assert(window.summary.includes(affected.effect));
     assert(window.body.includes(`data-flow-impact="${warning.id}"`));
@@ -620,7 +632,7 @@ test('compact advancement retains each distinct deadline and its own affected ta
     assert(window.body.includes(affected.effect));
     assert(!window.body.includes(warnings[1 - index].affectedTasks[0].effect));
   }
-  assert.equal((risks.body.match(/截止：/g) || []).length, 2);
+  assert.equal((risks.body.match(/截止：/g) || []).length, 0);
   assert(html.indexOf('<section class="flow-risks">') < html.indexOf('data-flow-now'));
   const main = (await views).panel({ ...current(), warnings });
   for (const warning of warnings) assert(main.includes(warning.affectedTasks[0].effect));
@@ -648,7 +660,8 @@ test('only explicit identical deadlines share a heading, without losing any name
   assert.match(risks.summary, /推进前确认 · 4 项/s);
   const windows = detailsWithClass(risks.body, 'flow-risk-window');
   assert.equal(windows.length, 3, 'unknown windows stay separate even when their warning prose matches');
-  assert.equal(windows.filter((window) => window.body.includes('闭关前')).length, 1);
+  assert.equal(windows.filter((window) => window.summary.includes('闭关前')).length, 1);
+  assert.equal((windows[0].summary.match(/闭关前/g) || []).length, 1);
   assert.match(windows[0].summary, /第一份交付.*第一份具体影响.*第二份交付.*第二份具体影响/s);
   assert.match(
     windows[0].body,
@@ -656,9 +669,9 @@ test('only explicit identical deadlines share a heading, without losing any name
   );
   for (const [index, warning] of warnings.slice(2).entries()) {
     const window = windows[index + 1];
-    assert(window.body.includes(warning.name));
+    assert(window.body.includes(`data-flow-rule="${warning.id}"`));
     assert(window.body.includes(`data-flow-impact="${warning.id}"`));
-    assert(window.body.includes(warning.warning));
+    assert(window.summary.includes(warning.warning));
     assert(!window.body.includes(warnings[index === 0 ? 3 : 2].id));
   }
   assert(windows.every((window) => !/\bopen(?:\s|=|>)/.test(window.opening)));
@@ -671,7 +684,7 @@ test('task materials uses saved active steps only with quantities and expandable
   ];
   const html = (await views).taskMaterials(flow);
   assert.match(html, /当前任务备料.*合成测试任务.*采药步骤.*测试药草.*需 5 · 持有 2 · 缺 3/s);
-  assert.match(html, /<details[^>]*><summary>效率、来源依据与其他获取路线<\/summary>.*效率待核对/s);
+  assert.match(html, /<details[^>]*><summary>获取详情<\/summary>.*合成效率：每次 1 件/s);
   assert.doesNotMatch(html, /不应计入的物品/);
   assert.match((await views).taskMaterials(current()), /当前已识别的进行中步骤暂无可展示的材料需求/);
   assert.match((await views).taskMaterials({ available: true }), /暂无可识别进行中步骤/);
@@ -681,17 +694,20 @@ test('task materials uses saved active steps only with quantities and expandable
   assert.match((await views).taskMaterials(null), /当前任务与持有数量待核对/);
 });
 
-test('compact materials show quantities and a source brief while their links and evidence stay expandable', async () => {
+test('material summaries keep exact destinations once and expand only additional acquisition information', async () => {
   const flow = current([
     material({
       routes: [
         { kind: 'merchant', detail: '替代商人线索', alternative: true, personId: 'npc-12' },
         {
           kind: 'gather',
-          detail: '合成后山山洞采集点',
+          label: '山洞采集',
+          placeName: '合成后山山洞',
+          personName: '合成采药人',
+          detail: '从北侧洞口进入，单次 2 件',
           placeId: 'place-10',
           personId: 'npc-11',
-          efficiency: '合成效率尚待核对',
+          efficiency: '合成效率：每次 2 件',
           sources: [{ id: 'synthetic-route-source', title: '合成采集依据' }],
         },
         { kind: 'drop', detail: '其他主要路线', sources: [{ title: '合成掉落依据' }] },
@@ -699,64 +715,48 @@ test('compact materials show quantities and a source brief while their links and
     }),
   ]);
   const view = await views;
-  for (const [html, compact] of [
-    [view.panel(flow, { compact: true }), true],
-    [view.taskMaterials(flow, { compact: true }), true],
-    [view.taskMaterials(flow), false],
+  for (const html of [
+    view.panel(flow, { compact: true }),
+    view.taskMaterials(flow, { compact: true }),
+    view.taskMaterials(flow),
   ]) {
-    const cutoff = html.indexOf('<details');
-    assert(cutoff > 0, 'full route evidence remains folded');
-    const visible = html.slice(0, cutoff);
-    const folded = html.slice(cutoff);
-    assert.match(visible, /测试药草.*需 5 · 持有 2 · 缺 3.*合成后山山洞采集点/s);
-    if (compact) {
-      assert.match(visible, /class="flow-source-brief">合成后山山洞采集点<\/p>/);
-      assert.doesNotMatch(visible, /data-id="place-10"|data-id="npc-11"|主要来源/);
-      const details = detailsWithClass(html, 'flow-material-details');
-      assert.equal(details.length, 1);
-      assert.doesNotMatch(details[0].opening, /\bopen(?:\s|=|>)/);
-      assert.equal(details[0].summary, '数量与获取详情');
-      assert.match(details[0].body, /需 5 · 持有 2 · 缺 3.*主要来源.*采集.*合成后山山洞采集点/s);
-      assert.match(details[0].body, /data-action="world-place" data-id="place-10"/);
-      assert.match(details[0].body, /data-action="database-detail" data-id="npc-11"/);
-    } else {
-      assert.match(visible, /主要来源.*采集.*合成后山山洞采集点/s);
-      assert.match(visible, /data-action="world-place" data-id="place-10"/);
-      assert.match(visible, /data-action="database-detail" data-id="npc-11"/);
-      assert.equal(detailsWithClass(html, 'flow-material-details').length, 0);
-    }
+    const visible = html.slice(0, html.indexOf('<details'));
+    assert.match(visible, /测试药草.*需 5 · 持有 2 · 缺 3/s);
+    assert.match(visible, /data-action="world-place" data-id="place-10"[^>]*>合成后山山洞/);
+    assert.match(visible, /data-action="database-detail" data-id="npc-11"[^>]*>合成采药人/);
+    const [details] = detailsWithClass(html, 'flow-material-details');
+    assert.equal(details.summary, '获取详情');
+    assert.doesNotMatch(details.opening, /\bopen(?:\s|=|>)/);
+    assert.doesNotMatch(details.body, /需 5 · 持有 2|查看地点资料|查看商人资料/);
+    assert.match(details.body, /北侧洞口.*单次 2 件.*合成效率.*合成采集依据.*其他主要路线.*合成掉落依据/s);
+    assert.match(details.body, /其他获取路线.*data-id="npc-12".*替代商人线索/s);
     assert.doesNotMatch(visible, /合成效率|合成采集依据|其他主要路线|替代商人线索/);
-    assert.match(folded, /合成效率尚待核对.*合成采集依据.*其他主要路线.*合成掉落依据/s);
-    assert.match(folded, /flow-material-alternatives.*可达与库存待核对.*替代商人线索.*data-id="npc-12"/s);
-    assert.equal((visible.match(/合成后山山洞采集点/g) || []).length, 1);
-    assert.equal((html.match(/合成后山山洞采集点/g) || []).length, compact ? 2 : 1);
-    assert.doesNotMatch(html, /来源线索不保证当前可达或有货/);
+    assert.equal((html.match(/合成后山山洞/g) || []).length, 1);
+    assert.equal((html.match(/需 5 · 持有 2 · 缺 3/g) || []).length, 1);
   }
 });
 
-test('missing primary material routes stay explicitly unknown even when alternative merchants exist', async () => {
+test('unknown material stock and absent sources stay explicit without empty disclosures', async () => {
   const view = await views;
   for (const routes of [
     [],
     [{ kind: 'merchant', detail: '库存未知的替代商人', alternative: true, personId: 'npc-12' }],
   ]) {
     const flow = current([material({ owned: null, missing: null, routes })]);
-    for (const [html, compact] of [
-      [view.panel(flow, { compact: true }), true],
-      [view.taskMaterials(flow, { compact: true }), true],
-      [view.taskMaterials(flow), false],
+    for (const html of [
+      view.panel(flow, { compact: true }),
+      view.taskMaterials(flow, { compact: true }),
+      view.taskMaterials(flow),
     ]) {
       const visible = html.split('<details')[0];
-      assert.match(visible, /需 5 · 库存待核对 · 缺口待核对/s);
-      assert.match(visible, compact ? /flow-source-brief">来源待核对/ : /暂无已知主要来源/);
-      assert.doesNotMatch(visible, /库存未知的替代商人|data-id="npc-12"|持有量已足/);
-      if (compact) {
-        const [details] = detailsWithClass(html, 'flow-material-details');
-        assert.doesNotMatch(details.opening, /\bopen(?:\s|=|>)/);
-        assert.match(details.body, /库存待核对 · 缺口待核对.*暂无已知主要来源/s);
-      }
+      assert.match(visible, /需 5 · 库存未读取/);
+      assert.match(visible, /暂无获取地点/);
+      assert.doesNotMatch(visible, /持有 0|缺 0|已足|库存未知的替代商人/);
+      const details = detailsWithClass(html, 'flow-material-details');
+      assert.equal(details.length, routes.length ? 1 : 0);
       if (routes.length) {
-        assert.match(html, /<details.*其他商人线索.*可达与库存待核对.*库存未知的替代商人/s);
+        assert.doesNotMatch(details[0].opening, /\bopen(?:\s|=|>)/);
+        assert.match(details[0].body, /其他获取路线.*data-id="npc-12".*库存未知的替代商人/s);
       }
     }
   }
@@ -965,17 +965,12 @@ test('compact disclosure state follows advice, task and material identities acro
   );
   assert.deepEqual(reordered, [after[0], before[0]]);
   const flow = current([material(), material({ id: 'item-6', name: '第二材料' })]);
-  const initial = keys(view.taskMaterials(flow, { compact: true }), '数量与获取详情');
+  const initial = keys(view.taskMaterials(flow, { compact: true }), '获取详情');
   flow.active[0].steps[0].materials.reverse();
-  assert.deepEqual(
-    keys(view.taskMaterials(flow, { compact: true }), '数量与获取详情'),
-    [...initial].reverse(),
-  );
+  assert.deepEqual(keys(view.taskMaterials(flow, { compact: true }), '获取详情'), [...initial].reverse());
   flow.active[0].steps[0].id = 'quest-7';
   assert(
-    keys(view.taskMaterials(flow, { compact: true }), '数量与获取详情').every(
-      (key) => !initial.includes(key),
-    ),
+    keys(view.taskMaterials(flow, { compact: true }), '获取详情').every((key) => !initial.includes(key)),
   );
 });
 
@@ -1048,13 +1043,8 @@ test('default late-stage risk summaries expose every irreversible route before o
     const home = view.panel(flow, { summary: true });
     for (const warning of flow.warnings)
       assert(home.includes(warning.warning), warning.id + ' remains reachable on the home page');
-    if (flow.warnings.length > 3) {
-      assert.match(
-        home,
-        /<details data-persist-detail="main-more-risks"><summary>更多推进提醒 · 1<\/summary>/,
-      );
-      assert(home.slice(home.indexOf('main-more-risks')).includes('关闭天机宫'));
-    }
+    assert.doesNotMatch(home, /main-more-risks/);
+    assert.equal((home.match(/class="flow-warning-message"/g) || []).length, flow.warnings.length);
   }
 });
 
@@ -1071,4 +1061,56 @@ test('crossed windows ask for verification instead of repeating the pre-deadline
   assert.match(window.summary, /合成接取任务.*窗口已推进.*能否继续须核对/);
   assert.doesNotMatch(window.summary, /推进前接取|已经失败|永久错过/);
   assert(window.body.includes(row.warning));
+});
+
+test('the shipped Lotus warning expands directly to actions without repeating its summary and deadline', async () => {
+  const { flowSnapshot } = require('../src/core/flow.cjs');
+  const flow = flowSnapshot(
+    { id: 'synthetic', referenceMode: 'latest' },
+    {
+      name: '1.sav',
+      metadata: { quests: [{ id: 5200, step: 1 }], inventory: [] },
+    },
+  );
+  const html = (await views).panel(flow, { compact: true });
+  const window = detailsWithClass(html, 'flow-risk-window').find((row) => row.summary.includes('莲湖会晤'));
+  assert(window);
+  assert.match(window.summary, /拜入武当前.*莲湖会晤.*只限制接取窗口/);
+  assert.doesNotMatch(
+    window.body,
+    /flow-warning-message|flow-warning-detail|flow-guide-steps|截止：|莲湖会晤：拜师前绕行|<summary>做法与影响/,
+  );
+  assert.match(window.body, /处理水匪后到湖中央查看场景/);
+  assert.match(window.body, /data-id="quest-11942"/);
+  assert.match(window.body, /正式拜入武当后无法接取；开始拜师任务不等于已经正式拜入/);
+  assert.doesNotMatch(html, /精确触发步骤待核对/);
+});
+
+test('the shipped herb task shows one item quantity and one linked acquisition location per summary', async () => {
+  const { flowSnapshot } = require('../src/core/flow.cjs');
+  const flow = flowSnapshot(
+    { id: 'synthetic', referenceMode: 'latest' },
+    {
+      name: '1.sav',
+      metadata: {
+        quests: [11052, 11054, 11077, 11078].map((id) => ({ id, step: 1 })),
+        inventory: [{ id: 10262, count: 0 }],
+        trackingQuest: 11078,
+      },
+    },
+  );
+  const html = (await views).taskMaterials(flow, { compact: true });
+  const heads = [
+    ...html.matchAll(/<div class="flow-material"><div class="row between">([\s\S]*?)<\/span><\/div>/g),
+  ].map((match) => match[1]);
+  const herb = heads.filter((head) => head.includes('item-10262'));
+  assert.equal(herb.length, 2, 'two different tasks each keep their own requirement');
+  assert(herb.every((head) => head.includes('需 1 · 持有 0 · 多任务合计缺 2')));
+  for (const details of detailsWithClass(html, 'flow-material-details')) {
+    assert.doesNotMatch(
+      details.body,
+      /class="flow-stock"|查看地点资料|查看商人资料|具体点位、单次数量与刷新单位未核实/,
+    );
+  }
+  assert.match(html, /data-action="world-place"/);
 });

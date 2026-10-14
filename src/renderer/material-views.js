@@ -66,15 +66,13 @@ export function createMaterialViews({
         : view.error
           ? notice(view.error)
           : notice('清单已变化，请重新计算。', true);
-    const name = view.referenceName || '';
-    return `<div class="page-header"><div><h1 class="serif">备料清单</h1></div>${list.length ? act('craft-review', completedPlan ? '核对若重新制作的用料' : '核对这份清单', 'btn primary', '', 'refresh') : pill('按周目保存', 'green')}</div>${plans}<div class="craft-layout"><div>${picker}<section class="card mt"><div class="card-header"><h2>${completedPlan ? '已完成计划的配方记录' : '这一程想制作'}</h2>${(profile.goals || []).some((g) => !g.done && g.source?.type === 'database' && index.entries.some((e) => e.id === g.source.id && e.kind === '配方')) ? act('craft-goals-merge', '合并制作目标', 'text-btn', '', 'plus') : ''}${pill(`${list.length} 种配方`)}</div>${lines || empty('先选一份配方', '从上面搜索添加，或在图鉴配方详情中加入。')}</section><section class="card mt"><h3>${icon('shield')} 本周目手动保留物品</h3>${
-      Object.entries(profile.reservations || {})
-        .map(
-          ([id, count]) =>
-            `<div class="world-rule">${act('database-detail', esc(byId('item-' + id)?.name || id), 'text-btn', 'item-' + id)}<span>保留 ${count} 件</span></div>`,
-        )
-        .join('') || '<p class="small muted">尚未预留物品</p>'
-    }</section></div><section class="card craft-result-card"><div class="row mb">${act('craft-calculate', '合并并核对', 'btn primary', '', 'refresh')}<span class="small muted" role="status">${view.loading ? '正在核对…' : ready ? '核对完成' : ''}</span></div>${list.length ? result : '<p class="save-note">先添加配方</p>'}</section></div>`;
+    const reservations = Object.entries(profile.reservations || {});
+    const kept = reservations.length
+      ? `<details class="card mt"><summary>手动留用物品 · ${reservations.length}</summary>${reservations.map(([id, count]) => `<div class="world-rule">${act('database-detail', esc(byId('item-' + id)?.name || id), 'text-btn', 'item-' + id)}<span>保留 ${count} 件</span></div>`).join('')}</details>`
+      : '';
+    if (!list.length)
+      return `<div class="page-header"><h1 class="serif">制作备料</h1></div>${plans}${picker}${kept}${view.error ? notice(view.error) : ''}${ready ? craftMoneyNotice(view.result.sharedBudget, esc) : ''}${ready && view.result.sharedBudget?.baseMaterialMissingTotal > 0 ? notice(`共同计划还缺 ${view.result.sharedBudget.baseMaterialMissingTotal} 件物资。`, true) : ''}`;
+    return `<div class="page-header"><div><h1 class="serif">备料清单</h1></div></div>${plans}<div class="craft-layout"><div>${picker}<section class="card mt"><div class="card-header"><h2>${completedPlan ? '已完成计划的配方记录' : '这一程想制作'}</h2>${(profile.goals || []).some((g) => !g.done && g.source?.type === 'database' && index.entries.some((e) => e.id === g.source.id && e.kind === '配方')) ? act('craft-goals-merge', '合并制作目标', 'text-btn', '', 'plus') : ''}${pill(`${list.length} 种配方`)}</div>${lines || empty('先选一份配方', '从上面搜索添加，或在图鉴配方详情中加入。')}</section>${kept}</div><section class="card craft-result-card"><div class="row mb">${act('craft-calculate', completedPlan ? '核对重做用料' : '计算缺料', 'btn primary', '', 'refresh')}<span class="small muted" role="status">${view.loading ? '正在核对…' : ready ? '核对完成' : ''}</span></div>${list.length ? result : '<p class="save-note">先添加配方</p>'}</section></div>`;
   }
   function summary(plan, index, view) {
     const byId = (id) => index.entries.find((e) => e.id === id);

@@ -130,6 +130,8 @@ function assertIndependent(p, before) {
     await migration.exportProtection({ dataRoot: historicalStore.dir, file: protection });
     await launch();
     await nav('journey');
+    if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
+      await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     await openCompact();
     await tripRow(B).locator('[data-action="journey-itinerary-remove"]').click();
     let p = await until((p) => p.journeyTrash?.length === 1 && p.journey.itinerary.steps.length === 1);
@@ -221,6 +223,8 @@ function assertIndependent(p, before) {
     app = null;
     await launch();
     await nav('journey');
+    if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
+      await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     await page.locator('[data-action="journey-trash-open"]').click();
     const beforeColdRestore = await current();
     await previewRestore(cleared.id);
@@ -276,6 +280,8 @@ function assertIndependent(p, before) {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
       dialog.showMessageBox = async () => ({ response: 1 });
     }, protection);
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-import"]').click();
     const historicTrip = page.locator('.historical-itinerary').first();
     await historicTrip.waitFor({ state: 'attached' });

@@ -149,7 +149,7 @@ async function multiPlanFlow(page) {
     await until((p) => p.craftPlans.length === i + 1);
     await page.locator('#craft-plan-name').waitFor({ state: 'hidden' });
   }
-  await page.locator('[data-action="craft-review"]').click();
+  await page.locator('[data-action="craft-calculate"]').click();
   await page.waitForSelector('.crafting-stages');
   const state = await currentState(),
     p = state.profiles.find((p) => p.id === state.activeProfileId);
@@ -295,6 +295,8 @@ async function multiPlanFlow(page) {
     await page.screenshot({ path: path.join(data, 'journey.png') });
     checks.push('两个赠礼计划共同分配两件库存，明确缺两件，不重复消费');
     await nav(page, 'settings');
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-import"]').click();
     await page.waitForSelector('[data-action="protection-backup-select"]');
     assert.match(await page.locator('.content').innerText(), /迁移验收书签/);
@@ -386,8 +388,13 @@ async function multiPlanFlow(page) {
     assert.equal(live.profiles[0].referenceMode, 'none');
     assert.equal(live.profiles[0].craftPlans[0].name, '旧机器独立制作计划');
     assert(fs.readdirSync(currentData).some((n) => n.startsWith('journal-before-import-')));
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-export"]').click();
-    await page.locator('.toast').filter({ hasText: /^保护包已校验 ·/ }).waitFor();
+    await page
+      .locator('.toast')
+      .filter({ hasText: /^保护包已校验 ·/ })
+      .waitFor();
     const exported = await complete.previewComplete({
       archives: new ProtectionArchives(currentData, () => currentGame),
       file: exportedPackage,
@@ -397,9 +404,7 @@ async function multiPlanFlow(page) {
     checks.push('使用历史手札前保留当前副本，保持本机路径并重新导出可校验保护包');
     await page.screenshot({ path: path.join(data, 'imported-history.png') });
     await nav(page, 'saves');
-    await page
-      .locator('.backup-row [data-action="backup-preview"][data-id="' + safety.id + '"]')
-      .click();
+    await page.locator('.backup-row [data-action="backup-preview"][data-id="' + safety.id + '"]').click();
     await page.locator('[data-backup-preview-state="verified"]').waitFor();
     const beforeLocalEvents = JSON.parse(fs.readFileSync(activityFile, 'utf8')).events;
     const beforeLocalBackupIds = liveBackups
@@ -411,9 +416,7 @@ async function multiPlanFlow(page) {
     await page.locator('[data-backup-preview-state="invalid"]').waitFor();
     assert.equal((await app.evaluate(() => globalThis.maturityDialogResponses)).length, 1);
     assert.equal(await page.locator('[data-action="restore"]').count(), 0);
-    assert(
-      (await page.locator('[aria-label="备份预览"]').innerText()).includes('已取消恢复，旧预览已失效'),
-    );
+    assert((await page.locator('[aria-label="备份预览"]').innerText()).includes('已取消恢复，旧预览已失效'));
     assert((await page.evaluate(() => window.journal.bootstrap())).ok);
     assert.deepEqual(JSON.parse(fs.readFileSync(activityFile, 'utf8')).events, beforeLocalEvents);
     assert.deepEqual(
@@ -426,7 +429,9 @@ async function multiPlanFlow(page) {
     assert.equal(hash(path.join(currentGame, '1.sav')), oldHash);
     for (const [n, digest] of Object.entries(foreign)) assert.equal(hash(path.join(currentGame, n)), digest);
     await page
-      .locator('[data-backup-preview-state="invalid"] [data-action="backup-preview"][data-id="' + safety.id + '"]')
+      .locator(
+        '[data-backup-preview-state="invalid"] [data-action="backup-preview"][data-id="' + safety.id + '"]',
+      )
       .click();
     await page.locator('[data-backup-preview-state="verified"]').waitFor();
     await dialogAnswer(1);

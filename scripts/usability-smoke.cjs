@@ -241,6 +241,8 @@ async function shot(name) {
     await win.locator('#list-search').fill(person.name);
     await win.locator('[data-action="database-detail"][data-id="' + person.id + '"]').click();
     await selectProgress(win, '2.sav');
+    if (await win.locator('.person-gifts:not([open])').count())
+      await win.locator('.person-gifts > summary').click();
     await win.locator('.person-gifts [data-action="gift-page"]').last().click();
     assert.equal(await progressValue(win), '2.sav');
     assert.match(await win.locator('.person-gifts').innerText(), /第 2 \/ 2 页/);

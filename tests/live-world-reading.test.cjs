@@ -57,6 +57,7 @@ test('initial NPC previews and the related-task list retain the live cohort thro
   );
   assert(observed);
   const flow = flowSnapshot(selected, null, '', { npcState: { ...observed, key: 'cohort-live-world' } });
+  let readingFlow = flow;
   const act = (action, label, _style, id) =>
     `<button data-action="${action}" data-id="${id}">${label}</button>`;
   const helpers = {
@@ -94,7 +95,7 @@ test('initial NPC previews and the related-task list retain the live cohort thro
     worldRequest: 0,
     compact: false,
     profile: () => selected,
-    currentFlow: () => flow,
+    currentFlow: () => readingFlow,
     defaultFollow: () => selected.referenceMode === 'latest',
     defaultReference: () => '',
     latestReference: () => '',
@@ -170,8 +171,14 @@ test('initial NPC previews and the related-task list retain the live cohort thro
   assert.equal((await ctx.preview(target('npc-10221'))).reference, null, 'offline lookup remains isolated');
   selected.referenceMode = 'latest';
   ctx.currentDrawer = { type: 'database', id: 'npc-10221', liveContext: true, liveNpcContext: true };
-  ctx.referenceSave = flow.liveReference;
+  ctx.referenceSave = null;
+  readingFlow = { ...flow, liveReference: null, npcStateKey: '' };
   await ctx.related('npc-10221');
+  assert.equal(ctx.worldView.liveContext, true, 'temporary withdrawal preserves live list intent');
+  assert.equal(ctx.worldView.reference, null, 'a withdrawn cohort is not reused');
+  assert.equal(handbookContext(ctx.handbookReadingContext()).reference.live, true);
+  readingFlow = flow;
+  await ctx.loadWorldReference();
   assert.equal(ctx.worldView.reference, flow.liveReference);
   const wire = handbookContext(ctx.handbookReadingContext());
   assert.equal(wire.reference.live, true);

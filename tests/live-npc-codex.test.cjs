@@ -92,7 +92,7 @@ test('NPC codex renders one live quest cohort and never labels saved holdings as
   assert.match(html, /好感 60/);
   assert.match(html, /现场：已完成/);
   assert.doesNotMatch(html, /存档：进行中/);
-  assert.match(html, />可送礼物</);
+  assert.match(html, />可送礼物 · \d+ 种</);
   assert.doesNotMatch(html, />背包中的礼物</);
   assert.match(html, />现场更新</);
   const fixed = views.detail(index, wei.id, 1, saved);

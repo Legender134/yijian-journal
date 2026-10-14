@@ -136,6 +136,8 @@ function assertOriginals() {
       expectedFailures.push({ method, error: response.error, code: response.code });
     }
     assertOriginals();
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-export"]').click();
     await page.locator('[aria-label="最近一次完整导出"]').waitFor();
     await page.waitForFunction(() => document.body.innerText.includes('完整备份目录'));
@@ -174,6 +176,8 @@ function assertOriginals() {
     await app.evaluate(({ dialog }, file) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
     }, truncatedPackage);
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-import"]').click();
     await page.getByRole('heading', { name: '导入未完成' }).waitFor();
     await page.getByRole('heading', { name: '已保存的离线档案 · 1 份', exact: true }).waitFor();
@@ -222,6 +226,8 @@ function assertOriginals() {
         return globalThis.__anomalyOriginalRename(from, to);
       };
     }, ioRecord);
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-export"]').click();
     await page.waitForFunction(() => document.body.innerText.includes('本次结果未能写入磁盘'));
     const failedIO = await environment();
@@ -255,6 +261,8 @@ function assertOriginals() {
       process.getBuiltinModule('fs').renameSync = globalThis.__anomalyOriginalRename;
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: output });
     }, recoveredOutput);
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-export"]').click();
     await page.waitForFunction((output) => {
       const section = document.querySelector('[aria-label="最近一次完整导出"]');

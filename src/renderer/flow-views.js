@@ -52,10 +52,10 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   function choiceMaterials(row) {
     return materials(row.recommendation?.materials, [], row.recommendation?.materialLabel || '推荐路线备料');
   }
-  function recommendation(row) {
+  function recommendation(row, { actionShown = false, materialsShown = false } = {}) {
     const value = row.recommendation;
     if (!value?.action || !value.reason) return '';
-    return `<div class="flow-recommendation"><p class="flow-recommended-action"><strong>推荐做法：</strong>${prose(value.action)}</p><p><strong>为什么：</strong>${prose(value.reason)}</p>${value.goal ? `<p class="small muted">适合：${text(value.goal)}</p>` : ''}${value.tradeoff ? `<p class="small"><strong>取舍：</strong>${prose(value.tradeoff)}</p>` : ''}${choiceMaterials(row)}</div>`;
+    return `<div class="flow-recommendation">${actionShown ? '' : `<p class="flow-recommended-action"><strong>推荐做法：</strong>${prose(value.action)}</p>`}<p><strong>为什么：</strong>${prose(value.reason)}</p>${value.goal ? `<p class="small muted">适合：${text(value.goal)}</p>` : ''}${value.tradeoff && value.tradeoff !== value.caution ? `<p class="small"><strong>取舍：</strong>${prose(value.tradeoff)}</p>` : ''}${materialsShown ? '' : choiceMaterials(row)}</div>`;
   }
   function delivery(row) {
     const options = list(row.deliveryOptions);
@@ -68,7 +68,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     if (!affected.length) return '';
     return `<div class="flow-affected" data-flow-affected><h4>推进后影响</h4><ul>${affected.map((task) => `<li>${questButton(task.questId, task.name) || prose(task.name)}：${prose(task.effect)}</li>`).join('')}</ul></div>`;
   }
-  function rule(row, warning = false, scope = 'rule') {
+  function rule(row, warning = false, scope = 'rule', previewShown = false) {
     const stage = row.kind === 'stage';
     const choices = list(row.choices);
     const steps = list(row.steps);
@@ -90,8 +90,9 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
         ? `<div class="flow-pickup">${location || person ? `<p>${location}${location && person ? ' · ' : ''}${person}</p>` : ''}${pickup.action ? `<p>${prose(pickup.action)}</p>` : ''}${pickup.executionPlace ? `<p class="small">前往 ${prose(pickup.executionPlace)}</p>` : ''}</div>`
         : '';
     const affected = list(row.affectedTasks);
+    const body = `${fullWarning}${pickupBody}${!previewShown && (row.deadlineLabel || row.triggerName) ? `<p>截止：${prose(row.deadlineLabel || row.triggerName)}</p>` : ''}${affected.length ? advancement(row) : ''}${recommendation(row, { actionShown: previewShown && !warning && (row.recommendation?.hint || row.recommendation?.action) === row.recommendation?.action })}${delivery(row)}${conditions(conditionRows)}${steps.length ? `<ol class="flow-guide-steps">${steps.map((step) => `<li>${prose(step)}</li>`).join('')}</ol>` : ''}${choices.length ? `<div class="flow-choices"><h4>选择与影响</h4><dl>${choices.map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响未知')}</dd>`).join('')}</dl></div>` : ''}${affected.some((task) => questId(task.questId) === questId(row.questId || row.id)) ? '' : questButton(row.questId || row.id)}${row.uncertainty ? `<details><summary>资料说明</summary><p class="small">${text(row.uncertainty)}</p></details>` : ''}${sources(row.sources)}`;
     return persist(
-      `<article class="flow-rule${warning ? ' flow-risk' : ''}" data-flow-rule="${text(row.id || '')}"${warning ? ` data-flow-warning="${text(row.id || row.questId || '')}"` : ''}><div class="row between"><h3>${prose(row.name || row.title || '任务线索')}</h3>${stateLabel ? pill(stateLabel, row.state === 'done' ? 'green' : row.state === 'failed' ? 'orange' : '') : ''}</div>${message ? `<p class="flow-warning-message">${prose(message)}</p>` : ''}<details class="flow-rule-details"><summary>做法与影响</summary>${fullWarning}${pickupBody}${row.deadlineLabel || row.triggerName ? `<p>截止：${prose(row.deadlineLabel || row.triggerName)}</p>` : ''}${affected.length ? advancement(row) : ''}${recommendation(row)}${delivery(row)}${conditions(conditionRows)}${steps.length ? `<ol class="flow-guide-steps">${steps.map((step) => `<li>${prose(step)}</li>`).join('')}</ol>` : ''}${choices.length ? `<div class="flow-choices"><h4>选择与影响</h4><dl>${choices.map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响未知')}</dd>`).join('')}</dl></div>` : ''}${questButton(row.questId || row.id)}${row.uncertainty ? `<details><summary>资料说明</summary><p class="small">${text(row.uncertainty)}</p></details>` : ''}${sources(row.sources)}</details></article>`,
+      `<article class="flow-rule${warning ? ' flow-risk' : ''}" data-flow-rule="${text(row.id || '')}"${warning ? ` data-flow-warning="${text(row.id || row.questId || '')}"` : ''}>${previewShown ? `<div class="flow-rule-details">${body}</div>` : `${warning ? '' : `<div class="row between"><h3>${prose(row.name || row.title || '任务线索')}</h3>${stateLabel ? pill(stateLabel, row.state === 'done' ? 'green' : row.state === 'failed' ? 'orange' : '') : ''}</div>`}${message ? `<p class="flow-warning-message">${prose(message)}</p>` : ''}<details class="flow-rule-details"><summary>做法与影响</summary>${body}</details>`}</article>`,
       'rule-' + scope + '-' + row.id,
     );
   }
@@ -127,49 +128,99 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       ? `<div class="flow-places">${places.map((place) => `<p><span class="small muted">地点线索 </span>${target(place, 'world-place', 'place')}${place.evidence ? `<span class="small muted"> · ${text(placeEvidence(place.evidence))}</span>` : ''}</p>`).join('')}</div>`
       : '';
   }
+  function routeHeading(route) {
+    const method = {
+      buy: '购买',
+      shop: '购买',
+      merchant: '购买',
+      gather: '采集',
+      gathering: '采集',
+      drop: '掉落',
+    }[route.kind];
+    const place = route.placeName || route.place;
+    const person = route.personName;
+    if (route.kind === 'quest') return '获取方式见任务步骤';
+    if (method && (place || person))
+      return `${person ? (route.personId ? button('database-detail', person, route.personId) : prose(person)) : ''}${person && place ? ' · ' : ''}${place ? (route.placeId ? button('world-place', place, route.placeId) : prose(place)) : ''} ${method}`;
+    const label = ['物品资料来源', '采集来源', '本步骤的获取说明'].includes(route.label)
+      ? route.detail || routeName(route)
+      : route.label || route.detail || routeName(route);
+    if (route.placeId) return button('world-place', label, route.placeId);
+    if (route.personId) return button('database-detail', label, route.personId);
+    return prose(label);
+  }
+  function routeDetail(route) {
+    const detail = route.detail || '';
+    // The location and method already convey these table descriptions.
+    if (/^物品资料列.*(?:具体点位|单次数量)/.test(detail)) return '';
+    if (/^(?:公开商店资料列售|资料标价)/.test(detail)) {
+      const price = detail.match(/(?:配置单价|资料标价)\s*([\d.]+)\s*(?:铜钱|文)/);
+      return price ? `参考价 ${price[1]} 文/件` : '';
+    }
+    if (/^2023-10-07社区区域表列/.test(detail)) return '';
+    return !route.label || detail === route.label ? '' : detail;
+  }
+  function materialRows(
+    rows,
+    sharedMaterials,
+    { details = true, bodyOnly = false, sources: briefs = {}, scope = 'current' } = {},
+  ) {
+    return list(rows)
+      .map((material) => {
+        const required =
+          Number.isFinite(material.required) && material.required >= 0 ? material.required : null;
+        const owned = Number.isFinite(material.owned) && material.owned >= 0 ? material.owned : null;
+        const missing =
+          required !== null && owned !== null && Number.isFinite(material.missing) && material.missing >= 0
+            ? material.missing
+            : null;
+        const shared = list(sharedMaterials).find((row) => row.id === material.id);
+        const sharedMissing = Number.isFinite(shared?.missing) && shared.missing >= 0 ? shared.missing : null;
+        const stock = [
+          required === null ? '需求未读取' : `需 ${required}`,
+          owned === null ? '库存未读取' : `持有 ${owned}`,
+        ];
+        if (missing !== null && missing > 0 && !shared) stock.push(`缺 ${missing}`);
+        if (sharedMissing !== null && sharedMissing > 0) stock.push(`多任务合计缺 ${sharedMissing}`);
+        if (missing === null && required !== null && owned !== null) stock.push('缺口未读取');
+        const routes = list(material.routes);
+        const primary = routes.filter((route) => !route.alternative && route.kind !== 'unknown');
+        const alternatives = routes.filter((route) => route.alternative);
+        const first = primary[0];
+        const brief = briefs[material.id]
+          ? prose(briefs[material.id])
+          : first
+            ? routeHeading(first)
+            : '暂无获取地点';
+        const evidence = (route) => {
+          const efficiency = route.efficiency || '';
+          return `${efficiency && !/^(?:效率待核对|暂无效率数据)[。.]*$/.test(efficiency) ? `<p class="small">${prose(efficiency)}</p>` : ''}${sources(route.sources)}`;
+        };
+        const routeRow = (route, isFirst = false) =>
+          `${isFirst ? '' : `<h4>${routeHeading(route)}</h4>`}${routeDetail(route) ? `<p>${prose(routeDetail(route))}</p>` : ''}${evidence(route)}`;
+        const body = `${first ? routeRow(first, !briefs[material.id]) : ''}${primary
+          .slice(1)
+          .map((route) => routeRow(route))
+          .join(
+            '',
+          )}${alternatives.length ? `<details class="flow-material-alternatives"><summary>其他获取路线 · ${alternatives.length}</summary>${alternatives.map((route) => routeRow(route)).join('')}</details>` : ''}`;
+        if (bodyOnly)
+          return body
+            ? persist(
+                `${list(rows).length > 1 ? `<h4>${button('database-detail', material.name, material.id)}</h4>` : ''}${body}`,
+                `material-${scope}-${material.id}`,
+              )
+            : '';
+        return persist(
+          `<div class="flow-material"><div class="row between">${button('database-detail', material.name, material.id)}<span class="flow-stock">${stock.map(text).join(' · ')}</span></div>${brief ? `<p class="flow-source-brief">${brief}</p>` : ''}${details && body ? `<details class="flow-material-details"><summary>获取详情</summary>${body}</details>` : ''}</div>`,
+          `material-${scope}-${material.id}`,
+        );
+      })
+      .join('');
+  }
   function materials(rows, sharedMaterials = [], heading = '这一步需要的材料') {
-    const routeLinks = (route) =>
-      `${route.personId ? button('database-detail', '查看商人资料', route.personId) : ''}${route.placeId ? button('world-place', '查看地点资料', route.placeId) : ''}`;
-    const routeEvidence = (route) =>
-      `<p class="small muted">${text(route.efficiency || '效率尚待核实')}</p>${sources(route.sources)}`;
-    const routeList = (routes) =>
-      routes.length
-        ? `<ul>${routes.map((route) => `<li><strong>${prose(routeName(route))}</strong>${route.detail ? `<p>${prose(route.detail)}</p>` : ''}${routeLinks(route)}${routeEvidence(route)}</li>`).join('')}</ul>`
-        : '';
-    const items = list(rows);
-    return items.length
-      ? `<div class="flow-materials"><h4>${icon('bag')} ${text(heading)}</h4>${items
-          .map((material) => {
-            const required =
-              Number.isFinite(material.required) && material.required >= 0 ? material.required : null;
-            const owned = Number.isFinite(material.owned) && material.owned >= 0 ? material.owned : null;
-            const missing =
-              required !== null &&
-              owned !== null &&
-              Number.isFinite(material.missing) &&
-              material.missing >= 0
-                ? material.missing
-                : null;
-            const shared = list(sharedMaterials).find((row) => row.id === material.id);
-            const sharedMissing =
-              shared && Number.isFinite(shared.missing) && shared.missing >= 0 ? shared.missing : null;
-            const stockStatus = shared
-              ? sharedMissing === null
-                ? '共用缺口待核对'
-                : sharedMissing > 0
-                  ? `多任务合计缺 ${text(sharedMissing)}`
-                  : '合计持有量已足'
-              : '持有量已足';
-            const routes = list(material.routes);
-            const primary = routes.filter((route) => !route.alternative);
-            const alternatives = routes.filter((route) => route.alternative);
-            const first = primary[0];
-            const preview = first
-              ? `<div class="flow-material-source"><p class="small"><span class="muted">主要来源 </span><strong>${prose(routeName(first))}</strong>${first.detail ? `：${prose(first.detail)}` : ''}</p>${routeLinks(first)}</div>`
-              : '<p class="small muted">暂无已知主要来源，可打开物品资料继续查找。</p>';
-            return `<div class="flow-material"><div class="row between">${/^item-\d+$/.test(String(material.id || '')) ? button('database-detail', material.name, material.id) : text(material.name)}<span>${required === null ? '需求数量待核对' : `需 ${text(required)}`}${owned === null ? ' · 库存待核对' : ` · 持有 ${text(owned)}`}${missing === null ? ' · 缺口待核对' : missing > 0 ? ` · 缺 ${text(missing)}` : ` · ${stockStatus}`}</span></div>${preview}${routes.length ? `<details><summary>效率、来源依据与其他获取路线</summary>${first ? routeEvidence(first) : ''}${routeList(primary.slice(1))}${alternatives.length ? `<details class="flow-material-alternatives"><summary>其他商人线索 · ${alternatives.length} 处 · 可达与库存待核对</summary>${routeList(alternatives)}</details>` : ''}</details>` : ''}</div>`;
-          })
-          .join('')}</div>`
+    return list(rows).length
+      ? `<div class="flow-materials"><h4>${icon('bag')} ${text(heading)}</h4>${materialRows(rows, sharedMaterials, { scope: heading })}</div>`
       : '';
   }
   function sharedMaterialSummary(rows) {
@@ -195,57 +246,33 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   }
   function compactStepTargets(row) {
     const action = prose(row.nextAction || row.description);
+    const materialPlaces = new Set(
+      list(row.materials).flatMap((material) =>
+        list(material.routes)
+          .filter((route) => !route.alternative)
+          .map((route) => route.placeId),
+      ),
+    );
     // Keep an exact target when prose only resolves to a namesake chooser.
     const unlinked = (entry) => !entry.id || !action.includes(`data-entity-id="${text(entry.id)}"`);
     const people = list(row.people)
       .filter(unlinked)
       .map((person) => target(person, 'database-detail', 'npc'));
     const places = list(row.places)
+      .filter(
+        (place) =>
+          !['description-mention', 'literal-mention', '当前任务文字提及'].includes(place.evidence) ||
+          !materialPlaces.has(place.id),
+      )
       .filter(unlinked)
       .map((place) => target(place, 'world-place', 'place'));
     return people.length || places.length
       ? `<p class="flow-targets">${people.join('、')}${people.length && places.length ? ' · ' : ''}${places.join('、')}</p>`
       : '';
   }
-  function compactMaterials(
-    rows,
-    sharedMaterials = [],
-    { details = true, sources = {}, scope = 'current' } = {},
-  ) {
-    const items = list(rows);
-    return items.length
-      ? `<div class="flow-material-brief">${items
-          .map((material) => {
-            const required =
-              Number.isFinite(material.required) && material.required >= 0 ? material.required : null;
-            const owned = Number.isFinite(material.owned) && material.owned >= 0 ? material.owned : null;
-            const shared = list(sharedMaterials).find((row) => row.id === material.id);
-            const missing =
-              required !== null &&
-              owned !== null &&
-              Number.isFinite(material.missing) &&
-              material.missing >= 0
-                ? material.missing
-                : null;
-            const status =
-              missing === null
-                ? '缺口待核对'
-                : shared
-                  ? !Number.isFinite(shared.missing) || shared.missing < 0
-                    ? '共用缺口待核对'
-                    : shared.missing > 0
-                      ? `多任务合计缺 ${shared.missing}`
-                      : '合计持有量已足'
-                  : missing > 0
-                    ? `缺 ${missing}`
-                    : '持有量已足';
-            const route = list(material.routes).find((row) => !row.alternative);
-            return persist(
-              `<div class="flow-material"><div class="row between">${button('database-detail', material.name, material.id)}<span class="flow-stock">${required === null ? '需求数量待核对' : `需 ${required}`} · ${owned === null ? '库存待核对' : `持有 ${owned}`} · ${text(status)}</span></div><p class="flow-source-brief">${sources[material.id] ? prose(sources[material.id]) : route ? prose(route.detail || routeName(route)) : '来源待核对'}</p>${details ? `<details class="flow-material-details"><summary>数量与获取详情</summary>${materials([material], sharedMaterials)}</details>` : ''}</div>`,
-              `compact-material-${scope}-${material.id}`,
-            );
-          })
-          .join('')}</div>`
+  function compactMaterials(rows, sharedMaterials = [], options = {}) {
+    return list(rows).length
+      ? `<div class="flow-material-brief">${materialRows(rows, sharedMaterials, options)}</div>`
       : '';
   }
   function taskMaterials(flow, { compact = false } = {}) {
@@ -284,8 +311,14 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const value = row.recommendation;
     const action = value?.summary || value?.hint || value?.compact?.action || value?.action || row.warning;
     const caution = value?.caution || row.compactWarning;
+    const materialLabel = String(value?.materialLabel || '').split(/[；;]/);
+    const acquisition = materialRows(value?.materials, [], {
+      bodyOnly: true,
+      sources: value?.materialSources,
+      scope: 'choice-' + row.id,
+    });
     return persist(
-      `<aside class="flow-decision" data-flow-decision="${text(row.id)}"><p class="flow-recommended-action">${prose(action)}</p>${caution && caution !== action ? `<p class="flow-caution">${prose(caution)}</p>` : ''}${compactMaterials(value?.materials, [], { details: false, sources: value?.materialSources })}<details class="flow-choice-details" data-persist-detail="flow-choice-${text(row.id)}"><summary>为什么这样选 · 各选项影响</summary><h3>${questButton(row.questId, row.name) || prose(row.name)}</h3>${recommendation(row)}${row.pickup?.place || row.pickup?.person ? `<p class="flow-choice-location">${target(row.pickup.place, 'world-place', 'place')}${row.pickup.person ? ` · ${target(row.pickup.person, 'database-detail', 'npc')}` : ''}</p>` : ''}<p>${prose(row.warning)}</p>${conditions(row.conditions)}<dl class="flow-choices">${list(
+      `<aside class="flow-decision" data-flow-decision="${text(row.id)}"><p class="flow-recommended-action">${prose(action)}</p>${caution && caution !== action ? `<p class="flow-caution">${prose(caution)}</p>` : ''}${list(value?.materials).length && value.materialLabel ? `<p class="small flow-choice-material-label">${text(materialLabel[0])}</p>` : ''}${compactMaterials(value?.materials, [], { details: false, sources: value?.materialSources, scope: row.id })}<details class="flow-choice-details" data-persist-detail="flow-choice-${text(row.id)}"><summary>为什么这样选 · 各选项影响</summary><h3>${questButton(row.questId, row.name) || prose(row.name)}</h3>${recommendation(row, { actionShown: action === value?.action, materialsShown: true })}${materialLabel.length > 1 ? `<p class="small">${text(materialLabel.slice(1).join('；'))}</p>` : ''}${acquisition ? `<section data-flow-choice-acquisition><h4>材料获取详情</h4>${acquisition}</section>` : ''}${row.pickup?.place || row.pickup?.person ? `<p class="flow-choice-location">${target(row.pickup.place, 'world-place', 'place')}${row.pickup.person ? ` · ${target(row.pickup.person, 'database-detail', 'npc')}` : ''}</p>` : ''}<p>${prose(row.warning)}</p>${conditions(row.conditions)}<dl class="flow-choices">${list(
         row.choices,
       )
         .map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响待核对')}</dd>`)
@@ -338,7 +371,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   }
   const compactAdvice = (row) =>
     persist(
-      `<article class="flow-suggestion" data-flow-suggestion="${text(row.id)}"><p>${prose(row.recommendation?.hint || row.recommendation?.action || row.pickup?.action || row.warning)}</p><details><summary>做法与理由</summary>${rule(row, false, 'advice')}</details></article>`,
+      `<article class="flow-suggestion" data-flow-suggestion="${text(row.id)}"><p>${prose(row.recommendation?.hint || row.recommendation?.action || row.pickup?.action || row.warning)}</p><details><summary>做法与理由</summary>${rule(row, false, 'advice', true)}</details></article>`,
       `compact-advice-${row.id}`,
     );
   function compactPanel(flow, sections = ['advice', 'opportunities', 'milestones']) {
@@ -381,7 +414,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
             .map((row) => row.id)
             .sort()
             .join('-'),
-        )}" open><summary><strong>推进前确认 · ${warnings.length} 项</strong></summary>${groups.map(({ deadline, rows }) => `<details class="flow-risk-window" data-persist-detail="flow-risk-window-${text(rows[0].id)}"><summary>${rows.map((row) => `<span class="flow-risk-preview">${prose(riskPreview(row))}</span>`).join('')}</summary><p class="small flow-risk-deadline">${prose(deadline || rows[0].name || '推进提醒')}</p>${rows.map((row) => `<div data-flow-impact="${text(row.id)}">${rule(row, true, 'risk')}</div>`).join('')}</details>`).join('')}</details></section>`
+        )}" open><summary><strong>推进前确认 · ${warnings.length} 项</strong></summary>${groups.map(({ deadline, rows }) => `<details class="flow-risk-window" data-persist-detail="flow-risk-window-${text(rows[0].id)}"><summary>${deadline && rows.some((row) => !row.compactWarning && !String(riskPreview(row)).includes(deadline.replace(/(?:之前|前)$/, ''))) ? `<span class="flow-risk-deadline">${prose(deadline)}</span>` : ''}${rows.map((row) => `<span class="flow-risk-preview">${prose(riskPreview(row))}</span>`).join('')}</summary>${rows.map((row) => `<div data-flow-impact="${text(row.id)}">${rule(row, true, 'risk', true)}</div>`).join('')}</details>`).join('')}</details></section>`
       : '';
     const current = decisions.length
       ? `<details class="flow-task-peek" data-persist-detail="flow-task-peek-${text(first?.id)}"><summary>当前任务 · ${prose(first?.name || '步骤待核对')}</summary>${lead}</details>`
@@ -431,24 +464,9 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const activeBody = summary
       ? take(active).map(activeCard).join('')
       : `${active.slice(0, 3).map(activeCard).join('')}${remaining ? `<details class="flow-all-active"><summary>其余 ${remaining} 项进行中任务</summary>${active.slice(3).map(activeCard).join('')}</details>` : ''}`;
-    const riskBody = warnings.length
-      ? warnings
-          .slice(0, summary ? 3 : warnings.length)
-          .map((warning) => rule(warning, true, 'risk'))
-          .join('') +
-        (summary && warnings.length > 3
-          ? `<details data-persist-detail="main-more-risks"><summary>更多推进提醒 · ${warnings.length - 3}</summary>${warnings
-              .slice(3)
-              .map((warning) => rule(warning, true, 'risk'))
-              .join('')}</details>`
-          : '')
-      : `<p class="small muted">${decisions.length ? '暂无其他推进提醒' : '暂无推进提醒'}</p>`;
-    const riskContent =
-      compact && active.length && warnings.length
-        ? `<details class="flow-compact-risks" data-persist-detail="flow-risk-summary"><summary>${warnings.length} 项推进提醒 · ${text(warnings[0].name || warnings[0].title)}</summary>${riskBody}</details>`
-        : riskBody;
+    const riskContent = warnings.map((warning) => rule(warning, true, 'risk')).join('');
     return persist(
-      `<section class="flow-panel${compact ? ' flow-compact' : ''}${summary ? ' flow-summary' : ''}${warnings.length ? ' flow-has-risks' : ''}" data-flow>${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${decisions.map(decision).join('')}</section>` : ''}<section class="flow-risks"><h2>${icon('pin')} 推进前请确认</h2>${riskContent}</section><section class="flow-active"><h2>当前任务与下一行动${active.length ? ` · ${active.length} 项` : ''}</h2>${sharedMaterialSummary(
+      `<section class="flow-panel${compact ? ' flow-compact' : ''}${summary ? ' flow-summary' : ''}${warnings.length ? ' flow-has-risks' : ''}" data-flow>${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${decisions.map(decision).join('')}</section>` : ''}${warnings.length ? `<section class="flow-risks"><h2>${icon('pin')} 推进前确认</h2>${riskContent}</section>` : ''}<section class="flow-active"><h2>当前任务与下一行动${active.length ? ` · ${active.length} 项` : ''}</h2>${sharedMaterialSummary(
         shared,
       )}${unindexed.length ? `<aside class="flow-unindexed" data-flow-unindexed><details><summary>另有 ${unindexed.length} 条进行中记录待识别</summary><p class="small save-note">这些记录尚未收录在任务资料中，可能是隐藏剧情或版本新增任务。请核对游戏任务栏中额外进行中的任务；这里暂不能判断名称与下一步。</p></details></aside>` : ''}${activeBody || `<p class="small muted">${flow.available ? '暂无进行中步骤，可在下方查找任务。' : '连接游戏进度后显示当前行动。'}</p>`}</section>${
         advice.length

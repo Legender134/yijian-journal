@@ -146,6 +146,8 @@ async function shot(name, target = page) {
   try {
     await launch();
     await nav('journey');
+    if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
+      await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     const anchor = stableId('quest', ['quest-11077']),
       otherAnchor = stableId('quest', ['quest-11079']);
     for (const [id, placeId] of [
@@ -374,6 +376,8 @@ async function shot(name, target = page) {
     app = null;
     await launch();
     await nav('journey');
+    if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
+      await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     const restarted = await plan();
     assert.equal(restarted.itinerary.steps[0].action.questId, 'quest-11078');
     assert.equal(restarted.itinerary.steps[1].action.questId, 'quest-11082');

@@ -304,6 +304,8 @@ async function written(file) {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
       dialog.showMessageBox = async () => ({ response: 1 });
     }, protection);
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-export"]').click();
     await written(protection);
     await page.waitForFunction(() => !document.querySelector('[data-action="protection-export"]')?.disabled);
@@ -311,6 +313,8 @@ async function written(file) {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
       dialog.showMessageBox = async () => ({ response: 1 });
     }, protection);
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-import"]').click();
     const historical = page.locator('.journey-trash-panel').first();
     await historical.waitFor({ state: 'attached' });

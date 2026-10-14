@@ -57,6 +57,11 @@ const tianshanTravelWindow = {
 };
 // Community flow clues; unknown task records never prove availability.
 module.exports = {
+  // Item-specific acquisition in the shipped quest-11010 description.
+  // The text names the cave area, without identifying one scene variant.
+  stepMaterialRoutes: {
+    11010: { 10201: { kind: 'gather', label: '后山山洞附近采集' } },
+  },
   itemRoutes: {
     10055: [
       {
@@ -2301,12 +2306,12 @@ module.exports = {
       chapterRoots: [5176, 5200, 5213],
       afterAllComplete: [],
       untilAnyStarted: [],
-      deadlineLabel: '拜入武当之前；精确触发步骤待核对',
+      deadlineLabel: '拜入武当之前',
       advanceEffects: [
         {
           questId: 11942,
           scope: 'accept',
-          effect: '攻略记正式拜入武当后不再触发莲心湖会晤；拜师前先去湖中央核对。',
+          effect: '正式拜入武当后无法接取；开始拜师任务不等于已经正式拜入。',
           evidence: '社区流程窗口；开始拜师任务不等于已经正式拜入。',
         },
       ],
@@ -2315,8 +2320,8 @@ module.exports = {
         person: '两名神秘男子',
         action: '处理水匪后到湖中央查看场景',
       },
-      warning: '攻略称拜入武当后会晤不再触发。',
-      steps: ['拜师前核对莲心湖中央会晤。'],
+      warning: '拜入武当前接莲湖会晤；只限制接取窗口',
+      steps: [],
       choices: [],
       sourceIds: ['gs04'],
       uncertainty:

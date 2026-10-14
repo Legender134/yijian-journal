@@ -285,7 +285,13 @@ async function taskMaterialReturn(page, title, screenshot) {
   await page.mouse.move(440, 10);
   await page.locator('[data-action="close-overlay"]').focus();
   await page.locator('.drawer-body').evaluate((el) => (el.scrollTop = 0));
-  for (let step = 0; step < 3; step++) await page.keyboard.press('Tab');
+  const peopleSummary = page
+    .locator('[data-task-relations] > details > summary')
+    .filter({ hasText: /^涉及人物/ });
+  assert.equal(await peopleSummary.locator('..').evaluate((element) => element.open), false);
+  await peopleSummary.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
   const person = page.locator('[data-task-relations] [data-id="npc-10038"]').first();
   assert.equal(await person.evaluate((el) => document.activeElement === el), true);
   const focusedBounds = await person.evaluate((el) => {
@@ -302,9 +308,18 @@ async function taskMaterialReturn(page, title, screenshot) {
   await page.locator('.drawer-body').evaluate((el) => (el.scrollTop += 10));
   await page.waitForTimeout(300);
   assert.equal(await page.locator('#entity-preview').isVisible(), false);
+  await page
+    .locator('[data-task-relations] > details > summary')
+    .filter({ hasText: /^步骤需要的物品/ })
+    .click();
   const material = page.locator('[data-task-relations] [data-id="item-10201"]').first();
-  await material.focus();
+  await page.mouse.move(440, 10);
   await material.scrollIntoViewIfNeeded();
+  await material.focus();
+  await page.waitForFunction(
+    (node) => node.getAttribute('aria-describedby') === 'entity-preview',
+    await material.elementHandle(),
+  );
   await page.locator('#entity-preview').waitFor({ state: 'visible' });
   assert.equal(await material.getAttribute('aria-describedby'), 'entity-preview');
   const before = await page.locator('.drawer-body').evaluate((el) => ({
@@ -443,6 +458,10 @@ async function companionReferenceSync(page) {
     await page.locator('[data-task-relations]').waitFor();
   };
   const preview = async (count) => {
+    const materialSummary = page
+      .locator('[data-task-relations] > details:not([open]) > summary')
+      .filter({ hasText: /^步骤需要的物品/ });
+    if (await materialSummary.count()) await materialSummary.click();
     const item = page.locator('[data-task-relations] [data-id="item-10201"]').first();
     await item.scrollIntoViewIfNeeded();
     // Returning keeps focus and dismisses the preview; request a fresh focus event.
@@ -600,7 +619,7 @@ async function companionHomeInventorySync(page) {
         .first();
       assert.match(
         await material.innerText(),
-        new RegExp(`需 4 · 持有 ${count} · ${count < 4 ? '缺 ' + (4 - count) : '持有量已足'}`),
+        new RegExp(`需 4 · 持有 ${count}${count < 4 ? ' · 缺 ' + (4 - count) : ''}`),
       );
       assert.match(await material.innerText(), /后山山洞.*铁匠/);
       assert.match(await page.locator('.flow-choice-location').first().textContent(), /梧桐村.*樵夫.*铁匠/);
@@ -728,7 +747,7 @@ async function companionHomeInventorySync(page) {
     await entityPreview(
       win,
       win.locator('[data-flow] [data-id="npc-5003"]').first(),
-      /人物.*清虚道长.*相关任务/s,
+      /人物.*清虚道长.*初始等级 80.*固定私物/s,
       '01-main-person-preview',
     );
     await entityPreview(
@@ -740,12 +759,16 @@ async function companionHomeInventorySync(page) {
     await entityPreview(
       win,
       flowMaterials.locator('[data-action="database-detail"]').first(),
-      /物品.*买价/s,
+      /物品.*(?:保存持有|持有量未核对)/s,
       '01-main-item-preview',
       true,
     );
     await win.locator('[data-flow] [data-id="npc-5003"]').first().click();
     assert.equal(await win.locator('[data-person-relations]').isVisible(), true);
+    await win
+      .locator('[data-person-relations] > details > summary')
+      .filter({ hasText: /^相关任务/ })
+      .click();
     await win.locator('[data-person-relations] [data-id="quest-5200"]').first().click();
     assert.equal(await win.locator('[data-task-relations]').isVisible(), true);
     await win.locator('[data-action="drawer-back"]').click();
@@ -805,17 +828,15 @@ async function companionHomeInventorySync(page) {
     await choiceCompact.waitForSelector('.compact-shell');
     await choiceCompact.locator('.companion-tabs [data-id="materials"]').click();
     const taskMaterialText = (
-      await choiceCompact
-        .locator('[data-flow-task-materials] .flow-materials > .flow-material')
-        .first()
-        .textContent()
+      await choiceCompact.locator('[data-flow-task-materials] .flow-material').first().textContent()
     ).replace(/\s+/g, '');
     await choiceCompact.locator('[data-action="main"]').first().click();
     await win.locator('[data-flow-task-materials]').waitFor();
     assert.equal(
-      (
-        await win.locator('[data-flow-task-materials] .flow-materials > .flow-material').first().textContent()
-      ).replace(/\s+/g, ''),
+      (await win.locator('[data-flow-task-materials] .flow-material').first().textContent()).replace(
+        /\s+/g,
+        '',
+      ),
       taskMaterialText,
     );
     await win.screenshot({
@@ -892,6 +913,8 @@ async function companionHomeInventorySync(page) {
     await choiceCompact.locator('#global-search').fill('清虚道长');
     await choiceCompact.locator('.search-result[data-id="npc-5003"]').click();
     await assertSharedProgressUi(choiceCompact);
+    if (await choiceCompact.locator('.person-gifts:not([open])').count())
+      await choiceCompact.locator('.person-gifts > summary').click();
     await choiceCompact.locator('[data-action="gift-page"][data-id="1"]').click();
     await choiceCompact.locator('[data-action="gift-page"][data-id="2"]').click();
     await choiceCompact
@@ -1006,7 +1029,7 @@ async function companionHomeInventorySync(page) {
       choiceCompact
         .locator('[data-task-relations] [data-action="database-detail"][data-id="npc-10005"]')
         .first(),
-      /人物.*相关任务/s,
+      /人物.*铁匠/s,
       '01-companion-person-preview',
     );
     await choiceCompact.locator('[data-action="close-overlay"]').click();

@@ -100,6 +100,8 @@ function createFlowProjector({
           .filter((id) => materialContent.sources[id])
           .map((id) => ({ ...materialContent.sources[id], id: 'material:' + id })),
       }));
+    const taskRoute = content.stepMaterialRoutes?.[task.gameId]?.[material.id];
+    if (taskRoute) routes.unshift({ ...taskRoute, taskSpecific: true });
     for (const route of content.itemRoutes?.[material.id] || []) {
       if (!route.placeId || !w.maps.some((place) => place.id === route.placeId)) continue;
       routes.push({
@@ -143,7 +145,7 @@ function createFlowProjector({
       });
     // Quest text can supply a route absent from the item entry. Keep it as a
     // family-level clue, rather than assigning every mentioned place to every item.
-    if (/采集|购买|买来|买酒|刷|击败|获得/.test(task.description || ''))
+    if (!routes.length && /采集|购买|买来|买酒|刷|击败|获得/.test(task.description || ''))
       routes.push({
         kind: 'quest',
         label: '本步骤的获取说明',
@@ -162,7 +164,7 @@ function createFlowProjector({
       (route.place === currentMap ||
         textPlaces(route.detail || '').some((place) => place.name === currentMap));
     const rank = (route) =>
-      route.kind === 'quest'
+      route.taskSpecific
         ? 0
         : nearby(route)
           ? 1
@@ -170,7 +172,12 @@ function createFlowProjector({
             ? 4
             : 2;
     return routes
-      .map((route) => ({ ...route, alternative: rank(route) === 4 }))
+      .map((route) => ({
+        ...route,
+        placeName: route.place || w.maps.find((place) => place.id === route.placeId)?.name || '',
+        personName: route.personId ? npcName(Number(route.personId.replace(/^npc-/, ''))) : '',
+        alternative: rank(route) === 4,
+      }))
       .sort((a, b) => rank(a) - rank(b));
   }
   function snapshot(profile, reference, error = '', dialogue = null) {

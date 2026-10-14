@@ -101,7 +101,7 @@ export function createGameViews({
         liveReference ? 'live' : 'saved',
       )}${npcFacts.person(index, e)}${personRelations(index, e, statusReference)}${
         e.hobbies.length
-          ? `<div class="detail-block"><h3>赠礼偏好</h3><div class="tag-row">${e.hobbies.map((h) => pill(h, 'green')).join('')}</div></div><div class="detail-block person-gifts"><h3>${inventory ? '背包中的礼物' : '可送礼物'}</h3><div class="related-items">${
+          ? `<div class="detail-block"><h3>赠礼偏好</h3><div class="tag-row">${e.hobbies.map((h) => pill(h, 'green')).join('')}</div></div><details class="detail-block person-gifts" data-persist-detail="person-gifts-${esc(e.id)}"><summary>${inventory ? '背包中的礼物' : '可送礼物'} · ${gifts.length} 种</summary><div class="related-items">${
               gifts
                 .slice(giftPage * 24, giftPage * 24 + 24)
                 .map(
@@ -113,10 +113,10 @@ export function createGameViews({
                         (inventory ? ` · ${inventory.get(g.gameId)} 件` : ''),
                       'btn',
                       g.id,
-                    ) + act('journey-gift-dialog', '规划赠礼', 'text-btn', e.id + ':' + g.id, 'plus'),
+                    ) + iconButton('journey-gift-dialog', 'plus', '规划赠送' + g.name, e.id + ':' + g.id),
                 )
                 .join('') || '<p class="small muted">背包中暂无合适礼物</p>'
-            }</div>${gifts.length > 24 ? `<div class="history-pagination"><button class="btn" data-action="gift-page" data-id="${giftPage - 1}" ${giftPage === 0 ? 'disabled' : ''}>上一页</button><span>共 ${gifts.length} 种 · 第 ${giftPage + 1} / ${pages} 页</span><button class="btn" data-action="gift-page" data-id="${giftPage + 1}" ${giftPage + 1 >= pages ? 'disabled' : ''}>下一页</button></div>` : `<p class="small muted">共 ${gifts.length} 种</p>`}${reserved ? `<p class="save-note">${inventory ? '已扣除预留数量' : '库存未读取'}</p>` : ''}</div>`
+            }</div>${gifts.length > 24 ? `<div class="history-pagination"><button class="btn" data-action="gift-page" data-id="${giftPage - 1}" ${giftPage === 0 ? 'disabled' : ''}>上一页</button><span>共 ${gifts.length} 种 · 第 ${giftPage + 1} / ${pages} 页</span><button class="btn" data-action="gift-page" data-id="${giftPage + 1}" ${giftPage + 1 >= pages ? 'disabled' : ''}>下一页</button></div>` : ''}${reserved ? `<p class="save-note">${inventory ? '已扣除预留数量' : '库存未读取'}</p>` : ''}</details>`
           : ''
       }${e.lifeSkills?.length ? `<details class="detail-block"><summary>初始生活技能</summary><div class="tag-row mt">${e.lifeSkills.map((s) => pill(`${s.name} ${s.level} 级`)).join('')}</div></details>` : ''}${e.skills?.length ? `<details class="detail-block"><summary>初始武学</summary><div class="related-items mt">${e.skills.map((s) => act('database-detail', esc(byId(index, s.id)?.name || s.id) + ` · ${s.level}`, 'btn', s.id)).join('')}</div></details>` : ''}${e.friendshipLocks?.length && index.renderRequirements ? `<details class="detail-block"><summary>好感解锁条件</summary>${e.friendshipLocks.map((l) => `<h3 class="mt">${l.at} 好感</h3>${index.renderRequirements(l.requirements, index, { reference: statusReference })}`).join('')}</details>` : ''}${e.joinRequirements?.length && index.renderRequirements ? `<details class="detail-block"><summary>入队条件</summary>${index.renderRequirements(e.joinRequirements, index, { reference: statusReference })}</details>` : ''}${act('world-person', '查这个人物的相关任务', 'btn', e.id, 'scroll')}`;
       const shop = index.merchants?.find((m) => m.id === e.gameId);
