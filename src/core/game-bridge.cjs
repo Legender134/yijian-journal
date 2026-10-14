@@ -7,7 +7,7 @@ const { realDirectory, sha, isWithin } = require('./saves.cjs');
 const { readStable, writeBytes, safeId, SLOT } = require('./timeline.cjs');
 const provenance = require('../game-bridge/provenance.json');
 const { PROTOCOL, assertNativePath, grantFrame, commandFrame } = require('./native-io.cjs');
-const { readDialogue } = require('./live-guidance.cjs');
+const { readDialogue, isKnownChoiceStep } = require('./live-guidance.cjs');
 const resources = path.join(__dirname, '..', 'game-bridge');
 const NATIVE_MOD = 'YijianJournalUnicode';
 const slash = (p) => p.replaceAll('\\', '/');
@@ -182,10 +182,8 @@ class GameBridge {
         !same(source, this.timeline.data.source)
       )
         return null;
-      if (current.lastQuestId) current.suppressed.add(current.lastQuestId);
+      if (isKnownChoiceStep(current.lastQuestId)) current.suppressed.add(current.lastQuestId);
       current.lastQuestId = 0;
-      while (current.suppressed.size > 64)
-        current.suppressed.delete(current.suppressed.values().next().value);
       return { dialogue: null, suppressedQuestIds: [...current.suppressed] };
     };
     if (
@@ -214,15 +212,14 @@ class GameBridge {
     const current = this.dialogueContext;
     const dialogue = readDialogue(state.dialogue);
     if (dialogue) {
-      if (current.lastQuestId && current.lastQuestId !== dialogue.questId)
+      if (isKnownChoiceStep(current.lastQuestId) && current.lastQuestId !== dialogue.questId)
         current.suppressed.add(current.lastQuestId);
       current.lastQuestId = dialogue.questId;
       current.suppressed.delete(dialogue.questId);
     } else if (current.lastQuestId) {
-      current.suppressed.add(current.lastQuestId);
+      if (isKnownChoiceStep(current.lastQuestId)) current.suppressed.add(current.lastQuestId);
       current.lastQuestId = 0;
     }
-    while (current.suppressed.size > 64) current.suppressed.delete(current.suppressed.values().next().value);
     return { dialogue, suppressedQuestIds: [...current.suppressed] };
   }
   hintQuiet() {

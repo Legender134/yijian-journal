@@ -1,5 +1,10 @@
 'use strict';
 
+const knownChoiceSteps = new Set(
+  require('../data/flow-guide.cjs').rules.flatMap((rule) => rule.decisionSteps || []),
+);
+const isKnownChoiceStep = (id) => knownChoiceSteps.has(id);
+
 function readDialogue(value) {
   if (
     !value ||
@@ -13,7 +18,7 @@ function readDialogue(value) {
     value.npcId < 0 ||
     value.npcId > 2147483647 ||
     !Array.isArray(value.options) ||
-    value.options.length < 2 ||
+    value.options.length < 1 ||
     value.options.length > 16
   )
     return null;
@@ -44,10 +49,11 @@ const optionText = (value) =>
 
 function withLiveDialogue(flow, context, quests) {
   if (flow.referenceMode !== 'latest' || !context) return flow;
+  const choiceSteps = new Set((flow.guide || []).flatMap((rule) => rule.decisionSteps || []));
   const suppressed = new Set(
-    (Array.isArray(context.suppressedQuestIds) ? context.suppressedQuestIds : [])
-      .slice(0, 64)
-      .filter((id) => Number.isSafeInteger(id) && id > 0),
+    (Array.isArray(context.suppressedQuestIds) ? context.suppressedQuestIds : []).filter((id) =>
+      choiceSteps.has(id),
+    ),
   );
   const visible = (rule) => !(rule.decisionSteps || []).some((id) => suppressed.has(id));
   const base = {
@@ -119,4 +125,4 @@ function withLiveDialogue(flow, context, quests) {
   };
 }
 
-module.exports = { readDialogue, withLiveDialogue };
+module.exports = { readDialogue, withLiveDialogue, isKnownChoiceStep };

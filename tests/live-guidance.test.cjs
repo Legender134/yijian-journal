@@ -39,6 +39,8 @@ const choiceId = 'early-woodcutter-axe-choice';
 
 test('bounded live option messages keep only the read-only fields and reject malformed input', () => {
   assert.deepEqual(readDialogue({ ...dialogue(), command: 'load', file: 'private' }), dialogue());
+  const single = dialogue({ options: [{ index: 1, text: '继续' }] });
+  assert.deepEqual(readDialogue(single), single, 'the producer also reports single-option windows');
   const invalid = [
     null,
     {},
@@ -47,7 +49,6 @@ test('bounded live option messages keep only the read-only fields and reject mal
     dialogue({ questId: -1 }),
     dialogue({ npcId: NaN }),
     dialogue({ options: [] }),
-    dialogue({ options: [{ index: 1, text: '一项' }] }),
     dialogue({
       options: [
         { index: 1, text: '有效' },
@@ -93,6 +94,7 @@ test('the current native choice can precede its saved step but must match the wh
   });
   assert.equal(flowSnapshot(profile, oldSave, '', context(formatted)).decisions[0].id, choiceId);
   for (const raw of [
+    dialogue({ questId: 999999, npcId: 0, options: [{ index: 1, text: '继续' }] }),
     dialogue({ questId: 5076 }),
     dialogue({ npcId: 10016 }),
     dialogue({
@@ -153,6 +155,25 @@ test('an open choice isolates every recommendation carrier and keeps ordinary ri
     assert(!rows.some((row) => row.choices?.length > 1));
 });
 
+test('a first single-option window reaches the bridge and removes old choices from lightweight hints', () => {
+  const source = '/synthetic/76561190000000000/SaveGames';
+  const single = dialogue({ questId: 999999, npcId: 0, options: [{ index: 1, text: '继续' }] });
+  const bridge = Object.assign(Object.create(GameBridge.prototype), {
+    test: true,
+    timeline: { data: { source } },
+    blocked: () => false,
+    heartbeat: () => ({ session: '1800000000-123456', source, ready: true, dialogue: single }),
+    connected: () => true,
+  });
+  const live = bridge.liveGuidance(source);
+  assert.deepEqual(live, context(single));
+  const view = companionSnapshot(defaults(), catalog, reference(), '', live);
+  assert.equal(view.flow.liveDialogue.matched, false);
+  for (const rows of [view.flow.decisions, view.flow.warnings, view.flow.advice, view.flow.opportunities])
+    assert(!rows.some((row) => row.choices?.length > 1));
+  assert(!view.hints.some((row) => row.type === 'flow-choice'));
+});
+
 test('closed live choices retire stale saved advice and a newly observed opening can restore it', () => {
   assert(flowSnapshot(profile, reference()).decisions.some((row) => row.id === choiceId));
   const closed = flowSnapshot(profile, reference(), '', context(null, [11004]));
@@ -164,6 +185,58 @@ test('closed live choices retire stale saved advice and a newly observed opening
   );
   const reopened = flowSnapshot(profile, reference(), '', context(dialogue({ sequence: 2 })));
   assert.equal(reopened.decisions[0].liveSequence, 2);
+});
+
+test('retirement is bounded by known choice steps and survives more than 64 unrelated dialogues', () => {
+  const source = '/synthetic/76561190000000000/SaveGames';
+  const bridge = Object.create(GameBridge.prototype);
+  let pulse = { session: '1800000000-123456', source, ready: true, dialogue: dialogue() };
+  Object.assign(bridge, {
+    test: true,
+    timeline: { data: { source } },
+    blocked: () => false,
+    heartbeat: () => pulse,
+    connected: (state) => !!state && state.source === source,
+  });
+  bridge.liveGuidance(source);
+  pulse = { ...pulse, dialogue: null };
+  assert.deepEqual(bridge.liveGuidance(source), context(null, [11004]));
+  const unrelated = Array.from({ length: 65 }, (_, i) => 900000 + i);
+  for (const questId of unrelated) {
+    pulse = { ...pulse, dialogue: dialogue({ questId, npcId: 0 }) };
+    bridge.liveGuidance(source);
+    pulse = { ...pulse, dialogue: null };
+    assert.deepEqual(bridge.liveGuidance(source), context(null, [11004]));
+  }
+  for (const retired of [bridge.liveGuidance(source), context(null, [...unrelated, 11004])]) {
+    const flow = flowSnapshot(profile, reference(), '', retired);
+    for (const rows of [flow.decisions, flow.warnings, flow.advice, flow.opportunities])
+      assert(!rows.some((row) => row.id === choiceId));
+    assert(flow.guide.some((row) => row.id === choiceId));
+  }
+  const known = [
+    ...new Set(require('../src/data/flow-guide.cjs').rules.flatMap((r) => r.decisionSteps || [])),
+  ];
+  for (const questId of known) {
+    pulse = { ...pulse, dialogue: dialogue({ questId }) };
+    bridge.liveGuidance(source);
+    pulse = { ...pulse, dialogue: null };
+    bridge.liveGuidance(source);
+  }
+  assert.deepEqual(new Set(bridge.liveGuidance(source).suppressedQuestIds), new Set(known));
+  const largerGuide = Array.from({ length: 65 }, (_, i) => ({
+    id: `choice-${i}`,
+    decisionSteps: [800000 + i],
+  }));
+  const larger = withLiveDialogue(
+    { referenceMode: 'latest', guide: largerGuide, decisions: largerGuide },
+    context(
+      null,
+      largerGuide.flatMap((r) => r.decisionSteps),
+    ),
+    new Map(),
+  );
+  assert.deepEqual(larger.decisions, [], 'a larger curated guide does not acquire a 64-step limit');
 });
 
 test('live guidance reaches the lightweight hint without mixing into fixed or reference-free queries', () => {

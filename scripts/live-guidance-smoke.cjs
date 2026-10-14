@@ -208,7 +208,12 @@ const pulse = () =>
     await small.locator(choice).waitFor({ state: 'detached', timeout: 5000 });
     const beforeUnknown = await small.locator('.flow-panel').elementHandle();
     session = '1800000001-123456';
-    current = packet({ sequence: 4, questId: 999999, npcId: 0 });
+    current = packet({
+      sequence: 4,
+      questId: 999999,
+      npcId: 0,
+      options: [{ index: 1, text: '继续' }],
+    });
     pulse();
     await small.waitForFunction((node) => !node.isConnected, beforeUnknown);
     await win.locator('.sidebar-nav [data-id="home"]').click();
@@ -217,11 +222,20 @@ const pulse = () =>
       assert.equal(
         await surface.locator('[data-flow-suggestion="early-woodcutter-axe-choice"]').count(),
         0,
-        'a new unknown session cannot leak the never-observed saved choice as advice',
+        'a new single-option session cannot leak the never-observed saved choice as advice',
       );
     }
+    const beforeMultiple = await small.locator('.flow-panel').elementHandle();
+    session = '1800000002-123456';
+    current = packet({ sequence: 5, questId: 999999, npcId: 0 });
+    pulse();
+    await small.waitForFunction((node) => !node.isConnected, beforeMultiple);
+    for (const surface of [win, small]) {
+      assert.equal(await surface.locator(choice).count(), 0);
+      assert.equal(await surface.locator('[data-flow-suggestion="early-woodcutter-axe-choice"]').count(), 0);
+    }
     current = packet({
-      sequence: 5,
+      sequence: 6,
       questId: 5076,
       npcId: 10016,
       options: [
