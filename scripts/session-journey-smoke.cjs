@@ -291,7 +291,9 @@ async function expandUndo() {
     await companion.locator('[data-action="journey-itinerary-journal"]').click();
     await companion.locator('#journal-entry-form').waitFor();
     assert.match(await companion.locator('#journal-title').inputValue(), /本次合成行程/);
-    assert.match(await companion.locator('#journal-body').inputValue(), /不代表这一程新增/);
+    const recap = await companion.locator('#journal-body').inputValue();
+    assert.match(recap, /个人已处理 1 项，个人已完成 0 项，本次跳过 1 项/);
+    assert.match(recap, /合成桃花林事项[^\n]*游戏已完成/);
     await companion.locator('[data-action="journal-entry-save"]').click();
     await until(
       current,
