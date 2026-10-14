@@ -286,10 +286,15 @@ export function installEntityPreviews({ document, window, references, context })
     timer,
     hideTimer,
     dismissed = null;
-  const eligible = (node) =>
-    node?.closest?.(
-      '[data-entity-id], [data-action="database-detail"][data-id], [data-action="world-quest"][data-id], [data-action="flow-quest"][data-id], [data-action="world-place"][data-id]',
-    );
+  const selector =
+    '[data-entity-id], [data-action="database-detail"][data-id], [data-action="world-quest"][data-id], [data-action="flow-quest"][data-id], [data-action="world-place"][data-id]';
+  const eligible = (node) => node?.closest?.(selector);
+  const identity = (node) =>
+    JSON.stringify([
+      node.dataset.entityId || node.dataset.id,
+      node.dataset.action || '',
+      node.dataset.qualityId || '',
+    ]);
   const close = (dismissCurrent = false) => {
     if (dismissCurrent === true) dismissed = trigger || pending || eligible(document.activeElement);
     clearTimeout(timer);
@@ -419,6 +424,37 @@ export function installEntityPreviews({ document, window, references, context })
   });
   return {
     close,
+    captureWithin(scope) {
+      const node = trigger || pending;
+      if (!node || !scope.contains(node)) return null;
+      const focused = document.activeElement === node;
+      const panelHovered = panel.matches(':hover');
+      if (!focused && !node.matches(':hover') && !panelHovered) return null;
+      const key = identity(node);
+      return {
+        key,
+        focused,
+        panelHovered,
+        occurrence: [...scope.querySelectorAll(selector)]
+          .filter((entry) => identity(entry) === key)
+          .indexOf(node),
+      };
+    },
+    restoreWithin(scope, saved) {
+      if (!saved || scope.closest('[inert]')) return;
+      const candidates = [...scope.querySelectorAll(selector)].filter(
+        (entry) => identity(entry) === saved.key,
+      );
+      const node =
+        saved.focused || saved.panelHovered
+          ? candidates[saved.occurrence]
+          : candidates.find((entry) => entry.matches(':hover'));
+      if (!node || node.disabled || node.closest('[inert]')) return;
+      if (saved.focused && document.activeElement !== node) return;
+      dismissed = null;
+      // Resolve fresh context on the replacement; never reuse old inventory or tooltip HTML.
+      show(node, true);
+    },
     closeWithin(scope) {
       if (scope.contains(trigger || pending)) close();
     },

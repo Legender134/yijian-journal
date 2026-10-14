@@ -3202,6 +3202,7 @@ function render(preserve = false, navigationId = null) {
     return;
   }
   // The search/detail overlay remains connected when only the page is redrawn.
+  const previewReading = preserve ? entityPreviews.captureWithin(root) : null;
   entityPreviews.closeWithin(root);
   captureIntentDrafts();
   const replaceRoot = (html) => {
@@ -3426,6 +3427,7 @@ function render(preserve = false, navigationId = null) {
     restoreNavigationFocus();
     restoreReferenceFocus();
     restoreDisclosures();
+    if (disclosureScope === detailFolds.scope) entityPreviews.restoreWithin(root, previewReading);
     return;
   }
   const sidebarScroll = root.querySelector('.sidebar-nav')?.scrollTop || 0;
@@ -3460,6 +3462,7 @@ function render(preserve = false, navigationId = null) {
   restoreNavigationFocus();
   restoreReferenceFocus();
   restoreDisclosures();
+  if (disclosureScope === detailFolds.scope) entityPreviews.restoreWithin(root, previewReading);
 }
 function intentDraftBanner() {
   return `<div class="notice mb">${act('intent-drafts', `继续未完成安排 · ${availableIntentDrafts().length} 份草稿`, 'text-btn')}</div>`;

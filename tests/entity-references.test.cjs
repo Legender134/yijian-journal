@@ -559,7 +559,10 @@ function previewEvents(context = async () => ({})) {
     nodes = [];
   let now = 0,
     nextTimer = 0,
-    observe;
+    observe,
+    afterReplace,
+    nextScope;
+  const folds = { scope: 'synthetic' };
   const element = (parent = null) => {
     const node = {
       parent,
@@ -578,6 +581,9 @@ function previewEvents(context = async () => ({})) {
       },
       removeAttribute(name) {
         this.attributes.delete(name);
+      },
+      focus() {
+        document.activeElement = this;
       },
       contains(node) {
         for (; node; node = node.parent) if (node === this) return true;
@@ -605,10 +611,17 @@ function previewEvents(context = async () => ({})) {
     panel = element(body);
   body.append = () => {};
   root.querySelector = () => null;
-  root.querySelectorAll = () => [];
+  root.querySelectorAll = (selector) =>
+    selector.includes('data-entity-id')
+      ? nodes.filter(
+          (node) => node.isConnected && node !== root && root.contains(node) && node.dataset.entityId,
+        )
+      : [];
   Object.defineProperty(root, 'innerHTML', {
     set() {
       for (const node of nodes) if (node !== root && root.contains(node)) node.isConnected = false;
+      if (root.contains(document.activeElement)) document.activeElement = body;
+      afterReplace?.();
     },
   });
   const eventTarget = (surface) => ({
@@ -643,7 +656,12 @@ function previewEvents(context = async () => ({})) {
       },
     },
   );
-  const previews = install({ document, window, references: { preview: (id) => id }, context });
+  const previews = install({
+    document,
+    window,
+    references: { preview: (id, details) => id + (details?.label ? ' ' + details.label : '') },
+    context,
+  });
   const appSource = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
   const renderStart = appSource.indexOf('function render(');
   const render = vm.runInNewContext(
@@ -662,8 +680,11 @@ function previewEvents(context = async () => ({})) {
       dockLiveChoice: () => {},
       captureIntentDrafts() {},
       profile: () => ({ id: 'synthetic' }),
-      captureDetailFolds: () => new Map(),
-      detailFolds: { scope: 'synthetic' },
+      captureDetailFolds: () => {
+        if (nextScope) folds.scope = nextScope;
+        return new Map();
+      },
+      detailFolds: folds,
       companionMaterialFolds: { profileId: null, values: new Map() },
       compactPage: () => '',
       availableIntentDrafts: () => [],
@@ -678,8 +699,11 @@ function previewEvents(context = async () => ({})) {
     overlay,
     panel,
     previews,
-    redraw() {
+    redraw(replace = null, scope = null) {
+      afterReplace = replace;
+      nextScope = scope;
       render(true);
+      afterReplace = nextScope = null;
       observe();
     },
     entry(parent = overlay) {
@@ -731,7 +755,7 @@ for (const intent of ['focus', 'hover']) {
     assert.equal(entry.isConnected, true);
   });
 
-  test(`background redraw dismisses a ${intent} preview whose entry is replaced`, async () => {
+  test(`background redraw dismisses a ${intent} preview whose entry is no longer present`, async () => {
     const ui = previewEvents(),
       entry = ui.entry(ui.root);
     if (intent === 'focus') ui.document.activeElement = entry;
@@ -744,7 +768,78 @@ for (const intent of ['focus', 'hover']) {
     assert.equal(ui.panel.hidden, true);
     assert.equal(entry.getAttribute('aria-describedby'), null);
   });
+
+  test(`background redraw rebinds a ${intent} body preview and resolves fresh context`, async () => {
+    let label = 'old',
+      calls = 0;
+    const ui = previewEvents(async () => {
+        calls++;
+        return { label };
+      }),
+      entry = ui.entry(ui.root);
+    if (intent === 'focus') ui.document.activeElement = entry;
+    else entry.hovered = true;
+    ui.emit(intent === 'focus' ? 'focusin' : 'pointerover', entry);
+    await ui.tick(240);
+    assert.equal(ui.panel.innerHTML, 'npc-1 old');
+    label = 'fresh';
+    let replacement;
+    ui.redraw(() => {
+      replacement = ui.entry(ui.root);
+      replacement.hovered = intent === 'hover';
+    });
+    await ui.tick(0);
+    assert.equal(entry.isConnected, false);
+    assert.equal(ui.panel.hidden, false);
+    assert.equal(ui.panel.innerHTML, 'npc-1 fresh');
+    assert.equal(replacement.getAttribute('aria-describedby'), 'entity-preview');
+    assert.equal(entry.getAttribute('aria-describedby'), null);
+    assert.equal(calls, 2);
+    if (intent === 'focus') assert.equal(ui.document.activeElement, replacement);
+  });
 }
+
+for (const invalidation of ['pointer moved', 'different entity', 'different quality', 'different context']) {
+  test(`body preview stays closed after ${invalidation}`, async () => {
+    const ui = previewEvents(),
+      entry = ui.entry(ui.root);
+    entry.hovered = true;
+    ui.emit('pointerover', entry);
+    await ui.tick(240);
+    ui.redraw(
+      () => {
+        const replacement = ui.entry(ui.root);
+        replacement.hovered = invalidation !== 'pointer moved';
+        if (invalidation === 'different entity') replacement.dataset.entityId = 'npc-2';
+        if (invalidation === 'different quality') replacement.dataset.qualityId = 'item-2';
+      },
+      invalidation === 'different context' ? 'another-profile' : null,
+    );
+    await ui.tick(0);
+    assert.equal(ui.panel.hidden, true);
+  });
+}
+
+test('a pending body preview discards its old context after rebinding', async () => {
+  const replies = [];
+  const ui = previewEvents(() => new Promise((resolve) => replies.push(resolve)));
+  const entry = ui.entry(ui.root);
+  entry.hovered = true;
+  ui.emit('pointerover', entry);
+  await ui.tick(240);
+  ui.redraw(() => {
+    ui.entry(ui.root).hovered = true;
+  });
+  await ui.tick(0);
+  assert.equal(replies.length, 2);
+  replies[0]({ label: 'stale' });
+  await ui.tick(0);
+  assert.equal(ui.panel.hidden, true);
+  replies[1]({ label: 'current' });
+  await ui.tick(0);
+  assert.equal(ui.panel.hidden, false);
+  assert.equal(ui.panel.innerHTML, 'npc-1 current');
+});
 
 test('pointer exit keeps an asynchronous preview owned by keyboard focus', async () => {
   let complete;

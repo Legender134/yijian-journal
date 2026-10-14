@@ -73,6 +73,31 @@ const pulse = () =>
     await win.locator('.layout').waitFor();
     token = fs.readFileSync(path.join(data, 'game-bridge/token.txt'), 'utf8');
     timer = setInterval(pulse, 250);
+    async function checkBodyPreviews(surface, firstSequence) {
+      const reference = surface.locator('.duel-card [data-entity-id]').first();
+      for (const [offset, intent] of ['hover', 'focus'].entries()) {
+        if (intent === 'hover') await reference.hover();
+        else {
+          await surface.mouse.move(0, 0);
+          await reference.focus();
+        }
+        await surface.locator('#entity-preview').waitFor({ state: 'visible' });
+        const name = await surface.locator('#entity-preview strong').first().innerText();
+        const oldEntry = await reference.elementHandle();
+        current = packet({ sequence: firstSequence + offset });
+        pulse();
+        await surface.waitForFunction((node) => !node.isConnected, oldEntry);
+        await surface.locator('#entity-preview').waitFor({ state: 'visible' });
+        assert.equal(
+          await reference.getAttribute('aria-describedby'),
+          'entity-preview',
+          `${intent} body preview rebinds through a real guidance event`,
+        );
+        assert.equal(await surface.locator('#entity-preview strong').first().innerText(), name);
+        if (intent === 'focus')
+          assert.equal(await reference.evaluate((el) => document.activeElement === el), true);
+      }
+    }
     const choice = '[data-flow-decision="early-woodcutter-axe-choice"]';
     assert.equal(await win.locator(choice).count(), 0, 'the saved reference has not reached the choice');
     await win.locator('.sidebar-nav [data-id="duels"]').click();
@@ -105,6 +130,7 @@ const pulse = () =>
       original,
       'live guidance never saves or chooses for the player',
     );
+    await checkBodyPreviews(win, 2);
     await win.locator('.sidebar-nav [data-id="settings"]').click();
     const readingSummary = win.locator('summary').filter({ hasText: '读取方式与资料说明' });
     await readingSummary.click();
@@ -130,7 +156,7 @@ const pulse = () =>
       el.focus({ preventScroll: true });
       window.__syntheticAction = el;
     });
-    current = packet({ sequence: 2 });
+    current = packet({ sequence: 4 });
     pulse();
     await win.waitForFunction(() => !window.__syntheticAction.isConnected);
     assert.equal(
@@ -161,6 +187,7 @@ const pulse = () =>
       'the current choice remains available on another companion tab',
     );
     await small.screenshot({ path: path.join(output, 'live-choice-brief.png'), animations: 'disabled' });
+    await checkBodyPreviews(small, 5);
     await small.locator(choice + ' > details > summary').click();
     assert.match(
       await small.locator(choice + ' .flow-choices').innerText(),
@@ -207,7 +234,7 @@ const pulse = () =>
     });
     assert(compactScroll > 400, 'the companion starts deep in a real long page');
     await small.locator('.duel-all > summary').evaluate((el) => el.focus({ preventScroll: true }));
-    current = packet({ sequence: 3 });
+    current = packet({ sequence: 7 });
     pulse();
     await small.locator(choice).waitFor({ timeout: 5000 });
     assert(await small.locator('.live-choice-dock ' + choice).isVisible());
@@ -233,13 +260,13 @@ const pulse = () =>
       1,
       'the full task page does not duplicate its live card',
     );
-    current = packet({ sequence: 4, questId: 5076, npcId: 10016 });
+    current = packet({ sequence: 8, questId: 5076, npcId: 10016 });
     pulse();
     await small.locator(choice).waitFor({ state: 'detached', timeout: 5000 });
     const beforeUnknown = await small.locator('.flow-panel').elementHandle();
     session = '1800000001-123456';
     current = packet({
-      sequence: 5,
+      sequence: 9,
       questId: 999999,
       npcId: 0,
       options: [{ index: 1, text: '继续' }],
@@ -257,7 +284,7 @@ const pulse = () =>
     }
     const beforeMultiple = await small.locator('.flow-panel').elementHandle();
     session = '1800000002-123456';
-    current = packet({ sequence: 6, questId: 999999, npcId: 0 });
+    current = packet({ sequence: 10, questId: 999999, npcId: 0 });
     pulse();
     await small.waitForFunction((node) => !node.isConnected, beforeMultiple);
     for (const surface of [win, small]) {
@@ -265,7 +292,7 @@ const pulse = () =>
       assert.equal(await surface.locator('[data-flow-suggestion="early-woodcutter-axe-choice"]').count(), 0);
     }
     current = packet({
-      sequence: 7,
+      sequence: 11,
       questId: 5076,
       npcId: 10016,
       options: [

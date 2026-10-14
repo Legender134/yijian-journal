@@ -303,7 +303,7 @@ function backupPreviewSetup() {
     handbookSuspended: false,
     handbookRequest: 0,
     handbookPresentation: () => null,
-    entityPreviews: { close: noop, closeWithin: noop },
+    entityPreviews: { close: noop, closeWithin: noop, captureWithin: noop, restoreWithin: noop },
     root: { inert: false, querySelector: () => null },
     document: { activeElement: null, querySelector: () => null },
     window: { journal: { timelineRelease: async () => {} } },

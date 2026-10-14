@@ -1803,6 +1803,7 @@ module.exports = {
       decisionSteps: [11061],
       recommendation: {
         hint: '孙老：劝返乡，优先丹药与好感',
+        caution: '攻略记返乡取丹药；另一答法送花换铜钱与铁匠好感。',
         goal: '前期丹药与孙老好感',
         action: '优先劝「趁着还硬朗，回去看看吧」。',
         reason: '较新表记这一线给两种丹药、武学笔记及孙老好感，收益比单纯铜钱更适合前期培养。',

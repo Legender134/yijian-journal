@@ -107,7 +107,7 @@ function renderFoldHarness(compact) {
     companionMaterialFolds: { profileId: null, values: new Map() },
     detailFolds: { scope: '', values: new Map() },
     document: { activeElement: null },
-    entityPreviews: { close() {}, closeWithin() {} },
+    entityPreviews: { close() {}, closeWithin() {}, captureWithin() {}, restoreWithin() {} },
     currentFlow: () => ({ decisions: [] }),
     captureIntentDrafts() {},
     syncItineraryIntentEditors() {},
@@ -842,6 +842,34 @@ test('main and companion stage details no longer render a retired saved choice',
     assert(chapter);
     assert.doesNotMatch(chapter, /程钰去留|先赞成留下|带程钰返武当向清虚复命、讨论去留之前/);
     assert.match(html, /data-flow-rule="chengyu-stay-choice"/, 'offline lookup remains available');
+  }
+});
+
+test('Sun Lao choice keeps a brief alternative payoff visible without expanding all numeric rewards', async () => {
+  const { flowSnapshot } = require('../src/core/flow.cjs');
+  const flow = flowSnapshot(
+    { id: 'synthetic', referenceMode: 'latest' },
+    {
+      name: 'Synthetic.sav',
+      hash: 'synthetic',
+      metadata: {
+        quests: [
+          { id: 5059, step: 4 },
+          { id: 11060, step: 1 },
+          { id: 11061, step: 1 },
+        ],
+        inventory: [],
+      },
+    },
+  );
+  const row = flow.decisions.find((entry) => entry.id === 'early-sun-homesickness-choice');
+  assert(row);
+  for (const compact of [false, true]) {
+    const html = (await views).choice(row, { compact });
+    const brief = html.slice(0, html.indexOf('<details'));
+    assert.match(brief, /返乡取丹药.*送花换铜钱与铁匠好感/);
+    assert.doesNotMatch(brief, /600|好感\+10/);
+    assert.match(html, /600/);
   }
 });
 
