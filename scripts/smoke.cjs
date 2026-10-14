@@ -1906,8 +1906,10 @@ async function companionHomeInventorySync(page) {
     await quick.locator('.compact-shell').waitFor();
     await quick.waitForFunction(() => innerWidth >= 450 && innerHeight >= 640);
     await quick.keyboard.press('Escape');
+    // The companion is hidden now; inspect its shared controller state from the
+    // visible window so background renderer scheduling cannot stall the check.
     assert.equal(
-      await quick.evaluate(async () => (await window.journal.companionSnapshot()).data.mode),
+      await win.evaluate(async () => (await window.journal.companionSnapshot()).data.mode),
       'hint',
     );
     assert.equal(

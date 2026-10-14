@@ -153,6 +153,13 @@ function rendererHarness() {
     drafts: new Map([['synthetic-note-profile', 'pending note']]),
     saveNote: async () => {},
     render() {},
+    root: {},
+    previewRefreshes: 0,
+    entityPreviews: {
+      refreshOutside() {
+        context.previewRefreshes++;
+      },
+    },
     toast() {},
     journeyDraft: null,
     worldView: {},
@@ -198,14 +205,17 @@ test('unchanged background refresh retains the page while changed data and expli
   requests.shift()(JSON.parse(JSON.stringify(context.environment)));
   await pending;
   assert.equal(renders, 0);
+  assert.equal(context.previewRefreshes, 0);
   pending = context.refresh(true);
   requests.shift()({ ...context.environment, recent: { name: 'synthetic-updated.sav' } });
   await pending;
   assert.equal(renders, 1);
+  assert.equal(context.previewRefreshes, 1);
   pending = context.refresh();
   requests.shift()(JSON.parse(JSON.stringify(context.environment)));
   await pending;
   assert.equal(renders, 2, 'an explicit refresh can render a newly selected page with unchanged data');
+  assert.equal(context.previewRefreshes, 2);
 });
 test('superseding refresh cannot turn a durable failure into an unrecorded generic failure', async () => {
   const { context, requests, operations } = rendererHarness(),

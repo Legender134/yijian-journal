@@ -566,6 +566,9 @@ function previewEvents(context = async () => ({})) {
   const element = (parent = null) => {
     const node = {
       parent,
+      get parentElement() {
+        return this.parent;
+      },
       dataset: {},
       style: {},
       attributes: new Map(),
@@ -711,6 +714,11 @@ function previewEvents(context = async () => ({})) {
       node.dataset.entityId = 'npc-1';
       return node;
     },
+    container(parent, attributes) {
+      const node = element(parent);
+      for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+      return node;
+    },
     emit(type, target, extra = {}, surface = 'document') {
       const event = {
         target,
@@ -839,6 +847,63 @@ test('a pending body preview discards its old context after rebinding', async ()
   await ui.tick(0);
   assert.equal(ui.panel.hidden, false);
   assert.equal(ui.panel.innerHTML, 'npc-1 current');
+});
+
+test('a new dock copy cannot take the focus or preview of an offline guide reference', async () => {
+  const ui = previewEvents();
+  const entry = ui.entry(ui.container(ui.root, { 'data-flow-rule': 'woodcutter' }));
+  ui.document.activeElement = entry;
+  ui.emit('focusin', entry);
+  await ui.tick(0);
+  let dock, body;
+  ui.redraw(() => {
+    dock = ui.entry(ui.container(ui.root, { 'data-flow-decision': 'woodcutter' }));
+    body = ui.entry(ui.container(ui.root, { 'data-flow-rule': 'woodcutter' }));
+  });
+  await ui.tick(0);
+  assert.equal(ui.document.activeElement, body);
+  assert.equal(body.getAttribute('aria-describedby'), 'entity-preview');
+  assert.equal(dock.getAttribute('aria-describedby'), null);
+});
+
+for (const fixed of [false, true]) {
+  test(`${fixed ? 'fixed' : 'following'} connected overlay preview rechecks its effective reference in place`, async () => {
+    let latest = '5',
+      calls = 0;
+    const ui = previewEvents(async () => {
+      calls++;
+      return { label: fixed ? 'snapshot-5' : latest };
+    });
+    const entry = ui.entry();
+    ui.document.activeElement = entry;
+    ui.emit('focusin', entry);
+    await ui.tick(0);
+    latest = '9';
+    ui.redraw();
+    ui.previews.refreshOutside(ui.root);
+    assert.equal(ui.panel.hidden, false, 'refresh does not hide the connected popup while reading');
+    await ui.tick(0);
+    assert.equal(ui.panel.innerHTML, fixed ? 'npc-1 snapshot-5' : 'npc-1 9');
+    assert.equal(ui.document.activeElement, entry);
+    assert.equal(entry.isConnected, true);
+    assert.equal(calls, 2);
+  });
+}
+
+test('late old overlay context cannot overwrite a more recent refresh', async () => {
+  const replies = [];
+  const ui = previewEvents(() => new Promise((resolve) => replies.push(resolve)));
+  const entry = ui.entry();
+  entry.hovered = true;
+  ui.emit('pointerover', entry);
+  await ui.tick(240);
+  ui.previews.refreshOutside(ui.root);
+  await ui.tick(0);
+  replies[1]({ label: 'new' });
+  await ui.tick(0);
+  replies[0]({ label: 'old' });
+  await ui.tick(0);
+  assert.equal(ui.panel.innerHTML, 'npc-1 new');
 });
 
 test('pointer exit keeps an asynchronous preview owned by keyboard focus', async () => {

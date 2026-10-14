@@ -13,8 +13,15 @@ const data = path.join(output, 'state');
 const source = path.join(data, '76561190000000000', 'SaveGames');
 fs.mkdirSync(source, { recursive: true });
 const saveFile = path.join(source, '1.sav');
-const writeSave = (quests) => {
-  const bytes = syntheticSave({ full: true, map: 'LV_25_P', quests, trackingQuest: 0, trackingMainQuest: 0 });
+const writeSave = (quests, inventory = []) => {
+  const bytes = syntheticSave({
+    full: true,
+    map: 'LV_25_P',
+    quests,
+    inventory,
+    trackingQuest: 0,
+    trackingMainQuest: 0,
+  });
   fs.writeFileSync(saveFile, bytes);
   fs.utimesSync(saveFile, new Date('2020-01-01'), new Date('2020-01-01'));
   return bytes;
@@ -311,6 +318,86 @@ const pulse = () =>
       );
     }
     assert.deepEqual(fs.readFileSync(saveFile), oldChoice);
+    current = null;
+    writeSave([{ id: 5020, step: 1 }]);
+    pulse();
+    await win.locator('[data-flow-decision="early-jingyin-weapon-choice"]').waitFor({ state: 'detached' });
+    await win.locator('.sidebar-nav [data-id="checklist"]').click();
+    const offlineQuest = win
+      .locator('.flow-guide [data-flow-rule="early-woodcutter-axe-choice"] [data-id="quest-11002"]')
+      .first();
+    await offlineQuest.evaluate((el) => {
+      for (let parent = el.parentElement; parent; parent = parent.parentElement)
+        if (parent.tagName === 'DETAILS') parent.open = true;
+      el.scrollIntoView({ block: 'center' });
+      el.focus();
+    });
+    await win.locator('#entity-preview').waitFor({ state: 'visible' });
+    const oldOfflineQuest = await offlineQuest.elementHandle();
+    current = packet({ sequence: 12 });
+    pulse();
+    await win.waitForFunction((node) => !node.isConnected, oldOfflineQuest);
+    assert.equal(
+      await offlineQuest.evaluate((el) => document.activeElement === el),
+      true,
+      'a new dock copy does not steal focus from the offline guide',
+    );
+    await win.locator('#entity-preview').waitFor({ state: 'visible' });
+    assert.equal(await offlineQuest.getAttribute('aria-describedby'), 'entity-preview');
+    assert((await win.locator('.live-choice-dock [data-id="quest-11002"]').count()) > 0);
+    const stockQuests = [
+      { id: 11002, step: 1 },
+      { id: 11005, step: 1 },
+    ];
+    const stock = (count, sequence) => {
+      const bytes = writeSave(stockQuests, [{ id: 10201, count }]);
+      current = { ...current, sequence };
+      pulse();
+      return bytes;
+    };
+    stock(5, 13);
+    await win.locator('[data-action="search"]').first().click();
+    await win.locator('#global-search').fill('铁矿石');
+    const searchItem = win.locator('.search-result[data-id="item-10201"]').first();
+    await searchItem.hover();
+    await win.locator('#entity-preview').filter({ hasText: '保存持有 5' }).waitFor();
+    const keptSearch = await searchItem.elementHandle();
+    stock(9, 14);
+    await win.locator('#entity-preview').filter({ hasText: '保存持有 9' }).waitFor({ timeout: 10000 });
+    assert.equal(await keptSearch.evaluate((el) => el.isConnected), true, 'search markup remains connected');
+    await win.locator('#global-search').fill('樵夫的斧子');
+    await win.locator('.search-result[data-id="quest-11002"]').click();
+    const taskItem = win.locator('[data-task-relations] [data-id="item-10201"]').first();
+    await taskItem.scrollIntoViewIfNeeded();
+    await taskItem.focus();
+    await win.locator('#entity-preview').filter({ hasText: '保存持有 9' }).waitFor();
+    const oldTaskItem = await taskItem.elementHandle();
+    stock(13, 15);
+    await win.waitForFunction((node) => !node.isConnected, oldTaskItem);
+    await win.locator('#entity-preview').filter({ hasText: '保存持有 13' }).waitFor({ timeout: 10000 });
+    assert.equal(
+      await taskItem.evaluate((el) => document.activeElement === el),
+      true,
+      'world task overlay refresh preserves its reference focus',
+    );
+    await win.locator('[data-action="close-overlay"]').click();
+    await win.locator('[data-action="search"]').first().click();
+    await win.locator('#global-search').fill('铁锭');
+    await win.locator('.search-result[data-id="fusion-9500"]').click();
+    const recipeItem = win.locator('.drawer-body [data-id="item-10201"]').first();
+    await recipeItem.scrollIntoViewIfNeeded();
+    await recipeItem.focus();
+    await win.locator('#entity-preview').filter({ hasText: '保存持有 13' }).waitFor();
+    const oldRecipeItem = await recipeItem.elementHandle();
+    const lastStock = stock(17, 16);
+    await win.waitForFunction((node) => !node.isConnected, oldRecipeItem);
+    await win.locator('#entity-preview').filter({ hasText: '保存持有 17' }).waitFor({ timeout: 10000 });
+    assert.equal(
+      await recipeItem.evaluate((el) => document.activeElement === el),
+      true,
+      'database overlay refresh preserves its reference focus',
+    );
+    assert.deepEqual(fs.readFileSync(saveFile), lastStock);
     assert.deepEqual(errors, []);
     console.log(
       'Live guidance PASS: pre-save advice, both windows, other tab, close retirement, reopen and unmatched-dialogue isolation;',

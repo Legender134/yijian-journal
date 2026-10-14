@@ -285,17 +285,63 @@ export function installEntityPreviews({ document, window, references, context })
     pending = null,
     timer,
     hideTimer,
+    request = 0,
     dismissed = null;
   const selector =
     '[data-entity-id], [data-action="database-detail"][data-id], [data-action="world-quest"][data-id], [data-action="flow-quest"][data-id], [data-action="world-place"][data-id]';
   const eligible = (node) => node?.closest?.(selector);
+  const focusSelector = selector + ', button[data-action], summary';
   const identity = (node) =>
     JSON.stringify([
+      node.tagName || '',
       node.dataset.entityId || node.dataset.id,
       node.dataset.action || '',
       node.dataset.qualityId || '',
+      !node.dataset.entityId &&
+      !node.dataset.id &&
+      !node.dataset.action &&
+      !['id', 'data-persist-detail', 'data-compact-detail'].some((name) =>
+        node.parentElement?.getAttribute(name),
+      )
+        ? node.textContent
+        : '',
+      !node.dataset.entityId && !node.dataset.id ? node.getAttribute('aria-label') || '' : '',
+      !eligible(node) ? Object.entries(node.dataset).sort(([a], [b]) => a.localeCompare(b)) : null,
+      !eligible(node) ? node.getAttribute('aria-label') || '' : '',
     ]);
+  const anchors = [
+    'id',
+    'data-persist-detail',
+    'data-compact-detail',
+    'data-flow-decision',
+    'data-flow-rule',
+    'data-flow-now',
+    'data-flow-quest',
+    'data-duel',
+    'data-task-relations',
+    'data-person-relations',
+    'data-flow-suggestion',
+    'data-flow-impact',
+    'data-community-pickup',
+  ];
+  const locationKey = (scope, node) => {
+    const path = [];
+    for (let parent = node.parentElement; parent && parent !== scope; parent = parent.parentElement) {
+      const keys = anchors
+        .map((name) => [name, parent.getAttribute(name)])
+        .filter(([, value]) => value !== null);
+      if (keys.length) path.unshift(keys);
+    }
+    return JSON.stringify([identity(node), path]);
+  };
+  const candidates = (scope, key) =>
+    [...scope.querySelectorAll(focusSelector)].filter((node) => locationKey(scope, node) === key);
+  const locate = (scope, node) => {
+    const key = locationKey(scope, node);
+    return { key, occurrence: candidates(scope, key).indexOf(node) };
+  };
   const close = (dismissCurrent = false) => {
+    ++request;
     if (dismissCurrent === true) dismissed = trigger || pending || eligible(document.activeElement);
     clearTimeout(timer);
     clearTimeout(hideTimer);
@@ -321,32 +367,41 @@ export function installEntityPreviews({ document, window, references, context })
         ),
       ) + 'px';
   };
+  const readContext = (node, delay = 0) => {
+    const current = ++request;
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      if (current !== request) return;
+      if (!node.isConnected || node.disabled) return close();
+      let details;
+      try {
+        details = await context(node);
+      } catch {
+        details = {};
+      }
+      if (
+        current !== request ||
+        (pending !== node && trigger !== node) ||
+        !node.isConnected ||
+        node.closest('[inert]')
+      )
+        return;
+      const html = references.preview(node.dataset.entityId || node.dataset.id, details);
+      if (!html) return close();
+      trigger = node;
+      pending = null;
+      if (panel.innerHTML !== html) panel.innerHTML = html;
+      panel.hidden = false;
+      node.setAttribute('aria-describedby', panel.id);
+      position();
+    }, delay);
+  };
   const show = (node, immediate = false) => {
     clearTimeout(hideTimer);
     if (!node || node === dismissed || node === trigger || node === pending || node.disabled) return;
     close();
     pending = node;
-    timer = setTimeout(
-      async () => {
-        if (!node.isConnected || node.disabled) return close();
-        let details;
-        try {
-          details = await context(node);
-        } catch {
-          details = {};
-        }
-        if (pending !== node || !node.isConnected || node.closest('[inert]')) return;
-        const html = references.preview(node.dataset.entityId || node.dataset.id, details);
-        if (!html) return close();
-        trigger = node;
-        pending = null;
-        panel.innerHTML = html;
-        panel.hidden = false;
-        node.setAttribute('aria-describedby', panel.id);
-        position();
-      },
-      immediate ? 0 : 240,
-    );
+    readContext(node, immediate ? 0 : 240);
   };
   const leave = () => {
     clearTimeout(hideTimer);
@@ -424,31 +479,54 @@ export function installEntityPreviews({ document, window, references, context })
   });
   return {
     close,
+    captureFocusWithin(scope) {
+      const active = document.activeElement;
+      const node =
+        eligible(active) ||
+        (active?.matches?.('button[data-action], summary') &&
+        !active.dataset.action?.startsWith('journey-itinerary-')
+          ? active
+          : null);
+      return node && scope.contains(node) ? locate(scope, node) : null;
+    },
+    restoreFocusWithin(scope, saved) {
+      if (!saved || scope.closest('[inert]')) return;
+      const node = candidates(scope, saved.key)[saved.occurrence];
+      if (!node || node.disabled || node.closest('[inert]')) return;
+      node.focus({ preventScroll: true });
+      close(true);
+    },
+    refreshOutside(scope) {
+      const node = trigger || pending;
+      if (!node || scope.contains(node)) return;
+      if (
+        !node.isConnected ||
+        node.disabled ||
+        node.closest('[inert]') ||
+        (!node.matches(':hover') && !panel.matches(':hover') && document.activeElement !== node)
+      )
+        return close();
+      readContext(node);
+    },
     captureWithin(scope) {
       const node = trigger || pending;
       if (!node || !scope.contains(node)) return null;
       const focused = document.activeElement === node;
       const panelHovered = panel.matches(':hover');
       if (!focused && !node.matches(':hover') && !panelHovered) return null;
-      const key = identity(node);
       return {
-        key,
+        ...locate(scope, node),
         focused,
         panelHovered,
-        occurrence: [...scope.querySelectorAll(selector)]
-          .filter((entry) => identity(entry) === key)
-          .indexOf(node),
       };
     },
     restoreWithin(scope, saved) {
       if (!saved || scope.closest('[inert]')) return;
-      const candidates = [...scope.querySelectorAll(selector)].filter(
-        (entry) => identity(entry) === saved.key,
-      );
+      const matches = candidates(scope, saved.key);
       const node =
         saved.focused || saved.panelHovered
-          ? candidates[saved.occurrence]
-          : candidates.find((entry) => entry.matches(':hover'));
+          ? matches[saved.occurrence]
+          : matches.find((entry) => entry.matches(':hover'));
       if (!node || node.disabled || node.closest('[inert]')) return;
       if (saved.focused && document.activeElement !== node) return;
       dismissed = null;

@@ -3252,95 +3252,20 @@ function render(preserve = false, navigationId = null) {
     focusId = preserve ? active?.id : null,
     selection = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null,
     fieldValue = active && active.dataset?.persist ? active.value : null;
-  const focusedSummary = preserve && root.contains(active) && active?.tagName === 'SUMMARY';
-  const summaryScope = focusedSummary
-    ? active.closest('details[data-persist-detail], details[data-compact-detail]')
-    : null;
-  const summaryFocus = summaryScope
-    ? {
-        key: summaryScope.dataset.persistDetail || summaryScope.dataset.compactDetail,
-        attribute: summaryScope.dataset.persistDetail ? 'data-persist-detail' : 'data-compact-detail',
-        index: [...summaryScope.querySelectorAll('summary')].indexOf(active),
-      }
-    : focusedSummary
-      ? {
-          text: active.textContent,
-          index: [...root.querySelectorAll('summary')]
-            .filter((el) => el.textContent === active.textContent)
-            .indexOf(active),
-        }
-      : null;
   const previousDock = preserve ? root.querySelector('.live-choice-dock') : null;
   const dockReading = previousDock
     ? { key: previousDock.dataset.choiceKey, scroll: previousDock.scrollTop }
     : null;
   const disclosureScope = detailFolds.scope;
-  const actionIdentity = (el) =>
-    JSON.stringify([
-      Object.entries(el.dataset).sort(([a], [b]) => a.localeCompare(b)),
-      el.getAttribute('aria-label'),
-    ]);
-  const focusedAction =
-    preserve &&
-    !focusId &&
-    root.contains(active) &&
-    active?.tagName === 'BUTTON' &&
-    active.dataset.action &&
-    !active.dataset.entityId &&
-    active.dataset.action !== 'navigate' &&
-    !active.dataset.action.startsWith('journey-itinerary-');
-  const actionFocus = focusedAction
-    ? {
-        key: actionIdentity(active),
-        occurrence: [...root.querySelectorAll('button[data-action]')]
-          .filter((el) => actionIdentity(el) === actionIdentity(active))
-          .indexOf(active),
-      }
-    : null;
-  const restoreActionFocus = () => {
-    if (!actionFocus || root.inert || disclosureScope !== detailFolds.scope) return;
-    const next = [...root.querySelectorAll('button[data-action]')].filter(
-      (el) => actionIdentity(el) === actionFocus.key,
-    )[actionFocus.occurrence];
-    if (next && !next.disabled) next.focus({ preventScroll: true });
-  };
   const restoreDisclosures = () => {
     if (disclosureScope !== detailFolds.scope) return;
     const dock = root.querySelector('.live-choice-dock');
     if (dockReading && dock?.dataset.choiceKey === dockReading.key) dock.scrollTop = dockReading.scroll;
-    if (!summaryFocus || root.inert) return;
-    if (!summaryFocus.attribute) {
-      [...root.querySelectorAll('summary')]
-        .filter((el) => el.textContent === summaryFocus.text)
-        [summaryFocus.index]?.focus({ preventScroll: true });
-      return;
-    }
-    const next = [...root.querySelectorAll('details[' + summaryFocus.attribute + ']')].find(
-      (el) => el.getAttribute(summaryFocus.attribute) === summaryFocus.key,
-    );
-    next?.querySelectorAll('summary')[summaryFocus.index]?.focus({ preventScroll: true });
   };
-  const referenceFocus =
-    preserve && root.contains(active) && active?.dataset?.entityId
-      ? {
-          action: active.dataset.action,
-          id: active.dataset.entityId,
-          occurrence: [...root.querySelectorAll('[data-entity-id]')]
-            .filter(
-              (el) =>
-                el.dataset.action === active.dataset.action &&
-                el.dataset.entityId === active.dataset.entityId,
-            )
-            .indexOf(active),
-        }
-      : null;
+  const referenceFocus = preserve ? entityPreviews.captureFocusWithin(root) : null;
   const restoreReferenceFocus = () => {
-    if (!referenceFocus || root.inert) return;
-    const next = [...root.querySelectorAll('[data-entity-id]')].filter(
-      (el) => el.dataset.action === referenceFocus.action && el.dataset.entityId === referenceFocus.id,
-    )[referenceFocus.occurrence];
-    next?.focus({ preventScroll: true });
-    entityPreviews.close(true);
+    if (!root.inert && disclosureScope === detailFolds.scope)
+      entityPreviews.restoreFocusWithin(root, referenceFocus);
   };
   navigationId ||=
     root.contains(active) && active.matches('.sidebar-nav .nav-btn, .companion-tabs [data-action="navigate"]')
@@ -3422,7 +3347,6 @@ function render(preserve = false, navigationId = null) {
           field.setSelectionRange(...selection);
       }
     }
-    restoreActionFocus();
     restoreItineraryFocus();
     restoreNavigationFocus();
     restoreReferenceFocus();
@@ -3457,7 +3381,6 @@ function render(preserve = false, navigationId = null) {
         } catch {}
     }
   }
-  restoreActionFocus();
   restoreItineraryFocus();
   restoreNavigationFocus();
   restoreReferenceFocus();
@@ -3468,6 +3391,8 @@ function intentDraftBanner() {
   return `<div class="notice mb">${act('intent-drafts', `继续未完成安排 · ${availableIntentDrafts().length} 份草稿`, 'text-btn')}</div>`;
 }
 function showOverlay(html, drawer = false, preserve = false, opener = null, retainDrawer = false) {
+  const previewReading = preserve ? entityPreviews.captureWithin(overlay) : null;
+  const referenceFocus = preserve ? entityPreviews.captureFocusWithin(overlay) : null;
   entityPreviews.close();
   ++backupPreviewRequest;
   if (
@@ -3540,6 +3465,10 @@ function showOverlay(html, drawer = false, preserve = false, opener = null, reta
       e.open = opened.includes(e.id || e.querySelector('summary')?.textContent);
   if (preserve && overlay.querySelector('.drawer-body'))
     overlay.querySelector('.drawer-body').scrollTop = oldScroll;
+  if (preserve) {
+    entityPreviews.restoreFocusWithin(overlay, referenceFocus);
+    entityPreviews.restoreWithin(overlay, previewReading);
+  }
   if (currentDrawer?.type === 'timeline' && submittingNodes.has(currentDrawer.data.record.id))
     nodeControlsDisabled(currentDrawer.data.record.id, true);
   if (currentDrawer?.type === 'timeline') updateHealth(environment.health);
@@ -4252,6 +4181,7 @@ async function refresh(background = false) {
     await showDatabaseDetail(currentDrawer.id, currentDrawer.quantity || 1, currentDrawer.giftPage);
   if ((!background || changed) && currentDrawer?.type === 'search' && !composing)
     showSearchResults(currentDrawer.query);
+  if (token === refreshRequest && (!background || changed)) entityPreviews.refreshOutside(root);
 }
 async function handle(action, id, target, navigationFocused = false) {
   let readingRequest;
@@ -8094,6 +8024,7 @@ try {
       invalidateRecipeDiscovery();
     }
     if (referenceChanged) {
+      entityPreviews.close();
       invalidateBackupPreview('存档来源或回顾选择已改变，旧预览已失效。请重新校验后再恢复。');
       resetPlanningViews();
       if (currentId !== state.activeProfileId) {
