@@ -568,15 +568,6 @@ function createFlowProjector({
         consequence: r.warning || '社区资料标注此处为接取窗口边界，推进前请核对。',
         affectedTasks: r.affectedTasks,
       }));
-    if (chapter && changes[0])
-      chapter.next = {
-        title: changes[0].triggerName,
-        questId:
-          quests.get(
-            relevantRules.find((r) => r.id === changes[0].id)?.untilAnyStarted?.[0] ||
-              relevantRules.find((r) => r.id === changes[0].id)?.untilAnyComplete?.[0],
-          )?.id || null,
-      };
     const opportunities = relevantRules.filter(
       (r) => r.kind !== 'stage' && !r.activeRule && !r.deadlineReached,
     );
@@ -726,7 +717,15 @@ function createFlowProjector({
       })),
       guide: projectedRules,
     };
-    return withLiveDialogue(result, dialogue, quests);
+    const projected = withLiveDialogue(result, dialogue, quests);
+    if (chapter && projected.changes[0]) {
+      const next = relevantRules.find((r) => r.id === projected.changes[0].id);
+      chapter.next = {
+        title: projected.changes[0].triggerName,
+        questId: quests.get(next?.untilAnyStarted?.[0] || next?.untilAnyComplete?.[0])?.id || null,
+      };
+    }
+    return projected;
   }
   return { flowSnapshot: snapshot };
 }

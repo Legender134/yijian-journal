@@ -49,19 +49,22 @@ const optionText = (value) =>
 
 function withLiveDialogue(flow, context, quests) {
   if (flow.referenceMode !== 'latest' || !context) return flow;
+  const rules = new Map((flow.guide || []).map((rule) => [rule.id, rule]));
   const choiceSteps = new Set((flow.guide || []).flatMap((rule) => rule.decisionSteps || []));
   const suppressed = new Set(
     (Array.isArray(context.suppressedQuestIds) ? context.suppressedQuestIds : []).filter((id) =>
       choiceSteps.has(id),
     ),
   );
-  const visible = (rule) => !(rule.decisionSteps || []).some((id) => suppressed.has(id));
+  const original = (row) => rules.get(row.id) || row;
+  const visible = (row) => !(original(row).decisionSteps || []).some((id) => suppressed.has(id));
   const base = {
     ...flow,
     decisions: (flow.decisions || []).filter(visible),
     warnings: (flow.warnings || []).filter(visible),
     advice: (flow.advice || []).filter(visible),
     opportunities: (flow.opportunities || []).filter(visible),
+    changes: (flow.changes || []).filter(visible),
   };
   const dialogue = readDialogue(context.dialogue);
   if (!dialogue) return base;
@@ -108,7 +111,7 @@ function withLiveDialogue(flow, context, quests) {
   const current = candidates.length === 1 ? candidates[0] : null;
   // An open native window also supersedes saved choices offered as advice or
   // warnings. Keep ordinary tasks/risks and the complete offline guide.
-  const ordinary = (rows) => rows.filter((rule) => !(rule.choices?.length > 1));
+  const ordinary = (rows) => rows.filter((row) => !(original(row).choices?.length > 1));
   return {
     ...base,
     // A different open choice must not inherit a saved recommendation from another conversation.
@@ -116,6 +119,7 @@ function withLiveDialogue(flow, context, quests) {
     warnings: ordinary(base.warnings),
     advice: ordinary(base.advice),
     opportunities: ordinary(base.opportunities),
+    changes: ordinary(base.changes),
     liveDialogue: {
       sequence: dialogue.sequence,
       questId: dialogue.questId,

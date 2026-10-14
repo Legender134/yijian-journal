@@ -816,6 +816,35 @@ test('reading an old choice cannot open a different choice after the saved stage
   );
 });
 
+test('main and companion stage details no longer render a retired saved choice', async () => {
+  const { flowSnapshot } = require('../src/core/flow.cjs');
+  const view = await views;
+  const flow = flowSnapshot(
+    { id: 'synthetic', referenceMode: 'latest' },
+    {
+      name: 'Synthetic.sav',
+      hash: 'synthetic',
+      metadata: {
+        trackingMainQuest: 5820,
+        quests: [
+          { id: 5820, step: 1 },
+          { id: 5821, step: 1 },
+        ],
+        inventory: [],
+      },
+    },
+    '',
+    { dialogue: null, suppressedQuestIds: [5821] },
+  );
+  for (const compact of [false, true]) {
+    const html = view.panel(flow, { compact });
+    const chapter = html.match(/<section class="flow-chapter">([\s\S]*?)<\/section>/)?.[1];
+    assert(chapter);
+    assert.doesNotMatch(chapter, /程钰去留|先赞成留下|带程钰返武当向清虚复命、讨论去留之前/);
+    assert.match(html, /data-flow-rule="chengyu-stay-choice"/, 'offline lookup remains available');
+  }
+});
+
 test('unavailable main progress shows one useful status and keeps offline guides reachable', async () => {
   const view = await views;
   const chapters = [{ name: '合成章节', roots: [{ id: 'quest-1', name: '合成任务' }] }];

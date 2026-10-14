@@ -118,6 +118,25 @@ const pulse = () =>
       true,
       'an unkeyed settings disclosure also retains focus',
     );
+    const spoiler = win.locator('button[data-action="spoiler"]');
+    const spoilerState = await spoiler.getAttribute('aria-checked');
+    await spoiler.evaluate((el) => {
+      el.focus({ preventScroll: true });
+      window.__syntheticAction = el;
+    });
+    current = packet({ sequence: 2 });
+    pulse();
+    await win.waitForFunction(() => !window.__syntheticAction.isConnected);
+    assert.equal(
+      await spoiler.evaluate((el) => document.activeElement === el),
+      true,
+      'a real guidance event preserves an ordinary settings button focus',
+    );
+    assert.equal(
+      await spoiler.getAttribute('aria-checked'),
+      spoilerState,
+      'restoring focus does not activate the switch',
+    );
     const opened = app.waitForEvent('window');
     await win.locator('[data-action="compact"]').first().click();
     const small = await opened;
@@ -177,7 +196,7 @@ const pulse = () =>
     });
     assert(compactScroll > 400, 'the companion starts deep in a real long page');
     await small.locator('.duel-all > summary').evaluate((el) => el.focus({ preventScroll: true }));
-    current = packet({ sequence: 2 });
+    current = packet({ sequence: 3 });
     pulse();
     await small.locator(choice).waitFor({ timeout: 5000 });
     assert(await small.locator('.live-choice-dock ' + choice).isVisible());
@@ -203,13 +222,13 @@ const pulse = () =>
       1,
       'the full task page does not duplicate its live card',
     );
-    current = packet({ sequence: 3, questId: 5076, npcId: 10016 });
+    current = packet({ sequence: 4, questId: 5076, npcId: 10016 });
     pulse();
     await small.locator(choice).waitFor({ state: 'detached', timeout: 5000 });
     const beforeUnknown = await small.locator('.flow-panel').elementHandle();
     session = '1800000001-123456';
     current = packet({
-      sequence: 4,
+      sequence: 5,
       questId: 999999,
       npcId: 0,
       options: [{ index: 1, text: '继续' }],
@@ -227,7 +246,7 @@ const pulse = () =>
     }
     const beforeMultiple = await small.locator('.flow-panel').elementHandle();
     session = '1800000002-123456';
-    current = packet({ sequence: 5, questId: 999999, npcId: 0 });
+    current = packet({ sequence: 6, questId: 999999, npcId: 0 });
     pulse();
     await small.waitForFunction((node) => !node.isConnected, beforeMultiple);
     for (const surface of [win, small]) {
@@ -235,7 +254,7 @@ const pulse = () =>
       assert.equal(await surface.locator('[data-flow-suggestion="early-woodcutter-axe-choice"]').count(), 0);
     }
     current = packet({
-      sequence: 6,
+      sequence: 7,
       questId: 5076,
       npcId: 10016,
       options: [

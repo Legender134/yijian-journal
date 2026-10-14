@@ -129,9 +129,10 @@ test('an open choice isolates every recommendation carrier and keeps ordinary ri
     warnings: [old, ordinary],
     advice: [old, ordinary],
     opportunities: [old, ordinary],
+    changes: [{ id: old.id }, ordinary],
   };
   const unknown = withLiveDialogue(base, context(dialogue({ questId: 999999 })), new Map());
-  for (const rows of [unknown.warnings, unknown.advice, unknown.opportunities])
+  for (const rows of [unknown.warnings, unknown.advice, unknown.opportunities, unknown.changes])
     assert.deepEqual(rows, [ordinary]);
   assert(unknown.guide.some((row) => row.id === choiceId));
   const other = saved.guide.find((row) => row.id === 'early-jingyin-weapon-choice');
@@ -153,6 +154,28 @@ test('an open choice isolates every recommendation carrier and keeps ordinary ri
   );
   for (const rows of [matched.warnings, matched.advice, matched.opportunities])
     assert(!rows.some((row) => row.choices?.length > 1));
+});
+
+test('retired and superseded choices leave stage changes and their derived next node', () => {
+  const saved = reference([
+    { id: 5820, step: 1 },
+    { id: 5821, step: 1 },
+  ]);
+  saved.metadata.trackingMainQuest = 5820;
+  const before = flowSnapshot(profile, saved);
+  assert(before.changes.some((row) => row.id === 'chengyu-stay-choice'));
+  assert.match(before.chapter.next.title, /程钰/);
+  for (const live of [
+    context(null, [5821]),
+    context(dialogue({ questId: 999999, npcId: 0, options: [{ index: 1, text: '继续' }] })),
+    context(dialogue()),
+  ]) {
+    const after = flowSnapshot(profile, saved, '', live);
+    for (const rows of [after.decisions, after.warnings, after.advice, after.opportunities, after.changes])
+      assert(!rows.some((row) => row.id === 'chengyu-stay-choice'));
+    assert.doesNotMatch(after.chapter.next?.title || '', /程钰/);
+    assert(after.guide.some((row) => row.id === 'chengyu-stay-choice'));
+  }
 });
 
 test('a first single-option window reaches the bridge and removes old choices from lightweight hints', () => {
