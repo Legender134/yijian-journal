@@ -106,12 +106,22 @@ test('historical lookup suppresses live NPC and route projection; withdrawal ret
 
 test('current checkpoint consequences are visible before disclosure in both windows', async () => {
   const { createFlowViews } = await import('../src/renderer/flow-views.js');
+  const { createEntityReferences } = await import('../src/renderer/entity-references.js');
+  const index = require('../src/core/game-data.cjs').encyclopedia();
+  const references = createEntityReferences({
+    index: () => index,
+    esc: String,
+    picture: (id) => `<span data-picture="${id}"></span>`,
+    icon: () => '',
+    qualityText: { html: (_, text) => text },
+  });
   const view = createFlowViews({
     esc: String,
     icon: () => '',
     pill: String,
     when: String,
-    act: (action, label, cls, id) => `<button data-action="${action}" data-id="${id}">${label}</button>`,
+    act: references.button,
+    richText: (value) => references.text(value, 'flow-quest'),
   });
   const id = 'chenlinxi-recruit-followup';
   for (const [friend, affectedStep, expected] of [
@@ -134,9 +144,14 @@ test('current checkpoint consequences are visible before disclosure in both wind
       );
       assert(start > 0);
       const visible = html.slice(start, html.indexOf(compact ? '</summary>' : '<details', start));
-      assert.match(visible, expected);
+      assert.match(visible.replace(/<[^>]*>/g, ''), expected);
       assert.doesNotMatch(visible, /再在武馆与他对话/);
       if (affectedStep === 4) assert.doesNotMatch(visible, /线索也会失败/);
+      if (affectedStep === 1 && friend !== 69) {
+        assert.match(visible, /data-action="flow-quest" data-id="quest-11272"/);
+        assert.match(visible, /data-entity-id="quest-11272"/);
+        assert.match(visible, /data-picture="quest-11272"/);
+      }
     }
   }
   for (const branch of [12095, 12098]) {

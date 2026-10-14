@@ -389,6 +389,16 @@ const pulse = () => {
           [selector, pattern],
         );
         assert.equal(await page.locator(selector).isVisible(), true);
+        if (friend !== 69) {
+          const affectedQuest = page.locator(selector + ' [data-entity-id="quest-11272"]');
+          assert.equal(await affectedQuest.isVisible(), true);
+          if (friend === 70) {
+            await affectedQuest.focus();
+            await page.locator('#entity-preview').filter({ hasText: '进行中' }).waitFor();
+            await affectedQuest.press('Escape');
+            await page.locator('#entity-preview').waitFor({ state: 'hidden' });
+          }
+        }
       }
       await small.screenshot({
         animations: 'disabled',

@@ -69,6 +69,9 @@ export function entityCatalog(index) {
   // wording once, rather than storing entity links in every sentence.
   const initiation = entries.get('quest-5213');
   if (initiation?.name.replace(/^【[^】]+】/, '') === '拜师武当') addName('拜入武当', initiation);
+  const investigation = entries.get('quest-11272');
+  if (investigation?.name.replace(/^【[^】]+】/, '') === '灭门之案 - 线索')
+    addName('灭门之案线索', investigation);
   const namedFacts = [...names.keys()].filter((name) =>
     names.get(name).some((entry) => entry.kind !== '任务'),
   );

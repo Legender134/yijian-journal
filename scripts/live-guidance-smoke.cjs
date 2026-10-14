@@ -388,7 +388,12 @@ const pulse = () =>
     assert.equal(await keptSearch.evaluate((el) => el.isConnected), true, 'search markup remains connected');
     await win.locator('#global-search').fill('樵夫的斧子');
     await win.locator('.search-result[data-id="quest-11002"]').click();
+    await win
+      .locator('[data-task-relations] > details > summary')
+      .filter({ hasText: '步骤需要的物品' })
+      .click();
     const taskItem = win.locator('[data-task-relations] [data-id="item-10201"]').first();
+    assert.equal(await taskItem.isVisible(), true);
     await taskItem.scrollIntoViewIfNeeded();
     await taskItem.focus();
     await win.locator('#entity-preview').filter({ hasText: '保存持有 9' }).waitFor();
