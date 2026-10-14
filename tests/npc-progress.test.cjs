@@ -249,6 +249,57 @@ test('effective friendship 100 blocks further gift instead of inviting waste', (
   assert(row.gift.checks.some((check) => check.status === 'unmet' && /好感已满/.test(check.text)));
 });
 
+test('learning summary prioritizes currently available arts while retaining other restrictions in details', async () => {
+  const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
+  const view = createNpcProgressViews({ esc: String, act: (_action, label) => label });
+  const projector = createNpcProgressProjector({
+    world: {
+      people: [{ id: 'npc-1', gameId: 1, name: '合成教师', functions: ['Consult'], friendshipLocks: [] }],
+      quests: [],
+      maps: [],
+    },
+    game: { entries: [1, 2, 3].map((id) => ({ id: 'skill-' + id, gameId: id, name: '合成功法' + id })) },
+    contracts: { skills: { 1: { friendliness: 90 }, 2: { friendliness: 90 }, 3: { friendliness: 40 } } },
+  });
+  const input = {
+    combat: {
+      format: 14,
+      player: { attributes: { 44: 100 }, skills: [] },
+      npcStates: [
+        {
+          id: 1,
+          attributes: { 44: 100 },
+          skills: [1, 2, 3].map((id) => ({ id, level: 1 })),
+          inventory: [],
+          rawFriendliness: 50,
+          visible: true,
+          mapKey: '',
+          level: 1,
+        },
+      ],
+    },
+    quests: [],
+  };
+  let data = projector(input);
+  assert.deepEqual(
+    data.people[0].learning.map((row) => row.status),
+    ['unmet', 'unmet', 'met'],
+  );
+  const before = structuredClone(data);
+  const html = view.page(data, { tab: 'learning' });
+  const summary = html.match(/<details class="npc-progress-card"[\s\S]*?<summary>([\s\S]*?)<\/summary>/)[1];
+  assert.match(summary, /合成功法3/);
+  assert.doesNotMatch(summary, /合成功法1|合成功法2|好感 90/);
+  const details = view.person(data.people[0], true);
+  assert(details.indexOf('合成功法3') < details.indexOf('合成功法1'));
+  assert.match(details, /合成功法1.*好感 90.*合成功法2/s);
+  assert.deepEqual(data, before, 'presentation cannot reorder or modify shared progress');
+  input.combat.npcStates[0].rawFriendliness = 30;
+  data = projector(input);
+  assert.equal(data.learning.length, 0, 'a fully restricted teacher leaves the actionable list');
+  assert.match(view.person(data.people[0], true), /好感 90/, 'full restrictions remain available');
+});
+
 test('NPC details show shared story blockers once and the locked summary exposes its actual restricted operation', async () => {
   const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
   const view = createNpcProgressViews({

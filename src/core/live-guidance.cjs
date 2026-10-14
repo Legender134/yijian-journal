@@ -131,8 +131,18 @@ function withLiveDialogue(flow, context, quests) {
       done: false,
       failed: false,
       conditions: [],
-      // Inventory remains a saved reference, never a claim about the live dialogue.
-      recommendation: rule.recommendation ? { ...rule.recommendation, materials: [] } : undefined,
+      // Keep fixed requirements and sources; saved inventory cannot establish
+      // current holdings or shortages at a live choice.
+      recommendation: rule.recommendation
+        ? {
+            ...rule.recommendation,
+            materials: (rule.recommendation.materials || []).map((material) => ({
+              ...material,
+              owned: null,
+              missing: null,
+            })),
+          }
+        : undefined,
       choices: matched.map(({ option, choice }) => ({ ...choice, label: option.text, index: option.index })),
     });
   }

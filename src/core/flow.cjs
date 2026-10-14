@@ -551,13 +551,13 @@ function createFlowProjector({
         recommendation: rule.recommendation
           ? {
               ...rule.recommendation,
-              materials: decisionActive
-                ? (rule.recommendation.materialQuestIds || []).flatMap((id) => {
-                    const task = quests.get(id);
-                    if (!task || rootOf(task)?.gameId !== rule.questId) return [];
-                    return projectStep(task).materials;
-                  })
-                : [],
+              // Branch requirements are static facts, including when a live
+              // choice opens before the next save contains its quest step.
+              materials: (rule.recommendation.materialQuestIds || []).flatMap((id) => {
+                const task = quests.get(id);
+                if (!task || rootOf(task)?.gameId !== rule.questId) return [];
+                return projectStep(task).materials;
+              }),
             }
           : undefined,
         name: rule.title,

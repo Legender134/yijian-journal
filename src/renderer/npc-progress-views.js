@@ -3,6 +3,12 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
   const link = (row) =>
     row.entityId ? act('database-detail', text(row.name), 'text-btn', row.entityId) : text(row.name);
   const unmet = (checks = []) => checks.filter((row) => row.status !== 'met');
+  const orderedLearning = (row) =>
+    [...row.learning].sort(
+      (a, b) =>
+        (({ met: 0, unknown: 1, unmet: 2 })[a.status] ?? 1) -
+        ({ met: 0, unknown: 1, unmet: 2 }[b.status] ?? 1),
+    );
   const checkText = (check) => {
     const name = String(check.name || '').replace(/^【[^】]+】\s*/, '');
     if (!check.entityId || !name || !check.text.startsWith(name)) return richText(check.text);
@@ -48,7 +54,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
   }
   function learning(row) {
     const excluded = new Set([...sharedChecks(row), ...unmet(row.consult.checks)].map(checkKey));
-    return row.learning
+    return orderedLearning(row)
       .map(
         (item) =>
           `<li>${link(item)}${item.kind === 'life' ? ` · ${text(item.playerLevel)} → ${text(item.teacherLevel)} 级` : ''}${reason(item.checks, excluded) ? `<p class="small">${reason(item.checks, excluded)}</p>` : ''}</li>`,
@@ -79,9 +85,11 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
     return `<section class="${embedded ? '' : 'detail-block '}npc-progress-detail" data-npc-progress="${text(row.npcId)}">${heading}${gates(row)}${row.remainingItems.length ? `<details data-persist-detail="npc-private-${text(row.npcId)}"><summary>剩余私物 · ${row.remainingItems.length} 种</summary><div class="related-items mt">${items(row)}</div></details>` : ''}${row.learning.length ? `<details data-persist-detail="npc-learning-${text(row.npcId)}"><summary>可提升技艺与未学功法 · ${row.learning.length} 项</summary><ul>${learning(row)}</ul></details>` : ''}${embedded ? '' : `<details><summary>${origin === 'live' ? '现场更新' : '保存后更新'}</summary><p>${origin === 'live' ? '人物状态与相关任务来自同次现场读取。' : '按最近读取的保存记录整理。'}</p></details>`}</section>`;
   }
   function card(row, tab, scope) {
+    const learning = orderedLearning(row);
+    const ready = learning.filter((item) => item.status === 'met');
     const preview =
       tab === 'learning'
-        ? row.learning
+        ? (ready.length ? ready : learning)
             .slice(0, 2)
             .map(
               (item) =>
@@ -91,7 +99,9 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
         : row.remainingItems.slice(0, 2).map(link).join(' · ');
     const blocker =
       tab === 'learning'
-        ? reason(row.learning.find((item) => item.status !== 'met')?.checks)
+        ? ready.length
+          ? ''
+          : reason(learning[0]?.checks)
         : tab === 'locked'
           ? reason(
               [row.compare, row.gift, row.consult, ...row.learning].find((gate) => gate.status !== 'met')

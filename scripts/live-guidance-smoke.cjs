@@ -214,6 +214,12 @@ const pulse = () =>
       1,
       'the current choice remains available on another companion tab',
     );
+    for (const surface of [win, small]) {
+      const materials = surface.locator(choice + ' > .flow-material-brief');
+      assert(await materials.isVisible(), 'live choice requirements stay visible before expansion');
+      assert.match(await materials.innerText(), /铁矿石[\s\S]*需 4[\s\S]*后山山洞/);
+      assert.match(await materials.innerText(), /库存未读取/);
+    }
     await small.screenshot({ path: path.join(output, 'live-choice-brief.png'), animations: 'disabled' });
     await checkBodyPreviews(small, 5);
     await small.locator(choice + ' > details > summary').click();
@@ -272,6 +278,11 @@ const pulse = () =>
       true,
     );
     const bounds = await small.locator(choice).boundingBox();
+    assert.equal(
+      await small.locator(choice + ' > details').evaluate((el) => el.open),
+      false,
+      'a newly opened native choice starts concise; only the same window retains its reading state',
+    );
     assert(bounds && bounds.y >= 0 && bounds.y + bounds.height <= (await small.evaluate(() => innerHeight)));
     // Exercise the real navigation handler for the task page not present in the short tab strip.
     await small.evaluate(() => {

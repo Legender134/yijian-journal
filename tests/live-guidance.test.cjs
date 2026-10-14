@@ -81,7 +81,9 @@ test('the current native choice can precede its saved step but must match the wh
   assert.equal(current.id, choiceId);
   assert.equal(current.live, true);
   assert.match(current.recommendation.action, /重新锻造一番吧/);
-  assert.deepEqual(current.recommendation.materials, [], 'saved materials are not promoted to live holdings');
+  assert.equal(current.recommendation.materials[0].required, 4);
+  assert.equal(current.recommendation.materials[0].owned, null, 'saved stock is not live holdings');
+  assert.equal(current.recommendation.materials[0].missing, null);
   assert.deepEqual(
     current.choices.map((row) => row.label),
     dialogue().options.map((row) => row.text),
@@ -710,6 +712,35 @@ test('a verified new observation restores loaded choices without reviving stale 
     'a newly closed choice retires in its own cohort',
   );
   assert.equal(fs.existsSync(source), false, 'no game save directory is touched');
+});
+
+test('live choices retain fixed material requirements and sources without borrowing saved stock', async () => {
+  const { createFlowViews } = await import('../src/renderer/flow-views.js');
+  const view = createFlowViews({
+    esc: String,
+    act: (_action, label) => label,
+    icon: () => '',
+    pill: () => '',
+    when: String,
+  });
+  for (const saved of [null, reference([{ id: 5020, step: 1 }]), reference()]) {
+    if (saved) saved.metadata.inventory = [{ id: 10201, count: 99 }];
+    const flow = flowSnapshot(profile, saved, '', context());
+    const row = flow.decisions[0];
+    const material = row.recommendation.materials[0];
+    assert.equal(material.id, 'item-10201');
+    assert.equal(material.required, 4);
+    assert.equal(material.owned, null);
+    assert.equal(material.missing, null);
+    assert(material.routes.length > 0, 'known acquisition details are retained');
+    for (const compact of [false, true]) {
+      const visible = view.choice(row, { compact }).split('<details')[0];
+      assert.match(visible, /铁矿石.*需 4.*后山山洞附近采集 → 村西铁匠/s);
+      assert.match(visible, /库存未读取/);
+      assert.doesNotMatch(visible, /持有 99|缺 4|已齐/);
+    }
+    assert.equal(flow.sharedMaterials.length, 0, 'conditional branch stock is not current task allocation');
+  }
 });
 
 test('default choice hints retain permanent consequences before ordinary task hints', async () => {
