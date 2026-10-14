@@ -4215,9 +4215,21 @@ kbd {
   padding: 12px 0;
 }
 .npc-progress-card > summary {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding-left: 16px;
+  list-style: none;
+}
+.npc-progress-card > summary::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  top: 2px;
+}
+.npc-progress-card[open] > summary::before {
+  content: '▾';
 }
 .npc-progress-card summary > span {
   overflow-wrap: anywhere;

@@ -281,6 +281,8 @@ const pulse = () => {
     await small.locator('#overlay [data-action="drawer-back"]').click();
     await small.locator('#overlay [data-npc-progress="10047"]').waitFor();
     assert.match(await small.locator('#overlay [data-npc-progress="10047"]').innerText(), /私物还剩 1 种/);
+    if (await small.locator('[data-persist-detail="person-related-quests-npc-10047"]:not([open])').count())
+      await small.locator('[data-persist-detail="person-related-quests-npc-10047"] > summary').click();
     await small.locator('#overlay [data-action="world-quest"][data-id="quest-5062"]').first().click();
     await small.locator('#overlay .world-drawer').waitFor();
     assert.match(await small.locator('#overlay .world-drawer .tag-row').first().innerText(), /已完成/);
