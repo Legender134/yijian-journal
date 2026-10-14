@@ -131,7 +131,9 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       ];
     } else if (e.kind === '人物') {
       const variant = variantSummary(id, context.reference);
-      const current = context.npcProgress?.people.find((row) => row.npcId === e.gameId);
+      const current = (context.npcProgress || context.reference?.metadata?.npcProgress)?.people.find(
+        (row) => row.npcId === e.gameId,
+      );
       if (current) {
         lines.push(
           [

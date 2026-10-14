@@ -46,6 +46,28 @@ store.mutate({ type: 'settings', value: { autoBackup: false } });
 const env = { ...process.env, YIJIAN_TEST_DATA: data };
 delete env.ELECTRON_RUN_AS_NODE;
 const errors = [];
+async function assertNpcHover(page, id, expected) {
+  const native = await app.browserWindow(page);
+  await native.evaluate((win) => {
+    win.show();
+    win.focus();
+  });
+  await native.dispose();
+  await page.bringToFront();
+  await page.waitForFunction(() => document.hasFocus());
+  await page.mouse.move(2, 2);
+  const link = page
+    .locator(`[data-npc-progress-card="${id}"] [data-action="database-detail"][data-id="npc-${id}"]`)
+    .first();
+  assert.equal(await link.evaluate((node) => !!node.closest('[inert]')), false);
+  await page.locator('#npc-progress-search').focus();
+  await link.focus();
+  const preview = page.locator('#entity-preview');
+  await preview.waitFor({ state: 'visible' });
+  assert.match(await preview.innerText(), expected);
+  assert.doesNotMatch(await preview.innerText(), /固定私物/);
+  await page.keyboard.press('Escape');
+}
 let app,
   timer,
   currentObservation = null,
@@ -167,6 +189,7 @@ const pulse = () => {
     await jiang.locator('> summary').click();
     await jiang.locator('[data-persist-detail="npc-learning-10016"] > summary').click();
     assert.match(await jiang.innerText(), /炼丹.*1 → 3/s);
+    await assertNpcHover(main, 10016, /私物还剩 1 种/);
     await jiang.locator('[data-action="database-detail"][data-id="npc-10016"]').first().click();
     await main.locator('#overlay [data-npc-progress="10016"]').waitFor();
     assert.match(await main.locator('#overlay [data-npc-progress="10016"]').innerText(), /私物还剩 1 种/);
@@ -258,6 +281,7 @@ const pulse = () => {
     await small.locator('[data-npc-progress-card="10016"]').waitFor();
     await small.locator('[data-action="npc-progress-tab"][data-id="learning"]').click();
     await small.locator('[data-npc-progress-card="10016"]').waitFor();
+    await assertNpcHover(small, 10016, /私物已清空/);
     token = fs.readFileSync(path.join(data, 'game-bridge/token.txt'), 'utf8');
     publish([{ id: 100034, count: 2 }]);
     pulse();
@@ -390,6 +414,7 @@ const pulse = () => {
     if (!(await learningDetail.evaluate((node) => node.open)))
       await learningDetail.locator('> summary').click();
     assert.match(await fallback.innerText(), /1 → 3/);
+    await assertNpcHover(small, 10016, /私物已清空/);
     const latestFile = path.join(source, '2.sav');
     const latestBytes = syntheticSave({ full: true, npcs, quests: [], map: 'LV_25_P' });
     fs.writeFileSync(latestFile, latestBytes);
@@ -418,12 +443,18 @@ const pulse = () => {
     assert.match(await main.locator('#overlay').innerText(), /保存后更新/);
     await main.keyboard.press('Escape');
     if (await small.locator('#overlay .drawer').isVisible()) await small.keyboard.press('Escape');
+    await assertNpcHover(main, 10016, /私物已清空/);
+    await main.locator('[data-action="compact"]').first().click();
+    const closeFixedDetail = small.locator('#overlay [data-action="close-overlay"]').first();
+    if (await closeFixedDetail.isVisible()) await closeFixedDetail.click();
+    await assertNpcHover(small, 10016, /私物已清空/);
     await main.evaluate(async () => {
       const result = await window.journal.mutate({ type: 'save-slot', value: '', mode: 'latest' });
       if (!result.ok) throw Error(result.error);
     });
     await main.locator('.sidebar-nav [data-id="home"]').click();
-    await main.locator('[data-action="compact"]').first().click();
+    if (!(await small.locator('.companion-tabs').isVisible()))
+      await main.locator('[data-action="compact"]').first().click();
     const closeSmallDetail = small.locator('#overlay [data-action="close-overlay"]').first();
     if (await closeSmallDetail.isVisible()) await closeSmallDetail.click();
     await small.locator('.companion-tabs [data-id="home"]').click();

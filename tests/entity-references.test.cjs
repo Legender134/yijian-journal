@@ -32,6 +32,88 @@ const factory = (createEntityReferences, index) =>
     icon: esc,
     qualityText: { html: (_, text) => text },
   });
+
+test('NPC previews use their exact saved or live cohort across catalogue, flow and detail contexts', async () => {
+  const [, { createEntityReferences }] = await loaded;
+  const { enrich } = require('../src/core/game-data.cjs');
+  const { readMetadata } = require('../src/core/save-reader.cjs');
+  const { syntheticSave } = require('./fixtures.cjs');
+  const index = encyclopedia(),
+    references = factory(createEntityReferences, index);
+  const makeReference = (name, hash, inventory) => ({
+    name,
+    hash,
+    metadata: enrich(
+      readMetadata(
+        syntheticSave({
+          full: true,
+          quests: [],
+          map: 'LV_25_P',
+          npcs: [
+            { id: 0, attributes: { 44: 100 } },
+            { id: 10038, attributes: { 5: 15 }, inventory, friendliness: [[0, 70]], map: 'LV_25_P' },
+          ],
+        }),
+        { details: true },
+      ),
+    ),
+  });
+  const empty = makeReference('1.sav', 'a'.repeat(64), []);
+  const remaining = makeReference('2.sav', 'b'.repeat(64), [{ id: 100034, count: 2 }]);
+  const before = JSON.stringify({ empty, remaining });
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const at = source.indexOf('  context: async (target) => {', source.indexOf('const entityPreviews'));
+  const end = source.indexOf('\n  },\n});', at);
+  const state = {
+    currentDrawer: null,
+    referenceSave: empty,
+    referenceSaveName: empty.name,
+    referenceFollow: false,
+    worldView: { reference: empty },
+    route: 'database',
+    defaultFollow: () => false,
+    defaultReference: () => empty.name,
+    currentFlow: () => ({ reference: empty, active: [] }),
+    entityPreviewReference: null,
+    environment: { saves: { files: [empty, remaining] } },
+    call: async (_method, name) => (name === empty.name ? empty : remaining),
+  };
+  const context = require('node:vm').runInNewContext(
+    '(' + source.slice(at + '  context: '.length, end + 4) + ')',
+    state,
+  );
+  const target = { dataset: { action: 'database-detail', id: 'npc-10038' }, closest: () => null };
+  const preview = async () => references.preview('npc-10038', await context(target));
+  for (const drawer of [
+    null,
+    { type: 'save', data: empty },
+    { type: 'entity-choice', reference: empty },
+    { type: 'database' },
+    { type: 'world-quest' },
+  ]) {
+    state.currentDrawer = drawer;
+    assert.match(await preview(), /私物已清空/);
+    assert.doesNotMatch(await preview(), /固定私物/);
+  }
+  state.currentDrawer = null;
+  target.closest = () => true;
+  assert.match(await preview(), /私物已清空/, 'flow previews use the exact verified saved hash');
+  target.closest = () => null;
+  state.defaultFollow = () => true;
+  state.defaultReference = () => remaining.name;
+  state.currentFlow = () => ({ reference: remaining, liveReference: null });
+  assert.match(await preview(), /私物还剩 1 种/, 'after live withdrawal the latest saved bag is used');
+  state.currentFlow = () => ({
+    liveReference: { origin: 'live', metadata: {} },
+    duels: { progress: empty.metadata.npcProgress },
+  });
+  assert.match(await preview(), /私物已清空/, 'an explicit live cohort takes priority over saved state');
+  state.defaultFollow = () => false;
+  state.defaultReference = () => '';
+  assert.doesNotMatch(await preview(), /私物已清空|私物还剩/, 'lookup-only mode cannot borrow either cohort');
+  assert.match(await preview(), /固定私物/);
+  assert.equal(JSON.stringify({ empty, remaining }), before);
+});
 const fixture = () => ({
   entries: [
     { id: 'npc-1', gameId: 1, name: '郎中-孙老', kind: '人物', hobbies: ['茶具'] },
