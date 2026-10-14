@@ -167,9 +167,9 @@ const shot = async (name) => {
     await selectProgress(win, '2.sav');
     if (await win.locator('.person-gifts:not([open])').count())
       await win.locator('.person-gifts > summary').click();
-    await win.locator('.person-gifts').filter({ hasText: '背包中暂无合适礼物' }).waitFor();
+    await win.locator('.person-gifts').filter({ hasText: '背包中暂无符合条件的物品' }).waitFor();
     await selectProgress(win, '3.sav');
-    assert.ok((await win.locator('.person-gifts').innerText()).includes('可送礼物'));
+    assert.ok((await win.locator('.person-gifts').innerText()).includes('符合偏好的物品'));
     await win.locator('[data-action="world-person"]').click();
     assert.equal(await win.locator('#world-search').inputValue(), '卫霍');
     assert.ok(await win.locator('.world-quest-card').count());

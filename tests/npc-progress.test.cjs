@@ -249,6 +249,36 @@ test('effective friendship 100 blocks further gift instead of inviting waste', (
   assert(row.gift.checks.some((check) => check.status === 'unmet' && /好感已满/.test(check.text)));
 });
 
+test('gift quality boundaries and private stack count are directly usable by the UI', async () => {
+  for (const [friend, quality] of [
+    [0, '白'],
+    [19, '白'],
+    [20, '绿'],
+    [39, '绿'],
+    [40, '蓝'],
+    [59, '蓝'],
+    [60, '金'],
+    [79, '金'],
+    [80, '暗金'],
+    [99, '暗金'],
+  ]) {
+    const row = project(metadata([npc(10016, { rawFriendliness: friend })])).people[0];
+    assert.equal(row.gift.minimumQuality, quality, `affinity ${friend}`);
+  }
+  const input = metadata([npc(10047)]);
+  delete input.quests;
+  assert.equal(
+    project(input).people[0].gift.minimumQuality,
+    null,
+    'unknown effective affinity has no inferred threshold',
+  );
+  const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
+  const view = createNpcProgressViews({ esc: String, act: (_a, label) => label });
+  const data = project(metadata([npc(10038, { inventory: [{ id: 100034, count: 3 }] })]));
+  const summary = view.page(data).match(/<summary>([\s\S]*?)<\/summary>/)[1];
+  assert.match(summary, /寒铁.*×3/);
+});
+
 test('learning summary prioritizes currently available arts while retaining other restrictions in details', async () => {
   const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
   const view = createNpcProgressViews({ esc: String, act: (_action, label) => label });

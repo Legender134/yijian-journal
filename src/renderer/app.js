@@ -930,7 +930,10 @@ const duelViews = createDuelViews({
   richText: (value) => entityReferences.text(value, 'flow-quest'),
 });
 function duelsPage() {
-  return duelViews.page(currentFlow(), { compact, scope: profile().id, npcProgress: npcProgressView });
+  return (
+    flowViews.stateNotice(currentFlow()) +
+    duelViews.page(currentFlow(), { compact, scope: profile().id, npcProgress: npcProgressView })
+  );
 }
 const comparisonViews = createComparisonViews({
   getIndex: () => gameIndex,
@@ -2388,6 +2391,7 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
       : '',
     liveNpcContext && currentFlow()?.duels?.progress?.origin === 'live' ? currentFlow().duels.progress : null,
     liveNpcContext ? currentFlow()?.liveReference || null : null,
+    liveNpcContext ? currentFlow()?.stateNotice || '' : '',
   );
   if (html) {
     rememberDrawer(
@@ -6419,7 +6423,9 @@ async function handle(action, id, target, navigationFocused = false) {
       }
       let quantity = 1;
       const flowReference = target.closest('[data-flow], .duel-page')
-        ? currentFlow()?.reference
+        ? defaultFollow() && gameViews.byId(gameIndex, id)?.kind === '人物'
+          ? { origin: 'live' }
+          : currentFlow()?.reference
         : !currentDrawer && route === 'world' && worldView.liveContext
           ? { origin: 'live' }
           : currentDrawer?.type === 'save'

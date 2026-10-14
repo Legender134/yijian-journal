@@ -185,6 +185,13 @@ function createFlowProjector({
     const referenceMode = profile.referenceMode || (profile.saveSlot ? 'slot' : 'latest');
     const live =
       referenceMode === 'latest' && dialogue?.npcState?.origin === 'live' ? dialogue.npcState : null;
+    const savedAt = new Date(selected?.modifiedAt || '').getTime();
+    const showingOlderSave =
+      referenceMode === 'latest' &&
+      !live &&
+      Number.isFinite(dialogue?.lastLiveAt) &&
+      dialogue.lastLiveAt > 0 &&
+      (!Number.isFinite(savedAt) || savedAt < dialogue.lastLiveAt);
     const liveMap = live ? maps.get(live.world.split('.').pop()) || maps.get(live.player.mapKey) : null;
     const metadata = live
       ? {
@@ -750,6 +757,11 @@ function createFlowProjector({
         ),
       duels: duelProgress,
       stateOrigin: live ? 'live' : 'saved',
+      stateNotice: showingOlderSave
+        ? selected
+          ? '现场更新暂停 · 暂按最近保存显示'
+          : '现场更新暂停 · 等待重新读取'
+        : '',
       npcStateKey: live?.key || '',
       liveReference: live
         ? {

@@ -663,12 +663,12 @@ test('a verified new observation restores loaded choices without reviving stale 
   sample(1, 4);
   assert.deepEqual(flowSnapshot(profile, reference(), '', bridge.liveGuidance(source)).active, []);
   pulse = { ...pulse, ready: false, reason: '正在读档', dialogue: null };
-  assert.deepEqual(bridge.liveGuidance(source), context(null, [11005]));
+  assert.deepEqual(bridge.liveGuidance(source), { ...context(null, [11005]), lastLiveAt: now });
   sample(2);
   pulse.npcObservation.sampleMac = '0'.repeat(64);
   assert.deepEqual(
     bridge.liveGuidance(source),
-    context(null, [11005]),
+    { ...context(null, [11005]), lastLiveAt: now },
     'unverified epoch cannot clear retirement',
   );
   bridge = restart();
@@ -695,7 +695,16 @@ test('a verified new observation restores loaded choices without reviving stale 
   );
   pulse = { ...pulse, ready: false, reason: '战斗、过场或切换场景中暂停保存' };
   const withdrawn = bridge.liveGuidance(source);
-  assert.deepEqual(withdrawn, context(null, [11005]), 'old saved-file retirement is retained independently');
+  assert.deepEqual(
+    withdrawn,
+    { ...context(null, [11005]), lastLiveAt: now },
+    'old saved-file retirement is retained independently',
+  );
+  assert.equal(
+    bridge.liveGuidance(path.join(data, 'another-account')),
+    null,
+    'withdrawal metadata is not shared across save sources',
+  );
   assert.deepEqual(flowSnapshot(profile, reference(), '', withdrawn).decisions, []);
   sample(3, 4);
   assert.deepEqual(

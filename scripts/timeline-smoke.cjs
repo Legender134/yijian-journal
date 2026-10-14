@@ -2,9 +2,7 @@
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
-const {
-  _electron,
-} = require('playwright');
+const { _electron } = require('playwright');
 const { Store } = require('../src/core/store.cjs'),
   { Timeline } = require('../src/core/timeline.cjs'),
   { Saves, sha } = require('../src/core/saves.cjs');
@@ -55,6 +53,15 @@ let app;
     assert.equal(await win.locator('[data-action="timeline-target"]').count(), 11);
     assert.equal(await win.locator('.timeline-node').count(), 1);
     assert.equal(await win.locator('.timeline-node [data-action="timeline-preview"]').count(), 1);
+    assert.equal(await win.locator('.timeline-retention .timeline-latest').isVisible(), false);
+    assert.equal(await win.locator('.timeline-precision .save-note').isVisible(), false);
+    assert.equal(await win.getByText(/专用 29 号手动槽请勿手动覆盖/).isVisible(), true);
+    await win.locator('.timeline-precision > summary').click();
+    assert.equal(await win.getByText(/10–50 秒档位允许偏差 15 秒/).isVisible(), true);
+    await win.locator('.timeline-precision > summary').click();
+    await win.locator('.timeline-retention > summary').click();
+    assert.equal(await win.locator('.timeline-retention .timeline-latest').isVisible(), true);
+    await win.locator('.timeline-retention > summary').click();
     for (const size of [
       [980, 660],
       [1340, 880],

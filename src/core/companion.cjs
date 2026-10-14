@@ -187,6 +187,13 @@ function companionSnapshot(state, catalog, reference, error = '', dialogue = nul
       label: '存档中的进行中任务',
     });
   }
+  // A withdrawn observation must not promote older saved advice as a new live alert.
+  if (flow.stateNotice && !flow.decisions.some((row) => row.live))
+    hints.splice(0, hints.length, {
+      type: 'help',
+      title: '现场更新暂停 · 展开查看最近保存的进度',
+      label: '等待更新',
+    });
   if (!hints.length)
     hints.push({ type: 'help', title: '按 Ctrl＋Alt＋J 查人物、物品与任务', label: '随行查询' });
   return {

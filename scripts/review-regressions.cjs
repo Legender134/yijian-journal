@@ -2417,7 +2417,7 @@ async function importedReferences() {
     await win.locator(`.database-card[data-id="${person.id}"]`).click();
     await selectProgress(win, '');
     assert.equal(await progressValue(win), '');
-    assert.match(await win.locator('.person-gifts > summary').innerText(), /可送礼物/);
+    assert.match(await win.locator('.person-gifts > summary').innerText(), /符合偏好的物品/);
     assert.doesNotMatch(await win.locator('.person-gifts').innerText(), /仅列可用库存/);
     await close(win);
     // Shared Settings changed the profile itself; restore the pinned import fixture.

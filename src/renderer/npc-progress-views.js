@@ -96,7 +96,10 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
                 `${link(item)}${item.kind === 'life' ? ` ${text(item.playerLevel)}→${text(item.teacherLevel)}级` : ''}`,
             )
             .join(' · ')
-        : row.remainingItems.slice(0, 2).map(link).join(' · ');
+        : row.remainingItems
+            .slice(0, 2)
+            .map((item) => `${link(item)} ×${text(item.count)}`)
+            .join(' · ');
     const blocker =
       tab === 'learning'
         ? ready.length

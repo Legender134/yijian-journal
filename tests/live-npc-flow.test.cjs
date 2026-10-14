@@ -104,6 +104,70 @@ test('historical lookup suppresses live NPC and route projection; withdrawal ret
   assert(withdrawn.active.some((r) => r.gameId === 5020));
 });
 
+test('withdrawing live state identifies older saved advice once and pauses passive recommendations', async () => {
+  const { createFlowViews } = await import('../src/renderer/flow-views.js');
+  const { companionSnapshot } = require('../src/core/companion.cjs');
+  const state = require('../src/core/store.cjs').defaults();
+  const catalog = require('../src/data/catalog.cjs');
+  const view = createFlowViews({
+    esc: String,
+    act: (_a, label) => label,
+    icon: () => '',
+    pill: String,
+    when: String,
+  });
+  const oldSave = { ...saved, metadata: { quests: [], inventory: [], map: 'LV_28_P', mapName: '津鲤村' } };
+  const observed = {
+    ...observation(),
+    questStates: [
+      { id: 11129, step: 4 },
+      { id: 11130, step: 4 },
+    ],
+  };
+  const live = flowSnapshot(profile, oldSave, '', { npcState: observed });
+  assert(!live.decisions.some((row) => row.id === 'jinli-coin-before-accepting'));
+  const context = { dialogue: null, suppressedQuestIds: [], lastLiveAt: Date.parse(saved.modifiedAt) + 1000 };
+  const fallback = flowSnapshot(profile, oldSave, '', context);
+  assert.equal(fallback.stateOrigin, 'saved');
+  assert(
+    fallback.decisions.some((row) => row.id === 'jinli-coin-before-accepting'),
+    'saved reference remains available for lookup',
+  );
+  assert.equal(fallback.stateNotice, '现场更新暂停 · 暂按最近保存显示');
+  for (const compact of [true, false]) {
+    const html = view.panel(fallback, { compact });
+    assert.equal(html.split(fallback.stateNotice).length - 1, 1);
+    if (compact) assert.doesNotMatch(html, /flow-task-peek|当前任务 · 步骤待核对/);
+    assert(
+      html.indexOf(fallback.stateNotice) < html.indexOf('<details'),
+      'downgrade is visible before disclosure',
+    );
+  }
+  const passive = companionSnapshot(state, catalog, oldSave, '', context);
+  assert.equal(passive.hints.length, 1);
+  assert.equal(passive.hints[0].type, 'help');
+  assert.match(passive.hints[0].title, /现场更新暂停/);
+  for (const mode of ['slot', 'none']) {
+    assert.equal(
+      flowSnapshot({ ...profile, referenceMode: mode, saveSlot: oldSave.name }, oldSave, '', context)
+        .stateNotice,
+      '',
+    );
+  }
+  assert.equal(flowSnapshot(profile, oldSave, '', { ...context, npcState: observed }).stateNotice, '');
+  assert.equal(
+    flowSnapshot(profile, oldSave).stateNotice,
+    '',
+    'normal saved play has no persistent source chatter',
+  );
+  assert.equal(
+    flowSnapshot(profile, { ...oldSave, modifiedAt: new Date(context.lastLiveAt).toISOString() }, '', context)
+      .stateNotice,
+    '',
+  );
+  assert.equal(flowSnapshot(profile, null, '', context).stateNotice, '现场更新暂停 · 等待重新读取');
+});
+
 test('current checkpoint consequences are visible before disclosure in both windows', async () => {
   const { createFlowViews } = await import('../src/renderer/flow-views.js');
   const { createEntityReferences } = await import('../src/renderer/entity-references.js');

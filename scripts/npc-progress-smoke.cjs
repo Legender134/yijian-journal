@@ -291,6 +291,8 @@ const pulse = () => {
     await small.waitForFunction(() =>
       document.querySelector('[data-npc-progress-page]')?.textContent.includes('现场更新'),
     );
+    assert.match(await small.locator('[data-npc-progress-card="10016"] > summary').innerText(), /×2/);
+    assert.equal(await small.locator('.flow-state-notice').count(), 0);
     // An ordinary codex list must use the same current NPC state before a
     // detail has ever been opened; the saved fixture says this bag is empty.
     await main.locator('.sidebar-nav [data-id="database"]').click();
@@ -307,6 +309,15 @@ const pulse = () => {
       .first()
       .click();
     await small.locator('#overlay [data-npc-progress="10016"]').waitFor();
+    const gifts = small.locator('#overlay .person-gifts');
+    assert.match(await gifts.locator('> summary').innerText(), /金色起/);
+    await gifts.locator('> summary').click();
+    const giftLabels = await gifts.locator('[data-action="database-detail"]').allTextContents();
+    assert(giftLabels.length > 0);
+    assert(giftLabels.every((label) => /金色|暗金色|红色/.test(label)));
+    assert.equal(await gifts.locator('[data-id="item-1003"]').count(), 0);
+    await small.screenshot({ animations: 'disabled', path: path.join(output, 'live-gift-quality.png') });
+    await gifts.locator('> summary').click();
     await small.locator('#overlay [data-persist-detail="npc-private-10016"] > summary').click();
     assert.match(await small.locator('#overlay [data-npc-progress="10016"]').innerText(), /×2/);
     publish([]);
@@ -407,6 +418,8 @@ const pulse = () => {
     await small.waitForFunction(() =>
       document.querySelector('[data-npc-progress-page]')?.textContent.includes('保存后更新'),
     );
+    await small.locator('.flow-state-notice').waitFor({ state: 'visible' });
+    assert.match(await small.locator('.flow-state-notice').innerText(), /现场更新暂停.*最近保存/);
     await small.locator('[data-action="npc-progress-tab"][data-id="learning"]').click();
     const fallback = small.locator('[data-npc-progress-card="10016"]');
     if (!(await fallback.evaluate((node) => node.open))) await fallback.locator('> summary').click();
@@ -415,14 +428,19 @@ const pulse = () => {
       await learningDetail.locator('> summary').click();
     assert.match(await fallback.innerText(), /1 → 3/);
     await assertNpcHover(small, 10016, /私物已清空/);
+    await fallback.locator('[data-action="database-detail"][data-id="npc-10016"]').first().click();
+    await small.locator('#overlay .flow-state-notice').waitFor({ state: 'visible' });
+    await small.screenshot({ animations: 'disabled', path: path.join(output, 'withdrawn-codex-notice.png') });
+    await small.keyboard.press('Escape');
     const latestFile = path.join(source, '2.sav');
-    const latestBytes = syntheticSave({ full: true, npcs, quests: [], map: 'LV_25_P' });
+    const latestBytes = syntheticSave({ full: true, npcs, quests: [], map: 'LV_28_P' });
     fs.writeFileSync(latestFile, latestBytes);
     publish([{ id: 100034, count: 1 }]);
     pulse();
     await small.waitForFunction(() =>
       document.querySelector('[data-npc-progress-page]')?.textContent.includes('现场更新'),
     );
+    assert.equal(await small.locator('.flow-state-notice').count(), 0);
     await small
       .locator('[data-npc-progress-card="10016"] [data-action="database-detail"][data-id="npc-10016"]')
       .first()
@@ -511,6 +529,34 @@ const pulse = () => {
     await small
       .locator('[data-persist-detail="flow-risk-window-chenlinxi-recruit-followup"]')
       .waitFor({ state: 'detached' });
+    publish([], {
+      quests: [
+        { id: 11129, step: 4 },
+        { id: 11130, step: 4 },
+      ],
+    });
+    pulse();
+    for (const page of [main, small]) {
+      await page.waitForFunction(() => !document.querySelector('.flow-state-notice'));
+      assert.equal(await page.locator('[data-flow-decision="jinli-coin-before-accepting"]').count(), 0);
+    }
+    currentObservation = null;
+    pulse();
+    for (const page of [main, small]) {
+      await page.locator('.flow-state-notice').waitFor({ state: 'visible' });
+      assert.equal(await page.locator('.flow-state-notice').count(), 1);
+      assert.match(await page.locator('.flow-state-notice').innerText(), /现场更新暂停.*最近保存/);
+    }
+    await small.screenshot({ animations: 'disabled', path: path.join(output, 'withdrawn-flow-notice.png') });
+    assert.equal(await small.locator('.flow-task-peek').count(), 0, 'empty task placeholder is omitted');
+    publish([], {
+      quests: [
+        { id: 11129, step: 4 },
+        { id: 11130, step: 4 },
+      ],
+    });
+    pulse();
+    for (const page of [main, small]) await page.locator('.flow-state-notice').waitFor({ state: 'detached' });
     assert.deepEqual(fs.readFileSync(latestFile), latestBytes);
     assert.deepEqual(fs.readFileSync(file), expected, 'only the fixture writer changes the synthetic save');
     assert.deepEqual(errors, []);

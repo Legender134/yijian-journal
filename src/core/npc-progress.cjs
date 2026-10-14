@@ -157,6 +157,7 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
     }
     function gate(person, saved, friendship, kind) {
       const checks = [];
+      let minimumQuality = null;
       if (!person.functions?.includes(kind))
         checks.push({
           status: 'unmet',
@@ -216,14 +217,15 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
                           : f < 80
                             ? 3
                             : 4;
+          minimumQuality = ['白', '绿', '蓝', '金', '暗金'][Math.abs(rank)];
           checks.push({
             status: 'met',
-            text: `礼物至少${['白', '绿', '蓝', '金', '暗金'][Math.abs(rank)]}色品质`,
+            text: `礼物至少${minimumQuality}色品质`,
           });
         }
       }
       if (saved.visible === false) checks.push({ status: 'unknown', text: '地图中暂未显示此人物' });
-      return { status: mergeStatus(checks), checks };
+      return { status: mergeStatus(checks), checks, ...(kind === 'Gift' ? { minimumQuality } : {}) };
     }
     const rows = [];
     for (const [id, saved] of npcStates) {

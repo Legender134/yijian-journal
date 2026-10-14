@@ -439,39 +439,48 @@ test('additional reading state is bounded and cannot carry arbitrary selectors o
     assert.throws(() => handbookContext({ profileId: 'p', detail: { type: 'entity-choice', id } }));
 });
 
-test('task materials preserve the exact flow reference when a separate crafting reference is selected', async () => {
+test('task materials preserve their reference while current NPC navigation follows live updates only in latest mode', async () => {
+  const { createGameViews } = await import('../src/renderer/game-views.js');
+  const gameViews = createGameViews({ esc: String });
+  const gameIndex = require('../src/data/game-index.json');
   const app = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
   const start = app.indexOf("    case 'database-detail': {");
   const end = app.indexOf("    case 'database-uses':", start);
   assert.ok(start > 0 && end > start);
-  for (const fromFlow of [true, false]) {
-    let opened;
-    const flow = { name: '1.sav', hash: 'a'.repeat(64) };
-    const context = {
-      id: 'item-10016',
-      target: { closest: () => fromFlow },
-      currentDrawer: null,
-      currentFlow: () => ({ reference: flow }),
-      route: 'materials',
-      mutationQueue: Promise.resolve(),
-      materialView: { referenceName: '2.sav', follow: false },
-      referenceSave: {},
-      defaultReference: () => '3.sav',
-      defaultFollow: () => true,
-      profile: () => ({ craftList: [] }),
-      showDatabaseDetail: async (_id, _quantity, _page, expected) => {
-        opened = { name: context.referenceSaveName, expected };
-      },
-    };
-    vm.createContext(context);
-    vm.runInContext(
-      `this.run = async () => { switch ('database-detail') { ${app.slice(start, end)} } };`,
-      context,
-    );
-    await context.run();
-    assert.equal(opened.name, fromFlow ? '1.sav' : '2.sav');
-    assert.equal(opened.expected?.hash, fromFlow ? flow.hash : undefined);
-  }
+  for (const id of ['item-10016', 'npc-10016'])
+    for (const fromFlow of [true, false])
+      for (const follow of [true, false]) {
+        let opened;
+        const flow = { name: '1.sav', hash: 'a'.repeat(64) };
+        const context = {
+          id,
+          gameViews,
+          gameIndex,
+          target: { closest: () => fromFlow },
+          currentDrawer: null,
+          currentFlow: () => ({ reference: flow }),
+          route: 'materials',
+          mutationQueue: Promise.resolve(),
+          materialView: { referenceName: '2.sav', follow: false },
+          referenceSave: {},
+          defaultReference: () => '3.sav',
+          defaultFollow: () => follow,
+          profile: () => ({ craftList: [] }),
+          showDatabaseDetail: async (_id, _quantity, _page, expected) => {
+            opened = { name: context.referenceSaveName, expected };
+          },
+        };
+        vm.createContext(context);
+        vm.runInContext(
+          `this.run = async () => { switch ('database-detail') { ${app.slice(start, end)} } };`,
+          context,
+        );
+        await context.run();
+        const liveNpc = fromFlow && follow && id === 'npc-10016';
+        assert.equal(opened.name, liveNpc ? undefined : fromFlow ? '1.sav' : '2.sav');
+        assert.equal(opened.expected?.hash, fromFlow && !liveNpc ? flow.hash : undefined);
+        assert.equal(opened.expected?.origin, liveNpc ? 'live' : undefined);
+      }
 });
 
 test('choosing a namesake tracks its configured slot while explicit snapshots remain pinned', async () => {

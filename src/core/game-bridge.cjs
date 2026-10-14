@@ -276,6 +276,12 @@ class GameBridge {
     }
   }
   liveGuidance(source) {
+    const priorObservation = () => {
+      const last = this.npcReader.last;
+      return last && typeof last.source === 'string' && same(source, last.source)
+        ? { lastLiveAt: last.at * 1000 }
+        : {};
+    };
     const withdraw = () => {
       this.npcReader.withdraw();
       const current = this.dialogueContext;
@@ -292,7 +298,7 @@ class GameBridge {
       }
       current.lastQuestId = 0;
       this.persistDialogueContext();
-      return { dialogue: null, suppressedQuestIds: [...current.suppressed] };
+      return { dialogue: null, suppressedQuestIds: [...current.suppressed], ...priorObservation() };
     };
     if (
       this.disposed ||
@@ -346,6 +352,7 @@ class GameBridge {
     return {
       dialogue,
       suppressedQuestIds: [...(npcState ? current.liveSuppressed : current.suppressed)],
+      ...(!npcState ? priorObservation() : {}),
       ...(npcState ? { npcState } : {}),
     };
   }

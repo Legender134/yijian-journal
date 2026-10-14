@@ -215,6 +215,7 @@ class NpcObservationReader {
         this.cache = { binding, mac, version: ref.version, value };
       }
       this.last = {
+        source: state.source,
         binding,
         scope,
         epoch: ref.epoch,

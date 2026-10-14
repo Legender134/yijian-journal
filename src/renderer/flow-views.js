@@ -2,6 +2,10 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   const list = (value) => (Array.isArray(value) ? value : []);
   const text = (value) => esc(String(value ?? ''));
   const prose = (value) => richText(String(value ?? ''));
+  const stateNotice = (flow) =>
+    flow?.stateNotice
+      ? `<p class="notice info flow-state-notice" role="status">${text(flow.stateNotice)}</p>`
+      : '';
   function persist(html, scope) {
     let index = 0;
     return html.replace(
@@ -419,10 +423,12 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
         )}" open><summary><strong>推进前确认 · ${warnings.length} 项</strong></summary>${groups.map(({ deadline, rows }) => `<details class="flow-risk-window" data-persist-detail="flow-risk-window-${text(rows[0].id)}"><summary>${deadline && rows.some((row) => !row.compactWarning && !String(riskPreview(row)).includes(deadline.replace(/(?:之前|前)$/, ''))) ? `<span class="flow-risk-deadline">${prose(deadline)}</span>` : ''}${rows.map((row) => `<span class="flow-risk-preview">${prose(riskPreview(row))}</span>`).join('')}</summary>${rows.map((row) => `<div data-flow-impact="${text(row.id)}">${rule(row, true, 'risk', true)}</div>`).join('')}</details>`).join('')}</details></section>`
       : '';
     const current = decisions.length
-      ? `<details class="flow-task-peek" data-persist-detail="flow-task-peek-${text(first?.id)}"><summary>当前任务 · ${prose(first?.name || '步骤待核对')}</summary>${lead}</details>`
+      ? first
+        ? `<details class="flow-task-peek" data-persist-detail="flow-task-peek-${text(first.id)}"><summary>当前任务 · ${prose(first.name)}</summary>${lead}</details>`
+        : ''
       : lead;
     return persist(
-      `<section class="flow-panel flow-compact" data-flow>${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${compactDecision(decisions[0])}${decisions.length > 1 ? `<details data-persist-detail="compact-more-choices"><summary>其他关键选择 · ${decisions.length - 1}</summary>${decisions.slice(1).map(compactDecision).join('')}</details>` : ''}</section>` : ''}${urgent}${decisions.length ? '' : current}${visibleSections.has('advice') && advice.length ? `<section class="flow-advice"><h2>顺路可做</h2>${compactAdvice(advice[0])}${advice.length > 1 ? `<details data-persist-detail="compact-more-advice"><summary>更多建议 · ${advice.length - 1}</summary>${advice.slice(1).map(compactAdvice).join('')}</details>` : ''}</section>` : ''}${decisions.length ? current : ''}${
+      `<section class="flow-panel flow-compact" data-flow>${stateNotice(flow)}${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${compactDecision(decisions[0])}${decisions.length > 1 ? `<details data-persist-detail="compact-more-choices"><summary>其他关键选择 · ${decisions.length - 1}</summary>${decisions.slice(1).map(compactDecision).join('')}</details>` : ''}</section>` : ''}${urgent}${decisions.length ? '' : current}${visibleSections.has('advice') && advice.length ? `<section class="flow-advice"><h2>顺路可做</h2>${compactAdvice(advice[0])}${advice.length > 1 ? `<details data-persist-detail="compact-more-advice"><summary>更多建议 · ${advice.length - 1}</summary>${advice.slice(1).map(compactAdvice).join('')}</details>` : ''}</section>` : ''}${decisions.length ? current : ''}${
         active.length > 1
           ? `<details data-persist-detail="compact-other-active" class="flow-all-active"><summary>其他进行中任务 · ${active.length - 1}</summary>${active
               .slice(1)
@@ -440,7 +446,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       const updating = /^(正在核对|存档正在更新)/.test(flow.reason || '');
       const offline = flow.referenceMode === 'none';
       return persist(
-        `<section class="flow-panel${summary ? ' flow-summary' : ''}" data-flow><div class="flow-heading"><p${updating ? ' role="status"' : ''}>${updating ? '正在更新进度…' : offline ? '查询流程资料' : '暂无可读进度'}</p>${!updating && !offline ? button('navigate', '检查游戏连接', 'settings') : ''}</div>${summary ? `<div class="flow-more">${button('navigate', '查看完整流程、攻略与主线索引', 'checklist', 'btn soft')}</div>` : offlineIndex(flow)}</section>`,
+        `<section class="flow-panel${summary ? ' flow-summary' : ''}" data-flow>${stateNotice(flow)}<div class="flow-heading"><p${updating ? ' role="status"' : ''}>${updating ? '正在更新进度…' : offline ? '查询流程资料' : '暂无可读进度'}</p>${!updating && !offline ? button('navigate', '检查游戏连接', 'settings') : ''}</div>${summary ? `<div class="flow-more">${button('navigate', '查看完整流程、攻略与主线索引', 'checklist', 'btn soft')}</div>` : offlineIndex(flow)}</section>`,
         'panel',
       );
     }
@@ -468,7 +474,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       : `${active.slice(0, 3).map(activeCard).join('')}${remaining ? `<details class="flow-all-active"><summary>其余 ${remaining} 项进行中任务</summary>${active.slice(3).map(activeCard).join('')}</details>` : ''}`;
     const riskContent = warnings.map((warning) => rule(warning, true, 'risk')).join('');
     return persist(
-      `<section class="flow-panel${compact ? ' flow-compact' : ''}${summary ? ' flow-summary' : ''}${warnings.length ? ' flow-has-risks' : ''}" data-flow>${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${decisions.map(decision).join('')}</section>` : ''}${warnings.length ? `<section class="flow-risks"><h2>${icon('pin')} 推进前确认</h2>${riskContent}</section>` : ''}<section class="flow-active"><h2>当前任务与下一行动${active.length ? ` · ${active.length} 项` : ''}</h2>${sharedMaterialSummary(
+      `<section class="flow-panel${compact ? ' flow-compact' : ''}${summary ? ' flow-summary' : ''}${warnings.length ? ' flow-has-risks' : ''}" data-flow>${stateNotice(flow)}${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${decisions.map(decision).join('')}</section>` : ''}${warnings.length ? `<section class="flow-risks"><h2>${icon('pin')} 推进前确认</h2>${riskContent}</section>` : ''}<section class="flow-active"><h2>当前任务与下一行动${active.length ? ` · ${active.length} 项` : ''}</h2>${sharedMaterialSummary(
         shared,
       )}${unindexed.length ? `<aside class="flow-unindexed" data-flow-unindexed><details><summary>另有 ${unindexed.length} 条进行中记录待识别</summary><p class="small save-note">这些记录尚未收录在任务资料中，可能是隐藏剧情或版本新增任务。请核对游戏任务栏中额外进行中的任务；这里暂不能判断名称与下一步。</p></details></aside>` : ''}${activeBody || `<p class="small muted">${flow.available ? '暂无进行中步骤，可在下方查找任务。' : '连接游戏进度后显示当前行动。'}</p>`}</section>${
         advice.length
@@ -495,5 +501,5 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       'panel',
     );
   }
-  return { panel, taskMaterials, choice: decision };
+  return { panel, taskMaterials, choice: decision, stateNotice };
 }
