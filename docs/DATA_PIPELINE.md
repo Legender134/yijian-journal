@@ -49,6 +49,8 @@ node scripts/reduce-large-table.cjs NPCResources
 
 原生前置校验验收：在Windows显式配置provenance所pin的MSVC/SDK环境与 `YIJIAN_CL`、`YIJIAN_TOOLCHAIN_ID`，运行 `node scripts/native-executable-gate-smoke.cjs --out-dir <仓库.test-data内全新的绝对目录>`。只编译和运行合成EXE，核对当前进程摘要与Node/PowerShell一致、有效旧授权仍被固定游戏pin拒绝、拒绝后零Lua参数和Channel绑定、重定向路径拒绝及合成文件不变。无工具链时直接报错，不以跳过冒充通过。
 
+已发布Unicode组件仅允许按provenance的明确旧摘要清单升级。旧安装记录必须归属本手札、协议与mod一致，记录摘要须匹配实际旧DLL；游戏停止并核验应用数据中的组件保护副本后才原子替换，再更新本手札mod的脚本、配置与安装记录。保护副本位于应用数据的 `component-backups/YijianJournalUnicode/<旧摘要>.dll`，不写入游戏存档；旧运行目录位于游戏内时也不能用它充当保护目录。未知或改动的DLL、归属不符、保护失败、运行状态变化均保留原件并拒绝更新；这里的旧DLL保护不代表额外备份mod脚本或配置。
+
 ## 物品数值索引
 
 `scripts/build-item-stats.cjs` 另外生成 `src/data/item-stats.json`，按 `game-index.json` 的物品 ID 选择同版本静态数据。它不读取玩家存档，也不启动游戏；只输出展示所需的基础动作、使用条件、装备原始 Rank 值、共享随机候选池、引用到的增益文本及数值参数。原始全表、程序和工具不随产品分发。

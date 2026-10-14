@@ -3169,6 +3169,7 @@ function dockLiveChoice(compact = false) {
   );
   const dock = document.createElement('section');
   dock.className = 'live-choice-dock';
+  dock.dataset.choiceKey = JSON.stringify([profile().id, row.id, row.liveSequence]);
   dock.dataset.flow = '';
   dock.setAttribute('aria-label', '当前关键选择');
   // Keep one canonical card outside the reading scroller, including on flow pages.
@@ -3250,6 +3251,45 @@ function render(preserve = false, navigationId = null) {
     focusId = preserve ? active?.id : null,
     selection = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null,
     fieldValue = active && active.dataset?.persist ? active.value : null;
+  const focusedSummary = preserve && root.contains(active) && active?.tagName === 'SUMMARY';
+  const summaryScope = focusedSummary
+    ? active.closest('details[data-persist-detail], details[data-compact-detail]')
+    : null;
+  const summaryFocus = summaryScope
+    ? {
+        key: summaryScope.dataset.persistDetail || summaryScope.dataset.compactDetail,
+        attribute: summaryScope.dataset.persistDetail ? 'data-persist-detail' : 'data-compact-detail',
+        index: [...summaryScope.querySelectorAll('summary')].indexOf(active),
+      }
+    : focusedSummary
+      ? {
+          text: active.textContent,
+          index: [...root.querySelectorAll('summary')]
+            .filter((el) => el.textContent === active.textContent)
+            .indexOf(active),
+        }
+      : null;
+  const previousDock = preserve ? root.querySelector('.live-choice-dock') : null;
+  const dockReading = previousDock
+    ? { key: previousDock.dataset.choiceKey, scroll: previousDock.scrollTop }
+    : null;
+  const disclosureScope = detailFolds.scope;
+  const restoreDisclosures = () => {
+    if (disclosureScope !== detailFolds.scope) return;
+    const dock = root.querySelector('.live-choice-dock');
+    if (dockReading && dock?.dataset.choiceKey === dockReading.key) dock.scrollTop = dockReading.scroll;
+    if (!summaryFocus || root.inert) return;
+    if (!summaryFocus.attribute) {
+      [...root.querySelectorAll('summary')]
+        .filter((el) => el.textContent === summaryFocus.text)
+        [summaryFocus.index]?.focus({ preventScroll: true });
+      return;
+    }
+    const next = [...root.querySelectorAll('details[' + summaryFocus.attribute + ']')].find(
+      (el) => el.getAttribute(summaryFocus.attribute) === summaryFocus.key,
+    );
+    next?.querySelectorAll('summary')[summaryFocus.index]?.focus({ preventScroll: true });
+  };
   const referenceFocus =
     preserve && root.contains(active) && active?.dataset?.entityId
       ? {
@@ -3355,6 +3395,7 @@ function render(preserve = false, navigationId = null) {
     restoreItineraryFocus();
     restoreNavigationFocus();
     restoreReferenceFocus();
+    restoreDisclosures();
     return;
   }
   const sidebarScroll = root.querySelector('.sidebar-nav')?.scrollTop || 0;
@@ -3387,6 +3428,7 @@ function render(preserve = false, navigationId = null) {
   restoreItineraryFocus();
   restoreNavigationFocus();
   restoreReferenceFocus();
+  restoreDisclosures();
 }
 function intentDraftBanner() {
   return `<div class="notice mb">${act('intent-drafts', `继续未完成安排 · ${availableIntentDrafts().length} 份草稿`, 'text-btn')}</div>`;

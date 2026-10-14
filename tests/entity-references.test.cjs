@@ -663,6 +663,7 @@ function previewEvents(context = async () => ({})) {
       captureIntentDrafts() {},
       profile: () => ({ id: 'synthetic' }),
       captureDetailFolds: () => new Map(),
+      detailFolds: { scope: 'synthetic' },
       companionMaterialFolds: { profileId: null, values: new Map() },
       compactPage: () => '',
       availableIntentDrafts: () => [],

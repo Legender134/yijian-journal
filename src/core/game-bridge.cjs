@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
-const { realDirectory, sha } = require('./saves.cjs');
+const { realDirectory, sha, isWithin } = require('./saves.cjs');
 const { readStable, writeBytes, safeId, SLOT } = require('./timeline.cjs');
 const provenance = require('../game-bridge/provenance.json');
 const { PROTOCOL, assertNativePath, grantFrame, commandFrame } = require('./native-io.cjs');
@@ -310,7 +310,7 @@ class GameBridge {
       );
   }
   install() {
-    if (this.busy || !this.canStop()) throw Error('请先退出游戏，再安装或更新接入组件');
+    if (this.busy || this.loadQueued || !this.canStop()) throw Error('请先退出游戏，再安装或更新接入组件');
     const native = provenance.nativeIO;
     if (native?.protocol !== PROTOCOL || native.mod !== NATIVE_MOD || !/^[a-f0-9]{64}$/.test(native.sha256))
       throw Error('Unicode 原生组件缺少已固定的构建来源，已停止安装');
@@ -318,9 +318,12 @@ class GameBridge {
     if (sha(nativeBytes) !== native.sha256) throw Error('Unicode 内置组件校验失败，已停止安装');
     const bin = this.location(),
       marker = path.join(bin, '.yijian-component.json');
-    let mod = 'YijianJournalBridge';
+    let mod = 'YijianJournalBridge',
+      existing,
+      markerBytes;
     if (fs.existsSync(marker)) {
-      const existing = json(marker);
+      markerBytes = readStable(marker);
+      existing = JSON.parse(markerBytes.toString('utf8'));
       if (
         existing.schema !== 1 ||
         !same(existing.root, this.root) ||
@@ -335,12 +338,80 @@ class GameBridge {
     )
       throw Error('已有其他游戏接入文件，已保留原组件；不能自动覆盖');
     const nativeTarget = path.join(bin, 'ue4ss', 'Mods', NATIVE_MOD, 'dlls', 'main.dll');
-    if (fs.existsSync(nativeTarget) && this.checkedHash(nativeTarget) !== native.sha256)
-      throw Error('已有 Unicode 接入文件不匹配，已保留原组件');
+    let previousNative;
+    if (fs.existsSync(nativeTarget) && this.checkedHash(nativeTarget) !== native.sha256) {
+      if (
+        existing?.protocol !== PROTOCOL ||
+        existing.nativeMod !== NATIVE_MOD ||
+        !/^[a-f0-9]{64}$/.test(existing.unicodeSha256) ||
+        !native.upgradeFromSha256?.includes(existing.unicodeSha256)
+      )
+        throw Error('已有 Unicode 接入文件不匹配，已保留原组件');
+      for (const relative of [
+        'ue4ss',
+        'ue4ss/Mods',
+        'ue4ss/Mods/' + NATIVE_MOD,
+        'ue4ss/Mods/' + NATIVE_MOD + '/dlls',
+      ])
+        realDirectory(path.join(bin, relative));
+      previousNative = readStable(nativeTarget);
+      if (sha(previousNative) !== existing.unicodeSha256)
+        throw Error('已有 Unicode 接入文件与安装记录不符，已保留原组件');
+    }
+    // Verify every existing runtime pin before creating a protection copy or changing the game.
+    const runtimeFiles = [];
     for (const [name, hash] of Object.entries(provenance.files)) {
       const bytes = fs.readFileSync(path.join(resources, 'runtime', name));
       if (sha(bytes) !== hash) throw Error('内置组件校验失败');
       const target = path.join(bin, name);
+      if (fs.existsSync(target) && this.checkedHash(target) !== hash)
+        throw Error('已有组件发生了变化，已停止安装');
+      runtimeFiles.push({ target, bytes, hash });
+    }
+    if (previousNative) {
+      // The runtime may be legacy game-local state; component protection always lives in app data.
+      let dataRoot;
+      try {
+        dataRoot = realDirectory(path.dirname(this.timeline.root));
+      } catch (e) {
+        throw Error('无法确认手札数据目录，原组件已保留；请检查数据目录后重试', { cause: e });
+      }
+      const gameRoot = realDirectory(path.resolve(bin, '..', '..', '..'));
+      if (isWithin(dataRoot, gameRoot) || isWithin(gameRoot, dataRoot))
+        throw Error('组件保护目录不能与游戏安装目录重叠，已保留原组件');
+      const backupsRoot = path.join(dataRoot, 'component-backups');
+      const backups = path.join(backupsRoot, NATIVE_MOD);
+      const backup = path.join(backups, existing.unicodeSha256 + '.dll');
+      let protectedBytes;
+      try {
+        fs.mkdirSync(backupsRoot, { recursive: true });
+        realDirectory(backupsRoot);
+        fs.mkdirSync(backups, { recursive: true });
+        realDirectory(backups);
+        if (!fs.existsSync(backup)) {
+          const staged = path.join(backups, '.' + crypto.randomUUID() + '.tmp');
+          writeBytes(staged, previousNative);
+          try {
+            // Publish complete, flushed bytes atomically without replacing a racing protection copy.
+            fs.linkSync(staged, backup);
+          } catch (e) {
+            if (e.code !== 'EEXIST') throw e;
+          } finally {
+            fs.unlinkSync(staged);
+          }
+        }
+        protectedBytes = readStable(backup);
+      } catch (e) {
+        throw Error('无法保护旧接入组件，原组件已保留；请检查手札数据目录权限后重试', { cause: e });
+      }
+      if (sha(protectedBytes) !== existing.unicodeSha256)
+        throw Error('已有组件保护副本不匹配，已保留原组件和副本');
+      if (this.busy || this.loadQueued || !this.canStop()) throw Error('请先退出游戏，再安装或更新接入组件');
+      if (!readStable(marker).equals(markerBytes) || !readStable(nativeTarget).equals(previousNative))
+        throw Error('已有接入组件正在变化，已保留原组件');
+      writeBytes(nativeTarget, nativeBytes);
+    }
+    for (const { target, bytes, hash } of runtimeFiles) {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       realDirectory(path.dirname(target));
       if (!fs.existsSync(target)) writeBytes(target, bytes);

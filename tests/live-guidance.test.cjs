@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { readDialogue } = require('../src/core/live-guidance.cjs');
+const { readDialogue, withLiveDialogue } = require('../src/core/live-guidance.cjs');
 const { flowSnapshot } = require('../src/core/flow.cjs');
 const { companionSnapshot } = require('../src/core/companion.cjs');
 const { defaults } = require('../src/core/store.cjs');
@@ -105,12 +105,52 @@ test('the current native choice can precede its saved step but must match the wh
   ]) {
     const unmatched = flowSnapshot(profile, reference(), '', context(raw));
     assert.deepEqual(unmatched.decisions, [], 'an open unmatched dialogue never inherits a saved choice');
+    for (const rows of [unmatched.warnings, unmatched.advice, unmatched.opportunities])
+      assert(
+        !rows.some((row) => row.choices?.length > 1),
+        'saved choice recommendations cannot return through another carrier',
+      );
     assert.equal(unmatched.liveDialogue.matched, false);
     assert(unmatched.guide.some((row) => row.id === choiceId));
   }
   const withoutSavedProgress = flowSnapshot(profile, null, '', context());
   assert.equal(withoutSavedProgress.available, false);
   assert.equal(withoutSavedProgress.decisions[0].live, true);
+});
+
+test('an open choice isolates every recommendation carrier and keeps ordinary risks and offline lookup', () => {
+  const saved = flowSnapshot(profile, reference());
+  const old = saved.guide.find((row) => row.id === choiceId);
+  const ordinary = { id: 'ordinary-risk', warning: '出发前接取另一条普通任务' };
+  const base = {
+    ...saved,
+    warnings: [old, ordinary],
+    advice: [old, ordinary],
+    opportunities: [old, ordinary],
+  };
+  const unknown = withLiveDialogue(base, context(dialogue({ questId: 999999 })), new Map());
+  for (const rows of [unknown.warnings, unknown.advice, unknown.opportunities])
+    assert.deepEqual(rows, [ordinary]);
+  assert(unknown.guide.some((row) => row.id === choiceId));
+  const other = saved.guide.find((row) => row.id === 'early-jingyin-weapon-choice');
+  const matched = flowSnapshot(
+    profile,
+    reference(),
+    '',
+    context(
+      dialogue({
+        questId: 5076,
+        npcId: 10016,
+        options: other.choices.map((choice, index) => ({ index: index + 1, text: choice.label })),
+      }),
+    ),
+  );
+  assert.deepEqual(
+    matched.decisions.map((row) => row.id),
+    [other.id],
+  );
+  for (const rows of [matched.warnings, matched.advice, matched.opportunities])
+    assert(!rows.some((row) => row.choices?.length > 1));
 });
 
 test('closed live choices retire stale saved advice and a newly observed opening can restore it', () => {

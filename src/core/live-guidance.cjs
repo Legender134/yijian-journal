@@ -100,10 +100,16 @@ function withLiveDialogue(flow, context, quests) {
     });
   }
   const current = candidates.length === 1 ? candidates[0] : null;
+  // An open native window also supersedes saved choices offered as advice or
+  // warnings. Keep ordinary tasks/risks and the complete offline guide.
+  const ordinary = (rows) => rows.filter((rule) => !(rule.choices?.length > 1));
   return {
     ...base,
     // A different open choice must not inherit a saved recommendation from another conversation.
     decisions: current ? [current] : [],
+    warnings: ordinary(base.warnings),
+    advice: ordinary(base.advice),
+    opportunities: ordinary(base.opportunities),
     liveDialogue: {
       sequence: dialogue.sequence,
       questId: dialogue.questId,

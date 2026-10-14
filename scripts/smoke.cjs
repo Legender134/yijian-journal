@@ -261,7 +261,7 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
   }
   await page.screenshot({ animations: 'disabled', path: path.join(results, name + '.png') });
   // Capture can yield to native window events; send Esc only to a visible preview.
-  await trigger.hover();
+  await hoverEntry();
   await preview.waitFor({ state: 'visible' });
   await page.keyboard.press('Escape');
   await preview.waitFor({ state: 'hidden' });

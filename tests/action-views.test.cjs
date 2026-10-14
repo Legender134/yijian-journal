@@ -920,21 +920,29 @@ test('critical branch losses and prerequisites remain outside the collapsed choi
     ['early-woodcutter-axe-choice', /换新.*武学笔记.*不能兼得/],
     ['kongliang-choice', /放弃.*漫天花雨/],
     ['golden-scorpion-choice', /不能兼得.*挂坠.*截脉三式/],
-    ['bai-jin-rescue-route', /霹雳雷火弹.*绝笔.*不能同次兼得/],
-    ['changsheng-rescue-choice', /剧情.*好感.*不保证全员存活/],
+    ['bai-jin-rescue-route', /交军情.*白锦身亡.*霹雳雷火弹.*绝笔.*不能同次兼得/],
+    ['tianji-rebuild-choice', /回绝.*天机宫收益.*攻略记商颂身亡.*掌门承诺/],
+    ['ganquan-prison-before-yixiantian', /直接出发.*兆成死亡.*仍会牺牲万彪/],
+    ['changsheng-formation-choice', /多人赴战没有.*轻功与鞋图.*三人.*第二战速杀/],
+    ['changsheng-rescue-choice', /不兼得.*油尽灯枯图鉴.*剧情.*好感.*不保证全员存活/],
+    ['qiluo-window', /晋升执法前.*火云神掌.*另一套队伍.*没有玄阳离火功/],
+    ['beggar-rest-order', /直接休息可能进入坏结局.*玉伯/],
     ['mowen-thankyou-gift-choice', /3000.*六博.*战斗/],
-    ['chenlinxi-critical-choice', /60且低于70.*其他好感组合未确认/],
+    ['chenlinxi-critical-choice', /60且低于70.*高于70.*好言相劝会致死.*其他组合未确认/],
     ['yanfu-investigation-choice', /放弃调查.*关闭查明真相/],
     ['chengyu-stay-choice', /送走程钰.*失去.*对话.*切磋/],
   ]) {
     const row = rules.find((entry) => entry.id === id);
     assert(row, id);
-    const html = view.panel({ decisions: [row] }, { compact: true });
-    const visible = html.slice(0, html.indexOf('<details'));
-    assert.match(visible, expected, id);
-    const detail = detailsWithClass(html, 'flow-choice-details')[0];
-    if (row.recommendation.reason)
-      assert(detail.body.includes(row.recommendation.reason), id + ' retains the full reason');
+    for (const compact of [false, true]) {
+      const html = view.panel({ decisions: [row] }, { compact });
+      const start = html.indexOf('data-flow-decision');
+      const visible = html.slice(start, html.indexOf('<details', start));
+      assert.match(visible, expected, id);
+      const detail = detailsWithClass(html, 'flow-choice-details')[0];
+      if (row.recommendation.reason)
+        assert(detail.body.includes(row.recommendation.reason), id + ' retains the full reason');
+    }
   }
 });
 
