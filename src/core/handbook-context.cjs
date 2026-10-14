@@ -1,5 +1,6 @@
 'use strict';
 const { validBackupId } = require('./backup-anomalies.cjs');
+const presentationLimit = 512;
 
 // This message only selects an existing read-only view. It carries no paths,
 // commands, save contents or mutations between the two sandboxed renderers.
@@ -39,13 +40,14 @@ function handbookContext(value) {
     const patterns = {
       database: /^(item|npc|skill|alchemy|cooking|fusion)-\d+$/,
       'world-quest': /^quest-\d+$/,
-      'world-place': /^place-\d+$/,
+      'world-place': /^place-\d+(?::[A-Za-z0-9_]{1,70})?$/,
       guide: /^[a-z0-9-]+$/,
       search: /^$/,
       timeline: /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/,
       save: /^\d{1,12}\.sav$/i,
       comparison: /^$/,
-      'entity-choice': /^name:[^/\\\u0000-\u001f]{1,90}$/,
+      'entity-choice':
+        /^(?:name:[^/\\\u0000-\u001f]{1,90}|place-\d+|map-point:\d{1,4}(?:\.\d{1,2})?:\d{1,4}(?:\.\d{1,2})?)$/,
     };
     const valid =
       detail.type === 'backup'
@@ -71,6 +73,8 @@ function handbookContext(value) {
       result.detail.showSaved = detail.showSaved === true;
     }
     if (detail.type === 'database') result.detail.giftPage = page(detail.giftPage);
+    if (detail.type === 'world-place')
+      result.detail.mapScope = detail.mapScope === 'world' ? 'world' : 'region';
     if (detail.type === 'entity-choice') result.detail.flowBound = detail.flowBound === true;
     if (detail.type === 'comparison') {
       for (const key of ['left', 'right']) {
@@ -97,10 +101,12 @@ function handbookContext(value) {
     result[key] = {
       scroll: position(presentation.scroll),
       details: Array.isArray(presentation.details)
-        ? presentation.details.slice(0, 200).map((row) => ({
+        ? presentation.details.slice(0, presentationLimit).map((row) => ({
             summary: text(row?.summary, 1000),
             key: text(row?.key, 200),
-            ...(Number.isSafeInteger(row?.occurrence) && row.occurrence >= 0 && row.occurrence < 200
+            ...(Number.isSafeInteger(row?.occurrence) &&
+            row.occurrence >= 0 &&
+            row.occurrence < presentationLimit
               ? { occurrence: row.occurrence }
               : {}),
             open: row?.open === true,
@@ -113,7 +119,7 @@ function handbookContext(value) {
       typeof anchor.label === 'string' &&
       Number.isSafeInteger(anchor.occurrence) &&
       anchor.occurrence >= 0 &&
-      anchor.occurrence < 200 &&
+      anchor.occurrence < presentationLimit &&
       Number.isFinite(anchor.offset) &&
       Math.abs(anchor.offset) <= 1000000
     )

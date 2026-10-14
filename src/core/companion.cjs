@@ -19,7 +19,9 @@ function companionSnapshot(state, catalog, reference, error = '') {
           .filter((s) => s.pending)
           .map((s) => ({
             ...(s.action || { id: s.actionId, title: s.title, kind: 'review', unknowns: [s.reason] }),
-            places: s.selectedPlace ? [{ name: s.selectedPlace.name }] : [],
+            places: s.selectedPlace
+              ? [{ name: s.selectedPlace.name, mapIds: [s.selectedPlace.id] }]
+              : s.action?.places || [],
           }))
       : allPendingActions;
   const goals = [...profile.goals]
@@ -200,7 +202,9 @@ function companionSnapshot(state, catalog, reference, error = '') {
       id: a.id,
       title: a.title,
       kind: a.kind,
-      places: a.places.map((p) => p.name),
+      questId: a.questId,
+      recipeId: a.recipeId,
+      places: a.places.map((p) => ({ name: p.name, mapIds: p.mapIds || [] })),
       unknowns: a.unknowns.length,
       material: a.material,
       gift: a.gift,

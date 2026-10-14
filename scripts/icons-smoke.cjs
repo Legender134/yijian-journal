@@ -7,6 +7,7 @@ const { Store } = require('../src/core/store.cjs'),
   { sha } = require('../src/core/saves.cjs');
 const { syntheticSave } = require('../tests/fixtures.cjs');
 const catalog = require('../src/data/catalog.cjs');
+const { selectProgress } = require('./progress-settings.cjs');
 const base = path.resolve(__dirname, '..');
 const data = fs.mkdtempSync(path.join(base, '.test-data', 'pictures-'));
 const source = path.join(data, 'SaveGames');
@@ -100,17 +101,16 @@ async function shot(name) {
     assert.deepEqual(bad, []);
     report.assetCount = images.length;
     report.checks.push('every referenced local PNG decodes inside the sandboxed renderer, offline');
-    assert.ok((await win.locator('.backup-auto-status').innerText()).includes('未开启'));
-    await win.locator('.backup-auto-status [data-action="navigate"]').click();
+    await nav('settings');
+    assert.equal(await win.locator('[data-action="auto-backup"]').getAttribute('aria-checked'), 'false');
     await win.locator('[data-action="auto-backup"]').click();
     await nav('home');
-    assert.ok((await win.locator('.backup-auto-status').innerText()).includes('正在检查变化'));
-    assert.ok((await win.locator('.backup-auto-status').innerText()).includes('完整备份'));
-    assert.ok((await win.locator('.backup-auto-status').innerText()).includes('时间线中管理'));
+    assert.equal((await win.evaluate(() => window.journal.bootstrap())).data.state.settings.autoBackup, true);
+    assert.equal(await win.locator('.backup-auto-status').count(), 0);
     await app.close();
     app = null;
     await launch();
-    assert.ok((await win.locator('.backup-auto-status').innerText()).includes('正在检查变化'));
+    assert.equal((await win.evaluate(() => window.journal.bootstrap())).data.state.settings.autoBackup, true);
     await nav('saves');
     await win.locator('[data-action="auto-backup"]').click();
     assert.equal(
@@ -136,7 +136,7 @@ async function shot(name) {
     await win.locator('#list-search').fill('卫霍');
     await loaded('.database-card .game-image');
     await win.locator('.database-card[data-id="npc-10047"]').click();
-    await win.locator('#person-save').selectOption('1.sav');
+    await selectProgress(win, '1.sav');
     await loaded('.person-gifts .game-image');
     assert.ok((await win.locator('.person-gifts').innerText()).includes('2 件'));
     await shot('22-person-pictures');

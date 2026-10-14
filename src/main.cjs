@@ -1760,7 +1760,7 @@ app.whenReady().then(async () => {
           title: '使用这份历史手札',
           message: `用离线档案的 ${history.journal.profiles.length} 个周目替换当前手札？`,
           detail:
-            '当前手札会另存保护副本。本机路径、显示设置与备份开关继续使用当前设置；历史周目暂不绑定本机存档，可在周目管理中选择参照。游戏文件和时间线权限不会改变。',
+            '当前手札会另存保护副本。本机路径、显示设置与备份开关继续使用当前设置；历史周目暂不绑定本机存档，可在手札设置的游戏进度中选择。游戏文件和时间线权限不会改变。',
           buttons: ['取消', '保留当前副本并使用'],
           defaultId: 0,
           cancelId: 0,
@@ -1851,7 +1851,7 @@ app.whenReady().then(async () => {
         type: 'question',
         title: '导入手札',
         message: '用备份中的手札替换当前记录？',
-        detail: `备份包含 ${incoming.profiles.length} 个周目。当前手札会另存一份，游戏存档不会改动。${resetReferences ? `\n\n其中 ${resetReferences} 个周目的固定存档参照会改为跟随本机最新保存，避免套用其他账户的槽位；导入后可在周目管理中重新选择固定参照。` : ''}`,
+        detail: `备份包含 ${incoming.profiles.length} 个周目。当前手札会另存一份，游戏存档不会改动。${resetReferences ? `\n\n其中 ${resetReferences} 个周目的固定存档参照会改为跟随本机最新保存，避免套用其他账户的槽位；导入后可在手札设置的游戏进度中重新选择固定存档。` : ''}`,
         buttons: ['取消', '保留副本并导入'],
         defaultId: 0,
         cancelId: 0,
@@ -1943,7 +1943,6 @@ app.whenReady().then(async () => {
       settings: () => store.get().settings,
       layout: windowLayout,
       layoutError: (error) => resultFeedback('error', '随行布局暂未保存：' + error.message),
-      test: isTest,
       quiet: () => bridge.hintQuiet(),
     });
     const fitWindows = () => {

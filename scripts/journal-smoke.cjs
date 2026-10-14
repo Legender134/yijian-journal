@@ -33,8 +33,8 @@ for (let i = 1; i <= 22; i++)
   store.mutate({ type: 'goal-add', title: '同名出发备药', detail: '关联备忘' + String(i).padStart(2, '0') });
 const lastReferenceId = store.get().profiles[0].goals.find((g) => g.detail === '关联备忘22').id;
 const goalScenes = [
-  { placeId: 'place-14', label: '碗子山 · 场景 #14' },
-  { placeId: 'place-22', label: '野猪林 · 场景 #22' },
+  { placeId: 'place-14', label: '碗子山' },
+  { placeId: 'place-22', label: '野猪林' },
 ];
 for (const scene of goalScenes) {
   store.mutate({ type: 'goal-add', title: '明早采药', detail: '带上空行囊', placeId: scene.placeId });
@@ -205,13 +205,19 @@ async function nav(page, id) {
         }
         await page.locator('#journal-reference-query').fill('莫问授剑');
         assert.equal(await results.locator('[data-action="journal-reference-add"]').count(), 3);
-        for (const id of [5230, 9010, 9011]) {
+        for (const [position, id] of [5230, 9010, 9011].entries()) {
           await results
-            .getByRole('button', { name: '关联 任务 · 莫问授剑 · 任务 #' + id, exact: true })
+            .getByRole('button', {
+              name: '关联 任务 · 莫问授剑 · 【主线】拜师武当 · 资料 ' + (position + 1) + '/3',
+              exact: true,
+            })
             .click();
           await page
             .locator('#journal-selected-references')
-            .getByRole('button', { name: '移除 任务 · 莫问授剑 · 任务 #' + id, exact: true })
+            .getByRole('button', {
+              name: '移除 任务 · 莫问授剑 · 【主线】拜师武当 · 资料 ' + (position + 1) + '/3',
+              exact: true,
+            })
             .waitFor();
         }
         assert.equal(
@@ -237,10 +243,14 @@ async function nav(page, id) {
         p.journalEntries[0].links.find((link) => link.id === scene.id),
         { type: 'goal', id: scene.id, label: '明早采药' },
       );
-    for (const id of [5230, 9010, 9011])
+    for (const [position, id] of [5230, 9010, 9011].entries())
       assert.deepEqual(
         p.journalEntries[0].links.find((link) => link.id === 'quest-' + id),
-        { type: 'quest', id: 'quest-' + id, label: '莫问授剑' },
+        {
+          type: 'quest',
+          id: 'quest-' + id,
+          label: '莫问授剑 · 【主线】拜师武当 · 资料 ' + (position + 1) + '/3',
+        },
       );
     await page.locator('[data-action="search"]').click();
     await page.locator('#global-search').fill('卫霍');
@@ -321,8 +331,12 @@ async function nav(page, id) {
       .locator('summary')
       .filter({ hasText: /^目标记录$/ })
       .click();
-    for (const scene of goalScenes)
-      assert((await historicalProfile.innerText()).includes('明早采药 · ' + scene.label));
+    for (const scene of goalScenes) {
+      const place = historicalProfile.locator(`[data-action="archive-entity"][data-id="${scene.placeId}"]`);
+      assert.equal(await place.count(), 1);
+      assert.equal(await place.innerText(), scene.label);
+      assert.match(await place.locator('xpath=parent::p').innerText(), /明早采药/);
+    }
     assert.deepEqual((await current(page)).goals, p.goals);
     checks.push('只读档案在使用历史手札前显示两条目标各自保存的地点与场景，当前目标保持原样');
     await page.locator('[data-action="protection-journal-profile"]').click();

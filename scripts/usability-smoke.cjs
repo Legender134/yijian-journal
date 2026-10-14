@@ -4,6 +4,7 @@ const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
 const { _electron } = require('playwright');
+const { selectProgress, progressValue } = require('./progress-settings.cjs');
 const { Store } = require('../src/core/store.cjs'),
   { Timeline } = require('../src/core/timeline.cjs'),
   { Activity } = require('../src/core/activity.cjs');
@@ -124,18 +125,14 @@ async function shot(name) {
       ]),
     );
     await broadcast();
-    await win.waitForFunction(() => !!document.querySelector('#world-save option[value="2.sav"]'));
-    await win.locator('#world-save').selectOption('@latest');
-    await win.waitForFunction(() =>
-      document.querySelector('.world-reference')?.textContent.includes('已读取 2.sav'),
-    );
-    await win.locator('#world-save').selectOption('1.sav');
+    await selectProgress(win, '@latest');
+    assert.equal((await win.evaluate(() => window.journal.refresh())).data.recent.name, '2.sav');
+    await selectProgress(win, '1.sav');
     fs.writeFileSync(path.join(source, '2.sav'), stock(9, [{ id: 5200, step: 1 }]));
     await broadcast();
-    await win.waitForFunction(() =>
-      document.querySelector('.world-reference')?.textContent.includes('已读取 1.sav'),
-    );
-    await win.evaluate(() => window.journal.mutate({ type: 'save-slot', value: '', mode: 'latest' }));
+    assert.equal(await progressValue(win), '1.sav');
+    assert.equal((await win.evaluate(() => window.journal.refresh())).data.recent.name, '1.sav');
+    await selectProgress(win, '@latest');
     fs.writeFileSync(
       path.join(source, '2.sav'),
       stock(10, [
@@ -144,44 +141,52 @@ async function shot(name) {
       ]),
     );
     await broadcast();
-    await route('home');
+    await route('saves');
     await win.locator('[data-action="refresh"]').click();
-    await win.locator('[data-action="save-quest-jump"][data-id="5200"]').first().waitFor();
+    await route('home');
+    await win.waitForFunction(async () => (await window.journal.refresh()).data.flow.available);
     const home = (await win.evaluate(() => window.journal.refresh())).data;
     assert.equal(home.recent.pendingTasks, 1);
     assert.equal(home.recent.activeQuests[0].status, '已完成');
-    assert.match(await win.locator('.content').innerText(), /当前步骤：/);
-    await win.locator('[data-action="save-quest-jump"][data-id="5200"]').first().click();
-    assert.match(await win.locator('[data-quest-id="5200"]').innerText(), /已完成/);
+    assert(!home.flow.active.some((task) => task.id === 'quest-5200'));
+    assert.equal(await win.locator('.flow-active [data-id="quest-5200"]').count(), 0);
+    await route('saves');
+    await win.locator('[data-action="save-detail"][data-id="2.sav"]').click();
+    await win.locator('.save-recorded-quests > summary').click();
+    const recorded = win.locator('.saved-quest[data-quest-id="5200"]');
+    await recorded.locator('details > summary').click();
+    assert.match(await recorded.innerText(), /前往洛村西南方向的武当山/);
+    await recorded.locator('[data-action="world-quest"][data-id="quest-5200"]').first().click();
+    assert.match(await win.locator('.world-drawer .tag-row').innerText(), /已完成/);
     await close();
     report.checks.push(
-      'task cache refreshes automatically, fixed slot stays fixed, latest mode follows new slot, active child appears on home without rewriting parent state',
+      'task cache refreshes automatically, fixed slot stays fixed, latest follows new slot, closed parents suppress stale actions while saved child records remain readable',
     );
 
     await route('materials');
     await win.locator('#craft-search').fill('布锦鞋精良图纸');
     await win.locator('[data-action="craft-add"][data-id="fusion-7000"]').click();
-    await win.locator('#craft-save').selectOption('2.sav');
+    await selectProgress(win, '2.sav');
     await win.locator('[data-action="craft-calculate"]').click();
     await win.waitForFunction(() => document.querySelector('.craft-totals')?.textContent.includes('0 件'));
     await win.locator('#craft-qty-fusion-7000').fill('3');
     await win.locator('.craft-line [data-action="database-detail"][data-id="fusion-7000"]').click();
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
-    assert.equal(await win.locator('#recipe-save').inputValue(), '2.sav');
+    assert.equal(await progressValue(win), '2.sav');
     await win.locator('#recipe-materials [data-action="database-detail"]').first().click();
     await win.locator('[data-action="drawer-back"]').click();
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
-    assert.equal(await win.locator('#recipe-save').inputValue(), '2.sav');
+    assert.equal(await progressValue(win), '2.sav');
     await close();
     for (const reference of ['@latest', '']) {
-      await win.locator('#craft-save').selectOption(reference);
+      await selectProgress(win, reference);
       await win.locator('.craft-line [data-action="database-detail"][data-id="fusion-7000"]').click();
       assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
-      assert.equal(await win.locator('#recipe-save').inputValue(), reference);
+      assert.equal(await progressValue(win), reference);
       if (!reference) assert.equal(await win.locator('#recipe-materials .material-owned').count(), 0);
       await close();
     }
-    await win.locator('#craft-save').selectOption('2.sav');
+    await selectProgress(win, '2.sav');
     await win.locator('#craft-qty-fusion-7000').fill('1');
     await win.locator('[data-action="craft-calculate"]').click();
     await win.waitForFunction(() => document.querySelector('.craft-totals')?.textContent.includes('0 件'));
@@ -192,7 +197,11 @@ async function shot(name) {
     await broadcast();
     await win.waitForFunction(() => document.querySelector('.craft-totals')?.textContent.includes('5 件'));
     assert.equal(await win.locator('#craft-search').inputValue(), '布锦鞋精良图纸');
-    assert.match(await win.locator('.material-sources:not(.crafting-stages)').innerText(), /获取线索/);
+    const missingSources = win.locator('.material-sources:not(.crafting-stages)');
+    await missingSources.locator('details > summary').first().click();
+    assert.match(await missingSources.innerText(), /麻布 · 还缺 5/);
+    assert.equal(await missingSources.locator('[data-id="item-10300"]').isVisible(), true);
+    assert.ok(await missingSources.locator('.seller-line [data-action="database-detail"]').count());
     fs.writeFileSync(path.join(source, '2.sav'), stock(10));
     await broadcast();
     await win.waitForFunction(() => document.querySelector('.craft-totals')?.textContent.includes('0 件'));
@@ -200,6 +209,7 @@ async function shot(name) {
       .locator('.craft-material [data-action="database-detail"][data-id="item-10300"]')
       .first()
       .click();
+    await win.locator('.reservation-editor > summary').click();
     await win.locator('#reserve-count').fill('8');
     await win.locator('[data-action="reserve-save"]').click();
     await win.waitForFunction(() => document.querySelector('#reserve-count')?.value === '8');
@@ -230,9 +240,9 @@ async function shot(name) {
     await win.locator('[data-action="database-kind"][data-id="人物"]').click();
     await win.locator('#list-search').fill(person.name);
     await win.locator('[data-action="database-detail"][data-id="' + person.id + '"]').click();
-    await win.locator('#person-save').selectOption('2.sav');
+    await selectProgress(win, '2.sav');
     await win.locator('.person-gifts [data-action="gift-page"]').last().click();
-    assert.equal(await win.locator('#person-save').inputValue(), '2.sav');
+    assert.equal(await progressValue(win), '2.sav');
     assert.match(await win.locator('.person-gifts').innerText(), /第 2 \/ 2 页/);
     await shot('gift-page');
     await close();
@@ -249,27 +259,27 @@ async function shot(name) {
     for (let i = 0; i < 5; i++)
       await win.evaluate((i) => window.journal.mutate({ type: 'goal-add', title: '其他目标 ' + i }), i);
     await route('home');
+    await win.locator('[data-persist-detail="home-personal"] > summary').click();
     assert.match(await win.locator('.goal-row').first().innerText(), /此刻最重要/);
     await win.locator('[data-action="profiles"]').click();
     await win.locator('#profile-name').fill('二周目 · 尚未开始');
-    assert.equal(await win.locator('#profile-binding').inputValue(), '@none');
+    assert.equal(await win.locator('#profile-binding').count(), 0);
     await win.locator('[data-action="profile-create"]').click();
-    await win.waitForFunction(() =>
-      document.querySelector('.home-save-choice')?.textContent.includes('仅查资料'),
-    );
+    assert.equal(await progressValue(win), '@latest');
+    assert((await win.evaluate(() => window.journal.refresh())).data.recent);
+    await selectProgress(win, '@none');
     assert.equal((await win.evaluate(() => window.journal.refresh())).data.recent, null);
-    assert.equal(await win.locator('[data-persist-detail="home-stage"]').evaluate((el) => el.open), false);
-    await win.locator('[data-persist-detail="home-stage"] summary').click();
-    await win.locator('[data-action="stage"]').first().click();
+    await route('checklist');
+    assert.equal(await win.locator('[data-persist-detail="flow-legacy"]').evaluate((el) => el.open), false);
+    await win.locator('[data-persist-detail="flow-legacy"] > summary').click();
+    await win.locator('.flow-legacy [data-action="stage"]').first().click();
     await win.locator('#stage-select').selectOption('0');
     await win.locator('[data-action="stage-save"]').click();
     assert.equal(
       JSON.parse(fs.readFileSync(path.join(data, 'journal.json'))).profiles[1].stageConfirmed,
       true,
     );
-    await win.locator('[data-action="save-slot"]').click();
-    await win.locator('#save-slot-select').selectOption('2.sav');
-    await win.locator('[data-action="save-slot-save"]').click();
+    await selectProgress(win, '2.sav');
     assert.equal((await win.evaluate(() => window.journal.refresh())).data.recent.name, '2.sav');
     await shot('new-profile');
     await win.evaluate((id) => window.journal.mutate({ type: 'profile-switch', id }), original);

@@ -14,12 +14,45 @@ export function createProtectionViews({
   bytes,
   hours,
   name,
+  getIndex = () => ({}),
+  placeLabel = (place) => place.name,
 }) {
-  const label = (id) => {
-    const title = name(id) || id;
-    const suffix = ' · 场景 #' + String(id).slice(6);
-    return esc(String(id).startsWith('place-') && !String(title).endsWith(suffix) ? title + suffix : title);
+  const entityRows = (id) => {
+    const index = getIndex();
+    return [...(index.entries || []), ...(index.world?.quests || []), ...(index.world?.maps || [])].filter(
+      (row) => row.id === id || (row.key && row.id + ':' + row.key === id),
+    );
   };
+  const label = (id) => {
+    const rows = entityRows(id);
+    const title =
+      rows.length > 1 && String(id).startsWith('place-')
+        ? '原地点（场景待核对）'
+        : rows.length === 1 && String(id).startsWith('place-')
+          ? placeLabel(rows[0], getIndex().world?.maps || [])
+          : name(id) || (rows.length === 1 ? rows[0].name : '') || '原选择待核对';
+    const text = esc(title);
+    return rows.length === 1 ? act('archive-entity', text, 'text-btn', id) : text;
+  };
+  function sourceLabel(source) {
+    if (source.type === 'user') return esc(source.id);
+    return ['database', 'quest'].includes(source.type) ? label(source.id) : esc(name(source.id) || source.id);
+  }
+  function mapLabel(key, title) {
+    if (!key) return esc(title || '未知');
+    const maps = getIndex().world?.maps || [];
+    const rows = maps.filter((row) => row.key === key);
+    if (rows.length !== 1) return esc(title || key || '未知');
+    const place = rows[0];
+    const id = maps.filter((row) => row.id === place.id).length > 1 ? place.id + ':' + place.key : place.id;
+    return act('archive-entity', esc(title || place.name), 'text-btn', id);
+  }
+  function nativeLabel(rows, id, title) {
+    const matches = rows.filter((row) => row.gameId === id);
+    return matches.length === 1
+      ? act('archive-entity', esc(title || matches[0].name), 'text-btn', matches[0].id)
+      : esc(title);
+  }
   function exportResult(result) {
     if (!result) return '';
     const complete = result.status === 'success';
@@ -40,7 +73,7 @@ export function createProtectionViews({
       itinerary.steps
         .map(
           (step, index) =>
-            `<div class="detail-block"><h4>${index + 1}. ${esc(step.title)}</h4><div class="tag-row">${pill(step.skipped ? '仅本次跳过' : '本次未跳过')}${pill(handled.has(step.actionId) ? '个人已处理' : '未标记个人处理')}${pill(step.progressMode === 'save' ? '任务按保存的参照核对' : '个人安排')}</div><p>选定场景：${step.placeId ? `${label(step.placeId)} <span class="mono">${esc(step.placeId)}</span>` : '未选择场景'}</p><details><summary>当时选择的来源</summary>${step.sources.map((source) => `<p class="small">${label(source.id)} <span class="mono">${esc(source.type)} · ${esc(source.id)} · ${esc(source.field)}</span></p>`).join('')}${step.continuationId ? `<p class="small mono">已选接续：${esc(step.continuationId)}</p>` : ''}</details></div>`,
+            `<div class="detail-block"><h4>${index + 1}. ${esc(step.title)}</h4><div class="tag-row">${pill(step.skipped ? '仅本次跳过' : '本次未跳过')}${pill(handled.has(step.actionId) ? '个人已处理' : '未标记个人处理')}${pill(step.progressMode === 'save' ? '任务按保存的参照核对' : '个人安排')}</div><p>选定场景：${step.placeId ? label(step.placeId) : '未选择场景'}</p><details><summary>当时选择的来源</summary>${step.sources.map((source) => `<p class="small">${sourceLabel(source)} <span class="mono">${esc(source.type)} · ${esc(source.id)} · ${esc(source.field)}</span></p>`).join('')}${step.continuationId ? `<p class="small mono">已选接续：${esc(step.continuationId)}</p>` : ''}</details></div>`,
         )
         .join('') || '<p class="small muted">这份行程没有选定行动</p>'
     }</details>`;
@@ -54,7 +87,7 @@ export function createProtectionViews({
   }
   function profileHistory(p) {
     const journey = p.journey;
-    return `<details class="detail-block"><summary>${esc(p.name)} · ${p.goals.length} 件目标 · ${p.craftPlans?.length || 0} 份制作计划</summary>${draftHistory(p)}${journeyTrashHistory(p)}${p.journalEntries?.length || p.journalDrafts?.length || p.journalTrash?.length || p.journalRevisions?.length ? act('protection-journal-profile', '浏览逐条江湖记录 · ' + (p.journalEntries?.length || 0) + ' 条' + (p.journalDrafts?.length ? ' · ' + p.journalDrafts.length + ' 份草稿' : '') + (p.journalTrash?.length ? ' · ' + p.journalTrash.length + ' 条已删除记录' : '') + (p.journalRevisions?.length ? ' · ' + p.journalRevisions.length + ' 份旧版本' : ''), 'btn', p.id, 'book') : ''}${p.noteRevisions?.length ? `<details data-historical-note-revisions><summary>随手记旧内容 · ${p.noteRevisions.length} 份 · 只读</summary>${p.noteRevisions.map((row) => `<details class="detail-block"><summary>${when(row.replacedAt)} · ${esc(row.body.slice(0, 80))}</summary><p class="preserve-text">${esc(row.body)}</p></details>`).join('')}</details>` : ''}${p.notes ? `<h3>随手记</h3><p class="preserve-text">${esc(p.notes)}</p>` : '<p class="small muted">没有笔记</p>'}<details><summary>目标记录</summary>${p.goals.map((g) => `<p class="small">${g.done ? '✓' : '○'} ${esc(g.title)}${g.placeId ? ' · ' + label(g.placeId) : ''}${historicalGoalQuantity(g)}${g.detail ? '<br>' + esc(g.detail) : ''}</p>`).join('') || '<p class="small muted">没有目标</p>'}</details>${(
+    return `<details class="detail-block"><summary>${esc(p.name)} · ${p.goals.length} 件目标 · ${p.craftPlans?.length || 0} 份制作计划</summary>${draftHistory(p)}${journeyTrashHistory(p)}${p.journalEntries?.length || p.journalDrafts?.length || p.journalTrash?.length || p.journalRevisions?.length ? act('protection-journal-profile', '浏览逐条江湖记录 · ' + (p.journalEntries?.length || 0) + ' 条' + (p.journalDrafts?.length ? ' · ' + p.journalDrafts.length + ' 份草稿' : '') + (p.journalTrash?.length ? ' · ' + p.journalTrash.length + ' 条已删除记录' : '') + (p.journalRevisions?.length ? ' · ' + p.journalRevisions.length + ' 份旧版本' : ''), 'btn', p.id, 'book') : ''}${p.noteRevisions?.length ? `<details data-historical-note-revisions><summary>随手记旧内容 · ${p.noteRevisions.length} 份 · 只读</summary>${p.noteRevisions.map((row) => `<details class="detail-block"><summary>${when(row.replacedAt)} · ${esc(row.body.slice(0, 80))}</summary><p class="preserve-text">${esc(row.body)}</p></details>`).join('')}</details>` : ''}${p.notes ? `<h3>随手记</h3><p class="preserve-text">${esc(p.notes)}</p>` : '<p class="small muted">没有笔记</p>'}<details><summary>目标记录</summary>${p.goals.map((g) => `<p class="small">${g.done ? '✓' : '○'} ${esc(g.title)}${g.placeId ? ' · ' + label(g.placeId) : ''}${historicalGoalQuantity(g)}${g.source && ['database', 'quest'].includes(g.source.type) ? '<br>原资料：' + sourceLabel(g.source) : ''}${g.detail ? '<br>' + esc(g.detail) : ''}</p>`).join('') || '<p class="small muted">没有目标</p>'}</details>${(
       p.craftPlans || []
     )
       .map(
@@ -107,14 +140,30 @@ export function createProtectionViews({
         .slice(page * 20, page * 20 + 20)
         .map(
           (n) =>
-            `<div class="backup-row"><div class="spacer"><h3>${esc(n.label || n.map || '历史节点')}${n.bookmarked ? ' · 书签' : ''}</h3><p>${when(n.at)} · ${hours(n.playSeconds)}</p>${n.note ? `<p class="preserve-text small">${esc(n.note)}</p>` : ''}</div>${act('protection-node-inspect', '只读回顾', 'btn', n.id, 'book')}</div>`,
+            `<div class="backup-row"><div class="spacer"><h3>${n.label ? esc(n.label) : mapLabel(n.map, n.mapName || n.map || '历史节点')}${n.bookmarked ? ' · 书签' : ''}</h3><p>${when(n.at)} · ${hours(n.playSeconds)}</p>${n.label && n.map ? `<p class="small">场景：${mapLabel(n.map, n.mapName || n.map)}</p>` : ''}${n.note ? `<p class="preserve-text small">${esc(n.note)}</p>` : ''}</div>${act('protection-node-inspect', '只读回顾', 'btn', n.id, 'book')}</div>`,
         )
         .join('') || '<p class="small muted">此保护包没有时间线记录</p>'
     }${nodes.length > 20 ? `<div class="pagination">${act('protection-node-page', '上一页', 'btn', String(Math.max(0, page - 1)))}<span>第 ${page + 1} / ${Math.ceil(nodes.length / 20)} 页</span>${act('protection-node-page', '下一页', 'btn', String(Math.min(Math.ceil(nodes.length / 20) - 1, page + 1)))}</div>` : ''}</section>`;
   }
   function preview(file) {
     const m = file.metadata;
-    return `<section class="drawer save-drawer" role="dialog" aria-modal="true" aria-label="历史存档只读回顾"><div class="drawer-head"><span class="small muted">离线档案 / 当时的进度</span>${iconButton('close-overlay', 'close', '关闭回顾')}</div><div class="drawer-body"><div class="tag-row">${pill('只读历史', 'green')}${pill('未绑定本机')}</div><h1>${esc(file.name)}</h1><p>${when(file.modifiedAt)} · ${bytes(file.bytes)}</p>${m ? `${m.thumbnail ? `<div class="save-thumbnail"><img src="${m.thumbnail}" alt="历史存档自带的场景缩略图"></div>` : ''}<div class="detail-stat-grid"><div><small>场景</small><strong>${esc(m.mapName || m.map || '未知')}</strong></div><div><small>累计游玩</small><strong>${hours(m.playSeconds)}</strong></div><div><small>铜钱</small><strong>${m.money ?? '未读取'}</strong></div></div><h3>当时的任务记录</h3>${(m.quests || []).map((q) => `<div class="world-rule"><span>${esc(q.name || '任务 #' + q.id)}</span><span>${{ 0: '未开始', 1: '进行中', 2: '失败', 3: '未接受', 4: '已完成' }[q.step] || '状态未知'}</span></div>`).join('') || '<p class="small muted">没有可读取的任务记录</p>'}<details><summary>当时的背包 · ${m.inventory?.length ?? '未读取'} 条记录</summary>${(m.inventory || []).map((i) => `<p class="small">${esc(i.name || '物品 #' + i.id)} × ${i.count}</p>`).join('')}</details>` : notice('当前版本无法解析这份历史存档，原始字节已校验并保留。', true)}<p class="save-note">这些信息来自历史存档，不参与当前库存、任务完成判定或原生槽位授权。</p></div></section>`;
+    const index = getIndex();
+    return `<section class="drawer save-drawer" role="dialog" aria-modal="true" aria-label="历史存档只读回顾"><div class="drawer-head"><span class="small muted">离线档案 / 当时的进度</span>${iconButton('close-overlay', 'close', '关闭回顾')}</div><div class="drawer-body"><div class="tag-row">${pill('只读历史', 'green')}${pill('未绑定本机')}</div><h1>${esc(file.name)}</h1><p>${when(file.modifiedAt)} · ${bytes(file.bytes)}</p>${
+      m
+        ? `${m.thumbnail ? `<div class="save-thumbnail"><img src="${m.thumbnail}" alt="历史存档自带的场景缩略图"></div>` : ''}<div class="detail-stat-grid"><div><small>场景</small><strong>${mapLabel(m.map, m.mapName || m.map || '未知')}</strong></div><div><small>累计游玩</small><strong>${hours(m.playSeconds)}</strong></div><div><small>铜钱</small><strong>${m.money ?? '未读取'}</strong></div></div><h3>当时的任务记录</h3>${(m.quests || []).map((q) => `<div class="world-rule"><span>${nativeLabel(index.world?.quests || [], q.id, q.name || '任务 #' + q.id)}</span><span>${{ 0: '未开始', 1: '进行中', 2: '失败', 3: '未接受', 4: '已完成' }[q.step] || '状态未知'}</span></div>`).join('') || '<p class="small muted">没有可读取的任务记录</p>'}<details><summary>当时的背包 · ${m.inventory?.length ?? '未读取'} 条记录</summary>${(
+            m.inventory || []
+          )
+            .map(
+              (i) =>
+                `<p class="small">${nativeLabel(
+                  (index.entries || []).filter((entry) => entry.kind === '物品'),
+                  i.id,
+                  i.name || '物品 #' + i.id,
+                )} × ${esc(i.count)}</p>`,
+            )
+            .join('')}</details>`
+        : notice('当前版本无法解析这份历史存档，原始字节已校验并保留。', true)
+    }<p class="save-note">这些信息来自历史存档，不参与当前库存、任务完成判定或原生槽位授权。</p></div></section>`;
   }
   return { controls, page, preview, exportResult };
 }

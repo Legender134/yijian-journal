@@ -57,6 +57,46 @@ const views = Promise.all(
     (file) => import(pathToFileURL(path.join(__dirname, '../src/renderer', file)).href),
   ),
 );
+
+test('an unresolved fish alternative stays missing even when no fixed raw material is missing', async () => {
+  const p = defaults().profiles[0];
+  p.craftList = [{ id: 'cooking-102', quantity: 1 }];
+  for (const fishCount of [0, 2]) {
+    const report = materialReport(p, {
+      name: 'synthetic.sav',
+      hash: 'a'.repeat(64),
+      metadata: {
+        inventory: [
+          { id: 10319, count: 99 },
+          { id: 10324, count: 99 },
+          { id: 10525, count: fishCount },
+        ],
+        money: 99999,
+      },
+    });
+    assert.equal(report.stages.rawMaterials.length, 0);
+    assert.equal(report.stages.rawMissingTotal, 2 - fishCount);
+    const [materials] = await views;
+    const html = materials.createMaterialViews(helpers).page(
+      index,
+      p,
+      {
+        query: '',
+        result: report,
+        resultList: p.craftList,
+        resultChoices: '{}',
+        profileId: p.id,
+      },
+      [],
+    );
+    if (fishCount) assert.match(html, /原料已齐/);
+    else {
+      assert.doesNotMatch(html, /原料已齐/);
+      assert.match(html, /请补足下方待选择材料/);
+      assert.match(html, /鱼肉 · 还缺 2/);
+    }
+  }
+});
 test('all active costs reach the material report, journey warning and companion even when each local cost fits', async () => {
   const { state, p, reference } = fixture(),
     before = JSON.stringify({ state, reference });
@@ -160,7 +200,7 @@ test('completed and released plans leave the shared cost; a selected completed p
       { query: '', result: report, resultList: p.craftList, resultChoices: '{}', profileId: p.id },
       [],
     );
-  assert.match(html, /若重新制作的费用尚未纳入共同预算/);
+  assert.match(html, /若重新制作的用料核对/);
   assert.match(
     compact.createCompanionViews(helpers).materials(snapshot),
     /若重做含加工费用 572 文，未纳入共同预算/,
@@ -208,4 +248,75 @@ test('a local source projection preserves defaults and produces a source-specifi
   for (const invalid of ['../0.sav', 'C:\\private\\0.sav', 'foreign.sav', {}, null])
     assert.throws(() => priorityReferenceProfile(p, invalid));
   assert.equal(JSON.stringify(p), before);
+});
+
+test('material processing and shared ledgers keep exact catalogue links without changing quantities', async () => {
+  const { p, reference } = fixture();
+  p.craftList = [{ id: 'fusion-1002', quantity: 1 }];
+  p.craftPlans = [];
+  reference.metadata.inventory = [
+    { id: 10205, count: 10 },
+    { id: 10207, count: 3 },
+  ];
+  const report = materialReport(p, reference);
+  const act = (action, label, cls, id) => `<button data-action="${action}" data-id="${id}">${label}</button>`;
+  const [materials] = await views;
+  const html = materials.createMaterialViews({ ...helpers, act }).page(
+    index,
+    p,
+    {
+      query: '',
+      result: report,
+      resultList: p.craftList,
+      resultChoices: '{}',
+      profileId: p.id,
+    },
+    [],
+  );
+  assert.match(
+    html,
+    /计划产物 · 先完成 <button data-action="database-detail" data-id="fusion-9500">铁锭<\/button>/,
+  );
+  const fs = require('node:fs'),
+    vm = require('node:vm');
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const context = {
+    act,
+    esc: helpers.esc,
+    gameIndex: { ...index, world: { quests: [] } },
+    gameViews: { byId: (data, id) => data.entries.find((entry) => entry.id === id) },
+    profile: () => ({ allocations: [{ questId: 'quest-synthetic', items: { 10205: 2 } }] }),
+    materialBudgetContext: () => ({ summary: null }),
+    resourcePriorityViews: { entry: () => '' },
+    craftMoneyNotice: () => '',
+  };
+  vm.createContext(context);
+  vm.runInContext(
+    source.slice(
+      source.indexOf('function allocationLedger()'),
+      source.indexOf('function renderResourcePriorityDialog()'),
+    ) +
+      source.slice(
+        source.indexOf('function craftBudgetLedger(summary)'),
+        source.indexOf('function invalidateMaterials()'),
+      ),
+    context,
+  );
+  assert.match(context.allocationLedger(), /data-id="item-10205">煤炭<\/button>/);
+  const summary = {
+    crafts: [
+      {
+        id: '@draft',
+        name: '合成计划',
+        materials: [
+          { name: '材料组', ids: [10205, 10207], count: 3, missing: 2, allocation: [{ count: 1 }] },
+        ],
+      },
+    ],
+  };
+  const before = JSON.stringify(summary);
+  const ledger = context.craftBudgetLedger(summary);
+  for (const id of [10205, 10207]) assert(ledger.includes('data-id="item-' + id + '"'));
+  assert.match(ledger, /直接需 3 · 已分配 1 · 还缺 2/);
+  assert.equal(JSON.stringify(summary), before);
 });

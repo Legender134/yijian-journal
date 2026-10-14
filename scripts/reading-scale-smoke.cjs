@@ -34,7 +34,9 @@ async function launch() {
   await page.locator('.layout').waitFor();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const w = await app.browserWindow(page);
-  await w.evaluate((win) => {
+  await w.evaluate(async (win) => {
+    // Initial ready-to-show restores the saved/default bounds. Resize only after it.
+    if (!win.isVisible()) await new Promise((resolve) => win.once('show', resolve));
     win.setBounds({ width: 980, height: 660 });
     win.showInactive();
   });
@@ -181,7 +183,7 @@ async function capture(win, name) {
     await fits(compact, '[data-action="search"]');
     await compact.keyboard.press('Control+k');
     await compact.locator('#global-search').fill('白芷');
-    await compact.locator('[data-action="database-detail"]').first().waitFor();
+    await compact.locator('#global-results [data-action="database-detail"]').first().waitFor();
     await fits(compact, '#global-search');
     await capture(compact, 'compact-search-150.png');
     await compact.keyboard.press('Escape');

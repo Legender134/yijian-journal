@@ -135,13 +135,39 @@ test('previews use saved-state and template numeric facts and disclose ambiguity
   };
   const item = refs.preview('item-11', { reference });
   assert.match(item, /恢复气血 \+400 点/);
-  assert.match(item, /3.sav · 库存 5/);
-  assert.match(item, /模板基础/);
-  assert.match(refs.preview('quest-101', { reference }), /3.sav · 进行中/);
+  assert.match(item, /保存持有 5/);
+  assert.doesNotMatch(item, /3\.sav|模板基础|SHA|当前库存以游戏内为准/);
+  assert.match(refs.preview('quest-101', { reference }), /进行中/);
+  assert.doesNotMatch(refs.preview('quest-101', { reference }), /3\.sav|不保证执行顺序/);
   assert.match(refs.preview('quest-100', { reference }), /未出现在记录/);
   assert.match(refs.preview('quest-100'), /未核对存档/);
   assert.match(refs.preview('name:莫弃'), /2 条同名资料/);
   assert.equal(refs.preview('npc-999'), '');
+});
+
+test('item previews expose exact-item acquisition clues without leaking them into ambiguous names', async () => {
+  const [, { createEntityReferences }] = await loaded;
+  const index = fixture();
+  index.entries.push(
+    { id: 'item-12', gameId: 12, name: '金疮药', kind: '物品', quality: '绿' },
+    { id: 'fusion-1', gameId: 1, name: '合成矿石配方', kind: '配方', results: [{ id: 9, count: 1 }] },
+  );
+  index.merchants = [
+    { id: 1, name: '合成药铺<甲>', items: [11] },
+    { id: 2, name: '合成药铺<甲>', items: [11] },
+    { id: 3, name: '合成货郎', items: [11] },
+    { id: 4, name: '不同品质商人', items: [12] },
+  ];
+  const refs = factory(createEntityReferences, index);
+  const html = refs.preview('item-11', { reference: { metadata: { inventory: [{ id: 11, count: 5 }] } } });
+  assert.match(html, /恢复气血 \+400 点/);
+  assert.match(html, /保存持有 5/);
+  assert.match(html, /售卖线索：合成药铺&lt;甲&gt;、合成货郎/);
+  assert.doesNotMatch(html, /不同品质商人|<甲>/);
+  assert.match(refs.preview('item-12'), /售卖线索：不同品质商人/);
+  assert.doesNotMatch(refs.preview('name:金疮药'), /售卖线索：/);
+  assert.match(refs.preview('item-9'), /制作：合成矿石配方/);
+  assert.doesNotMatch(refs.preview('item-10'), /制作：|售卖线索：/);
 });
 
 test('unresolved equipment names retain per-variant qualities without assigning the first quality to the group', async () => {
@@ -155,9 +181,10 @@ test('unresolved equipment names retain per-variant qualities without assigning 
   const refs = factory(createEntityReferences, index);
   const html = refs.preview('name:亮银甲');
   assert.match(html, /<small>同名资料<\/small>/);
-  assert.match(html, /物品 · 白色 · #21/);
-  assert.match(html, /物品 · 绿色 · #22/);
-  assert.match(html, /物品 · 蓝色 · #23/);
+  assert.match(html, /白色品质/);
+  assert.match(html, /绿色品质/);
+  assert.match(html, /蓝色品质/);
+  assert.doesNotMatch(html, /#21|#22|#23/);
   assert.match(refs.preview('item-22'), /<small>物品 · 绿色<\/small>/);
 });
 
@@ -187,7 +214,7 @@ test('detailed relations remain traversable, typed and escaped with per-step sta
   assert.match(html, /需 4 件 已完成/);
   assert.match(html, /需 2 件 未出现在记录/);
   assert.match(html, /data-id="quest-200"/);
-  assert.match(html, /不合并互斥分支/);
+  assert.doesNotMatch(html, /需 6 件/);
   assert.match(html, /&lt;旧任务&gt;/);
   assert.match(html, /旧版社区资料/);
   const advice = html.match(/<details class="entity-related-advice">[\s\S]*?<\/details>/)[0];
@@ -198,7 +225,7 @@ test('detailed relations remain traversable, typed and escaped with per-step sta
   const person = view.person(index, data.entries.get('npc-1'), reference);
   assert.match(person, /data-person-relations/);
   assert.match(person, /data-id="quest-100"/);
-  assert.match(person, /不推断亲属/);
+  assert.doesNotMatch(person, /亲属关系|好友关系/);
 });
 
 test('community pickup clues follow exact NPC identity and root or child tasks without implying live location', async () => {
@@ -226,7 +253,7 @@ test('community pickup clues follow exact NPC identity and root or child tasks w
     assert.match(html, /data-id="npc-2"/);
     assert.match(html, /data-entity-id="item-11"/);
     assert.match(html, /data-action="entity-choice" data-id="name:莫弃"/);
-    assert.match(html, /不代表人物当前在场、任务可接或本步骤的目的地/);
+    assert.match(html, /不同版本位置待核对/);
     assert.match(html, /data-action="source" data-id="flow:place">&lt;作者&gt;/);
     assert.match(html, /2025-01-21 · 具体构建未标/);
     assert(!html.includes('<城门>'));
@@ -357,10 +384,13 @@ test('saved Tianshan travel connects companion advice and task details with dist
   const preparation = main.match(
     /<article[^>]*data-flow-rule="tianshan-final-preparation"[\s\S]*?<\/article>/,
   )[0];
-  assert.match(preparation, /行动地点/);
-  assert.match(preparation, /接下来/);
+  const preparationText = preparation
+    .replace(/<span class="image-fallback">[\s\S]*?<\/span>/g, '')
+    .replace(/<[^>]*>/g, '');
+  assert.match(preparationText, /白龟洞暗道 → 关外 → 天山/);
+  assert.match(preparationText, /从白龟洞暗道去关外，再按任务栏前往天山/);
   assert.doesNotMatch(preparation, /接取地点|怎么接/);
-  assert.match(preparation, /蜃楼岛挑战/);
+  assert.match(preparationText, /蜃楼岛挑战/);
   assert.match(preparation, /2025-07-16/);
   assert.match(preparation, /2025-12-11/);
   assert.match(preparation, /data-entity-id="quest-24089"/);
@@ -382,8 +412,9 @@ test('saved Tianshan travel connects companion advice and task details with dist
   const pickup = view.panel({
     guide: [{ id: 'pickup', name: '未接任务', pickup: { place: '村口', action: '找人询问' } }],
   });
-  assert.match(pickup, /接取地点/);
-  assert.match(pickup, /怎么接/);
+  assert.match(pickup, /class="flow-pickup"/);
+  assert.match(pickup, /村口/);
+  assert.match(pickup, /找人询问/);
 });
 
 test('folded pre-closure reminders retain every poison hand-in, giver, alternative and affected task', async () => {
@@ -420,7 +451,7 @@ test('folded pre-closure reminders retain every poison hand-in, giver, alternati
   const folded = risks.match(/^<details\b([^>]*)><summary>([\s\S]*?)<\/summary>/);
   assert.match(folded[1], /class="flow-compact-risks"/);
   assert.match(folded[1], /\bopen(?:\s|=|$)/);
-  assert.match(folded[2], /推进前核对/);
+  assert.match(folded[2], /推进前确认/);
   assert.doesNotMatch(folded[2], /data-flow-impact|资料需 1 件|数量还缺 1 件/);
   const windows = [
     ...risks.matchAll(/<details\b([^>]*class="flow-risk-window"[^>]*)><summary>([\s\S]*?)<\/summary>/g),
@@ -451,9 +482,72 @@ test('folded pre-closure reminders retain every poison hand-in, giver, alternati
   assert.match(risks, /2024-12-11/);
   assert.match(risks, /2025-07-16/);
   for (const id of [10488, 10471, 10498, 10472, 10473]) assert(risks.includes(`data-entity-id="item-${id}"`));
-  assert.match(risks, /资料需 1 件.*保存持有 0 件.*数量还缺 1 件/);
+  assert.match(risks, /需 1 件.*持有 0 件.*数量还缺 1 件/);
   const main = view.panel(flow);
   assert.match(main, /人面蛛.*人面蛛毒元.*异种金蝎.*金蝎毒元.*通幽蜈/);
   assert(main.includes('data-entity-id="npc-8510"'));
   assert.doesNotMatch(main, /class="flow-compact-risks"|class="flow-risk-window"/);
+});
+test('long task instructions keep their named people and locations individually queryable', async () => {
+  const [, { createEntityReferences }] = await loaded;
+  const index = require('../src/core/game-data.cjs').encyclopedia();
+  const refs = factory(createEntityReferences, index);
+  const html = refs.text('前往洛村西南方向的武当山，求见清虚道长');
+  assert.doesNotMatch(html, /data-id="quest-5201"/);
+  assert.match(html, /data-id="npc-5003"/);
+  assert.match(html, /data-action="world-place"|data-action="entity-choice"/);
+  assert.match(html, /武当山/);
+});
+test('task-title matches cannot hide a named participant in task relationships', async () => {
+  const [{ entityCatalog }] = await loaded;
+  const index = require('../src/core/game-data.cjs').encyclopedia();
+  const catalog = entityCatalog(index);
+  const task = catalog.entries.get('quest-14301');
+  assert(catalog.taskRelations(task).people.some((row) => row.entity.name === '卫霍'));
+  const person = [...catalog.entries.values()].find(
+    (entry) => entry.kind === '人物' && entry.name === '卫霍',
+  );
+  assert(catalog.personRelations(person).quests.some((row) => row.via.some((quest) => quest.id === task.id)));
+});
+
+test('current journal associations use shared entity artwork and previews without changing guarded navigation', async () => {
+  const [, { createEntityReferences }] = await loaded;
+  const refs = factory(createEntityReferences, fixture());
+  for (const [type, id, name] of [
+    ['database', 'item-9', '铁矿石'],
+    ['quest', 'quest-100', '送矿石'],
+  ]) {
+    const html = refs.button('journal-link', name, 'text-btn', type + ':' + id, 'arrow');
+    assert(html.includes('data-action="journal-link"'));
+    assert(html.includes('data-id="' + type + ':' + id + '"'));
+    assert(html.includes('data-entity-id="' + id + '"'));
+    assert(html.includes('data-picture="' + id + '"'));
+    assert(html.includes('entity-link-label'));
+    assert(refs.preview(id).includes(name));
+  }
+  for (const id of ['goal:personal', 'database:item-999999', 'quest:quest-999999'])
+    assert(!refs.button('journal-link', '保留的标题', 'text-btn', id).includes('data-entity-id'));
+});
+
+test('static archive buttons retain canonical artwork, identity and item quality without changing the archive action', async () => {
+  const { pathToFileURL } = require('node:url');
+  const { createEntityReferences } = await import(
+    pathToFileURL(path.join(__dirname, '../src/renderer/entity-references.js')).href
+  );
+  const refs = createEntityReferences({
+    index: () => ({
+      entries: [{ id: 'item-100', name: '一转血气丹', kind: '物品', quality: '绿' }],
+      world: { maps: [], quests: [] },
+    }),
+    esc: String,
+    icon: () => '',
+    picture: (id) => `<i data-picture="${id}"></i>`,
+    qualityText: { html: (id, text) => `<span data-quality-id="${id}">${text}</span>` },
+  });
+  const html = refs.button('archive-entity', '一转血气丹', 'text-btn', 'item-100');
+  assert.match(html, /data-action="archive-entity"/);
+  assert.match(html, /data-entity-id="item-100"/);
+  assert.match(html, /data-picture="item-100"/);
+  assert.match(html, /data-quality-id="item-100"/);
+  assert.match(html, /entity-link-label/);
 });

@@ -125,7 +125,10 @@ async function mutate(command) {
     assert.match(await page.locator('#overlay').innerText(), /完整旧正文末尾/);
     assert.match(await page.locator('#overlay').innerText(), /误编辑前的标题|旧标签|已经完成的原目标/);
     assert.equal(await page.locator('#overlay b').count(), 0);
-    await page.locator('#overlay summary').click();
+    await page
+      .locator('#overlay summary')
+      .filter({ hasText: /^记录时附加的只读存档参照$/ })
+      .click();
     assert.match(await page.locator('#overlay').innerText(), new RegExp(initialHash));
     await page.screenshot({ path: path.join(resultDir, 'version-full-preview.png') });
     await page.keyboard.press('Escape');

@@ -474,8 +474,7 @@ test('successive complete protection collections retain every generation of reco
 
 test('version views show complete escaped content with read-only historical controls and per-entry entry points', async () => {
   const module = await import(
-    'data:text/javascript;base64,' +
-      fs.readFileSync(path.join(__dirname, '../src/renderer/event-journal-views.js')).toString('base64')
+    require('node:url').pathToFileURL(path.join(__dirname, '../src/renderer/event-journal-views.js')).href
   );
   const helpers = {
     esc: (s) => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;'),

@@ -12,6 +12,7 @@ const { Timeline } = require('../src/core/timeline.cjs');
 const { syntheticSave } = require('../tests/fixtures.cjs');
 const catalog = require('../src/data/catalog.cjs');
 const gameIndex = require('../src/core/game-data.cjs').encyclopedia();
+const { selectProgress, progressValue } = require('./progress-settings.cjs');
 const base = path.resolve(__dirname, '..');
 const version = require('../package.json').version;
 const reportFile = path.join(
@@ -71,10 +72,6 @@ const nav = (win, id) => win.locator(`.nav-btn[data-id="${id}"]`).click();
 const close = async (win) => {
   await win.keyboard.press('Escape');
   await win.locator('.drawer').waitFor({ state: 'detached' });
-};
-const select = async (win, id, value) => {
-  await win.locator(id).selectOption(value);
-  assert.equal(await win.locator(id).inputValue(), value);
 };
 const stateSummary = (win) =>
   win.evaluate(async () => {
@@ -226,9 +223,9 @@ async function recipeReservationConsistency() {
     await win.locator('.database-card[data-id="fusion-1000"]').click();
     await win.locator('#recipe-quantity').waitFor();
     assert.match(await coal.innerText(), /已有 2/);
-    await select(win, '#recipe-save', '');
+    await selectProgress(win, '');
     assert.equal(await win.locator('#recipe-materials .material-owned').count(), 0);
-    await select(win, '#recipe-save', '0.sav');
+    await selectProgress(win, '0.sav');
     assert.match(await coal.innerText(), /已有 2/);
     assert.deepEqual(journal(data).profiles[0].craftPlans, plans);
     for (const [name, bytes] of Object.entries(files))
@@ -249,27 +246,30 @@ async function recipeReservationConsistency() {
       const shown = await win.evaluate(() => window.journal.compact());
       assert(shown.ok, shown.error);
     }
-    await companion.locator('.companion-tabs [data-action="navigate"][data-id="materials"]').click();
-    const toggle = () =>
-      companion.locator(
-        '.backup-row[data-craft-plan-id="' + plans[0].id + '"] [data-action="craft-plan-reserve"]',
+    // The compact materials page is a summary, not the full plan manager.
+    // Exercise cross-window invalidation through the public mutation channel;
+    // This segment checks state propagation, not plan-manager button interaction.
+    const reserve = async (value) => {
+      const response = await companion.evaluate(
+        ({ id, value }) => window.journal.mutate({ type: 'craft-plan-reserve', id, value }),
+        { id: plans[0].id, value },
       );
-    await toggle().click();
-    await toggle().filter({ hasText: '保留材料' }).waitFor();
+      assert(response.ok, response.error);
+    };
+    await reserve(false);
     await coal.filter({ hasText: '已有 5' }).waitFor();
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
-    assert.equal(await win.locator('#recipe-save').inputValue(), '0.sav');
+    assert.equal(await progressValue(win), '0.sav');
     const released = await win.evaluate(() => window.journal.recipePlan('fusion-1000', 3, '0.sav'));
     assert(released.ok, released.error);
     assert.equal(released.data.materials.find((m) => m.id === 10205).owned, 5);
     assert.match(await coal.innerText(), /已备齐/);
-    await toggle().click();
-    await toggle().filter({ hasText: '释放计划用量' }).waitFor();
+    await reserve(true);
     await coal.filter({ hasText: '已有 2' }).waitFor();
     assert.match(await coal.innerText(), /还缺 1/);
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
     check(
-      'open recipe follows actual companion plan release and reservation without losing quantity or fixed reference',
+      'open recipe follows cross-window plan release and reservation without losing quantity or fixed reference',
     );
     await close(win);
     await win.locator('.database-tab[data-id="人物"]').click();
@@ -277,13 +277,11 @@ async function recipeReservationConsistency() {
     await win.locator('.database-card[data-id="npc-5014"]').click();
     const giftCoal = win.locator('.person-gifts [data-action="database-detail"][data-id="item-10205"]');
     await giftCoal.filter({ hasText: '2 件' }).waitFor();
-    await toggle().click();
-    await toggle().filter({ hasText: '保留材料' }).waitFor();
+    await reserve(false);
     await giftCoal.filter({ hasText: '5 件' }).waitFor();
-    await toggle().click();
-    await toggle().filter({ hasText: '释放计划用量' }).waitFor();
+    await reserve(true);
     await giftCoal.filter({ hasText: '2 件' }).waitFor();
-    assert.equal(await win.locator('#person-save').inputValue(), '0.sav');
+    assert.equal(await progressValue(win), '0.sav');
     assert.deepEqual(journal(data).profiles[0].craftPlans, plans);
     for (const [name, bytes] of Object.entries(files))
       assert.deepEqual(fs.readFileSync(path.join(source, name)), bytes);
@@ -524,7 +522,7 @@ async function detailReadability() {
         .nth(zoom === 1 ? 0 : 1)
         .click();
       await win.locator('.drawer').waitFor();
-      for (const selector of ['.drawer-body .intro', '.detail-label', '.spoiler-box p'])
+      for (const selector of ['.drawer-body .intro', '.drawer-body > .row', '.spoiler-box p'])
         await measure(selector, zoom + '-index-before-reveal');
       await capture('detail-readability-index-' + zoom);
       await win.locator('[data-action="reveal"]').click();
@@ -782,6 +780,7 @@ async function referenceAndPolling() {
     );
     await win.getByRole('button', { name: '取消置顶目标 ' + otherTitle, exact: true }).click();
     await nav(win, 'home');
+    await win.locator('.home-optional > summary').click();
     assert.equal(await win.getByRole('button', { name: '编辑目标 ' + otherTitle, exact: true }).count(), 1);
     check(
       'main goal actions name their exact target, escape user text, and keyboard edit/delete cancellation preserve it',
@@ -791,24 +790,22 @@ async function referenceAndPolling() {
     assert.equal(initial.timeline.enabled, false);
     assert.equal(journal(data).settings.autoBackup, true);
     await nav(win, 'world');
-    await select(win, '#world-save', '1.sav');
-    await win.waitForFunction(() =>
-      document.querySelector('.world-reference')?.textContent.includes('已读取 1.sav'),
-    );
+    await selectProgress(win, '1.sav');
+    assert.equal(await progressValue(win), '1.sav');
     await win.locator('#world-search').fill('找山下的孙郎中取药材');
     await win.locator('#world-scope').selectOption('all');
     await win.locator('.world-quest-card[data-id="quest-5054"]').click();
     await win.locator('[data-action="database-detail"][data-id="npc-10001"]').first().click();
-    assert.equal(await win.locator('#person-save').inputValue(), '1.sav');
+    assert.equal(await progressValue(win), '1.sav');
     await win.locator('[data-action="drawer-back"]').click();
-    assert.match(await win.locator('.world-drawer .save-note').first().innerText(), /对照 1\.sav/);
+    assert.match(await win.locator('.world-drawer .tag-row').innerText(), /未记录|尚未|进行中/);
     await close(win);
-    await select(win, '#world-save', '');
+    await selectProgress(win, '');
     await win.locator('.world-quest-card[data-id="quest-5054"]').click();
     await win.locator('[data-action="database-detail"][data-id="npc-10001"]').first().click();
-    assert.equal(await win.locator('#person-save').inputValue(), '');
+    assert.equal(await progressValue(win), '');
     await win.locator('[data-action="drawer-back"]').click();
-    assert.match(await win.locator('.world-drawer .save-note').first().innerText(), /当前仅查资料/);
+    assert.equal(await progressValue(win), '');
     check('world fixed slot and reference-free mode survive person detail and back', {
       fixed: '1.sav',
       none: '',
@@ -819,27 +816,27 @@ async function referenceAndPolling() {
     await win.locator('[data-action="database-kind"][data-id="配方"]').click();
     await win.locator('#list-search').fill('布锦鞋精良图纸');
     await win.locator('[data-action="database-detail"][data-id="fusion-7000"]').click();
-    await select(win, '#recipe-save', '1.sav');
+    await selectProgress(win, '1.sav');
     await win.locator('#recipe-quantity').fill('3');
     await win.locator('#recipe-materials [data-action="database-detail"][data-id="item-10300"]').click();
     await win.locator('.item-sellers summary').click();
     await win.locator('.item-sellers [data-action="database-detail"][data-id="npc-10802"]').click();
-    await select(win, '#person-save', '@latest');
+    assert.equal(await progressValue(win), '1.sav');
     await win.locator('[data-action="drawer-back"]').click();
     assert.match(await win.locator('.drawer h1').innerText(), /麻布/);
     await win.locator('[data-action="drawer-back"]').click();
-    assert.equal(await win.locator('#recipe-save').inputValue(), '1.sav');
+    assert.equal(await progressValue(win), '1.sav');
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
-    // The reverse direction: latest parent remains latest after a fixed child selection.
-    await select(win, '#recipe-save', '@latest');
+    // A latest reference also remains shared through the same nested detail chain.
+    await selectProgress(win, '@latest');
     await win.locator('#recipe-quantity').fill('4');
     await win.locator('#recipe-materials [data-action="database-detail"][data-id="item-10300"]').click();
     await win.locator('.item-sellers summary').click();
     await win.locator('.item-sellers [data-action="database-detail"][data-id="npc-10802"]').click();
-    await select(win, '#person-save', '1.sav');
+    assert.equal(await progressValue(win), '@latest');
     await win.locator('[data-action="drawer-back"]').click();
     await win.locator('[data-action="drawer-back"]').click();
-    assert.equal(await win.locator('#recipe-save').inputValue(), '@latest');
+    assert.equal(await progressValue(win), '@latest');
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '4');
     check('nested recipe item person navigation restores both reference modes and quantity', {
       fixedQuantity: 3,
@@ -847,7 +844,7 @@ async function referenceAndPolling() {
     });
 
     // Native and backup automation stay disabled; only an external synthetic file write changes data.
-    await select(win, '#recipe-save', '1.sav');
+    await selectProgress(win, '1.sav');
     await win.locator('#recipe-quantity').fill('3');
     await win.locator('.drawer-body').evaluate((e) => {
       e.scrollTop = 180;
@@ -861,7 +858,7 @@ async function referenceAndPolling() {
       null,
       { timeout: 16000 },
     );
-    assert.equal(await win.locator('#recipe-save').inputValue(), '1.sav');
+    assert.equal(await progressValue(win), '1.sav');
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
     assert.ok((await win.locator('.drawer-body').evaluate((e) => e.scrollTop)) > 0);
     check('recipe open drawer polls changed saved inventory without a synthetic event', {
@@ -875,17 +872,17 @@ async function referenceAndPolling() {
     await win.locator('[data-action="database-kind"][data-id="人物"]').click();
     await win.locator('#list-search').fill('余裁缝');
     await win.locator('[data-action="database-detail"][data-id="npc-10802"]').click();
-    await select(win, '#person-save', '1.sav');
+    await selectProgress(win, '1.sav');
     await win.locator('.person-gifts').scrollIntoViewIfNeeded();
     const beforeGifts = await win.locator('.person-gifts').innerText();
-    assert.match(beforeGifts, /没有记录符合偏好/);
+    assert.match(beforeGifts, /背包中暂无合适礼物/);
     fs.writeFileSync(path.join(source, '1.sav'), save(6, 1, 3663));
     await win.waitForFunction(
       () => document.querySelector('.person-gifts')?.textContent.includes('麻布'),
       null,
       { timeout: 16000 },
     );
-    assert.equal(await win.locator('#person-save').inputValue(), '1.sav');
+    assert.equal(await progressValue(win), '1.sav');
     check('person open drawer polls changed gifts without a synthetic event', {
       item: '麻布',
       selected: '1.sav',
@@ -893,7 +890,7 @@ async function referenceAndPolling() {
     await close(win);
 
     await nav(win, 'world');
-    await select(win, '#world-save', '1.sav');
+    await selectProgress(win, '1.sav');
     await win.locator('#world-search').fill('武当求助');
     await win.waitForFunction(() =>
       document.querySelector('.world-quest-card[data-id="quest-5200"]')?.textContent.includes('进行中'),
@@ -924,7 +921,7 @@ async function referenceAndPolling() {
       true,
     );
     await close(win);
-    assert.equal(await win.locator('#world-save').inputValue(), '1.sav');
+    assert.equal(await progressValue(win), '1.sav');
     assert.equal(await win.locator('#world-search').inputValue(), '武当求助');
     check('world open drawer polls changed quest status and preserves expansion, query and slot', {
       old: '进行中',
@@ -932,9 +929,12 @@ async function referenceAndPolling() {
     });
 
     await nav(win, 'home');
+    if (!(await win.locator('.home-optional').evaluate((detail) => detail.open)))
+      await win.locator('.home-optional > summary').click();
     await win.locator('[data-action="compact"]').first().click();
     const companion = app.windows().find((w) => w !== win) || (await app.waitForEvent('window'));
     await companion.locator('.compact-shell').waitFor();
+    await companion.locator('.flow-personal > summary').click();
     for (const title of ['小窗撤销目标', otherTitle])
       assert.equal(
         await companion.getByRole('button', { name: '优先提示 ' + title, exact: true }).count(),
@@ -995,7 +995,7 @@ async function firstSaveAppears() {
     await win.locator('[data-action="database-kind"][data-id="配方"]').click();
     await win.locator('#list-search').fill('布锦鞋精良图纸');
     await win.locator('[data-action="database-detail"][data-id="fusion-7000"]').click();
-    assert.equal(await win.locator('#recipe-save').inputValue(), '@latest');
+    assert.equal(await progressValue(win), '@latest');
     assert.doesNotMatch(await win.locator('#recipe-materials').innerText(), /已有\s+\d+/);
     fs.writeFileSync(path.join(source, '1.sav'), save(7));
     await win.waitForFunction(
@@ -1003,7 +1003,7 @@ async function firstSaveAppears() {
       null,
       { timeout: 16000 },
     );
-    assert.equal(await win.locator('#recipe-save').inputValue(), '@latest');
+    assert.equal(await progressValue(win), '@latest');
     check('latest recipe with no initial save follows first readable file through natural polling', {
       file: '1.sav',
       owned: 7,
@@ -1041,7 +1041,18 @@ async function recipeOutputUnits() {
   try {
     await win.context().setOffline(true);
     const window = await app.browserWindow(win);
-    await window.evaluate((w) => w.setBounds({ width: 980, height: 660 }));
+    await window.evaluate(async (w) => {
+      // Startup restores the saved bounds before showing the native window.
+      // Wait for that restore before applying the viewport under test.
+      if (!w.isVisible()) await new Promise((resolve) => w.once('show', resolve));
+      w.setBounds({ width: 980, height: 660 });
+    });
+    const settledBounds = await window.evaluate((w) => w.getBounds());
+    // Windows may round one device-independent pixel at fractional desktop DPI.
+    assert.ok(
+      Math.abs(settledBounds.width - 980) <= 1 && Math.abs(settledBounds.height - 660) <= 1,
+      JSON.stringify(settledBounds),
+    );
     const fits = async (selector) => {
       const node = win.locator(selector).first();
       await node.scrollIntoViewIfNeeded();
@@ -1082,10 +1093,10 @@ async function recipeOutputUnits() {
     await win.locator('[data-action="database-kind"][data-id="配方"]').click();
     await win.locator('#list-search').fill('铜锭');
     await win.locator('[data-action="database-detail"][data-id="fusion-9501"]').click();
-    await select(win, '#recipe-save', '1.sav');
+    await selectProgress(win, '1.sav');
     const output = win
       .locator('.drawer .detail-block')
-      .filter({ has: win.getByRole('heading', { name: /产出参考/ }) });
+      .filter({ has: win.getByRole('heading', { name: /每次产出/ }) });
     const counts = () => output.locator('.material-row > span:last-child').allTextContents();
     assert.deepEqual(await counts(), ['× 1', '× 2', '× 3']);
     await win.locator('#recipe-quantity').fill('4');
@@ -1109,7 +1120,7 @@ async function recipeOutputUnits() {
     );
     const totals = win.locator('#recipe-materials [data-recipe-total-outputs]');
     assert.equal(await totals.locator('[data-recipe-output-id]').count(), 1);
-    assert.match(await totals.innerText(), /尚未计入背包/);
+    assert.equal(await totals.getByRole('heading', { name: '制作 4 次的预计总产物' }).count(), 1);
     assert.deepEqual(journal(data).profiles[0].craftList || [], []);
     for (const selector of [
       '#recipe-quantity',
@@ -1155,12 +1166,9 @@ async function recipeOutputUnits() {
       { invalid: ['', '0', '-1', '1.5', '1000', 'badInput:e'], recovered: 4, inputNodePreserved: true },
     );
     for (const mode of ['@latest', '', '1.sav']) {
-      await select(win, '#recipe-save', mode);
-      await win.waitForFunction(
-        (value) =>
-          document.querySelector('#recipe-save')?.value === value &&
-          document.querySelector('[data-recipe-total-outputs]')?.textContent.includes('绿色 × 4–12'),
-        mode,
+      await selectProgress(win, mode);
+      await win.waitForFunction(() =>
+        document.querySelector('[data-recipe-total-outputs]')?.textContent.includes('绿色 × 4–12'),
       );
       assert.equal(await quantity.inputValue(), '4');
       assert.deepEqual(await counts(), ['× 1', '× 2', '× 3']);
@@ -1169,11 +1177,11 @@ async function recipeOutputUnits() {
     await totals.locator('[data-action="database-detail"][data-id="item-10217"]').click();
     await win.locator('[data-action="drawer-back"]').click();
     assert.equal(await quantity.inputValue(), '4');
-    assert.equal(await win.locator('#recipe-save').inputValue(), '1.sav');
+    assert.equal(await progressValue(win), '1.sav');
     assert.match(await totals.innerText(), /绿色 × 4–12/);
     await zoom(150);
     assert.equal(await quantity.inputValue(), '4');
-    assert.equal(await win.locator('#recipe-save').inputValue(), '1.sav');
+    assert.equal(await progressValue(win), '1.sav');
     assert.match(await totals.innerText(), /绿色 × 4–12/);
     for (const selector of [
       '#recipe-quantity',
@@ -1190,7 +1198,7 @@ async function recipeOutputUnits() {
     await zoom(100);
     assert.equal(
       await output.getByRole('heading').innerText(),
-      '每次产出参考',
+      '每次产出',
       'Recipe detail must explicitly identify per-execution output when execution count is4',
     );
     check(
@@ -1212,7 +1220,7 @@ async function recipeOutputUnits() {
     await win.locator('#list-search').fill('长虹剑精良图纸');
     await win.locator('[data-action="database-detail"][data-id="fusion-1002"]').click();
     await win.locator('#recipe-quantity').fill('3');
-    assert.equal(await output.getByRole('heading').innerText(), '每次产出参考');
+    assert.equal(await output.getByRole('heading').innerText(), '每次产出');
     assert.deepEqual(await counts(), ['× 1']);
     assert.match(
       await win.locator('#recipe-materials').innerText(),
@@ -1321,21 +1329,19 @@ async function referenceRefreshEdges() {
     await win.locator('[data-action="database-kind"][data-id="配方"]').click();
     await win.locator('#list-search').fill('布锦鞋精良图纸');
     await win.locator('[data-action="database-detail"][data-id="fusion-7000"]').click();
-    await select(win, '#recipe-save', '1.sav');
-    assert.match(await win.locator('.drawer').innerText(), /还没有此配方/);
+    await selectProgress(win, '1.sav');
+    assert.match(await win.locator('.drawer').innerText(), /尚未学会/);
     await win.locator('#recipe-quantity').fill('');
     assert.equal(await win.locator('[data-recipe-total-outputs]').count(), 0);
     fs.writeFileSync(path.join(source, '1.sav'), sample(0, 4, true, 3001));
-    await win.waitForFunction(
-      () => document.querySelector('.drawer')?.textContent.includes('已记录此配方'),
-      null,
-      { timeout: 16000 },
-    );
+    await win.waitForFunction(() => document.querySelector('.drawer')?.textContent.includes('已学会'), null, {
+      timeout: 16000,
+    });
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '');
     assert.match(await win.locator('#recipe-materials').innerText(), /填写 1 至 999/);
     assert.equal(await win.locator('[data-recipe-total-outputs]').count(), 0);
     assert.equal(await win.locator('#recipe-quantity').evaluate((field) => field.validity.customError), true);
-    assert.equal(await win.locator('#recipe-save').inputValue(), '1.sav');
+    assert.equal(await progressValue(win), '1.sav');
     await win.locator('#recipe-quantity').fill('3');
     await win.waitForFunction(() =>
       document.querySelector('#recipe-materials')?.textContent.includes('已有 0'),
@@ -1345,7 +1351,7 @@ async function referenceRefreshEdges() {
     assert.equal(await win.locator('[data-recipe-total-outputs]').count(), 0);
     fs.writeFileSync(path.join(source, '1.sav'), sample(8, 1, false, 3002));
     await win.waitForFunction(
-      () => document.querySelector('.drawer')?.textContent.includes('还没有此配方'),
+      () => document.querySelector('.drawer')?.textContent.includes('尚未学会'),
       null,
       { timeout: 16000 },
     );
@@ -1363,34 +1369,30 @@ async function referenceRefreshEdges() {
       { quantities: ['', '0'], refreshedOwned: [0, 8] },
     );
     await win.locator('#recipe-quantity').fill('');
-    await select(win, '#recipe-save', '@latest');
-    await win.waitForFunction(
-      () =>
-        document.querySelector('#recipe-save')?.value === '@latest' &&
-        document.querySelector('#recipe-materials')?.textContent.includes('填写 1 至 999'),
+    await selectProgress(win, '@latest');
+    await win.waitForFunction(() =>
+      document.querySelector('#recipe-materials')?.textContent.includes('填写 1 至 999'),
     );
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '');
-    assert.match(await win.locator('.recipe-reference').innerText(), /已读取这份存档/);
-    await select(win, '#recipe-save', '');
-    await win.waitForFunction(
-      () =>
-        document.querySelector('#recipe-save')?.value === '' &&
-        document.querySelector('.recipe-reference')?.textContent.includes('可连接本机存档'),
+    assert.equal(await progressValue(win), '@latest');
+    await selectProgress(win, '');
+    await win.waitForFunction(() =>
+      document.querySelector('#recipe-materials')?.textContent.includes('填写 1 至 999'),
     );
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '');
     assert.match(await win.locator('#recipe-materials').innerText(), /填写 1 至 999/);
     assert.equal(await win.locator('[data-recipe-total-outputs]').count(), 0);
     assert.equal(await win.locator('#recipe-quantity').evaluate((field) => field.validity.customError), true);
-    check(
-      'recipe reference changes from fixed slot through latest to reference-free with invalid quantity intact',
-      { modes: ['1.sav', '@latest', ''], invalidQuantity: '' },
-    );
+    check('reopened recipe queries suppress totals for invalid quantity in each shared Settings mode', {
+      modes: ['1.sav', '@latest', ''],
+      invalidQuantity: '',
+    });
     await close(win);
 
     await win.locator('[data-action="database-kind"][data-id="人物"]').click();
     await win.locator('#list-search').fill(person.name);
     await win.locator(`[data-action="database-detail"][data-id="${person.id}"]`).click();
-    await select(win, '#person-save', '2.sav');
+    await selectProgress(win, '2.sav');
     await win.locator('.person-gifts [data-action="gift-page"]').last().click();
     assert.match(await win.locator('.person-gifts').innerText(), /第 2 \/ 2 页/);
     const gift = win.locator('.person-gifts [data-action="database-detail"]').first();
@@ -1399,7 +1401,7 @@ async function referenceRefreshEdges() {
     assert.match(await win.locator('.drawer h1').innerText(), /.+/);
     await win.locator('[data-action="drawer-back"]').click();
     assert.match(await win.locator('.person-gifts').innerText(), /第 2 \/ 2 页/);
-    assert.equal(await win.locator('#person-save').inputValue(), '2.sav');
+    assert.equal(await progressValue(win), '2.sav');
     check('gift page two and selected save survive opening item detail and returning', {
       person: person.id,
       item: giftId,
@@ -1408,11 +1410,11 @@ async function referenceRefreshEdges() {
     await close(win);
 
     await nav(win, 'world');
-    await select(win, '#world-save', '1.sav');
+    await selectProgress(win, '1.sav');
     await win.locator('#world-scope').selectOption('all');
     await win.locator('#world-search').fill('赢得品剑大会');
     await win.locator('.world-quest-card[data-id="quest-5424"]').click();
-    const detail = win.locator('.world-drawer details').filter({ hasText: '关联场景线索' });
+    const detail = win.locator('.world-drawer details').filter({ hasText: '关联地点' });
     await detail.locator('summary').click();
     assert.equal(await detail.evaluate((e) => e.open), true);
     const before = await win.locator('.world-drawer .drawer-body').evaluate((e) => {
@@ -2119,9 +2121,11 @@ async function corruptTimelineReconnect() {
   const { app, win } = (running = await launch(data));
   try {
     await nav(win, 'home');
-    const retained = await win.locator('.stat-grid .stat').last().innerText();
-    assert.match(retained, /时间线历史数量待核对/);
-    assert.doesNotMatch(retained, /0\s*个时间线节点/);
+    assert.equal(await win.locator('.stat-grid').count(), 0);
+    assert.equal(
+      (await win.evaluate(() => window.journal.bootstrap())).data.environment.timeline.indexError,
+      true,
+    );
     await nav(win, 'saves');
     const panel = win.locator('[aria-label="时间线需要核对"]');
     assert.match(await panel.innerText(), /历史数量暂时无法核对/);
@@ -2270,7 +2274,7 @@ async function questReadingAndReservations() {
     await nav(win, 'world');
     await win.locator('#world-search').fill('采集半边莲');
     await win.locator('.world-quest-card[data-id="quest-5053"]').click();
-    await win.locator('.drawer [data-action="world-quest"][data-id="quest-5057"]').click();
+    await win.locator('.drawer .world-steps [data-action="world-quest"][data-id="quest-5057"]').click();
     assert.match(await win.locator('.drawer').innerText(), /库存 2 · 缺 3/);
     await win.locator('[data-action="world-reserve-material"][data-id="quest-5057:10016"]').click();
     await win.waitForFunction(() =>
@@ -2290,8 +2294,9 @@ async function questReadingAndReservations() {
       journal(data).profiles[0].allocations.find((a) => a.questId === 'quest-5057').items['10016'],
       5,
     );
-    await win.locator('[data-action="database-detail"][data-id="item-10016"]').click();
+    await win.locator('.drawer .material-row [data-action="database-detail"][data-id="item-10016"]').click();
     assert.equal(await win.locator('#reserve-count').inputValue(), '8');
+    await win.locator('.reservation-editor > summary').click();
     await win.locator('#reserve-count').fill('1');
     await win.locator('[data-action="reserve-save"]').click();
     assert.equal(journal(data).profiles[0].reservations['10016'], 1);
@@ -2337,11 +2342,11 @@ async function unreadableProgressAndImport() {
     await win.waitForFunction(() => document.querySelector('.toast')?.textContent.includes('当前记录未改动'));
     assert.deepEqual(fs.readFileSync(path.join(data, 'journal.json')), before);
     fs.writeFileSync(path.join(source, '1.sav'), save(10));
-    await nav(win, 'home');
+    await nav(win, 'saves');
     await win.locator('[data-action="refresh"]').first().click();
-    await win.waitForFunction(() =>
-      document.querySelector('.start-panel')?.textContent.includes('已读到你的进度'),
-    );
+    await nav(win, 'home');
+    await win.locator('.start-actions').waitFor();
+    assert.equal(await win.locator('.start-panel').count(), 0);
     check(
       'unknown save format has actionable guidance and remains backed up; malformed journal import preserves current records',
       { data },
@@ -2375,10 +2380,9 @@ async function importedReferences() {
     await win.locator('#list-search').fill('道玄');
     const person = gameIndex.entries.find((e) => e.kind === '人物' && e.name === '道玄');
     await win.locator(`.database-card[data-id="${person.id}"]`).click();
-    await win.locator('#person-save').selectOption('');
-    await win.waitForFunction(() =>
-      document.querySelector('.person-gifts')?.textContent.includes('尚未核对可用数量'),
-    );
+    await selectProgress(win, '');
+    assert.equal(await progressValue(win), '');
+    assert.match(await win.locator('.person-gifts h3').innerText(), /可送礼物/);
     assert.doesNotMatch(await win.locator('.person-gifts').innerText(), /仅列可用库存/);
     await close(win);
     await nav(win, 'settings');
@@ -2397,7 +2401,7 @@ async function importedReferences() {
     await win.locator('[data-action="import"]').click();
     const prompt = await app.evaluate(() => global.testImportPrompt);
     assert.match(prompt.detail, /1 个周目的固定存档参照会改为跟随本机最新保存/);
-    assert.match(prompt.detail, /周目管理.*重新选择固定参照/);
+    assert.match(prompt.detail, /手札设置的游戏进度.*重新选择固定存档/);
     assert.deepEqual(fs.readFileSync(path.join(data, 'journal.json')), before);
     await app.evaluate(({ dialog }) => {
       dialog.showMessageBox = async () => ({ response: 1 });

@@ -2,13 +2,12 @@
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
-const {
-  _electron,
-} = require('playwright');
+const { _electron } = require('playwright');
 const { Store } = require('../src/core/store.cjs'),
   { sha } = require('../src/core/saves.cjs'),
   { syntheticSave } = require('../tests/fixtures.cjs');
 const index = require('../src/data/game-index.json'),
+  taskStep = require('../src/data/world-index.json').quests.find((q) => q.id === 'quest-5201'),
   catalog = require('../src/data/catalog.cjs');
 const base = path.resolve(__dirname, '..'),
   data = fs.mkdtempSync(path.join(base, '.test-data', 'comparison-')),
@@ -22,6 +21,9 @@ fs.writeFileSync(
   syntheticSave({
     full: true,
     money: 100,
+    map: 'LV_29_P',
+    trackingMainQuest: 5200,
+    trackingQuest: 5201,
     seconds: 3600,
     inventory: [
       { id: 10226, count: 2 },
@@ -76,8 +78,53 @@ let app;
     const win = await app.firstWindow();
     win.on('pageerror', (e) => report.errors.push(e.message));
     await win.locator('.layout').waitFor();
+    await win.bringToFront();
     report.version = (await win.evaluate(() => window.journal.bootstrap())).data.version;
+    for (const [selection, present] of [
+      ['1.sav', true],
+      ['2.sav', false],
+      ['@none', false],
+    ]) {
+      await require('./progress-settings.cjs').selectProgress(win, selection, { reopen: false });
+      await win.keyboard.press('Control+k');
+      await win.locator('#global-search').fill('种类:任务 名称:武当求助 状态:进行中');
+      const result = win.locator('.search-result[data-id="quest-5200"]');
+      if (present) {
+        await result.waitFor();
+        await result.click();
+        await win.locator('.world-drawer h1').waitFor();
+        assert.match(await win.locator('.world-drawer .tag-row').first().innerText(), /进行中/);
+      } else {
+        await win.waitForFunction(() => !document.querySelector('.search-result[data-id="quest-5200"]'));
+      }
+      await win.locator('#overlay [data-action="close-overlay"]').first().click();
+    }
+    await require('./progress-settings.cjs').selectProgress(win, '@latest', { reopen: false });
+    report.checks.push(
+      'global quest status filters and opened detail honor fixed settings and no-reference mode',
+    );
     await win.locator('.nav-btn[data-id="saves"]').click();
+    await win.locator('[data-action="save-detail"][data-id="2.sav"]').click();
+    await win.locator('.save-recorded-quests > summary').click();
+    await win.locator('[data-action="save-quest-filter"][data-id="done"]').click();
+    const inventoryFold = win.locator('details').filter({ has: win.locator('#save-inventory-search') });
+    await inventoryFold.locator(':scope > summary').click();
+    await win.locator('#save-inventory-search').fill('精钢锭');
+    await win
+      .locator('#save-inventory-results [data-action="database-detail"][data-id="item-10226"]')
+      .click();
+    await win.locator('.drawer h1').waitFor();
+    await win.locator('[data-action="drawer-back"]').click();
+    assert.equal(await win.locator('#save-inventory-search').inputValue(), '精钢锭');
+    assert.equal(
+      await win.locator('[data-action="save-quest-filter"].active').getAttribute('data-id'),
+      'done',
+    );
+    assert.equal(await inventoryFold.evaluate((node) => node.open), true);
+    await win.locator('#overlay [data-action="close-overlay"]').first().click();
+    report.checks.push(
+      'save recap returns to its exact inventory search and task filter after entity lookup',
+    );
     await win.locator('[data-action="save-compare"]').click();
     await win.locator('#compare-left').selectOption('1.sav');
     await win.locator('#compare-right').selectOption('2.sav');
@@ -90,6 +137,21 @@ let app;
     assert.equal(answer.data.inventory.changes.length, 75);
     assert.equal(answer.data.quests.changes.length, 2);
     report.checks.push('real IPC and visible signed quantities, money, time and task differences');
+    const recap = win.locator('.compare-recap').first();
+    for (const id of ['place-22', 'quest-5200', 'quest-5201'])
+      assert.equal(await recap.locator(`[data-entity-id="${id}"]`).count(), 1);
+    await recap.locator('[data-entity-id="place-22"]').focus();
+    await win.locator('#entity-preview .place-map').waitFor({ state: 'visible' });
+    await recap.locator('[data-entity-id="place-22"]').click();
+    await win.locator('.world-drawer .place-map').waitFor();
+    await win.locator('[data-action="drawer-back"]').click();
+    assert.equal(await win.locator('#compare-left').inputValue(), '1.sav');
+    assert.equal(await win.locator('#compare-right').inputValue(), '2.sav');
+    assert.match(await win.locator('.compare-summary').innerText(), /\+250 文/);
+    report.checks.push(
+      'comparison recap preserves exact map and tracked quest links with map preview and return',
+    );
+
     await win.locator('[data-action="compare-filter"][data-id="less"]').click();
     assert.equal(await win.locator('.compare-item').count(), 1);
     assert.ok((await win.locator('.compare-item').innerText()).includes('-8'));
@@ -112,6 +174,31 @@ let app;
     await win.locator('.compare-quests > summary').click();
     await win.locator('#compare-quest-search').fill('武当求助');
     assert.ok((await win.locator('#compare-quest-results').innerText()).includes('已完成'));
+    await win.locator('#compare-quest-search').fill(taskStep.name);
+    const taskLink = win.locator('#compare-quest-results [data-action="world-quest"][data-id="quest-5201"]');
+    assert.equal(await taskLink.getAttribute('data-entity-id'), 'quest-5201');
+    assert.equal(await taskLink.locator('.game-picture').count(), 1);
+    await taskLink.focus();
+    await win.locator('#entity-preview').waitFor({ state: 'visible' });
+    assert.ok((await win.locator('#entity-preview').innerText()).includes(taskStep.name));
+    assert.ok((await win.locator('#entity-preview').innerText()).includes('未核对存档'));
+    await taskLink.click();
+    await win.locator('.world-drawer h1').filter({ hasText: taskStep.name }).waitFor();
+    assert.ok((await win.locator('.world-drawer .tag-row').first().innerText()).includes('任务步骤'));
+    assert.ok((await win.locator('.world-drawer .tag-row').first().innerText()).includes('进度未知'));
+    assert.ok(await win.locator('.world-drawer [data-action="world-quest"][data-id="quest-5200"]').count());
+    await win.locator('[data-action="drawer-back"]').click();
+    assert.equal(await win.locator('#compare-quest-search').inputValue(), taskStep.name);
+    assert.equal(await win.locator('#compare-inventory-search').inputValue(), '精钢锭');
+    assert.equal(await win.locator('#compare-left').inputValue(), '1.sav');
+    assert.equal(await win.locator('#compare-right').inputValue(), '2.sav');
+    assert.ok((await win.locator('#compare-quest-results').innerText()).includes('未开始'));
+    assert.ok((await win.locator('#compare-quest-results').innerText()).includes('进行中'));
+    assert.ok((await win.locator('.compare-summary').innerText()).includes('+250 文'));
+    await win.locator('#compare-quest-search').fill('武当求助');
+    report.checks.push(
+      'exact task-step artwork and offline hover/detail return preserve comparison values and both searches',
+    );
     await win.locator('.save-quests > summary').filter({ hasText: '队伍成员差异' }).click();
     assert.ok((await win.locator('#compare-team-results').innerText()).includes('角色 #987654321'));
     await win.locator('.save-quests > summary').filter({ hasText: '已学配方差异' }).click();

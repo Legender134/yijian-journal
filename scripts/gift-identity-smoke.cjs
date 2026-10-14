@@ -70,7 +70,12 @@ async function editGift() {
     await page.locator('.drawer-actions [data-action="journey-gift-dialog"]').click();
     await page.locator('#journey-person-search').fill('道通');
     const people = await page.locator('#journey-person option').allTextContents();
-    assert(people.some((label) => label.includes('5011')) && people.some((label) => label.includes('5030')));
+    assert(
+      people.some((label) => label.includes('资料 1/2')) &&
+        people.some((label) => label.includes('资料 2/2')),
+    );
+    assert.equal(await page.locator('#journey-person option[value="npc-5011"]').count(), 1);
+    assert.equal(await page.locator('#journey-person option[value="npc-5030"]').count(), 1);
     await page.locator('#journey-item-search').fill('纯钢剑');
     const labels = await page.locator('#journey-item option').allTextContents();
     for (const q of ['白', '绿', '蓝']) assert(labels.includes('纯钢剑 · ' + q + '色品质 · 剑'));
@@ -109,12 +114,44 @@ async function editGift() {
         framing.scrollable,
     );
     checks.push('最小窗口里标题、关闭与保存始终可见，长表单在内部滚动');
+    await page.locator('#journey-place-search').fill('野猪林');
+    await page.locator('#journey-place').selectOption('place-22');
     await page.screenshot({ path: path.join(data, 'gift-blue-selection.png') });
     await page.locator('[data-action="journey-intent-save"]').click();
     const blue = await waitGift('item-1002', 0);
     assert.equal(blue.gift.allocated, 1);
     assert.match(blue.title, /蓝色品质/);
     checks.push('用可见标签选择蓝色同名剑，保存后只分配真实蓝色库存，标题带文字品质');
+    const opened = app.waitForEvent('window');
+    await page.locator('[data-action="compact"]').first().click();
+    const companion = await opened;
+    companion.on('pageerror', (error) => errors.push(error.message));
+    await companion.locator('.compact-shell').waitFor();
+    await companion.locator('[data-compact-detail="flow-personal"] > summary').click();
+    const giftSummary = companion.locator('.compact-goal').filter({ hasText: '赠礼意图：' }).first();
+    for (const id of ['npc-5011', 'item-1002', 'place-22']) {
+      const link = giftSummary.locator(`[data-entity-id="${id}"]`).first();
+      await link.waitFor();
+      assert.equal(await link.locator('.game-picture').count(), 1);
+      assert.equal(await link.locator('.entity-link-label').count(), 1);
+    }
+    const swordLink = giftSummary.locator('[data-entity-id="item-1002"]');
+    await swordLink.hover();
+    await companion.locator('#entity-preview').waitFor({ state: 'visible' });
+    assert.match(await companion.locator('#entity-preview').innerText(), /纯钢剑/);
+    await swordLink.click();
+    await companion.locator('.drawer h1').filter({ hasText: '纯钢剑' }).waitFor();
+    await companion.locator('[data-action="close-overlay"]').first().click();
+    await giftSummary.locator('[data-entity-id="place-22"]').hover();
+    await companion.locator('#entity-preview .place-map').waitFor({ state: 'visible' });
+    await giftSummary.locator('[data-entity-id="place-22"]').click();
+    await companion.locator('.world-drawer .place-map').waitFor();
+    await companion.screenshot({ path: path.join(data, 'gift-summary-location-map.png') });
+    await companion.locator('[data-action="close-overlay"]').first().click();
+    await companion.locator('[data-action="companion-tuck"]').click();
+    await page.bringToFront();
+    checks.push('随行赠礼摘要使用精确人物、品质物品与地点入口，悬停及详情地图可直接查看');
+
     await editGift();
     await page.waitForFunction(() => !document.querySelector('#journey-item-stock').disabled);
     await page.locator('#journey-item-stock').check();
@@ -176,7 +213,7 @@ async function editGift() {
       ),
     );
     await page.locator('#journey-place-search').fill('梧桐村 10');
-    await page.locator('#journey-place').selectOption({ label: '梧桐村 · 资料场景 #10' });
+    await page.locator('#journey-place').selectOption({ label: '梧桐村 · 场景 2' });
     assert.equal(await page.locator('#journey-place').inputValue(), 'place-10');
     await page.locator('#journey-place-search').fill('没有这个地点');
     assert.equal(await page.locator('#journey-place').inputValue(), 'place-10');

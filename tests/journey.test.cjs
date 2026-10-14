@@ -56,7 +56,8 @@ test('gift action identifies the planned quality in text and allocates only that
     });
     const action = journeyPlan(p, r, resourceBudget(p, r)).actions.find((row) => row.kind === 'gift');
     assert.match(action.title, new RegExp(q + '色品质'));
-    assert.match(action.title, /5011/);
+    assert.match(action.title, /道通（资料 1\/2）/);
+    assert(action.navigation.some((link) => link.id === 'npc-5011'));
     assert.equal(action.gift.itemId, id);
     assert.equal(action.gift.missing, missing);
     assert.equal(action.gift.allocated, 1 - missing);
@@ -764,4 +765,20 @@ test('injected indexes allow contract tests without reading or writing any game 
     ownGame = clone(game);
   const { journeyPlan: injected } = createJourneyPlanner({ world: ownWorld, game: ownGame });
   assert.deepEqual(injected(profile(), null), journeyPlan(profile(), null));
+});
+test('ambiguous legacy place targets never become a different named location', () => {
+  for (const placeId of ['place-96', 'place-97']) {
+    const plan = journeyPlan(
+      profile({
+        goals: [{ id: 'personal-place', title: '去这里', detail: '', done: false, placeId }],
+        journey: { ...emptyJourneyState(), places: [{ placeId, note: '', done: false, favorite: true }] },
+      }),
+      reference(),
+    );
+    const personal = plan.actions.find((row) => row.navigation.some((link) => link.id === 'personal-place'));
+    assert.deepEqual(personal.places, []);
+    const place = plan.actions.find((row) => row.kind === 'place');
+    assert.deepEqual(place.places, []);
+    assert.match(place.title, /需重新选择地点/);
+  }
 });

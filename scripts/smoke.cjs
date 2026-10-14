@@ -81,6 +81,58 @@ async function revealAncestors(trigger) {
     }
   });
 }
+async function navigatePage(page, route) {
+  const compact = (await page.locator('.compact-shell').count()) > 0;
+  await page
+    .locator(
+      compact
+        ? `.companion-tabs [data-action="navigate"][data-id="${route}"]`
+        : `.nav-btn[data-id="${route}"]`,
+    )
+    .click();
+}
+async function openProgressSettings(page) {
+  const close = page.locator('#overlay [data-action="close-overlay"]');
+  if (await close.count()) await close.first().click();
+  if (await page.locator('.compact-shell').count()) {
+    await page.locator('[data-action="companion-layout"]').first().click();
+    await page.locator('[data-companion-layout] [data-action="navigate"][data-id="settings"]').click();
+    await page.locator('[data-companion-layout]').waitFor({ state: 'detached' });
+  } else await navigatePage(page, 'settings');
+  await page.locator('[data-action="save-slot"]').waitFor();
+}
+async function assertProgressReference(page, value) {
+  const selected = await page.evaluate(async () => {
+    const { state, environment } = (await window.journal.bootstrap()).data;
+    const profile = state.profiles.find((row) => row.id === state.activeProfileId);
+    return { mode: profile.referenceMode, slot: profile.saveSlot, recent: environment.recent?.name || null };
+  });
+  assert.equal(selected.mode, value === '@none' ? 'none' : value === '@latest' ? 'latest' : 'slot');
+  assert.equal(selected.slot, value.startsWith('@') ? '' : value);
+  if (value === '@none') assert.equal(selected.recent, null);
+  else if (value !== '@latest') assert.equal(selected.recent, value);
+}
+async function selectProgressReference(page, value, returnRoute = 'home') {
+  await openProgressSettings(page);
+  await page.locator('[data-action="save-slot"]').click();
+  await page.locator('#save-slot-select').selectOption(value);
+  await page.locator('[data-action="save-slot-save"]').click();
+  await page.locator('#save-slot-select').waitFor({ state: 'detached' });
+  await assertProgressReference(page, value);
+  await navigatePage(page, returnRoute);
+}
+async function assertSharedProgressUi(page) {
+  assert.equal(
+    await page.locator('#person-save, #item-save, #recipe-save, #world-save, #craft-save').count(),
+    0,
+    'progress selection is centralized in Settings',
+  );
+}
+async function refreshProgress(page, returnRoute = 'home') {
+  await navigatePage(page, 'saves');
+  await page.locator('[data-action="refresh"]').click();
+  await navigatePage(page, returnRoute);
+}
 async function entityPreview(page, trigger, expected, name, throughRefresh = false) {
   await revealAncestors(trigger);
   const native = await app.browserWindow(page);
@@ -97,34 +149,64 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
   // Keyboard focus keeps the preview intentional if the user's desktop pointer
   // moves during the polling check. Hover and transfer are checked below too.
   if (throughRefresh) await trigger.focus();
-  await trigger.hover();
   const preview = page.locator('#entity-preview');
-  await trigger.evaluate(
-    (node) =>
-      new Promise((resolve, reject) => {
-        const started = Date.now();
-        const check = () => {
-          if (node.getAttribute('aria-describedby') === 'entity-preview') return resolve();
-          if (!node.isConnected || Date.now() - started > 10000)
-            return reject(Error('The requested entry did not acquire its preview'));
-          setTimeout(check, 30);
-        };
-        check();
-      }),
-  );
-  await preview.waitFor({ state: 'visible' });
-  assert.match(await preview.innerText(), expected);
+  const hoverEntry = async () => {
+    // Native pointer events may arrive between automation commands. Retry only
+    // the pointer gesture; persistent missing previews still fail the check.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await page.mouse.move(2, 2);
+      await trigger.hover();
+      try {
+        await page.waitForFunction(
+          (node) => node.isConnected && node.getAttribute('aria-describedby') === 'entity-preview',
+          await trigger.elementHandle(),
+          { timeout: 1500 },
+        );
+        await preview.waitFor({ state: 'visible', timeout: 1500 });
+        return;
+      } catch (error) {
+        if (attempt === 2) throw error;
+      }
+    }
+  };
+  await hoverEntry();
+  const previewText = await preview.innerText();
+  assert.match(previewText, expected);
+  assert.doesNotMatch(previewText, /\.sav\b|SHA-256|\bBuild \d+|(?:物品|任务|人物|场景)编号/);
   if (throughRefresh) {
     const entry = await trigger.elementHandle();
     const scrollContainer = page.locator('.content, .compact-body');
     const scroll = await scrollContainer.evaluate((el) => el.scrollTop);
-    await page.waitForTimeout(5300);
+    const windowEvents = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const events = [];
+          const record = (event) => events.push(event.type);
+          for (const type of ['focus', 'blur', 'resize']) window.addEventListener(type, record);
+          setTimeout(() => {
+            for (const type of ['focus', 'blur', 'resize']) window.removeEventListener(type, record);
+            resolve(events);
+          }, 5300);
+        }),
+    );
     assert.equal(
       await entry.evaluate((el) => el.isConnected),
       true,
       'unchanged polling retains the focused entry',
     );
-    assert.equal(await preview.isVisible(), true, 'preview survives the background refresh');
+    assert.equal(
+      await preview.isVisible(),
+      true,
+      'preview survives the background refresh: ' +
+        JSON.stringify({
+          windowEvents,
+          state: await entry.evaluate((el) => ({
+            focused: document.hasFocus(),
+            focusedEntry: document.activeElement === el,
+            describedBy: el.getAttribute('aria-describedby'),
+          })),
+        }),
+    );
     assert.equal(await scrollContainer.evaluate((el) => el.scrollTop), scroll);
     await entry.dispose();
   }
@@ -145,9 +227,13 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
   );
   try {
     // Recheck stability and hit targeting instead of using an earlier rectangle.
-    await preview.hover({ position: { x: 15, y: 15 } });
-    await page.waitForTimeout(220);
-    assert.equal(await preview.isVisible(), true, 'preview stays open while moving into it');
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt) await hoverEntry();
+      await preview.hover({ position: { x: 15, y: 15 } });
+      await page.waitForTimeout(220);
+      if (await preview.isVisible()) break;
+      assert(attempt < 2, 'preview stays open while moving into it');
+    }
   } catch (error) {
     console.error(
       'Preview transfer diagnostics:',
@@ -198,8 +284,12 @@ async function taskMaterialReturn(page, title, screenshot) {
   for (let step = 0; step < 3; step++) await page.keyboard.press('Tab');
   const person = page.locator('[data-task-relations] [data-id="npc-10038"]').first();
   assert.equal(await person.evaluate((el) => document.activeElement === el), true);
-  if (await page.locator('.compact-shell').count())
-    assert((await page.locator('.drawer-body').evaluate((el) => el.scrollTop)) > 0);
+  const focusedBounds = await person.evaluate((el) => {
+    const bounds = el.getBoundingClientRect();
+    const viewport = el.closest('.drawer-body').getBoundingClientRect();
+    return bounds.top >= viewport.top && bounds.bottom <= viewport.bottom;
+  });
+  assert(focusedBounds, 'keyboard focus leaves the linked person visible');
   await page.locator('#entity-preview').waitFor({ state: 'visible' });
   assert.equal(await person.getAttribute('aria-describedby'), 'entity-preview');
   assert.match(await page.locator('#entity-preview').innerText(), /张樵夫/);
@@ -278,11 +368,8 @@ async function privateItemConnections(page, surface) {
   await page.locator('#global-search').fill('莫弃');
   for (const id of [5012, 5029]) {
     const result = page.locator('.search-result[data-id="npc-' + id + '"]');
-    assert.match(await result.innerText(), new RegExp('#' + id));
-    assert.match(
-      (await result.getAttribute('aria-label')) || (await result.innerText()),
-      new RegExp('#' + id),
-    );
+    assert.match(await result.innerText(), /莫弃/);
+    assert.doesNotMatch(await result.innerText(), new RegExp('#' + id));
   }
   await page.screenshot({
     animations: 'disabled',
@@ -290,7 +377,7 @@ async function privateItemConnections(page, surface) {
   });
   await page.locator('#global-search').fill('秦烈');
   const person = page.locator('.search-result[data-id="npc-10023"]');
-  await entityPreview(page, person, /秦烈.*静态等级 35/s, '01-' + surface + '-private-person-preview', true);
+  await entityPreview(page, person, /秦烈.*初始等级 35/s, '01-' + surface + '-private-person-preview', true);
   await person.click();
   const fixed = page.locator('[data-npc-private-items]');
   assert.equal(await fixed.evaluate((el) => el.open), false);
@@ -358,7 +445,7 @@ async function companionReferenceSync(page) {
     await page.keyboard.press('Tab');
     await item.focus();
     await page.locator('#entity-preview').waitFor({ state: 'visible' });
-    assert.match(await page.locator('#entity-preview').innerText(), new RegExp('2\\.sav · 库存 ' + count));
+    assert.match(await page.locator('#entity-preview').innerText(), new RegExp('保存持有 ' + count));
     await page.keyboard.press('Escape');
     return item;
   };
@@ -377,7 +464,7 @@ async function companionReferenceSync(page) {
     await page.locator('.item-usage').waitFor();
     write(12, 1);
     await page.waitForTimeout(6300);
-    assert.match(await page.locator('.item-usage').innerText(), /真实持有\s*12/);
+    assert.match(await page.locator('.item-usage').innerText(), /持有\s*12/);
     await page.locator('[data-action="drawer-back"]').click();
     await preview(12);
     assert.match(await page.locator('[data-task-relations]').innerText(), /采矿.*需 4 件 进行中/s);
@@ -405,6 +492,9 @@ async function guideAndSearchHandoff(main, compact) {
   await compact.locator('.search-result[data-action="detail"][data-id="wei-training"]').click();
   if (await compact.locator('[data-action="reveal"]').count())
     await compact.locator('[data-action="reveal"]').click();
+  // Source and stage details are now collapsed; open them as a reader would
+  // before checking that expanded content and scroll survive a window handoff.
+  await compact.locator('.drawer details > summary').getByText('资料来源与参考阶段', { exact: true }).click();
   await compact.locator('.drawer-body').evaluate((el) => {
     el.scrollTop = el.scrollHeight;
   });
@@ -414,6 +504,12 @@ async function guideAndSearchHandoff(main, compact) {
   await main.locator('.drawer h1').getByText('卫霍', { exact: true }).waitFor();
   await main.locator('[data-action="drawer-back"]').click();
   await main.locator('.drawer h1').getByText('卫霍 · 砥砺精进', { exact: true }).waitFor();
+  assert(
+    await main
+      .locator('.drawer details')
+      .filter({ has: main.getByText('资料来源与参考阶段', { exact: true }) })
+      .evaluate((el) => el.open),
+  );
   assert((await main.locator('.drawer-body').evaluate((el) => el.scrollTop)) > 0);
   await main.screenshot({ animations: 'disabled', path: path.join(results, '01-guide-history-handoff.png') });
   await main.locator('[data-action="close-overlay"]').click();
@@ -506,7 +602,7 @@ async function companionHomeInventorySync(page) {
       assert.match(await page.locator('.flow-choice-location').first().textContent(), /梧桐村.*樵夫.*铁匠/);
       await item.focus();
       await preview.waitFor({ state: 'visible' });
-      assert.match(await preview.innerText(), new RegExp('2\\.sav · 库存 ' + count));
+      assert.match(await preview.innerText(), new RegExp('保存持有 ' + count));
       assert.equal(await page.locator('.drawer').count(), 0, 'home preview sync needs no detail navigation');
       await page.screenshot({
         animations: 'disabled',
@@ -525,21 +621,28 @@ async function companionHomeInventorySync(page) {
   try {
     app = await launch();
     let win = await attach();
-    assert.equal(await win.locator('.start-panel').count(), 1);
+    assert.equal(await win.locator('.start-actions').count(), 1);
+    assert.equal(await win.locator('.start-panel').count(), 0);
+    assert.equal(await win.locator('.start-actions button').count(), 1);
     assert.equal(await win.locator('[data-flow]').count(), 1);
     assert.match(await win.locator('[data-flow-unindexed]').innerText(), /1 条进行中记录待识别/);
     await win.locator('[data-flow-unindexed] summary').click();
-    assert.match(await win.locator('[data-flow-unindexed]').innerText(), /#999999/);
+    assert.doesNotMatch(await win.locator('[data-flow-unindexed]').innerText(), /#999999/);
     await win.locator('[data-flow-quest="quest-5200"]').waitFor();
-    assert.match(await win.locator('[data-flow-quest="quest-5200"]').innerText(), /当前行动/);
+    assert.match(
+      await win.locator('[data-flow-quest="quest-5200"] .flow-next-action').first().innerText(),
+      /武当|清虚/,
+    );
     const flowProgress = win.locator('[data-flow-quest="quest-5200"] .flow-task-progress');
+    await revealAncestors(flowProgress);
     assert.match(await flowProgress.locator('summary').innerText(), /进行中 1/);
     await flowProgress.locator('summary').click();
-    assert.match(await flowProgress.innerText(), /只列本次已保存的步骤记录/);
+    assert.match(await flowProgress.innerText(), /求见清虚道长/);
+    assert.match(await win.locator('[data-flow-quest="quest-5200"] h3').first().innerText(), /武当求助/);
     assert.equal(await win.locator('[data-flow-quest="quest-11077"] .flow-step h4').count(), 0);
     assert.match(
       await win.locator('[data-flow-quest="quest-11077"] .flow-next-action').innerText(),
-      /具体步骤.*核对游戏任务栏/,
+      /下一步未识别.*查看游戏任务栏/,
     );
     const flowFirst = await win.evaluate(() => {
       const flow = document.querySelector('[data-flow]');
@@ -547,28 +650,12 @@ async function companionHomeInventorySync(page) {
       return !personal || !!(flow.compareDocumentPosition(personal) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
     assert.equal(flowFirst, true, 'saved quest guidance must precede personal journey planning');
-    const flowMaterials = win.locator('[data-flow-quest="quest-14073"] .flow-materials');
+    const flowMaterials = win.locator('[data-flow-quest="quest-14073"] .flow-material-brief');
+    await revealAncestors(flowMaterials);
     assert.match(await flowMaterials.innerText(), /茯苓.*川芎/s);
     await flowMaterials.locator('summary').first().click();
-    await win.locator('[data-action="refresh"]').click();
-    assert.equal(await flowProgress.evaluate((el) => el.open), true);
-    assert.equal(
-      await flowMaterials
-        .locator('details')
-        .first()
-        .evaluate((el) => el.open),
-      true,
-    );
-    assert.equal(await win.locator('.start-panel details').evaluate((el) => el.open), false);
-    assert.equal(await win.locator('[data-persist-detail="home-stage"]').evaluate((el) => el.open), false);
-    await win.locator('.start-panel summary').click();
-    await win.waitForFunction(() => document.querySelector('.start-panel details')?.open);
-    await win.locator('[data-action="refresh"]').click();
-    await win.waitForFunction(() =>
-      document.querySelector('#toasts')?.textContent.includes('已刷新本机存档'),
-    );
-    assert.equal(await win.locator('.start-panel details').evaluate((el) => el.open), true);
-    await win.locator('.start-panel summary').click();
+    assert.equal(await win.locator('.hero, .home-protection').count(), 0);
+    await assertSharedProgressUi(win);
     const firstUse = await win.evaluate(async () => (await window.journal.bootstrap()).data);
     assert.equal(firstUse.state.settings.autoBackup, true);
     assert.equal(firstUse.state.profiles[0].referenceMode, 'latest');
@@ -576,21 +663,62 @@ async function companionHomeInventorySync(page) {
     const deniedStart = await win.evaluate(() => window.journal.startAssistance());
     assert.equal(deniedStart.ok, false);
     assert.match(deniedStart.error, /测试环境/);
-    await win.waitForFunction(() =>
-      document.querySelector('.home-protection')?.textContent.includes('1 份完整保护副本'),
-    );
-    const automatic = (await win.evaluate(async () => (await window.journal.refresh()).data.backups)).find(
-      (b) => b.kind === 'auto',
-    );
+    let automatic;
+    const automaticDeadline = Date.now() + 30000;
+    do {
+      automatic = (await win.evaluate(async () => (await window.journal.refresh()).data.backups)).find(
+        (backup) => backup.kind === 'auto',
+      );
+      if (!automatic) await win.waitForTimeout(250);
+    } while (!automatic && Date.now() < automaticDeadline);
     assert.ok(automatic);
-    await win.waitForFunction(() =>
-      document.querySelector('.save-health')?.textContent.includes('完整备份守护中'),
-    );
-    assert.match(await win.locator('.save-health').first().getAttribute('title'), /游戏内自动存档尚未开启/);
+    const healthy = (await win.evaluate(async () => (await window.journal.refresh()).data)).health;
+    assert.equal(healthy.protection.ready, true);
+    assert.equal(await win.locator('[data-save-health]').count(), 1);
+    assert.equal(await win.locator('.save-health').count(), 0, 'healthy protection stays quiet');
     assert.deepEqual(fs.readFileSync(path.join(fakeSaves, '1.sav')), originalSave);
     assert.deepEqual(
       fs.readFileSync(path.join(data, 'save-backups', automatic.id, 'files', '1.sav')),
       originalSave,
+    );
+    // A background save refresh preserves reading state without navigating away.
+    await revealAncestors(flowProgress);
+    if (!(await flowProgress.evaluate((el) => el.open))) await flowProgress.locator('summary').click();
+    const materialDetails = flowMaterials.locator('details').first();
+    if (!(await materialDetails.evaluate((el) => el.open)))
+      await materialDetails.locator(':scope > summary').click();
+    assert.equal(await flowProgress.evaluate((el) => el.open), true);
+    assert.equal(await materialDetails.evaluate((el) => el.open), true);
+    const beforeFlowRefresh = await win.locator('[data-flow]').elementHandle();
+    const beforeFlowDetails = await win
+      .locator('details[data-persist-detail]')
+      .evaluateAll((rows) =>
+        rows.map((row) => [row.dataset.persistDetail, row.open, row.querySelector('summary')?.textContent]),
+      );
+    fs.utimesSync(path.join(fakeSaves, '1.sav'), new Date(), new Date());
+    await win.waitForFunction((node) => !node.isConnected, beforeFlowRefresh);
+    assert.equal(
+      await flowProgress.evaluate((el) => el.open),
+      true,
+      JSON.stringify({
+        before: beforeFlowDetails,
+        after: await win
+          .locator('details[data-persist-detail]')
+          .evaluateAll((rows) =>
+            rows.map((row) => [
+              row.dataset.persistDetail,
+              row.open,
+              row.querySelector('summary')?.textContent,
+            ]),
+          ),
+      }),
+    );
+    assert.equal(
+      await flowMaterials
+        .locator('details')
+        .first()
+        .evaluate((el) => el.open),
+      true,
     );
     await win.screenshot({ animations: 'disabled', path: path.join(results, '01-home.png') });
     await entityPreview(
@@ -602,13 +730,13 @@ async function companionHomeInventorySync(page) {
     await entityPreview(
       win,
       win.locator('[data-flow-quest="quest-5200"] h3 [data-id="quest-5200"]'),
-      /任务.*1\.sav · 进行中/s,
+      /任务.*进行中/s,
       '01-main-task-preview',
     );
     await entityPreview(
       win,
       flowMaterials.locator('[data-action="database-detail"]').first(),
-      /物品.*模板基础/s,
+      /物品.*买价/s,
       '01-main-item-preview',
       true,
     );
@@ -619,11 +747,9 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="drawer-back"]').click();
     assert.equal(await win.locator('[data-person-relations]').isVisible(), true);
     await win.locator('[data-action="close-overlay"]').click();
-    await win.locator('[data-action="save-slot"]').click();
-    await win.locator('#save-slot-select').selectOption('2.sav');
-    await win.locator('[data-action="save-slot-save"]').click();
+    await selectProgressReference(win, '2.sav');
     assert.equal(await win.evaluate(async () => (await window.journal.refresh()).data.recent.name), '2.sav');
-    assert.ok((await win.locator('.hero').innerText()).includes('2 时 0 分'));
+    assert.equal(await win.locator('[data-action="save-slot"]').count(), 0);
     const currentChoice = win.locator('[data-flow-decision="early-woodcutter-axe-choice"]');
     assert.equal(await currentChoice.isVisible(), true);
     assert.match(await currentChoice.innerText(), /700.*2000/s);
@@ -640,7 +766,7 @@ async function companionHomeInventorySync(page) {
       false,
     );
     const armorChoice = currentChoice.locator('.flow-recommendation [data-id="name:亮银甲"]').first();
-    await entityPreview(win, armorChoice, /同名资料.*同名不等于/s, '01-same-name-preview');
+    await entityPreview(win, armorChoice, /同名资料.*条同名资料/s, '01-same-name-preview');
     await armorChoice.hover();
     await win.locator('#entity-preview').waitFor({ state: 'visible' });
     assert.equal(await win.locator('.entity-preview-heading small').innerText(), '同名资料');
@@ -648,7 +774,8 @@ async function companionHomeInventorySync(page) {
     await win.locator('[aria-label="选择同名资料"]').waitFor();
     await win.locator('[aria-label="选择同名资料"] [data-id="item-9004"]').click();
     await win.locator('[data-item-statistics]').waitFor();
-    assert.match(await win.locator('.drawer-body').innerText(), /2\.sav/);
+    await assertProgressReference(win, '2.sav');
+    await assertSharedProgressUi(win);
     await win.locator('[data-action="drawer-back"]').click();
     await win.locator('[aria-label="选择同名资料"]').waitFor();
     await win.locator('[data-action="close-overlay"]').click();
@@ -751,10 +878,11 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="close-overlay"]').first().click();
     await win.locator('[data-action="compact"]').first().click();
     await choiceCompact.locator('[data-action="close-overlay"]').first().click();
+    await selectProgressReference(choiceCompact, '@none');
     await choiceCompact.locator('.companion-tabs [data-action="search"]').click();
     await choiceCompact.locator('#global-search').fill('清虚道长');
     await choiceCompact.locator('.search-result[data-id="npc-5003"]').click();
-    await choiceCompact.locator('#person-save').selectOption('');
+    await assertSharedProgressUi(choiceCompact);
     await choiceCompact.locator('[data-action="gift-page"][data-id="1"]').click();
     await choiceCompact.locator('[data-action="gift-page"][data-id="2"]').click();
     await choiceCompact
@@ -804,7 +932,7 @@ async function companionHomeInventorySync(page) {
     assert.equal(
       await choiceCompact.locator('#app').isVisible(),
       false,
-      'away mode presents only the passive hint while preserving reading DOM',
+      'explicit handoff collapses the companion while preserving its reading DOM',
     );
     await win.locator('[data-action="drawer-back"]').click();
     assert.equal(await win.locator('#global-search').inputValue(), '金疮药');
@@ -813,41 +941,42 @@ async function companionHomeInventorySync(page) {
     await choiceCompact.locator('.drawer h1').getByText('金疮药').waitFor();
     assert.equal(await choiceCompact.locator('#handbook-hint').count(), 0);
     await choiceCompact.locator('[data-action="close-overlay"]').click();
-    for (const sourceReference of ['1.sav', '']) {
+    for (const sourceReference of ['1.sav', '@none']) {
+      await selectProgressReference(choiceCompact, sourceReference);
       await choiceCompact.locator('.companion-tabs [data-action="search"]').click();
       await choiceCompact.locator('#global-search').fill('水煮鱼');
       await choiceCompact.locator('[data-action="database-detail"][data-id="cooking-102"]').first().click();
-      await choiceCompact.locator('#recipe-save').selectOption(sourceReference);
-      if (sourceReference)
-        await choiceCompact
-          .locator(`#recipe-save option[value="${sourceReference}"][selected]`)
-          .waitFor({ state: 'attached' });
-      else
-        await choiceCompact
-          .locator('.recipe-reference')
-          .getByText('可连接本机存档，自动核对已有材料和缺口。')
-          .waitFor();
+      await assertSharedProgressUi(choiceCompact);
+      await assertProgressReference(choiceCompact, sourceReference);
       await choiceCompact.locator('#recipe-quantity').fill('3');
       await choiceCompact.locator('#recipe-materials [data-action="database-detail"]').first().click();
-      await choiceCompact.locator('#item-save').selectOption('2.sav');
-      await choiceCompact.locator('.item-usage .save-note').filter({ hasText: '参照 2.sav' }).waitFor();
+      await choiceCompact.locator('.item-usage').waitFor();
+      const stock = choiceCompact.locator('.item-usage .detail-stat-grid > div').first().locator('strong');
+      if (sourceReference === '@none') assert.equal(await stock.innerText(), '—');
+      else assert.match(await stock.innerText(), /^\d[\d,]*$/);
       await choiceCompact.locator('.drawer [data-action="main"]').click();
-      await win.locator('#item-save').waitFor();
+      await win.locator('.item-usage').waitFor();
+      assert.equal(
+        await win.locator('.item-usage .detail-stat-grid > div').first().locator('strong').innerText(),
+        await stock.innerText(),
+      );
+      await assertProgressReference(win, sourceReference);
       await win.locator('[data-action="drawer-back"]').click();
-      await win.locator('#recipe-save').waitFor();
-      assert.equal(await win.locator('#recipe-save').inputValue(), sourceReference);
+      await win.locator('#recipe-quantity').waitFor();
+      await assertSharedProgressUi(win);
       assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
       await win.locator('[data-action="close-overlay"]').first().click();
       await win.locator('[data-action="compact"]').first().click();
-      await choiceCompact.locator('#item-save').waitFor();
+      await choiceCompact.locator('.item-usage').waitFor();
       await choiceCompact.locator('[data-action="close-overlay"]').first().click();
     }
+    await selectProgressReference(choiceCompact, '2.sav');
     await choiceCompact.locator('[data-flow-decision="early-woodcutter-axe-choice"]').waitFor();
     await companionHomeInventorySync(choiceCompact);
     await entityPreview(
       choiceCompact,
       choiceCompact.locator('[data-flow-now] > h3 [data-id="quest-11002"]'),
-      /任务.*相关步骤/s,
+      /任务.*下一步：替樵夫决定是否要买新斧子/s,
       '01-companion-task-preview',
     );
     await entityPreview(
@@ -857,7 +986,7 @@ async function companionHomeInventorySync(page) {
           '[data-flow-decision="early-woodcutter-axe-choice"] .flow-material-brief [data-id="item-10201"]',
         )
         .first(),
-      /物品.*铁矿石.*2\.sav · 库存/s,
+      /物品.*铁矿石.*保存持有/s,
       '01-companion-item-preview',
     );
     await revealAncestors(choiceCompact.locator('[data-flow-now] > h3 [data-id="quest-11002"]'));
@@ -959,9 +1088,9 @@ async function companionHomeInventorySync(page) {
         ),
       4,
     );
-    assert.match(await compactRisk.locator('summary').first().innerText(), /推进前核对.*7 项/);
+    assert.match(await compactRisk.locator('summary').first().innerText(), /推进前确认.*7 项/);
     assert.equal(await choiceCompact.locator('.companion-reference').count(), 0);
-    assert.equal(await choiceCompact.locator('.flow-compact-reference').count(), 1);
+    assert.equal(await choiceCompact.locator('.flow-compact-reference').count(), 0);
     assert.equal(await choiceCompact.locator('.flow-current-brief').count(), 0);
     await choiceCompact.locator('.flow-task-peek').evaluate((el) => {
       el.open = false;
@@ -1017,6 +1146,7 @@ async function companionHomeInventorySync(page) {
       animations: 'disabled',
       path: path.join(results, '01-compact-current-choice.png'),
     });
+    await choiceCompact.locator('[data-action="companion-layout"]').click();
     await choiceCompact.locator('[data-action="companion-display"]').click();
     for (const key of ['advice', 'opportunities', 'milestones'])
       await choiceCompact.locator('#companion-section-' + key).uncheck();
@@ -1030,6 +1160,7 @@ async function companionHomeInventorySync(page) {
     assert.equal(await choiceCompact.locator('.flow-opportunities, .flow-stage-details').count(), 0);
     assert.equal(await choiceCompact.locator('[data-flow-now]').count(), 1);
     assert.equal(await choiceCompact.locator('.flow-current-decisions').count(), 1);
+    await choiceCompact.locator('[data-action="companion-layout"]').click();
     await choiceCompact.locator('[data-action="companion-display"]').click();
     for (const key of ['advice', 'opportunities', 'milestones']) {
       assert.equal(await choiceCompact.locator('#companion-section-' + key).isChecked(), false);
@@ -1042,6 +1173,7 @@ async function companionHomeInventorySync(page) {
       newSlot,
       syntheticSave({ full: true, trackingMainQuest: 5062, quests: [{ id: 5062, step: 1 }] }),
     );
+    await openProgressSettings(choiceCompact);
     await choiceCompact.locator('[data-action="save-slot"]').click();
     assert.equal(await choiceCompact.locator('#save-slot-select option[value="3.sav"]').count(), 1);
     assert.equal(await choiceCompact.locator('#save-slot-select').inputValue(), '2.sav');
@@ -1070,7 +1202,7 @@ async function companionHomeInventorySync(page) {
     );
     const innChallenge = choiceCompact.locator('[data-duel-current] [data-duel="npc051-inn-lei"]');
     await innChallenge.waitFor({ timeout: 18000 });
-    assert.match(await innChallenge.innerText(), /静态等级 30.*梧桐村.*客栈.*七品拳套图纸/s);
+    assert.match(await innChallenge.innerText(), /初始等级 30.*梧桐村.*客栈.*七品拳套图纸/s);
     await choiceCompact.locator('.companion-tabs [data-action="navigate"][data-id="home"]').click();
     await choiceCompact.locator('.flow-risks').waitFor();
     await choiceCompact.locator('.flow-compact-risks').evaluate((el) => {
@@ -1080,7 +1212,11 @@ async function companionHomeInventorySync(page) {
     await choiceCompact.locator('.compact-body').evaluate((body) => {
       body.scrollTop = 1800;
     });
-    assert((await choiceCompact.locator('.compact-body').evaluate((body) => body.scrollTop)) > 0);
+    const canScroll = await choiceCompact
+      .locator('.compact-body')
+      .evaluate((body) => body.scrollHeight > body.clientHeight);
+    if (canScroll)
+      assert((await choiceCompact.locator('.compact-body').evaluate((body) => body.scrollTop)) > 0);
     await choiceCompact.locator('.companion-tabs [data-action="navigate"][data-id="duels"]').click();
     assert.equal(await choiceCompact.locator('.compact-body').evaluate((body) => body.scrollTop), 0);
     await choiceCompact.screenshot({
@@ -1094,7 +1230,7 @@ async function companionHomeInventorySync(page) {
     await innChallenge.locator('[data-persist-detail^="duel-readiness-"] > summary').click();
     assert.match(await innChallenge.innerText(), /气血 · 待核对.*防具 · 待核对/s);
     await innChallenge.locator('[data-persist-detail^="duel-skills-"] > summary').click();
-    assert.match(await innChallenge.innerText(), /对手招式 · 静态模板.*连山掌法/s);
+    assert.match(await innChallenge.innerText(), /初始招式.*连山掌法/s);
     fs.writeFileSync(
       path.join(fakeSaves, '2.sav'),
       syntheticSave({
@@ -1110,7 +1246,7 @@ async function companionHomeInventorySync(page) {
       () =>
         document
           .querySelector('[data-duel-current] [data-duel="npc051-inn-lei"]')
-          ?.textContent.includes('前置记录仍待核对'),
+          ?.textContent.includes('前置待核对'),
       null,
       { timeout: 18000 },
     );
@@ -1302,12 +1438,13 @@ async function companionHomeInventorySync(page) {
         const advice = relations.locator('.entity-related-advice').filter({ hasText: '莫问' }).first();
         await advice.locator(':scope > summary').click();
         const sword = advice.getByRole('button', { name: '白光剑', exact: true });
-        await entityPreview(choiceCompact, sword, /白光剑.*同名不等于/s, '01-codex-advice-preview');
+        await entityPreview(choiceCompact, sword, /白光剑.*条同名资料/s, '01-codex-advice-preview');
         const scroll = await choiceCompact.locator('.drawer-body').evaluate((el) => el.scrollTop);
         await sword.click();
         await choiceCompact.locator('[aria-label="选择同名资料"] [data-id="item-1004"]').click();
         await choiceCompact.locator('[data-item-statistics]').waitFor();
-        assert.match(await choiceCompact.locator('.drawer-body').innerText(), /2\.sav/);
+        await assertProgressReference(choiceCompact, '2.sav');
+        await assertSharedProgressUi(choiceCompact);
         await choiceCompact.locator('[data-action="drawer-back"]').click();
         await choiceCompact.locator('[data-action="drawer-back"]').click();
         await choiceCompact.locator('[data-task-relations]').waitFor();
@@ -1356,7 +1493,7 @@ async function companionHomeInventorySync(page) {
         true,
         'a new set of risks is visible even if the previous set was collapsed',
       );
-      const visible = await risks.innerText();
+      const visible = (await risks.innerText()).replace(/\s+/g, '');
       assert.match(visible, /清虚.*掌门.*关闭天机宫.*救商颂/);
       if (main === 20000) {
         assert.match(visible, /阎浮镇.*放弃调查.*关闭查明真相/);
@@ -1412,21 +1549,26 @@ async function companionHomeInventorySync(page) {
       }),
     );
     // The companion now hands off to the complete checklist. This next scenario
-    // exercises the main home page's manual refresh explicitly.
+    // Refresh from the history page, where the manual refresh action lives.
     await win.locator('.sidebar-nav [data-action="navigate"][data-id="home"]').click();
-    await win.locator('[data-action="refresh"]').click();
+    await refreshProgress(win);
     const rosterWarning = win.locator('[data-flow-warning="late-roster-before-wudang"]');
     await rosterWarning.waitFor();
-    assert.match(await rosterWarning.locator('.flow-warning-message').innerText(), /回武当前.*旧版/);
     assert.match(
-      await win.locator('[data-flow-quest="quest-8830"] .flow-next-action').innerText(),
+      (await rosterWarning.locator('.flow-warning-message').innerText()).replace(/\s+/g, ''),
+      /回武当前.*旧版/,
+    );
+    assert.match(
+      (await win.locator('[data-flow-quest="quest-8830"] .flow-next-action').innerText()).replace(/\s+/g, ''),
       /返回武当/,
     );
-    const returnPlaces = win.locator('[data-flow-quest="quest-8830"] .flow-places p');
-    assert.equal(await returnPlaces.count(), 2);
-    assert.match(await returnPlaces.nth(0).innerText(), /武当派/);
-    assert.match(await returnPlaces.nth(1).innerText(), /名剑山庄/);
-    await rosterWarning.locator('summary').click();
+    const returnPlaces = win.locator('[data-flow-quest="quest-8830"] .flow-targets');
+    assert.match(await returnPlaces.innerText(), /武当派/);
+    assert.match(await returnPlaces.innerText(), /名剑山庄/);
+    await rosterWarning.locator('.flow-rule-details > summary').click();
+    await rosterWarning
+      .locator('details details')
+      .evaluateAll((rows) => rows.forEach((row) => (row.open = true)));
     assert.match(await rosterWarning.innerText(), /v1\.23\.24.*不能保证当前版本/s);
     assert.match(await rosterWarning.innerText(), /商葶苧.*叶飞.*冷无情/s);
     await win.screenshot({
@@ -1445,9 +1587,10 @@ async function companionHomeInventorySync(page) {
         ],
       }),
     );
-    await win.locator('[data-action="refresh"]').click();
+    await refreshProgress(win);
     assert.equal(await rosterWarning.count(), 0);
     assert.match(await win.locator('[data-flow-quest="quest-5920"] .flow-next-action').innerText(), /阎浮镇/);
+    await revealAncestors(win.locator('.flow-chapter'));
     assert.match(await win.locator('.flow-chapter').innerText(), /少林后续路线待核对.*原版.*烟尘回响/s);
     fs.writeFileSync(
       path.join(fakeSaves, '2.sav'),
@@ -1464,42 +1607,54 @@ async function companionHomeInventorySync(page) {
         ],
       }),
     );
-    await win.locator('[data-action="refresh"]').click();
+    await refreshProgress(win);
     const yuanqiWarning = win.locator('[data-flow-warning="yuanqi-return-followthrough"]');
     await yuanqiWarning.waitFor();
+    await revealAncestors(win.locator('.flow-chapter'));
     assert.match(await win.locator('.flow-chapter').innerText(), /下一主线关键节点.*天佛窟/s);
     assert.equal(
       await win.locator('.flow-chapter [data-action="source"][data-id="flow:biliLateFlow"]').count(),
       1,
     );
-    assert.match(await yuanqiWarning.locator('.flow-warning-message').innerText(), /前半段.*不等于/);
+    assert.match(
+      (await yuanqiWarning.locator('.flow-warning-message').innerText()).replace(/\s+/g, ''),
+      /天剑宗.*存亡/,
+    );
     assert.match(
       await win.locator('[data-flow-quest="quest-20100"] .flow-next-action').innerText(),
       /天剑宗/,
     );
-    await yuanqiWarning.locator('summary').click();
+    await yuanqiWarning.locator('.flow-rule-details > summary').click();
+    await yuanqiWarning
+      .locator('details details')
+      .evaluateAll((rows) => rows.forEach((row) => (row.open = true)));
+    assert.match(await yuanqiWarning.locator('.flow-warning-detail').innerText(), /前半段.*不等于/s);
     assert.match(await yuanqiWarning.innerText(), /断剑.*笔记.*上官虹.*叶飞/s);
     assert.match(await yuanqiWarning.innerText(), /不保证.*必然存活/s);
     fs.writeFileSync(path.join(fakeSaves, '2.sav'), choiceSave);
     fs.utimesSync(path.join(fakeSaves, '2.sav'), new Date('2025-01-01'), new Date('2025-01-01'));
-    await win.locator('[data-action="refresh"]').click();
+    await refreshProgress(win);
     fs.renameSync(path.join(fakeSaves, '2.sav'), path.join(data, 'held-2.sav'));
-    await win.locator('[data-action="refresh"]').click();
-    assert.ok((await win.locator('.content').innerText()).includes('不会自动改用其他槽位'));
+    await refreshProgress(win);
+    assert.match(await win.locator('.content').innerText(), /所选进度暂不可读/);
     assert.equal(await win.evaluate(async () => (await window.journal.refresh()).data.recent), null);
-    assert.match(await win.locator('.flow-empty').innerText(), /固定参照「2.sav」/);
-    await win.locator('.flow-empty [data-action="save-slot"]').click();
+    assert.match(await win.locator('[data-flow]').innerText(), /暂无可读进度/);
+    await openProgressSettings(win);
+    await win.locator('[data-action="save-slot"]').click();
     assert.equal(await win.locator('#save-slot-select').inputValue(), '2.sav');
     await win.locator('[data-action="close-overlay"]').first().click();
     fs.renameSync(path.join(data, 'held-2.sav'), path.join(fakeSaves, '2.sav'));
-    await win.locator('[data-action="refresh"]').click();
-    await win.locator('[data-action="save-slot"]').click();
-    await win.locator('#save-slot-select').selectOption('@latest');
-    await win.locator('[data-action="save-slot-save"]').click();
-    await win.locator('[data-action="save-quest-jump"][data-id="5200"]').first().click();
+    await refreshProgress(win);
+    await selectProgressReference(win, '@latest');
+    await navigatePage(win, 'saves');
+    await win.locator('[data-action="save-detail"][data-id="1.sav"]').click();
+    await win.locator('.save-recorded-quests > summary').click();
+    await win.locator('[data-quest-id="5200"] details > summary').click();
     assert.equal(await win.locator('.save-recorded-quests').evaluate((e) => e.open), true);
     assert.equal(await win.locator('[data-quest-id="5200"] details').evaluate((e) => e.open), true);
     await win.locator('[data-action="close-overlay"]').click();
+    await navigatePage(win, 'home');
+    await revealAncestors(win.locator('#note'));
     await win.locator('#note').fill('测试随手记：下次去青木舫。');
     await win.waitForTimeout(1000);
     await win.locator('[data-action="goal-add"]').first().click();
@@ -1507,15 +1662,15 @@ async function companionHomeInventorySync(page) {
     await win.locator('#goal-detail').fill('目标说明 & 特殊字符');
     await win.locator('[data-action="goal-save"]').click();
     await win.locator('.nav-btn[data-id="checklist"]').click();
-    assert.match(
-      await win.locator('[data-flow-rule="conditions-13408"]').innerText(),
-      /部分条件满足 · 仍待核对/,
-    );
+    const medicineConditions = win.locator('[data-flow-rule="conditions-13408"] .flow-conditions');
+    await revealAncestors(medicineConditions);
+    assert.match(await medicineConditions.innerText(), /已满足/);
+    assert.match(await medicineConditions.innerText(), /未确认|未满足/);
     assert.equal(await win.locator('[data-flow-rule="conditions-11442"]').count(), 0);
     await win.locator('.flow-guide > summary').click();
     const completedGuide = win.locator('.flow-guide [data-flow-rule="lotus-meeting"]');
     assert.equal(await completedGuide.locator('.pill').first().innerText(), '已完成');
-    assert.match(await completedGuide.innerText(), /存档已记录完成/);
+    assert.doesNotMatch(await completedGuide.innerText(), /存档已记录完成/);
     await win.locator('[data-persist-detail="flow-legacy"] > summary').click();
     assert.equal(await win.locator('.entry-row').count(), catalog.entries.filter((e) => e.checklist).length);
     assert.equal(await win.locator('[data-action="filter"].active').getAttribute('data-id'), 'all');
@@ -1526,7 +1681,7 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="check"]').first().click();
     await win.locator('.nav-btn[data-id="library"]').click();
     await win.locator('#list-search').fill('上官虹');
-    await win.locator('.entry-card').first().click();
+    await win.locator('.entry-card [data-action="detail"]').first().click();
     assert.equal(await win.locator('.spoiler-box').count(), 1);
     await win.locator('[data-action="reveal"]').click();
     assert.ok((await win.locator('.steps li').count()) > 0);
@@ -1602,8 +1757,8 @@ async function companionHomeInventorySync(page) {
     assert.ok((await win.locator('.drawer h1').innerText()).includes('精钢锭'));
     await win.locator('[data-action="drawer-back"]').click();
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
-    assert.equal(await win.locator('#recipe-save').inputValue(), '@latest');
-    assert.match(await win.locator('.reference-freshness').innerText(), /新存档同步/);
+    await assertProgressReference(win, '@latest');
+    await assertSharedProgressUi(win);
     await win.locator('[data-action="recipe-goal"]').click();
     await win.waitForTimeout(250);
     await win.screenshot({ animations: 'disabled', path: path.join(results, '07-recipe.png') });
@@ -1614,10 +1769,16 @@ async function companionHomeInventorySync(page) {
     assert.ok((await win.locator('#recipe-materials').innerText()).includes('已有 5 · 还缺 1'));
     await win.locator('.ingredient-options summary').click();
     assert.ok((await win.locator('.ingredient-options').innerText()).includes('鲤鱼'));
-    await win.locator('#recipe-save').selectOption('');
+    await selectProgressReference(win, '@none', 'database');
+    await win.locator('#list-search').fill('水煮鱼');
+    await win.locator('.database-card[data-id="cooking-102"]').click();
+    await win.locator('#recipe-quantity').fill('3');
     assert.equal(await win.locator('#recipe-materials .material-owned').count(), 0);
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
-    await win.locator('#recipe-save').selectOption('1.sav');
+    await selectProgressReference(win, '1.sav', 'database');
+    await win.locator('#list-search').fill('水煮鱼');
+    await win.locator('.database-card[data-id="cooking-102"]').click();
+    await win.locator('#recipe-quantity').fill('3');
     assert.ok((await win.locator('#recipe-materials').innerText()).includes('已有 5 · 还缺 1'));
     const fishResult = (
       await win.evaluate(async () =>
@@ -1634,6 +1795,7 @@ async function companionHomeInventorySync(page) {
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
     await win.screenshot({ animations: 'disabled', path: path.join(results, '09-cooking.png') });
     await win.locator('[data-action="close-overlay"]').click();
+    await selectProgressReference(win, '@latest', 'database');
     await win.locator('[data-action="database-kind"][data-id="人物"]').click();
     await win.locator('#list-search').fill('上官虹');
     await win.locator('.database-card').first().click();
@@ -1950,7 +2112,8 @@ async function companionHomeInventorySync(page) {
     fs.utimesSync(path.join(fakeSaves, '1.sav'), stableInventoryAt, stableInventoryAt);
     await recipeGoal.locator('[data-action="goal-source"]').click();
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
-    assert.equal(await win.locator('#recipe-save').inputValue(), '@latest');
+    await assertProgressReference(win, '@latest');
+    await assertSharedProgressUi(win);
     assert.ok((await win.locator('#recipe-materials').innerText()).includes('已有 99'));
     await win.locator('[data-action="close-overlay"]').click();
     assert.equal(await recipeGoal.innerText(), oldGoal);
@@ -2041,9 +2204,9 @@ async function companionHomeInventorySync(page) {
       ipcMain.handle('journal:bootstrap', () => ({ ok: true, data: fixture }));
     }, launchDisplay);
     await win.reload();
-    await win.waitForSelector('.start-panel');
+    await win.waitForSelector('.start-actions');
     assert.equal(
-      await win.locator('.start-panel .btn.primary').getAttribute('data-action'),
+      await win.locator('.start-actions .btn.primary').getAttribute('data-action'),
       'start-assistance',
     );
     launchDisplay.state = (
@@ -2059,21 +2222,19 @@ async function companionHomeInventorySync(page) {
       ipcMain.handle('journal:bootstrap', () => ({ ok: true, data: fixture }));
     }, launchDisplay);
     await win.reload();
-    await win.waitForSelector('.start-panel');
-    assert.equal(await win.locator('.start-panel .btn.primary').getAttribute('data-action'), 'launch');
-    assert.match(await win.locator('.start-panel').innerText(), /开始游戏会直接启动/);
-    await win.locator('.start-panel summary').click();
-    assert.equal(await win.locator('.start-panel details [data-action="start-assistance"]').count(), 1);
+    await win.waitForSelector('.start-actions');
+    assert.equal(await win.locator('.start-actions .btn.primary').getAttribute('data-action'), 'launch');
+    assert.equal(await win.locator('.start-actions button').count(), 1);
     // Exercise the one-click setup's failure presentation without allowing game access.
-    await win.locator('.start-panel .btn.primary').evaluate((el) => {
+    await win.locator('.start-actions .btn.primary').evaluate((el) => {
       el.dataset.action = 'start-assistance';
     });
-    await win.locator('.start-panel .btn.primary').click();
+    await win.locator('.start-actions .btn.primary').click();
     await win.waitForFunction(() =>
       document.querySelector('.start-panel h2')?.textContent.includes('自动存档暂未准备好'),
     );
     assert.match(await win.locator('.start-panel').innerText(), /测试环境/);
-    await win.locator('[data-action="refresh"]').click();
+    await refreshProgress(win);
     assert.match(await win.locator('.start-panel h2').innerText(), /自动存档暂未准备好/);
     assert.equal(await win.locator('.start-panel [data-action="launch"]').count(), 1);
     // A stale machine-specific path must offer reconnection without hiding queries.

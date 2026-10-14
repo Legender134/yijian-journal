@@ -405,6 +405,19 @@ async function written(file) {
         game.entries.find((e) => e.id === 'fusion-1000').name,
       ),
     );
+    const archivedGoalText = await page.locator('#overlay').innerText();
+    const archivedRecipe = page
+      .locator('#overlay [data-action="archive-entity"][data-id="fusion-1000"]')
+      .first();
+    await page.bringToFront();
+    await archivedRecipe.focus();
+    await page.locator('#entity-preview').waitFor({ state: 'visible' });
+    await archivedRecipe.click();
+    await page.locator('#overlay [data-action="drawer-back"]').waitFor();
+    await page.locator('#overlay [data-action="drawer-back"]').click();
+    assert.equal(await page.locator('#overlay').innerText(), archivedGoalText);
+    assert.deepEqual((await current()).journeyTrash.find((r) => r.id === goalTrash.id).record, latestGoal);
+    checks.push('已删除目标的配方可预览与查看图鉴，返回保留原全文和恢复入口且不修改档案');
     await page.screenshot({
       path: path.join(results, 'goal-trash-full-content.png'),
       animations: 'disabled',
@@ -656,7 +669,7 @@ async function written(file) {
     await page.locator('[data-action="journey-trash-open"]').click();
     await page.locator('#journey-trash-query').fill('制作次数 6');
     await page.locator('[data-action="journey-trash-purge-preview"][data-id="' + purgePlan.id + '"]').click();
-    await page.keyboard.press('Escape');
+    await page.locator('#overlay .modal-footer [data-action="close-overlay"]').click();
     assert((await current()).journeyTrash.some((row) => row.id === purgePlan.id));
     await page.locator('[data-action="journey-trash-purge-preview"][data-id="' + purgePlan.id + '"]').click();
     await page.locator('[data-action="journey-trash-confirm"]').click();

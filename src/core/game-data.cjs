@@ -1,12 +1,14 @@
 'use strict';
 const data = require('../data/game-index.json');
 const world = require('../data/world-index.json');
+const mapAtlas = require('../data/world-map.json');
 const images = require('../data/game-images.json');
 const itemStats = require('../data/item-stats.json');
 const npcFacts = require('../data/npc-facts.json');
 const flowGuide = require('../data/flow-guide.cjs');
 if (String(itemStats.build) !== String(data.build)) throw Error('物品数值与图鉴版本不一致');
 if (String(npcFacts.build) !== String(data.build)) throw Error('人物私物与图鉴版本不一致');
+if (String(mapAtlas.build) !== String(data.build)) throw Error('地图与图鉴版本不一致');
 const { recipeOutputs } = require('./recipe-outputs.cjs');
 const entries = new Map(data.entries.map((e) => [e.id, e]));
 const difficulty = {
@@ -129,7 +131,7 @@ function encyclopedia() {
       notice: npcFacts.notice,
       pools: npcFacts.pools,
     },
-    world: { ...world, placeAliases: require('../data/world-place-aliases.json') },
+    world: { ...world, mapAtlas, placeAliases: require('../data/world-place-aliases.json') },
   };
 }
 function recipePlan(id, quantity, inventory = null) {

@@ -61,7 +61,8 @@ async function api(name, ...args) {
   return response.data;
 }
 async function launch() {
-  const env = { ...process.env, YIJIAN_TEST_DATA: userData, YIJIAN_TEST_HIDDEN: '1' };
+  const env = { ...process.env, YIJIAN_TEST_DATA: userData };
+  delete env.YIJIAN_TEST_HIDDEN;
   delete env.ELECTRON_RUN_AS_NODE;
   delete env.YIJIAN_TEST_TRAY;
   const executablePath = process.env.YIJIAN_EXECUTABLE || require('electron');
@@ -150,8 +151,10 @@ async function pageRefresh() {
   });
 }
 async function awaitCandidate({ scope, missing, hash: sourceHash }) {
+  const projection = sourceHash ? await api('recipeDiscovery', options) : null;
+  if (sourceHash) assert.equal(projection.referenceIdentity.hash, sourceHash);
   await win.waitForFunction(
-    ({ scope, missing, sourceHash }) => {
+    ({ scope, missing, expectedScope }) => {
       const node = document.querySelector('[data-recipe-discovery-id="fusion-1000"]');
       const token = node?.querySelector('[data-action="recipe-discovery-add"]')?.dataset.discoveryScope;
       const material = missing === 0 ? '直接材料支持 1 次' : `按 1 次还缺 ${missing} 件`;
@@ -159,10 +162,10 @@ async function awaitCandidate({ scope, missing, hash: sourceHash }) {
         !!token &&
         (!scope || token !== scope) &&
         node.textContent.includes(material) &&
-        (!sourceHash || document.querySelector('.recipe-discovery-source')?.textContent.includes(sourceHash))
+        (!expectedScope || token === expectedScope)
       );
     },
-    { scope, missing, sourceHash },
+    { scope, missing, expectedScope: projection?.scopeToken },
   );
   return card().locator('[data-action="recipe-discovery-add"]').getAttribute('data-discovery-scope');
 }
@@ -197,15 +200,16 @@ async function staleAdd(scopeToken, quantity = 1) {
   try {
     await launch();
     assert.equal(await win.evaluate(() => typeof window.journal.recipeDiscovery), 'function');
+    await win.locator('.home-optional > summary').click();
     await win.locator('[data-action="recipe-discovery-open"]').first().click();
     await card().waitFor();
     assert.match(await card().innerText(), /已学配方/);
     assert.match(await card().innerText(), /直接材料支持 1 次/);
-    assert.match(await card().innerText(), /当前生活技能等级未知/);
+    assert.match(await card().innerText(), /需 锻造 0 级/);
     assert.match(await card().locator('[data-recipe-discovery-outputs]').innerText(), /纯钢剑\s* · 蓝色 × 1/);
     assert.equal(await card().locator('[data-recipe-discovery-outputs] [data-id="item-1002"]').count(), 1);
-    assert.match(await win.locator('.recipe-discovery-source').innerText(), /1\.sav/);
-    assert.match(await win.locator('.recipe-discovery-source').innerText(), new RegExp(hash(original)));
+    assert.equal((await api('recipeDiscovery', options)).referenceIdentity.hash, hash(original));
+    assert.equal(await win.locator('.recipe-discovery-source').count(), 0);
     await win.screenshot({ path: path.join(run, '01-known-candidate.png'), animations: 'disabled' });
     checks.push('home entry, learned/direct-material/fee/level separation and exact save source');
     const learning = card()
@@ -470,12 +474,10 @@ async function staleAdd(scopeToken, quantity = 1) {
     const unknown = syntheticSave({ full: false, seconds: 8000 });
     writeFixture(unknown);
     await pageRefresh();
-    await win.waitForFunction(
-      () =>
-        document
-          .querySelector('[data-recipe-discovery-id="fusion-1000"]')
-          ?.textContent.includes('直接材料未知') &&
-        document.querySelector('.recipe-discovery-source')?.textContent.includes('SHA-256'),
+    await win.waitForFunction(() =>
+      document
+        .querySelector('[data-recipe-discovery-id="fusion-1000"]')
+        ?.textContent.includes('直接材料未知'),
     );
     assert.match(await card().innerText(), /学习记录未知/);
     projection = await api('recipeDiscovery', options);
@@ -502,21 +504,23 @@ async function staleAdd(scopeToken, quantity = 1) {
     await api('mutate', { type: 'save-slot', profileId, value: '', mode: 'none' });
     await win.waitForFunction(
       () =>
-        document.querySelector('.recipe-discovery-source')?.textContent.includes('尚无可确认的存档参照') &&
+        document.querySelectorAll('[data-action="recipe-discovery-add"]').length > 0 &&
         [...document.querySelectorAll('[data-action="recipe-discovery-add"]')].every(
           (button) => button.disabled,
         ),
     );
     assert.equal((await api('recipeDiscovery', options)).status, 'no-reference');
     await api('mutate', { type: 'save-slot', profileId, value: '', mode: 'latest' });
+    const restoredProjection = await api('recipeDiscovery', options);
     await win.waitForFunction(
       (expected) =>
-        document.querySelector('.recipe-discovery-source')?.textContent.includes(expected) &&
         [...document.querySelectorAll('[data-action="recipe-discovery-add"]')].some(
-          (button) => button.dataset.discoveryScope,
+          (button) => button.dataset.discoveryScope === expected,
         ),
-      hash(unknown),
+      restoredProjection.scopeToken,
     );
+    assert.equal(restoredProjection.referenceIdentity.hash, hash(unknown));
+    assert.equal(await win.locator('.recipe-discovery-source').count(), 0);
     assert.equal((await api('recipeDiscovery', options)).status, 'inventory-unknown');
     checks.push(
       'reference-mode reset while staying on discovery automatically rereads and disables unbound old results',

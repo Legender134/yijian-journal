@@ -46,6 +46,7 @@ async function launch() {
   await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().forEach((win) => win.showInactive()),
   );
+  await page.locator('.home-optional > summary').click();
 }
 async function quit() {
   await Promise.all([page.waitForEvent('close'), page.evaluate(() => window.journal.window('quit'))]);

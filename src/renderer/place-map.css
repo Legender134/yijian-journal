@@ -1,0 +1,110 @@
+.place-map {
+  margin: 18px 0;
+  min-width: 0;
+}
+.place-map-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.place-map-heading .text-btn {
+  flex-shrink: 0;
+}
+.place-map-frame {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 11 / 7;
+  background: #cfccad;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.place-map-pin {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.place-map-pin > span {
+  width: 11px;
+  height: 11px;
+  background: #f5e4a7;
+  border: 2px solid #4c4732;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px #0009;
+}
+.place-map-pin.is-selected > span {
+  width: 17px;
+  height: 17px;
+  background: #be4937;
+  border: 3px solid #fff6db;
+}
+.place-map-pin:hover > span,
+.place-map-pin:focus-visible > span {
+  outline: 4px solid #bd623f;
+  outline-offset: 3px;
+}
+.place-map-dot {
+  fill: #f5e4a7;
+  stroke: #4c4732;
+  stroke-width: 2;
+}
+.place-map-dot.is-selected {
+  fill: #be4937;
+  stroke: #fff6db;
+  stroke-width: 3;
+}
+.place-map-selected-label {
+  fill: #272b25;
+  stroke: #fff6db;
+  stroke-width: 6;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  font-size: 22px;
+  font-weight: 700;
+}
+.place-map-compact .place-map-selected-label {
+  font-size: 28px;
+}
+.place-map[data-map-scope='world'] .place-map-frame {
+  aspect-ratio: 16 / 9;
+}
+.place-map[data-map-scope='world'] .place-map-selected-label {
+  font-size: 50px;
+}
+.place-map-nearby {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 14px;
+  margin-top: 10px;
+}
+.place-map-nearby small {
+  color: var(--muted);
+}
+.place-map-preview {
+  margin: 10px 0;
+}
+.place-map-preview .place-map-heading {
+  font-size: 12px;
+}
+.place-map-preview .place-map-frame {
+  border-radius: 8px;
+}
+@media (forced-colors: active) {
+  .place-map-pin > span,
+  .place-map-dot {
+    forced-color-adjust: none;
+  }
+  .place-map-pin:focus-visible {
+    outline: 2px solid Highlight;
+  }
+}

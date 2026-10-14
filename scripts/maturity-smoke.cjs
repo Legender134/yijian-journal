@@ -171,7 +171,9 @@ async function multiPlanFlow(page) {
 (async () => {
   try {
     await migration.exportProtection({ dataRoot: oldData, file: importedPackage });
-    const env = { ...process.env, YIJIAN_TEST_DATA: currentData, YIJIAN_TEST_HIDDEN: '1' };
+    const env = { ...process.env, YIJIAN_TEST_DATA: currentData };
+    // This flow takes real screenshots, so keep its compositor painting.
+    delete env.YIJIAN_TEST_HIDDEN;
     delete env.ELECTRON_RUN_AS_NODE;
     app = await _electron.launch({
       executablePath: process.env.YIJIAN_EXECUTABLE || require('electron'),
@@ -385,7 +387,7 @@ async function multiPlanFlow(page) {
     assert.equal(live.profiles[0].craftPlans[0].name, '旧机器独立制作计划');
     assert(fs.readdirSync(currentData).some((n) => n.startsWith('journal-before-import-')));
     await page.locator('[data-action="protection-export"]').click();
-    await page.locator('.toast').filter({ hasText: '保护包已校验 ·' }).waitFor();
+    await page.locator('.toast').filter({ hasText: /^保护包已校验 ·/ }).waitFor();
     const exported = await complete.previewComplete({
       archives: new ProtectionArchives(currentData, () => currentGame),
       file: exportedPackage,

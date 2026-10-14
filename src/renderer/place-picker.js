@@ -1,11 +1,17 @@
 const PAGE_SIZE = 12;
 export function placeChoiceLabel(place, maps) {
-  return maps.some((row) => row.id !== place.id && row.name === place.name)
-    ? `${place.name} · 资料场景 #${place.gameId}`
+  if (!place) return '地点待核对';
+  const variants = maps.filter((row) => row.name === place.name);
+  return variants.length > 1
+    ? `${place.name} · 场景 ${variants.findIndex((row) => row.id === place.id && row.key === place.key) + 1}`
     : place.name;
 }
 export function placeChoices(index, view = {}) {
-  const maps = index.world.maps;
+  // Stored personal targets use the legacy ID. Do not offer IDs shared by
+  // unrelated scenes until the player can persist an unambiguous identity.
+  const maps = index.world.maps.filter(
+    (place) => index.world.maps.filter((other) => other.id === place.id).length === 1,
+  );
   const terms = String(view.query || '')
     .trim()
     .toLocaleLowerCase('zh-CN')
@@ -26,7 +32,13 @@ export function placeChoices(index, view = {}) {
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const page = Math.min(pages, Math.max(1, Number(view.page) || 1));
   const shown = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const selected = maps.find((place) => place.id === view.selectedId);
+  const legacyMatches = index.world.maps.filter((place) => place.id === view.selectedId);
+  const selected =
+    maps.find((place) => place.id === view.selectedId) ||
+    (legacyMatches.length > 1 ? { id: view.selectedId, name: '原地点（场景待核对）' } : undefined);
+  // An existing ambiguous selection must survive edits to unrelated fields.
+  // Keep only its identity, without assigning it to one of the matching scenes.
+  if (selected && !labels.has(selected.id)) labels.set(selected.id, selected.name);
   return {
     rows: shown,
     labels,

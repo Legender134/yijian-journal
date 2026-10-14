@@ -51,6 +51,43 @@ function command(p, value, r = null) {
   const plan = journeyPlan(p, r);
   return { ...p, journey: applyJourneyCommand(p.journey, value, { actions: plan.actions }) };
 }
+
+test('same-name itinerary scenes retain exact choices without showing raw scene IDs', async () => {
+  const { pathToFileURL } = require('node:url');
+  const { createJourneyViews } = await import(
+    pathToFileURL(path.join(__dirname, '../src/renderer/journey-views.js')).href
+  );
+  const helpers = {
+    esc: String,
+    act: (_a, label) => label,
+    pill: String,
+    icon: () => '',
+    notice: String,
+    empty: String,
+    when: String,
+  };
+  for (const [placeId, ordinal] of [
+    ['place-9', 1],
+    ['place-10', 2],
+    ['place-63', 3],
+    ['place-64', 4],
+  ]) {
+    let p = profile();
+    p.journey.todos = [todo('scene', placeId)];
+    const action = journeyPlan(p, null).actions.find((row) => row.kind === 'todo');
+    p = command(p, { type: 'journey-itinerary-add', id: action.id, placeId });
+    const plan = journeyPlan(p, null);
+    assert.equal(plan.itinerary.steps[0].selectedPlace.id, placeId);
+    assert.equal(plan.itinerary.steps[0].placeLabel, '梧桐村 · 场景 ' + ordinal);
+    const html = createJourneyViews(helpers).page(
+      plan,
+      { world, entries: game.entries },
+      { query: '', completed: false },
+    );
+    assert.match(html, new RegExp('梧桐村 · 场景 ' + ordinal));
+    assert.doesNotMatch(html, /场景 #|资料场景 #/);
+  }
+});
 function add(p, a, r = null, placeId) {
   return command(p, { type: 'journey-itinerary-add', id: a.id, ...(placeId ? { placeId } : {}) }, r);
 }
@@ -59,6 +96,59 @@ function twoTodos() {
   p.journey.todos = [todo('first'), todo('second')];
   return p;
 }
+
+test('ambiguous legacy place records remain editable without assigning a different scene', async () => {
+  const { pathToFileURL } = require('node:url');
+  const { createJourneyViews } = await import(
+    pathToFileURL(path.join(__dirname, '../src/renderer/journey-views.js')).href
+  );
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const a = source.indexOf('function journeyDialog('),
+    b = source.indexOf('async function loadProtectionList(', a);
+  for (const placeId of ['place-96', 'place-97']) {
+    const p = profile();
+    const record = { placeId, note: '原地点备注', done: false, favorite: true };
+    p.journey.places = [record];
+    const plan = journeyPlan(p, null);
+    const controls = [];
+    const views = createJourneyViews({
+      esc: String,
+      pill: String,
+      icon: () => '',
+      notice: String,
+      empty: String,
+      when: String,
+      act: (action, label, _cls, id) => {
+        controls.push({ action, id });
+        return label;
+      },
+    });
+    views.page(plan, { query: '', completed: true }, { world, entries: game.entries });
+    assert.ok(controls.some((button) => button.action === 'journey-place-dialog' && button.id === placeId));
+    const dialogs = [];
+    const ctx = {
+      profile: () => p,
+      gameIndex: { world },
+      journeyDraft: null,
+      esc: String,
+      act: (action) => action,
+      modal: (...args) => dialogs.push(args),
+      activateIntentEditor() {},
+      overlay: { querySelector: () => ({ classList: { add() {} } }) },
+      document: { querySelector: () => null },
+    };
+    require('node:vm').createContext(ctx);
+    require('node:vm').runInContext(source.slice(a, b) + '\nthis.open = journeyDialog;', ctx);
+    ctx.open('place', placeId);
+    assert.equal(dialogs[0][0], '编辑原地点记录');
+    assert.match(dialogs[0][2], /原地点备注/);
+    assert.match(dialogs[0][3], /journey-intent-remove/);
+    assert.equal(ctx.journeyDraft.placeId, placeId);
+    assert.deepEqual(p.journey.places, [record]);
+    p.journey.places = [];
+    assert.throws(() => ctx.open('place', placeId), /具体地点/);
+  }
+});
 
 test('old schema with no itinerary remains valid and all-actions behavior remains available', () => {
   const p = twoTodos();
@@ -348,7 +438,8 @@ test('changed and disappeared scene choices stay intact and visibly require revi
   ownWorld.maps = ownWorld.maps.filter((p) => p.id !== 'place-22');
   const planner = createJourneyPlanner({ world: ownWorld, game });
   const trip = planner.journeyPlan(p, null).itinerary;
-  assert.equal(trip.next.selectedPlace.name, '原场景 place-22');
+  assert.equal(trip.next.selectedPlace.name, '原地点待核对');
+  assert.equal(trip.next.selectedPlace.id, 'place-22');
   assert.equal(trip.steps.length, 1);
 });
 
@@ -556,4 +647,75 @@ test('portable protection and read-only history retain selected intent and exist
     fs.readFileSync(path.join(dataRoot, 'journal.json'), 'utf8'),
     JSON.stringify(store.get(), null, 2),
   );
+});
+
+test('main home and itinerary summaries share exact gift and location links while private titles remain literal', async () => {
+  const { pathToFileURL } = require('node:url');
+  const { createJourneyViews } = await import(
+    pathToFileURL(path.join(__dirname, '../src/renderer/journey-views.js')).href
+  );
+  const esc = (text) =>
+    String(text ?? '').replace(
+      /[&<>"']/g,
+      (ch) =>
+        ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        })[ch],
+    );
+  const views = createJourneyViews({
+    esc,
+    pill: esc,
+    icon: () => '',
+    notice: esc,
+    empty: esc,
+    when: esc,
+    richText: (value) => {
+      assert.ok(!value.includes('私人代号'), 'Private notes must not be guessed as entities');
+      return esc(value);
+    },
+    act: (action, label, cls, id) =>
+      `<button data-action="${esc(action)}" data-id="${esc(id)}">${label}</button>`,
+  });
+  let p = profile({ referenceMode: 'none' });
+  p.journey.gifts = [
+    {
+      id: 'exact-gift',
+      npcId: 'npc-5014',
+      itemId: 'item-100',
+      quantity: 2,
+      placeId: 'place-22',
+      note: '私人代号江小彤，文件夹武当山',
+      done: false,
+    },
+  ];
+  p.journey.todos = [
+    {
+      id: 'private',
+      title: '道玄让我把一转血气丹留给朋友 <私人约定>',
+      detail: '私人代号江小彤，文件夹武当山',
+      done: false,
+    },
+  ];
+  const index = { ...game, world };
+  const plan = journeyPlan(p, null);
+  const gift = plan.actions.find((a) => a.kind === 'gift');
+  const personal = plan.actions.find((a) => a.kind === 'todo');
+  const home = views.home(plan, index);
+  for (const id of ['npc-5014', 'item-100']) assert.match(home, new RegExp('data-id="' + id + '"'));
+  assert.match(home, /道玄让我把一转血气丹留给朋友 &lt;私人约定&gt;/);
+  p = add(p, gift, null, 'place-22');
+  p = add(p, personal);
+  const selected = journeyPlan(p, null);
+  const before = JSON.stringify(selected);
+  for (const html of [views.home(selected, index), views.itinerary(selected, index)]) {
+    for (const id of ['npc-5014', 'item-100', 'place-22'])
+      assert.match(html, new RegExp('data-id="' + id + '"'));
+  }
+  const page = views.page(selected, { query: '', completed: true }, index);
+  assert.match(page, /道玄让我把一转血气丹留给朋友 &lt;私人约定&gt;/);
+  assert.equal(JSON.stringify(selected), before);
 });

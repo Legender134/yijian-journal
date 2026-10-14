@@ -196,6 +196,7 @@ async function collectionQuantityJourney() {
   companion = await created;
   companion.on('pageerror', (e) => errors.push(e.message));
   await companion.locator('.compact-shell').waitFor();
+  await companion.locator('[data-compact-detail="flow-personal"] > summary').click();
   await companion.waitForFunction(() => document.body.textContent.includes('铁矿石 × 10'));
   assert.match(await companion.locator('[data-companion-itinerary]').innerText(), /采集铁矿石 10 个/);
   await companion.screenshot({ path: path.join(results, 'item-quantity-compact.png') });
@@ -334,6 +335,23 @@ async function collectionQuantityJourney() {
     await page.locator('#craft-plan-name').fill('仍未提交的制作名称');
     await page.locator('#craft-plan-goal').check();
     await page.locator('#craft-plan-reserved').uncheck();
+    await page.locator('[data-craft-plan-contents] [data-action="database-detail"]').first().click();
+    await page.locator('.drawer h1').waitFor();
+    await page.locator('[data-action="drawer-back"]').click();
+    assert.equal(await page.locator('#craft-plan-name').inputValue(), '仍未提交的制作名称');
+    assert.equal(await page.locator('#craft-plan-goal').isChecked(), true);
+    assert.equal(await page.locator('#craft-plan-reserved').isChecked(), false);
+    assert.equal((await current()).craftPlans?.length || 0, 0);
+    const returnedRecipe = page.locator('[data-craft-plan-contents] [data-action="database-detail"]').first();
+    assert.equal(await returnedRecipe.isEnabled(), true);
+    assert.equal(await returnedRecipe.getAttribute('aria-busy'), null);
+    assert.equal(await returnedRecipe.evaluate((node) => node === document.activeElement), true);
+    await returnedRecipe.click();
+    await page.locator('.drawer h1').waitFor();
+    await page.locator('[data-action="drawer-back"]').click();
+    assert.equal(await page.locator('#craft-plan-name').inputValue(), '仍未提交的制作名称');
+    assert.equal(await returnedRecipe.isEnabled(), true);
+    checks.push('制作表单的配方可直接查看并返回，草稿名称与选项保留且未正式保存');
     await page.keyboard.press('Escape');
     p = await until((p) => p.intentDrafts.some((r) => r.kind === 'craft-plan'));
     const craftDraft = p.intentDrafts.find((r) => r.kind === 'craft-plan').id;
@@ -535,7 +553,12 @@ async function collectionQuantityJourney() {
     await until((p) => p.intentDrafts.some((r) => r.id === 'unknown-place'));
     await resume('unknown-place');
     assert((await page.locator('#overlay').innerText()).includes('迁移后待核对的完整地点想法'));
-    assert((await page.locator('#overlay').innerText()).includes('place-999999'));
+    assert(!(await page.locator('#overlay').innerText()).includes('place-999999'));
+    assert.equal(
+      (await current()).intentDrafts.find((row) => row.id === 'unknown-place').targetId,
+      'place-999999',
+    );
+    assert.equal(await page.locator('#overlay [data-entity-id="place-999999"]').count(), 0);
     assert((await page.locator('#overlay').innerText()).includes('拟标为已完成'));
     await page.locator('#overlay [data-action="intent-draft-discard"]').click();
     await page.locator('[data-action="intent-draft-discard-confirm"]').click();

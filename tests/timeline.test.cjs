@@ -120,6 +120,214 @@ test('checkpoint comparison is recent saved progress to selected checkpoint, inc
   timeline.record(syntheticSave({ seconds: 30 }), 'auto');
   assert.equal(timeline.comparison(old.id).comparison.moneyDelta, null);
 });
+test('timeline preview links exact known team, task and item IDs while preserving historical differences', async () => {
+  const { pathToFileURL } = require('node:url'),
+    [{ createTimelineViews }, { createEntityReferences }] = await Promise.all([
+      import(pathToFileURL(path.join(__dirname, '../src/renderer/timeline-views.js')).href),
+      import(pathToFileURL(path.join(__dirname, '../src/renderer/entity-references.js')).href),
+    ]);
+  const esc = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+    );
+  const index = {
+      entries: [
+        { id: 'npc-1', gameId: 1, kind: '人物', name: '同名队友' },
+        { id: 'npc-2', gameId: 2, kind: '人物', name: '同名队友' },
+        ...Array.from({ length: 9 }, (_, i) => ({
+          id: `item-${i + 1}`,
+          gameId: i + 1,
+          kind: '物品',
+          name: '同名物品',
+        })),
+      ],
+      world: {
+        maps: [],
+        quests: [
+          { id: 'quest-10', gameId: 10, name: '同名任务', parentId: 0 },
+          { id: 'quest-11', gameId: 11, name: '同名任务', parentId: 10 },
+        ],
+      },
+    },
+    qualityText = { html: (_, label) => label, name: (_, name) => esc(name) },
+    references = createEntityReferences({
+      index: () => index,
+      esc,
+      picture: (id) => `<span data-picture="${esc(id)}"></span>`,
+      icon: esc,
+      qualityText,
+    }),
+    options = {
+      esc,
+      act: references.button,
+      icon: esc,
+      pill: esc,
+      notice: esc,
+      hours: esc,
+      iconButton: () => '',
+      qualityText,
+    },
+    views = createTimelineViews({ ...options, getIndex: () => index }),
+    result = {
+      record: { id: 'node-old', at: 1000, kind: 'auto' },
+      basis: { id: 'node-new', at: 2000 },
+      metadata: {
+        mapName: '历史场景',
+        money: 10,
+        playSeconds: 60,
+        team: [
+          { id: 1, name: '同名队友' },
+          { id: 2, name: '同名队友' },
+          { id: 99, name: '同名队友' },
+        ],
+      },
+      readiness: { ready: false, reason: '游戏未连接' },
+      comparison: {
+        moneyDelta: -20,
+        team: {
+          available: true,
+          rightOnly: [
+            { id: 1, name: '同名队友' },
+            { id: 99, name: '同名队友' },
+          ],
+          leftOnly: [{ id: 2, name: '同名队友' }],
+        },
+        quests: {
+          available: true,
+          changes: [
+            { id: 10, name: '同名任务', parentId: 0, left: '已完成', right: '进行中' },
+            { id: 11, name: '同名任务', parentId: 10, left: '进行中', right: '未开始' },
+            { id: 12, name: '同名任务', parentId: 10, left: '进行中', right: '未出现在记录' },
+          ],
+        },
+        inventory: {
+          available: true,
+          changes: [
+            ...Array.from({ length: 9 }, (_, i) => ({
+              id: i + 1,
+              name: '同名物品',
+              left: 3,
+              right: 1,
+              delta: -2,
+            })),
+            { id: 99, name: '同名物品', left: 0, right: 1, delta: 1 },
+            { id: 999, name: '<未知物品>', left: 0, right: 1, delta: 1 },
+          ],
+        },
+      },
+    },
+    before = JSON.stringify(result),
+    html = views.preview(result);
+  for (const [action, ids] of [
+    ['database-detail', ['npc-1', 'npc-2', ...Array.from({ length: 9 }, (_, i) => `item-${i + 1}`)]],
+    ['world-quest', ['quest-10', 'quest-11']],
+  ]) {
+    for (const id of ids) {
+      assert.match(html, new RegExp(`data-action="${action}" data-id="${id}" data-entity-id="${id}"`));
+      assert.match(html, new RegExp(`data-picture="${id}"`));
+    }
+  }
+  assert.doesNotMatch(
+    html,
+    /data-id="(?:npc-99|quest-12|item-99|item-999)"|data-action="entity-choice"|name:/,
+  );
+  assert.match(html, /<h3>队伍<\/h3>.*同名队友<\/p>/s);
+  assert.match(html, /加入：.*npc-1.*同名队友<br>离队：.*npc-2/s);
+  assert.match(html, /以下方向为“最近留存 → 此节点”，不含尚未保存的游戏进度/);
+  assert.match(html, /<strong>-20<\/strong>/);
+  assert.match(html, /已完成 → 进行中/);
+  assert.match(html, /进行中 → 未开始/);
+  assert.match(html, /进行中 → 未出现在记录/);
+  assert.match(html, /3 → 1 <b class="delta-less">\(-2\)<\/b>/);
+  assert.match(html, /<details><summary>其余 3 项变化<\/summary>.*data-id="item-9"/s);
+  assert.match(html, /&lt;未知物品&gt;/);
+  assert.match(html, /id="timeline-load-button"[^>]*\bdisabled/);
+  assert.equal(JSON.stringify(result), before);
+  assert.doesNotMatch(
+    createTimelineViews(options).preview(result),
+    /data-action="(?:world-quest|database-detail)"/,
+  );
+  for (const group of ['team', 'quests', 'inventory']) result.comparison[group].available = false;
+  const unavailable = views.preview(result).split('timeline-differences')[1];
+  assert.match(unavailable, /队伍数据无法比较.*任务数据无法比较.*库存数据无法比较/s);
+  assert.doesNotMatch(unavailable, /data-action="(?:world-quest|database-detail)"/);
+});
+test('timeline scenes link by exact saved map key on every surface without guessing a namesake', async () => {
+  const { pathToFileURL } = require('node:url'),
+    { createTimelineViews } = await import(
+      pathToFileURL(path.join(__dirname, '../src/renderer/timeline-views.js')).href
+    );
+  const esc = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+    );
+  const index = {
+      entries: [],
+      world: {
+        maps: [
+          { id: 'place-7', key: 'scene-a', name: '同名场景' },
+          { id: 'place-7', key: 'scene-b', name: '同名场景' },
+          { id: 'place-8', key: 'scene-c', name: '同名场景' },
+        ],
+      },
+    },
+    links = [],
+    views = createTimelineViews({
+      esc,
+      icon: esc,
+      act: (action, label, cls, id) => {
+        if (action === 'archive-entity') links.push({ label, cls, id });
+        return `<button data-action="${action}" data-id="${esc(id)}">${label}</button>`;
+      },
+      pill: esc,
+      notice: esc,
+      hours: esc,
+      bytes: esc,
+      iconButton: () => '',
+      getIndex: () => index,
+    }),
+    record = { id: 'synthetic-node', map: 'scene-b', mapName: '同名场景', at: 2000, playSeconds: 60 },
+    timeline = {
+      enabled: false,
+      reason: '合成时间线',
+      interval: 10,
+      nodes: [{ seconds: 60, record: { ...record, ageSeconds: 60, gapSeconds: 0 } }],
+      latest: record,
+      history: [record],
+      count: 1,
+      bytes: 0,
+    },
+    before = structuredClone(timeline),
+    html = views.page(timeline);
+  assert.equal(links.length, 4, 'latest, target, history default title and history scene stay accessible');
+  assert(links.every((link) => link.id === 'place-7:scene-b' && link.cls === 'text-btn'));
+  assert.doesNotMatch(html, /data-id="(?:place-7|place-8|name:[^"]+)"/);
+  const result = {
+    record: { ...record, label: '私人节点 <原样>' },
+    metadata: { map: 'scene-b', mapName: '同名场景' },
+    readiness: { ready: false },
+  };
+  links.length = 0;
+  const preview = views.preview(result);
+  assert.equal(links.length, 1);
+  assert.equal(links[0].id, 'place-7:scene-b');
+  assert.match(preview, /<h1>私人节点 &lt;原样&gt;<\/h1>/);
+  assert.match(preview, /id="timeline-load-button"[^>]*\bdisabled/);
+  links.length = 0;
+  views.preview({ ...result, record, metadata: { mapKey: 'scene-c', mapName: '同名场景' } });
+  assert.equal(links.length, 2);
+  assert(links.every((link) => link.id === 'place-8'));
+  for (const metadata of [{ map: 'unknown-scene', mapName: '同名场景' }, { mapName: '同名场景' }]) {
+    links.length = 0;
+    const unknown = views.preview({ ...result, record, metadata });
+    assert.equal(links.length, 0);
+    assert.match(unknown, /同名场景/);
+    assert.doesNotMatch(unknown, /data-action="(?:archive-entity|entity-choice)"/);
+  }
+  assert.deepEqual(timeline, before);
+});
 test('missing history remains unavailable instead of pretending to cover an hour', (t) => {
   const { timeline, save, clock } = setup(t);
   save(20);

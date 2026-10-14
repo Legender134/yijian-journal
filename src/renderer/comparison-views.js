@@ -1,4 +1,17 @@
-export function createComparisonViews({ esc, act, iconButton, pill, notice, when, hours, icon, picture }) {
+import { placeEntityId } from './entity-catalog.js';
+
+export function createComparisonViews({
+  esc,
+  act,
+  iconButton,
+  pill,
+  notice,
+  when,
+  hours,
+  icon,
+  picture,
+  getIndex = () => null,
+}) {
   const signed = (value) => `${value > 0 ? '+' : ''}${value.toLocaleString()}`;
   const timeDelta = (value) => {
     const seconds = Math.abs(value),
@@ -19,7 +32,18 @@ export function createComparisonViews({ esc, act, iconButton, pill, notice, when
     return `<section class="drawer comparison-drawer" role="dialog" aria-modal="true" aria-label="两份存档对比"><div class="drawer-head"><span class="small muted">存档匣 / 只读对比</span>${iconButton('close-overlay', 'close', '关闭存档对比')}</div><div class="drawer-body"><h1>两份存档，哪里不同？</h1><p class="save-note">差值为右侧减左侧。所选槽位可以来自不同周目；这里比较的是已保存的记录。</p><div class="compare-selectors"><div class="field"><label for="compare-left">左侧存档</label><select id="compare-left">${options(view.left)}</select></div>${iconButton('compare-swap', 'refresh', '交换左右存档')}<div class="field"><label for="compare-right">右侧存档</label><select id="compare-right">${options(view.right)}</select></div></div><div class="row compare-controls">${act('compare-run', '比较记录', 'btn primary', '', 'search')}${act('compare-refresh', '刷新槽位', 'btn', '', 'refresh')}<span id="compare-status" class="small muted" role="status"></span></div><div id="comparison-result">${view.result ? result(view.result, view) : '<div class="compare-empty">' + icon('scroll') + '<p>选好左右槽位，点击「比较记录」。</p></div>'}</div></div></section>`;
   }
   function recap(file, side) {
-    return `<div class="compare-recap"><small>${side} · ${esc(file.name)}</small><h3>${esc(file.mapName)}</h3><p>${when(file.modifiedAt)} · ${hours(file.playSeconds)}</p><p>铜钱 ${file.money === null ? '未读取' : file.money.toLocaleString() + ' 文'} · ${esc(file.difficultyName || '难度未读取')}</p><p class="compare-tracked">主线：${esc(file.mainQuest || '未记录')}<br>支线：${esc(file.sideQuest || '未记录')}</p></div>`;
+    const index = getIndex(),
+      maps = index?.world?.maps || [];
+    const matches = file.mapKey ? maps.filter((place) => place.key === file.mapKey) : [];
+    const location =
+      matches.length === 1
+        ? act('world-place', esc(file.mapName), 'text-btn', placeEntityId(matches[0], maps))
+        : esc(file.mapName);
+    const quest = (id, name) =>
+      (index?.world?.quests || []).some((row) => row.id === id)
+        ? act('world-quest', esc(name || '查看任务'), 'text-btn', id)
+        : esc(name || '未记录');
+    return `<div class="compare-recap"><small>${side} · ${esc(file.name)}</small><h3>${location}</h3><p>${when(file.modifiedAt)} · ${hours(file.playSeconds)}</p><p>铜钱 ${file.money === null ? '未读取' : file.money.toLocaleString() + ' 文'} · ${esc(file.difficultyName || '难度未读取')}</p><p class="compare-tracked">主线：${quest(file.mainQuestId, file.mainQuest)}<br>支线：${quest(file.sideQuestId, file.sideQuest)}</p></div>`;
   }
   function inventory(diff, index, query = '', filter = 'all') {
     if (!diff.inventory.available) return notice('至少一份存档的背包未能读取，暂不计算物品数量差异。', true);
@@ -42,13 +66,14 @@ export function createComparisonViews({ esc, act, iconButton, pill, notice, when
   function quests(diff, query = '') {
     if (!diff.quests.available) return notice('至少一份存档的任务记录未能读取，暂不比较任务状态。', true);
     const q = query.trim().toLowerCase(),
-      rows = diff.quests.changes.filter((i) => !q || i.name.toLowerCase().includes(q));
+      rows = diff.quests.changes.filter((i) => !q || i.name.toLowerCase().includes(q)),
+      known = new Set((getIndex()?.world?.quests || []).map((quest) => quest.id));
     return `${
       rows
         .slice(0, 60)
         .map(
           (i) =>
-            `<div class="compare-quest"><h3>${esc(i.name)}</h3><div class="row">${pill(i.left)}${icon('arrow')}${pill(i.right, i.rightStep === 4 ? 'green' : '')}${i.parentId ? '<small class="muted">任务步骤</small>' : ''}</div></div>`,
+            `<div class="compare-quest"><h3>${known.has(`quest-${i.id}`) ? act('world-quest', esc(i.name), 'text-btn', `quest-${i.id}`) : esc(i.name)}</h3><div class="row">${pill(i.left)}${icon('arrow')}${pill(i.right, i.rightStep === 4 ? 'green' : '')}${i.parentId ? '<small class="muted">任务步骤</small>' : ''}</div></div>`,
         )
         .join('') || '<p class="save-note">没有匹配的任务状态差异。</p>'
     }${rows.length > 60 ? `<p class="save-note">还有 ${rows.length - 60} 项，请搜索任务名缩小范围。</p>` : ''}<p class="save-note">未出现在某份记录中，只表示该槽位没有这条可见记录。任务文字可在各自的存档回顾中查看。</p>`;

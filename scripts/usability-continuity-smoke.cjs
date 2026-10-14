@@ -259,36 +259,41 @@ async function searchHelp(target, size) {
     await nav('journal');
     await page.locator('[data-action="journal-entry-new"]').click();
     await page.locator('#journal-title').fill('梧桐村指定场景的约定');
-    await page.locator('#journal-body').fill('约定发生于场景 63，其他同名场景不共用关联。');
+    await page.locator('#journal-body').fill('约定发生于场景 3，其他同名场景不共用关联。');
     await page.locator('#journal-reference-query').fill('梧桐村');
-    const sceneIds = ['10', '63', '64', '9'];
+    const scenes = [
+      ['9', 1],
+      ['10', 2],
+      ['63', 3],
+      ['64', 4],
+    ];
     assert.equal(
       await page
         .locator('#journal-reference-results [data-action="journal-reference-add"][data-id^="place:"]')
         .count(),
       4,
     );
-    for (const id of sceneIds) {
+    for (const [id, scene] of scenes) {
       const choiceRow = page
         .locator('#journal-reference-results .row')
         .filter({ has: page.locator('[data-id="place:place-' + id + '"]') });
-      assert.match(await choiceRow.innerText(), new RegExp('梧桐村 · 场景 #' + id));
+      assert.match(await choiceRow.innerText(), new RegExp('梧桐村 · 场景 ' + scene));
     }
     await page.locator('[data-action="journal-reference-add"][data-id="place:place-63"]').click();
-    assert.match(await page.locator('#journal-selected-references').innerText(), /梧桐村 · 场景 #63/);
+    assert.match(await page.locator('#journal-selected-references').innerText(), /梧桐村 · 场景 3/);
     await page.screenshot({ path: path.join(results, 'usability-distinct-scenes.png'), timeout: 15000 });
     await page.locator('[data-action="journal-entry-save"]').click();
     const afterScene = await waitState((row) =>
       row.journalEntries.some((entry) => entry.title === '梧桐村指定场景的约定'),
     );
     const sceneEntry = afterScene.journalEntries.find((entry) => entry.title === '梧桐村指定场景的约定');
-    assert.deepEqual(sceneEntry.links, [{ type: 'place', id: 'place-63', label: '梧桐村 · 场景 #63' }]);
+    assert.deepEqual(sceneEntry.links, [{ type: 'place', id: 'place-63', label: '梧桐村 · 场景 3' }]);
     await companion.keyboard.press('Control+k');
     await companion.locator('#global-search').fill('梧桐村指定场景的约定');
     await companion.locator('.search-result[data-action="journal-entry-open"]').click();
-    assert.match(await companion.locator('#overlay').innerText(), /梧桐村 · 场景 #63/);
+    assert.match(await companion.locator('#overlay').innerText(), /梧桐村 · 场景 3/);
     await companion.keyboard.press('Escape');
-    checks.push('四个同名地点显示不同场景编号，选择场景 63 后保存及另一窗口重开仍对应原 ID');
+    checks.push('四个同名地点显示不同场景编号，选择场景 3 后保存及另一窗口重开仍对应原 ID');
     await page.locator('[data-action="journal-entry-new"]').click();
     await page.locator('#journal-title').fill('区分长虹剑品质和图纸类型');
     await page.locator('#journal-reference-query').fill('长虹剑');

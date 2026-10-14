@@ -1,4 +1,6 @@
 // Sandboxed ES module: user records, bounded queries and form parsing only.
+import { placeChoiceLabel } from './place-picker.js';
+
 export const JOURNAL_PAGE_SIZE = 20;
 export const JOURNAL_KIND_LABELS = Object.freeze({
   manual: '手写记录',
@@ -26,9 +28,9 @@ const lower = (value) =>
     .normalize('NFKC')
     .toLocaleLowerCase('zh-CN');
 const byId = (rows, id) => (rows || []).find((row) => row.id === id);
-const placeLabel = (label, id) => {
-  const suffix = ' · 场景 #' + id.slice(6);
-  return String(label).endsWith(suffix) ? label : label + suffix;
+const referenceRow = (type, id, sources) => {
+  const rows = (sources[type] || []).filter((row) => row.id === id);
+  return type === 'place' && rows.length !== 1 ? null : rows[0];
 };
 // Mirror the core gift-labels convention without Node access in this sandbox.
 const giftItemLabel = (item) =>
@@ -36,7 +38,20 @@ const giftItemLabel = (item) =>
 const giftPersonLabel = (person, entries) => {
   if (!person) return '';
   const sameName = entries.filter((row) => row.kind === '人物' && row.name === person.name);
-  return sameName.length > 1 ? `${person.name}（资料编号 ${person.gameId ?? person.id}）` : person.name;
+  return sameName.length > 1
+    ? `${person.name}（资料 ${sameName.findIndex((row) => row.id === person.id) + 1}/${sameName.length}）`
+    : person.name;
+};
+const questLabel = (quest, quests) => {
+  const name = quest.title || quest.name || '未命名任务';
+  const variants = quests.filter((row) => (row.title || row.name) === name);
+  if (variants.length < 2) return name;
+  const parent = quest.parentId
+    ? quests.find((row) => row.gameId === quest.parentId || row.id === quest.parentId)
+    : null;
+  const parentName = parent && (parent.title || parent.name);
+  const suffix = `${parentName && parentName !== name ? ' · ' + parentName : ''} · 资料 ${variants.findIndex((row) => row.id === quest.id) + 1}/${variants.length}`;
+  return name.slice(0, 160 - suffix.length) + suffix;
 };
 
 function tables(profile, index = {}) {
@@ -60,7 +75,7 @@ function tables(profile, index = {}) {
 }
 function rowLabel(type, row, profile, index, sources = tables(profile, index)) {
   if (type === 'database') {
-    const name = String(row.name || row.title || row.id);
+    const name = String(row.name || row.title || '未命名资料');
     const prefix = row.kind ? `${row.kind} · ` : '';
     let suffix = '';
     if (row.kind === '物品' || row.kind === '武学') suffix = giftItemLabel({ ...row, name: '' });
@@ -69,30 +84,57 @@ function rowLabel(type, row, profile, index, sources = tables(profile, index)) {
     if (row.kind === '人物') suffix = giftPersonLabel(row, sources.database).slice(row.name.length);
     return prefix + name.slice(0, 160 - prefix.length - suffix.length) + suffix;
   }
-  if (type === 'place')
-    return `${row.name || row.title || row.id} · 场景 #${row.gameId ?? String(row.id).slice(6)}`;
-  if (type === 'quest')
-    return `${row.title || row.name || row.id} · 任务 #${row.gameId ?? String(row.id).replace(/^quest-/, '')}`;
+  if (type === 'place') return placeChoiceLabel(row, sources.place);
+  if (type === 'quest') return questLabel(row, sources.quest);
   if (type === 'goal' && row.placeId) {
-    const place = byId(sources.place, row.placeId) || { id: row.placeId };
-    return `${row.title || row.name || row.id} · ${rowLabel('place', place, profile, index, sources)}`;
+    const place = referenceRow('place', row.placeId, sources);
+    return `${row.title || row.name || '未命名目标'} · ${place ? rowLabel('place', place, profile, index, sources) : '地点待核对'}`;
   }
   if (type === 'gift') {
     const entries = index.entries || index.game?.entries || [];
-    return `${giftPersonLabel(byId(sources.database, row.npcId), entries) || row.npcId} · ${giftItemLabel(byId(sources.database, row.itemId)) || row.itemId} × ${row.quantity}`.slice(
+    return `${giftPersonLabel(byId(sources.database, row.npcId), entries) || '原人物'} · ${giftItemLabel(byId(sources.database, row.itemId)) || '原物品'} × ${row.quantity}`.slice(
       0,
       160,
     );
   }
-  return row.title || row.name || row.id;
+  return row.title || row.name || LINK_LABELS[type] || '资料';
 }
 function referenceLabel(link, profile, index, sources = tables(profile, index)) {
-  if (link.type === 'place') return placeLabel(link.label, link.id);
-  const current = link.detached ? null : byId(sources[link.type], link.id);
-  if (current && ['database', 'gift', 'goal', 'quest'].includes(link.type)) {
+  const current = link.detached ? null : referenceRow(link.type, link.id, sources);
+  if (current && ['database', 'gift', 'goal', 'quest', 'place'].includes(link.type)) {
     const identity = rowLabel(link.type, current, profile, index, sources);
+    let label = link.label;
+    // Only exact legacy suffixes for this resolved ID are system identity.
+    // Preserve detached, missing and mismatched historical labels verbatim.
+    const legacySuffix =
+      link.type === 'place'
+        ? ` · 场景 #${current.gameId ?? String(current.id).slice(6)}`
+        : link.type === 'quest'
+          ? ` · 任务 #${current.gameId ?? String(current.id).replace(/^quest-/, '')}`
+          : link.type === 'database' && current.kind === '人物'
+            ? `（资料编号 ${current.gameId ?? current.id}）`
+            : '';
+    if (legacySuffix && label.endsWith(legacySuffix)) label = label.slice(0, -legacySuffix.length);
+    if (link.type === 'gift') {
+      const person = byId(sources.database, current.npcId);
+      const item = byId(sources.database, current.itemId);
+      const legacy =
+        person && item
+          ? `${person.name}（资料编号 ${person.gameId ?? person.id}） · ${giftItemLabel(item)} × ${current.quantity}`.slice(
+              0,
+              160,
+            )
+          : '';
+      if (label === legacy) return identity;
+    }
+    const plainIdentity =
+      link.type === 'database'
+        ? `${current.kind ? current.kind + ' · ' : ''}${current.name || current.title || ''}`
+        : current.title || current.name;
+    if (label === identity || label === plainIdentity) return identity;
     const suffix = ` · 当前资料：${identity}`;
-    if (link.label !== identity && !link.label.endsWith(suffix)) return link.label + suffix;
+    if (!label.endsWith(suffix)) return label + suffix;
+    return label;
   }
   return link.label;
 }
@@ -103,6 +145,7 @@ function matchingJournalReferences(profile, index, query) {
   const sources = tables(profile, index);
   for (const [type, rows] of Object.entries(sources)) {
     for (const row of rows) {
+      if (type === 'place' && !referenceRow(type, row.id, sources)) continue;
       const label = rowLabel(type, row, profile, index, sources);
       const detail = ['goal', 'todo', 'gift', 'craft-plan'].includes(type)
         ? row.detail || row.note || ''
@@ -187,7 +230,11 @@ export function queryJournalEntries(profile, view = {}, index = {}) {
       )
         return false;
       const names = entry.links.map((link) => {
-        const current = link.detached ? null : resolved[link.type]?.get(link.id);
+        const current = link.detached
+          ? null
+          : link.type === 'place'
+            ? referenceRow(link.type, link.id, sources)
+            : resolved[link.type]?.get(link.id);
         return `${link.type} ${link.id} ${link.label} ${current ? rowLabel(link.type, current, profile, index, sources) : ''}`;
       });
       const haystack = lower(
@@ -320,6 +367,9 @@ export function createEventJournalViews({
     if (!ref) return '';
     return `<details><summary>记录时附加的只读存档参照</summary><p class="small">${esc(ref.name)} · ${when(ref.modifiedAt)}${ref.mapName ? ' · ' + esc(ref.mapName) : ''}${ref.playSeconds !== undefined ? ' · 游玩 ' + Math.floor(ref.playSeconds / 3600) + ' 时 ' + Math.floor((ref.playSeconds % 3600) / 60) + ' 分' : ''}</p><p class="small mono">SHA-256 ${esc(ref.hash)}</p>${complete ? `<p class="small mono">摘要原修改时间 ${esc(ref.modifiedAt)}${ref.playSeconds !== undefined ? `<br>原游玩秒数 ${esc(ref.playSeconds)}` : ''}</p>` : ''}<p class="save-note">这份摘要用于回顾当时的已保存进度；没有存读档操作。</p></details>`;
   }
+  function originalInformation(entry, revision) {
+    return `<details><summary>原始记录信息</summary><p class="small mono">记录编号 ${esc(entry.id)}${revision ? `<br>旧版本编号 ${esc(revision.id)}<br>保留旧版 ${esc(revision.replacedAt)}` : ''}</p>${entry.links.length ? `<div class="stack">${entry.links.map((item) => `<p class="small">${esc(LINK_LABELS[item.type] || '资料')} · ${esc(item.label)}<br><span class="mono">${esc(item.id)}</span>${item.detached ? ' · 原关联已移除' : ''}</p>`).join('')}</div>` : ''}</details>`;
+  }
   function card(entry, readOnly, profile, index, sources) {
     const action = (name) => (readOnly ? 'historical-' : '') + name;
     return `<article class="card mb" id="journal-entry-${esc(entry.id)}" data-journal-id="${esc(entry.id)}"><div class="row between"><div>${pill(JOURNAL_KIND_LABELS[entry.kind] || '记录')}<h2>${act(action('journal-entry-open'), esc(entry.title), 'text-btn', entry.id, 'book')}</h2></div><time datetime="${esc(entry.occurredAt)}">${when(entry.occurredAt)}</time></div><p class="preserve-text">${esc(entry.body.length > 240 ? entry.body.slice(0, 240) + '…' : entry.body)}</p><div class="tag-row">${entry.tags.map((tag) => act(action('journal-tag-filter'), esc(tag), 'chip', tag)).join('')}${entry.links.map((item) => link(item, readOnly, profile, index, sources)).join('')}</div>${act(action('journal-entry-open'), '打开原记录', 'text-btn', entry.id, 'arrow')}</article>`;
@@ -378,11 +428,13 @@ export function createEventJournalViews({
       : (profile.journalEntries || []).find((row) => row.id === entryId);
     if (!entry) return notice('这条记录已不存在，请返回列表刷新。', true);
     const sources = tables(profile, index);
-    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(entry.title)}"><div class="drawer-head"><span class="small muted">江湖记录 / ${view.trash ? '已删除记录' : '原记录'}</span>${act('close-overlay', '关闭详情', 'text-btn')}</div><div class="drawer-body" data-journal-id="${esc(entry.id)}">${pill(JOURNAL_KIND_LABELS[entry.kind])}<h1>${esc(entry.title)}</h1>${deleted ? `<p class="small muted">移除 ${when(deleted.deletedAt)}</p>` : ''}<p class="small">事件时间 ${when(entry.occurredAt)}</p><p class="preserve-text">${esc(entry.body)}</p><div class="tag-row">${entry.tags.map((tag) => pill(tag)).join('')}${entry.links.map((item) => link(item, readOnly, profile, index, sources)).join('')}</div>${snapshot(entry)}<p class="small muted">写入 ${when(entry.createdAt)} · 更新 ${when(entry.updatedAt)}</p><p class="small mono">记录编号 ${esc(entry.id)}</p>${entry.kind !== 'manual' ? notice('这是你在手札中的完成或重开操作记录；游戏任务、物品和赠礼状态仍需另行核对。', true) : ''}${view.trash ? '<p class="save-note">这是已删除记录，完整正文与关联保留。</p>' : readOnly ? '<p class="save-note">来自离线档案的只读记录；个人关联保留当时名称，当前周目不受影响。</p>' : '<p class="save-note">移入已删除记录后可逐条恢复；原目标、待办与赠礼处理状态保留。</p>'}</div><div class="drawer-actions">${!readOnly && entry.kind === 'manual' ? act('journal-entry-edit', '编辑记录', 'btn primary', entry.id, 'edit') : ''}${entry.kind === 'manual' ? act((view.historical || (readOnly && !view.trash) ? 'historical-' : '') + 'journal-revisions-entry', '查看这条记录的旧版本 · ' + (profile.journalRevisions || []).filter((row) => row.entry.id === entry.id && row.entry.createdAt === entry.createdAt).length, 'btn', entry.id, 'archive') : ''}${readOnly ? '' : act('journal-entry-remove', '删除这条历史记录', 'btn danger', entry.id, 'trash')}</div></section>`;
+    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(entry.title)}"><div class="drawer-head"><span class="small muted">江湖记录 / ${view.trash ? '已删除记录' : '原记录'}</span>${act('close-overlay', '关闭详情', 'text-btn')}</div><div class="drawer-body" data-journal-id="${esc(entry.id)}">${pill(JOURNAL_KIND_LABELS[entry.kind])}<h1>${esc(entry.title)}</h1>${deleted ? `<p class="small muted">移除 ${when(deleted.deletedAt)}</p>` : ''}<p class="small">事件时间 ${when(entry.occurredAt)}</p><p class="preserve-text">${esc(entry.body)}</p><div class="tag-row">${entry.tags.map((tag) => pill(tag)).join('')}${entry.links.map((item) => link(item, readOnly, profile, index, sources)).join('')}</div>${snapshot(entry)}<p class="small muted">写入 ${when(entry.createdAt)} · 更新 ${when(entry.updatedAt)}</p>${originalInformation(entry)}${entry.kind !== 'manual' ? notice('这是你在手札中的完成或重开操作记录；游戏任务、物品和赠礼状态仍需另行核对。', true) : ''}${view.trash ? '<p class="save-note">这是已删除记录，完整正文与关联保留。</p>' : readOnly ? '<p class="save-note">来自离线档案的只读记录；个人关联保留当时名称，当前周目不受影响。</p>' : '<p class="save-note">移入已删除记录后可逐条恢复；原目标、待办与赠礼处理状态保留。</p>'}</div><div class="drawer-actions">${!readOnly && entry.kind === 'manual' ? act('journal-entry-edit', '编辑记录', 'btn primary', entry.id, 'edit') : ''}${entry.kind === 'manual' ? act((view.historical || (readOnly && !view.trash) ? 'historical-' : '') + 'journal-revisions-entry', '查看这条记录的旧版本 · ' + (profile.journalRevisions || []).filter((row) => row.entry.id === entry.id && row.entry.createdAt === entry.createdAt).length, 'btn', entry.id, 'archive') : ''}${readOnly ? '' : act('journal-entry-remove', '删除这条历史记录', 'btn danger', entry.id, 'trash')}</div></section>`;
   }
   function revisionContent(row) {
     const entry = row.entry;
-    return `<div data-journal-revision-id="${esc(row.id)}">${pill('手写记录旧版本')}<h2>${esc(entry.title)}</h2><p class="preserve-text">${esc(entry.body)}</p><div class="tag-row">${entry.tags.map((tag) => pill(tag)).join('')}</div><div class="stack">${entry.links.map((item) => `<p class="small">${esc(LINK_LABELS[item.type])} · ${esc(item.label)} · ${esc(item.id)}${item.detached ? ' · 原关联已移除' : ''}</p>`).join('')}</div>${snapshot(entry, true)}<p class="small">事件时间 ${when(entry.occurredAt)} <span class="mono">${esc(entry.occurredAt)}</span></p><p class="small muted">原创建 ${when(entry.createdAt)} · 原更新 ${when(entry.updatedAt)} · 保留旧版 ${when(row.replacedAt)}</p><p class="small mono">原创建 ${esc(entry.createdAt)}<br>原更新 ${esc(entry.updatedAt)}<br>保留旧版 ${esc(row.replacedAt)}<br>原记录编号 ${esc(entry.id)}<br>旧版本编号 ${esc(row.id)}</p></div>`;
+    const index = getIndex();
+    const sources = tables({}, index);
+    return `<div data-journal-revision-id="${esc(row.id)}">${pill('手写记录旧版本')}<h2>${esc(entry.title)}</h2><p class="preserve-text">${esc(entry.body)}</p><div class="tag-row">${entry.tags.map((tag) => pill(tag)).join('')}</div><div class="stack">${entry.links.map((item) => `<p class="small">${esc(LINK_LABELS[item.type])} · ${esc(referenceLabel(item, {}, index, sources))}${item.detached ? ' · 原关联已移除' : ''}</p>`).join('')}</div>${snapshot(entry, true)}<p class="small">事件时间 ${when(entry.occurredAt)} <span class="mono">${esc(entry.occurredAt)}</span></p><p class="small muted">原创建 ${when(entry.createdAt)} · 原更新 ${when(entry.updatedAt)} · 保留旧版 ${when(row.replacedAt)}</p>${originalInformation(entry, row)}</div>`;
   }
   function revisions(profile, view = {}) {
     const readOnly = view.readOnly === true,
@@ -461,7 +513,7 @@ export function createEventJournalViews({
             type = key.slice(0, at),
             id = key.slice(at + 1);
           const original = entry?.links?.find((link) => link.type === type && link.id === id);
-          const current = original?.detached ? null : byId(sources[type], id);
+          const current = original?.detached ? null : referenceRow(type, id, sources);
           const rawTitle =
             original?.label || (current ? rowLabel(type, current, profile, index, sources) : '原关联资料');
           const title = referenceLabel(

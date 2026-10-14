@@ -723,10 +723,10 @@ test('compact challenge summaries expose names, places and rewards with stable p
     html.indexOf('class="duel-card'),
     html.indexOf('</summary>', html.indexOf('class="duel-card')),
   );
-  assert.match(summary, /吕轻祈.*静态等级 30.*客栈二楼.*Synthetic reward.*切磋私物/s);
+  assert.match(summary, /吕轻祈.*初始等级 30.*客栈二楼.*Synthetic reward.*切磋私物/s);
   assert.doesNotMatch(summary, /先修炼内功/);
   assert.match(summary, /data-action="database-detail"/);
-  assert.match(html, /前置记录仍待核对，不能据此认定现在可以挑战/);
+  assert.match(html, /前置条件未确认/);
   assert.match(html, /data-persist-detail="duel-card-first-inn-window"/);
   assert.match(html, /data-persist-detail="duel-info-first-inn-window"/);
   assert.match(views.page({ duels }, { compact: true, scope: 'second' }), /duel-card-second-inn-window/);

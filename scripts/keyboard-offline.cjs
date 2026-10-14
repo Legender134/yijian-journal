@@ -215,6 +215,11 @@ async function allPersonal(win) {
       assert.equal(await win.evaluate(() => !!document.activeElement.closest('#overlay')), true);
     }
     await win.keyboard.press('Escape');
+    // A focused entity first dismisses its local preview; the next Escape closes search.
+    if (await win.locator('#global-search').count()) {
+      assert.equal(await win.locator('#entity-preview').isVisible(), false);
+      await win.keyboard.press('Escape');
+    }
     assert.equal(await win.locator('.search-trigger').evaluate((e) => e === document.activeElement), true);
     assert.equal(await win.locator('#app').evaluate((e) => e.inert), false);
     report.checks.push('search focus stays inside modal in both directions and returns to opener');
@@ -225,6 +230,7 @@ async function allPersonal(win) {
     await win.locator('.drawer').waitFor();
     assert.ok((await win.locator('.drawer h1').innerText()).includes('水煮鱼'));
     await win.keyboard.press('Escape');
+    await win.locator('.home-optional > summary').click();
     await win.locator('[data-action="goal-add"]').first().click();
     await win.locator('#goal-title').fill('键盘创建的备忘');
     await win.keyboard.press('Enter');
@@ -361,6 +367,9 @@ async function allPersonal(win) {
             reject(Error('foreground search results did not naturally refresh'));
           }, 12000);
           observer.observe(document.querySelector('#global-results'), { childList: true });
+          // Unchanged search markup intentionally stays mounted for stable focus/hover.
+          // Change the underlying journal so its ordinary refresh has real work to render.
+          window.journal.mutate({ type: 'goal-add', title: '前台刷新备忘' }).catch(reject);
         }),
     );
     assert.equal(await win.locator('[data-action="search-personal-short"]').count(), 1);
@@ -424,11 +433,12 @@ async function allPersonal(win) {
     await companion.locator('.search-result[data-action="search-note"]').focus();
     const beforeScroll = await companion.locator('#global-results').evaluate((e) => e.scrollTop);
     assert(beforeScroll > 0);
+    const beforeCrossWindowCount = await companion.locator('.search-result').count();
     const added = await win.evaluate(() => window.journal.mutate({ type: 'goal-add', title: '补给检查11' }));
     assert(added.ok, added.error);
     await companion.waitForFunction(
       (previous) => document.querySelectorAll('.search-result').length > previous,
-      emptyCount,
+      beforeCrossWindowCount,
     );
     assert.equal(await companion.locator('[data-action="search-personal-short"]').count(), 1);
     assert.equal(await companion.evaluate(() => document.activeElement.dataset.action), 'search-note');
@@ -543,8 +553,8 @@ async function allPersonal(win) {
       for (const goal of duplicateBefore) {
         const row = window.locator(`.search-result[data-id="${goal.id}"]`),
           input = duplicateInputs.find((value) => value.placeId === goal.placeId),
-          scene = goal.placeId === 'place-9' ? 9 : 10;
-        assert.match(await row.innerText(), new RegExp('梧桐村 · 资料场景 #' + scene));
+          scene = goal.placeId === 'place-9' ? 1 : 2;
+        assert.match(await row.innerText(), new RegExp('梧桐村 · 场景 ' + scene));
         assert((await row.innerText()).includes([...input.detail].slice(0, 120).join('')));
         assert((await row.getAttribute('title')).includes(input.detail));
         const accessible = await row.getAttribute('aria-label');
@@ -617,7 +627,7 @@ async function allPersonal(win) {
       }
       await search(window, '种类:目标 地点:梧桐村 ' + sameName);
       assert.equal(await window.locator('.search-result').count(), 2);
-      await search(window, '种类:目标 地点:#9 ' + sameName);
+      await search(window, '种类:目标 地点:"梧桐村 · 场景 1" ' + sameName);
       assert.equal(await window.locator('.search-result').count(), 1);
       assert.equal(
         await window.locator('.search-result').getAttribute('data-id'),

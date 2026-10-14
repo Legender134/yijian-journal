@@ -24,8 +24,8 @@ test('encyclopedia exposes same-build numbers and rendered basics exclude random
   assert.match(base, /攻击力.*\+637\.89 点/s);
   assert.match(base, /暴击率.*\+15%/s);
   assert.doesNotMatch(base, /\+172 点|\+4\.5%/);
-  assert.match(html, /随机词条候选.*\+172 点.*\+4\.5%/s);
-  assert.match(html, /不表示物品掉率或最终词条概率/);
+  assert.match(html, /随机词条.*\+172 点.*\+4\.5%/s);
+  assert.match(html, /每件装备随机获得其中部分词条/);
   assert.doesNotMatch(html, /RandRange|RandActionPools|EquipmentRank|池内权重/);
   assert.equal(itemNumericSummary(entry, index), '攻击力 +637.89 点 · 暴击率 +15%');
 });
@@ -44,9 +44,8 @@ test('medicine, permanent stats, armor and materials render different benefits h
   assert.doesNotMatch(html(133), /全队|全体|永久/);
   assert.match(html(139), /经脉点.*\+50 点/s);
   assert.match(html(250), /气血恢复比例.*20%.*真气恢复比例.*20%/s);
-  assert.match(html(250), /计算基准尚未核定/);
   assert.match(html(6000), /装备基础数值.*真气上限.*\+41\.14 点/s);
-  assert.match(html(10220), /没有直接增加战斗属性/);
+  assert.match(html(10220), /无直接属性加成/);
   assert.doesNotMatch(html(10220), /数值资料尚未收录/);
   assert.match(html(8094), /随机池在当前原始资料中缺失/);
 });
@@ -77,9 +76,9 @@ test('unknown buff ranks, exclusive owners and extracted strings remain safe and
   const buffIndex = structuredClone(index);
   buffIndex.itemStats.buffs[action.id].name = '<img src=x onerror=evil()>奸';
   const html = view.detail(buffIndex, modified);
-  assert.match(html, /仅限：江吟风/);
+  assert.match(html, /仅限：<button[^>]+data-id="npc-10016">江吟风<\/button>/);
   assert.match(html, /效果数值待核定/);
-  assert.match(html, /尚未核定效果等级与数值/);
+  assert.doesNotMatch(html, /效果等级 \d|持续\d秒/);
   assert.match(html, /&lt;img/);
   assert.doesNotMatch(html, /<img|\{0\}|100%触发|持续3秒|装备要求30级/);
 });
@@ -94,6 +93,56 @@ test('combined item requirements retain both clickable targets and their quantit
   assert.match(html, /data-id="item-10486">《惔神秘鉴·残》<\/button> × 1/);
   assert.equal((html.match(/<li>/g) || []).length, 2);
   assert.doesNotMatch(html, /另有武学、装备或剧情条件|消耗物品/);
+});
+
+test('known character restrictions use shared links while unknown owners stay unlinked', async () => {
+  const { createItemStatViews } = await load,
+    index = encyclopedia(),
+    entry = structuredClone(index.entries.find((row) => row.id === 'item-1029'));
+  entry.stats.requirements = [
+    { type: 'OnlyDesignatedNPC', id: 10016, value: 1 },
+    { type: 'ExcludeNPC', id: 999999, value: 1 },
+  ];
+  const { createEntityReferences } = await import(
+    pathToFileURL(path.join(__dirname, '../src/renderer/entity-references.js')).href
+  );
+  const references = createEntityReferences({
+    index: () => index,
+    esc,
+    picture: (id) => `<span data-picture="${esc(id)}"></span>`,
+    icon: esc,
+    qualityText: { html: (_id, label) => label },
+  });
+  const view = createItemStatViews({ esc, act: references.button, richText: references.text });
+  const html = view.detail(index, entry);
+  assert.match(html, /仅限：<button[^>]+data-entity-id="npc-10016"[^>]*>.*江吟风<\/span><\/button>/);
+  assert.match(html, /不适用人物 · 1 位<\/summary><p>未收录人物/);
+  assert.doesNotMatch(html, /data-id="npc-999999"|#999999|&lt;button/);
+  let checked = 0;
+  for (const item of index.entries.filter((row) => row.kind === '物品' && row.stats)) {
+    const restrictions = item.stats.requirements.filter((r) =>
+      ['OnlyDesignatedNPC', 'ExcludeNPC'].includes(r.type),
+    );
+    if (!restrictions.length) continue;
+    const rendered = view.detail(index, item);
+    for (const r of restrictions) {
+      const id = 'npc-' + r.id;
+      if (index.entries.some((row) => row.id === id)) {
+        assert.ok(rendered.includes(`data-entity-id="${id}"`), `${item.id} must retain ${id}`);
+        checked++;
+      } else assert.ok(!rendered.includes(`data-entity-id="${id}"`));
+    }
+  }
+  assert.ok(checked > 10);
+  const namesake = view.detail(
+    index,
+    index.entries.find((row) => row.id === 'item-307'),
+  );
+  assert.match(namesake, /data-entity-id="npc-5029"/);
+  assert.doesNotMatch(namesake, /data-entity-id="name:莫弃"/);
+  assert.match(namesake, /<details class="item-excluded-people"><summary>不适用人物/);
+  assert.match(namesake, /\d+ 位人物资料未收录/);
+  assert.doesNotMatch(namesake, /未收录人物、未收录人物|另有学习或剧情效果/);
 });
 
 test('weapon type conditions and learning targets use verified names without inventing equipment checks', async () => {
@@ -112,19 +161,18 @@ test('weapon type conditions and learning targets use verified names without inv
       index.entries.find((e) => e.id === 'item-' + id),
     );
     assert.ok(html.includes('兵器类型条件：' + type));
-    assert.match(html, /具体检查范围尚未核定/);
     assert.match(html, /学习武学/);
     assert.doesNotMatch(html, /必须装备|需要装备|装备剑|装备拳套|学习后.{0,8}1级/);
     if (id === 314) assert.match(html, /data-id="skill-109">天外飞仙剑<\/button>/);
     if (id === 330) assert.match(html, /data-id="skill-483">琢玉手<\/button>/);
     if (id === 324) {
-      assert.match(html, /武学 #130（当前图鉴未收录详情/);
+      assert.match(html, /学习武学：未收录武学/);
       assert.doesNotMatch(html, /data-id="skill-130"/);
     }
   }
 });
 
-test('skill level and inner cultivation checks retain objects and parameters without invented comparisons', async () => {
+test('skill level and inner cultivation checks retain named objects and unresolved conditions without invented comparisons', async () => {
   const { createItemStatViews } = await load,
     index = encyclopedia(),
     view = createItemStatViews({ esc, act });
@@ -133,18 +181,14 @@ test('skill level and inner cultivation checks retain objects and parameters wit
     index.entries.find((e) => e.id === 'item-13866'),
   );
   assert.match(html, /学习武学：<button[^>]+data-id="skill-866">五恒天经<\/button>/);
-  assert.match(
-    html,
-    /武学等级条件：<button[^>]+data-id="skill-885">五恒天经<\/button>（武学编号 885）；资料参数 1（比较方式尚未核定）/,
-  );
-  assert.match(html, /学习动作参数：1；初始等级与重复使用效果尚未核定/);
-  assert.doesNotMatch(html, /至少|等于|达到|1 级|1级|未学习/);
+  assert.match(html, /武学等级条件：<button[^>]+data-id="skill-885">五恒天经<\/button> · 判定条件待确认/);
+  assert.doesNotMatch(html, /至少|等于|达到|1 级|1级|未学习|武学编号|学习动作参数|资料参数/);
   const inner = view.detail(
     index,
     index.entries.find((e) => e.id === 'item-307'),
   );
-  assert.match(inner, /内功检查：对象编号 0；资料参数 5（检查范围与比较方式尚未核定）/);
-  assert.doesNotMatch(inner, /至少|等于|内功.{0,8}5级|内功.{0,8}5 级/);
+  assert.match(inner, /内功条件待确认/);
+  assert.doesNotMatch(inner, /至少|等于|内功.{0,8}5级|内功.{0,8}5 级|对象编号|资料参数/);
 });
 
 test('quest conditions retain available links and missing references remain explicit', async () => {
@@ -159,7 +203,8 @@ test('quest conditions retain available links and missing references remain expl
     prior,
     /前置任务条件：<button[^>]+data-action="world-quest"[^>]+data-id="quest-28003">查看青云扇法<\/button>/,
   );
-  assert.match(prior, /任务编号 28003）；资料参数 1（对应状态尚未核定）/);
+  assert.match(prior, /所需状态待确认/);
+  assert.doesNotMatch(prior, /任务编号|资料参数/);
   for (const [id, quest] of [
     [10424, 30129],
     [10451, 24103],
@@ -168,13 +213,13 @@ test('quest conditions retain available links and missing references remain expl
       index,
       index.entries.find((e) => e.id === 'item-' + id),
     );
-    assert.ok(html.includes('任务排除条件：任务 #' + quest));
-    assert.match(html, /资料参数 0（对应状态尚未核定）/);
+    assert.ok(html.includes('任务排除条件：未收录任务'));
+    assert.match(html, /所需状态待确认/);
     assert.doesNotMatch(html, new RegExp('data-id="quest-' + quest + '"'));
   }
 });
 
-test('unknown conditions and absent entries preserve safe reference parameters', async () => {
+test('unknown conditions and absent entries remain safe without exposing implementation parameters', async () => {
   const { createItemStatViews } = await load,
     index = encyclopedia(),
     entry = structuredClone(index.entries.find((e) => e.id === 'item-10460'));
@@ -185,12 +230,14 @@ test('unknown conditions and absent entries preserve safe reference parameters',
     { type: 'WeaponRequirement', id: 0, value: 99 },
   ];
   const html = createItemStatViews({ esc, act }).detail(index, entry);
-  assert.match(html, /物品 #999998 × 2/);
-  assert.match(html, /武学 #999999（当前图鉴未收录详情/);
-  assert.match(html, /学习动作参数：3/);
-  assert.match(html, /其他使用条件（&lt;img[^<]+&gt;）：对象编号 999997；资料参数 7/);
-  assert.match(html, /兵器类型条件：未识别类型（资料参数 99/);
-  assert.doesNotMatch(html, /<img|data-id="(?:item-999998|skill-999999)"/);
+  assert.match(html, /未收录物品 × 2/);
+  assert.match(html, /学习武学：未收录武学/);
+  assert.match(html, /其他使用条件待确认/);
+  assert.match(html, /兵器类型条件：未识别类型/);
+  assert.doesNotMatch(
+    html,
+    /<img|data-id="(?:item-999998|skill-999999)"|学习动作参数|对象编号|资料参数|#\d+/,
+  );
   const hostile = structuredClone(index);
   hostile.entries.find((e) => e.id === 'skill-109').name = '<svg onload=evil()>武学';
   const learned = createItemStatViews({ esc, act }).detail(

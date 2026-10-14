@@ -2,9 +2,7 @@
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
-const {
-  _electron,
-} = require('playwright');
+const { _electron } = require('playwright');
 const { Store } = require('../src/core/store.cjs'),
   { Timeline } = require('../src/core/timeline.cjs'),
   { Saves, sha } = require('../src/core/saves.cjs');
@@ -69,7 +67,21 @@ let app, child;
       if (/^https?:/.test(r.url())) report.externalRequests.push(r.url());
     });
     await win.locator('.layout').waitFor();
-    await win.locator('.save-health').first().filter({ hasText: '完整备份守护中' }).waitFor();
+    const backupDeadline = Date.now() + 20000;
+    while (true) {
+      const status = (await win.evaluate(() => window.journal.refresh())).data;
+      if (
+        status.health.backupStatus === 'watching' &&
+        status.health.protection.ready &&
+        status.backups.length === 1
+      )
+        break;
+      assert.ok(Date.now() < backupDeadline, 'the first automatic backup completes');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    const overview = (await win.evaluate(() => window.journal.refresh())).data;
+    assert.equal(overview.userData, data);
+    assert.equal(overview.backupRoot, fs.realpathSync(path.join(data, 'save-backups')));
     const backups = new Saves(path.join(data, 'save-backups'));
     assert.equal(backups.list().length, 1);
     assert.equal(sha(backups.verify(backups.list()[0].id).buffers.get('29.sav')), before);
@@ -132,6 +144,7 @@ let app, child;
     const settings = JSON.parse(fs.readFileSync(path.join(data, 'journal.json'))).settings;
     assert.deepEqual(settings.shortcuts, { save: 'Control+Alt+Shift+Q', history: '' });
     await win.locator('.nav-btn[data-id="home"]').click();
+    await win.locator('.home-optional > summary').click();
     await win.locator('#note').fill('托盘退出前的笔记');
     await win.locator('[data-action="window-close"]').click();
     assert.equal(

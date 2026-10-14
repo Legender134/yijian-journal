@@ -204,6 +204,15 @@ test('same-person same-item gift priorities keep each intent distinguishable bef
   assert.equal(a.items[0].beforeDirect, 1);
   assert.equal(a.items[0].afterDirect, 0);
   assert.equal(b.items[0].afterDirect, 1);
+  for (const row of [a, b]) {
+    assert.equal(row.gift.npcId, 'npc-1');
+    assert.equal(row.gift.itemId, 'item-10216');
+    assert.equal(row.name, '赠予' + row.gift.npcName + ' · ' + row.gift.itemName);
+    assert.deepEqual(
+      row.gift,
+      resourceBudget(p, ref).priorityOwners.find((owner) => owner.id === row.id).gift,
+    );
+  }
   assert.deepEqual(
     resourceBudget({ ...p, resourcePriority: order }, ref).priorityOwners.map((row) => row.description),
     [b.description, a.description],
@@ -231,4 +240,163 @@ test('same-person same-item gift priorities keep each intent distinguishable bef
   assert(html.includes('&lt;原样&gt;'));
   assert.equal(html.includes('<原样>'), false);
   assert.deepEqual(p, before);
+});
+
+test('priority preview links known allocated items and each alternative without multiplying the group shortage', async () => {
+  const { createResourcePriorityViews } = await import(
+    'data:text/javascript;base64,' +
+      Buffer.from(
+        fs.readFileSync(path.join(__dirname, '../src/renderer/resource-priority-views.js'), 'utf8'),
+      ).toString('base64')
+  );
+  const esc = (value) =>
+    String(value).replace(
+      /[&<>"']/g,
+      (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char],
+    );
+  const links = [];
+  const views = createResourcePriorityViews({
+    esc,
+    act: (action, label, cls, id) => {
+      if (action === 'database-detail') links.push({ label, cls, id });
+      return `<button data-action="${action}" data-id="${esc(id || '')}">${label}</button>`;
+    },
+    notice: String,
+    when: String,
+  });
+  const group = { name: '可替代原料', ids: [9, 10, 999], count: 4 };
+  const preview = {
+    inventoryAvailable: true,
+    afterOrder: ['a'],
+    changes: [
+      {
+        id: 'a',
+        name: '合成计划',
+        kind: 'craft',
+        beforeMissing: [group],
+        afterMissing: [group],
+        items: [
+          { id: 9, beforeDirect: 2, afterDirect: 1, beforeProcessing: 0, afterProcessing: 1 },
+          { id: 999, beforeDirect: 0, afterDirect: 0, beforeProcessing: 1, afterProcessing: 0 },
+        ],
+      },
+    ],
+  };
+  const before = structuredClone(preview);
+  const html = views.editor(
+    { order: ['a'], preview },
+    {
+      entries: [
+        { id: 'item-9', name: '铁矿石 <原样>' },
+        { id: 'item-10', name: '精铁矿石' },
+      ],
+    },
+  );
+  assert.deepEqual(
+    links.map((link) => link.id),
+    ['item-9', 'item-9', 'item-10'],
+  );
+  assert(links.every((link) => link.cls === 'text-btn'));
+  assert.equal(links[0].label, '铁矿石 &lt;原样&gt;');
+  assert.match(html, /直接材料缺口 4 → 4/);
+  assert.match(html, /直接分配 2 → 1 · 加工另占 0 → 1/);
+  assert.match(html, /物品 #999还缺 4 · 可替代材料组总缺量/);
+  assert.equal((html.match(/还缺 4/g) || []).length, 1);
+  assert.equal(html.includes('data-id="item-999"'), false);
+  assert.deepEqual(preview, before);
+});
+
+test('gift purpose and preview titles link their exact identities while personal plan names stay literal', async () => {
+  const { createResourcePriorityViews } = await import(
+    'data:text/javascript;base64,' +
+      Buffer.from(
+        fs.readFileSync(path.join(__dirname, '../src/renderer/resource-priority-views.js'), 'utf8'),
+      ).toString('base64')
+  );
+  const esc = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char],
+    );
+  const index = {
+      entries: [
+        { id: 'npc-1', kind: '人物', name: '同名人物' },
+        { id: 'npc-2', kind: '人物', name: '同名人物' },
+        { id: 'item-9', kind: '物品', name: '同名物品' },
+        { id: 'item-10', kind: '物品', name: '同名物品' },
+      ],
+    },
+    gift = {
+      npcId: 'npc-2',
+      npcName: '同名人物（资料 2/2）',
+      itemId: 'item-10',
+      itemName: '同名物品（蓝色品质）',
+    },
+    name = '赠予' + gift.npcName + ' · ' + gift.itemName,
+    changes = [
+      { id: '@gift:one', kind: 'gift', name, gift, description: '第1份赠礼 · 2件 · <原样>' },
+      { id: 'private-plan', kind: 'craft', name: name + ' <私人标题>' },
+    ].map((row) => ({ ...row, items: [], beforeMissing: [], afterMissing: [] })),
+    summary = { explicitPriority: true, priorityOwners: changes },
+    draft = {
+      order: changes.map((row) => row.id),
+      preview: { changes, afterOrder: changes.map((row) => row.id) },
+    },
+    before = structuredClone({ summary, draft }),
+    links = [],
+    views = createResourcePriorityViews({
+      esc,
+      act: (action, label, cls, id) => {
+        if (action === 'database-detail') links.push({ action, label, cls, id });
+        return `<button data-action="${action}" data-id="${esc(id)}">${label}</button>`;
+      },
+      notice: esc,
+      when: esc,
+      getIndex: () => index,
+    });
+  const entry = views.entry(summary);
+  assert.deepEqual(
+    links.map((link) => link.id),
+    ['npc-2', 'item-10'],
+  );
+  assert.match(entry, /资料 2\/2/);
+  assert.match(entry, /蓝色品质/);
+  assert(entry.includes(esc(changes[1].name)));
+  links.length = 0;
+  const html = views.editor(draft, index);
+  assert.deepEqual(
+    links.map((link) => link.id),
+    ['npc-2', 'item-10', 'npc-2', 'item-10'],
+  );
+  assert(links.every((link) => link.cls === 'text-btn'));
+  assert.match(
+    html,
+    /aria-label="上移 赠予同名人物（资料 2\/2） · 同名物品（蓝色品质） · 第1份赠礼 · 2件 · &lt;原样&gt;"/,
+  );
+  assert.equal(
+    (html.match(/赠予同名人物（资料 2\/2） · 同名物品（蓝色品质） &lt;私人标题&gt;/g) || []).length,
+    4,
+  );
+  assert.doesNotMatch(html, /data-id="(?:npc-1|item-9|name:[^"]+)"/);
+  links.length = 0;
+  const unknown = views.editor(draft, { entries: [] });
+  assert.equal(links.length, 0);
+  assert(unknown.includes(esc(name)));
+  links.length = 0;
+  const waiting = views.editor(
+    {
+      ...draft,
+      preview: null,
+      owners: Object.fromEntries(changes.map((row) => [row.id, row])),
+      loading: true,
+    },
+    index,
+  );
+  assert.deepEqual(
+    links.map((link) => link.id),
+    ['npc-2', 'item-10'],
+  );
+  assert.match(waiting, /aria-label="上移 [^"]+" disabled/);
+  assert.doesNotMatch(waiting, /确认前的材料分配变化|直接材料缺口/);
+  assert.deepEqual({ summary, draft }, before);
 });

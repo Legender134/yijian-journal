@@ -9,6 +9,7 @@ const { Store } = require('../src/core/store.cjs');
 const { syntheticSave } = require('../tests/fixtures.cjs');
 const { stableId } = require('../src/core/journey-plan.cjs');
 const catalog = require('../src/data/catalog.cjs');
+const { selectProgress } = require('./progress-settings.cjs');
 const base = path.resolve(__dirname, '..');
 const expectedExecutable = path.join(
   base,
@@ -128,6 +129,8 @@ async function compact() {
   await page.locator('.topbar [data-action="compact"]').click();
   companion = await made;
   companion.on('pageerror', (e) => errors.push(e.message));
+  await companion.locator('.compact-shell').waitFor();
+  await companion.locator('[data-compact-detail="flow-personal"] > summary').click();
   await companion.locator('[data-companion-itinerary]').waitFor();
   await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()
@@ -177,6 +180,7 @@ async function shot(name, target = page) {
     await companion.locator(`[data-journey-id="${stableId('quest', ['quest-11078'])}"]`).waitFor();
     await shot('02-compact-continues', companion);
     await companion.locator('.companion-tabs [data-action="navigate"][data-id="home"]').click();
+    await companion.locator('[data-compact-detail="flow-personal"] > summary').click();
     await companion.locator('[data-companion-itinerary]').waitFor();
     await companion
       .locator(`[data-itinerary-next="${anchor}"] [data-action="journey-itinerary-handle"]`)
@@ -272,6 +276,7 @@ async function shot(name, target = page) {
       [anchor, otherAnchor],
     );
     await companion.locator('.companion-tabs [data-action="navigate"][data-id="home"]').click();
+    await companion.locator('[data-compact-detail="flow-personal"] > summary').click();
     await companion.locator('[data-companion-itinerary]').waitFor();
     await companion
       .locator(`[data-itinerary-next="${otherAnchor}"] [data-action="journey-itinerary-handle"]`)
@@ -313,7 +318,7 @@ async function shot(name, target = page) {
     );
 
     await nav('materials');
-    await page.locator('#craft-save').selectOption('1.sav');
+    await selectProgress(page, '1.sav');
     await page.locator('[data-action="craft-calculate"]').click();
     const stage = page.locator('[data-craft-stage="fusion-1001"]');
     await stage.waitFor();
@@ -360,7 +365,7 @@ async function shot(name, target = page) {
     assert.match(text, /白色/);
     assert.match(text, /绿色/);
     assert.match(text, /蓝色/);
-    assert.match(text, /不表示会同时得到全部结果/);
+    assert.match(text, /各候选不会全部同时获得/);
     assert(!text.includes('预计产物'));
     await shot('06-alternative-quality-output');
     checks.push('real multi-quality recipe labels alternative outputs without simultaneous guaranteed yield');
