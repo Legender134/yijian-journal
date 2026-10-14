@@ -1,5 +1,5 @@
 // Deleted personal arrangements are distinct from the journal of past events.
-export function createJourneyTrashViews({ esc, act, when }) {
+export function createJourneyTrashViews({ esc, act, when, placeLabel = (place) => place.name }) {
   const kinds = {
     place: '地点打算',
     todo: '个人待办',
@@ -9,12 +9,18 @@ export function createJourneyTrashViews({ esc, act, when }) {
     itinerary: '本次行程完整副本',
   };
   function sourceName(index, id) {
+    if ((index.world?.maps || []).filter((row) => row.id === id).length > 1) return '原地点（场景待核对）';
     const place = index.world?.maps.find((row) => row.id === id);
-    if (place) return place.name + ' · 场景 #' + place.gameId;
+    if (place) return placeLabel(place, index.world.maps);
     const entry = index.entries?.find((row) => row.id === id);
     return entry
       ? entry.name + (entry.quality ? ' · ' + entry.quality + '色品质' : '')
       : '原引用需要重新核对';
+  }
+  function sourceLink(index, id) {
+    const rows = [...(index.world?.maps || []), ...(index.entries || [])].filter((row) => row.id === id);
+    const label = esc(sourceName(index, id));
+    return rows.length === 1 ? act('archive-entity', label, 'text-btn', id) : label;
   }
   function goalSourceName(source, index) {
     if (source.type === 'planner') return source.id === 'current' ? '当时的编辑清单' : '已保存的独立备料计划';
@@ -23,6 +29,14 @@ export function createJourneyTrashViews({ esc, act, when }) {
     if (source.type === 'quest')
       return index.world?.quests.find((row) => row.id === source.id)?.name || '原任务需要重新核对';
     return sourceName(index, source.id);
+  }
+  function goalSourceLink(source, index) {
+    if (source.type === 'database') return sourceLink(index, source.id);
+    const label = esc(goalSourceName(source, index));
+    return source.type === 'quest' &&
+      (index.world?.quests || []).filter((row) => row.id === source.id).length === 1
+      ? act('archive-entity', label, 'text-btn', source.id)
+      : label;
   }
   function goalSourceQuantity(source) {
     if (source.type !== 'database') return '';
@@ -39,6 +53,12 @@ export function createJourneyTrashViews({ esc, act, when }) {
       : row.kind === 'place'
         ? sourceName(index, record.placeId)
         : '赠予 ' + sourceName(index, record.npcId) + '：' + sourceName(index, record.itemId);
+  }
+  function titleHtml(row, index) {
+    if (row.kind === 'place') return sourceLink(index, row.record.placeId);
+    if (row.kind === 'gift')
+      return '赠予 ' + sourceLink(index, row.record.npcId) + '：' + sourceLink(index, row.record.itemId);
+    return esc(title(row, index));
   }
   function craftContent(record, index) {
     return [
@@ -57,6 +77,23 @@ export function createJourneyTrashViews({ esc, act, when }) {
       .filter(Boolean)
       .join('\n');
   }
+  function craftDetail(record, index) {
+    return `<p class="preserve-text">${[
+      ...record.list.map(
+        (line) => `配方：${sourceLink(index, line.id)} · ${esc(line.id)} · 制作次数 ${esc(line.quantity)}`,
+      ),
+      ...Object.entries(record.choices || {}).map(
+        ([itemId, recipeId]) =>
+          `加工选择：${sourceLink(index, 'item-' + itemId)} · item-${esc(itemId)} → ${sourceLink(index, recipeId)} · ${esc(recipeId)}`,
+      ),
+      !Object.keys(record.choices || {}).length ? '未指定加工选择，核对时按当前配方规则计算' : '',
+      record.reserved === false ? '原预留偏好：不保留材料' : '原预留偏好：保留材料',
+      record.done ? '原计划为整份已制作完成 · 用料已释放' : '原计划为尚未完成',
+      `创建于 ${when(record.createdAt)} · 更新于 ${when(record.updatedAt)}`,
+    ]
+      .filter(Boolean)
+      .join('\n')}</p>`;
+  }
   function content(row, index) {
     return row.kind === 'itinerary'
       ? itineraryContent(row.record, index)
@@ -64,11 +101,29 @@ export function createJourneyTrashViews({ esc, act, when }) {
         ? craftContent(row.record, index)
         : row.record.detail || row.record.note || '';
   }
+  function summaryHtml(row, index) {
+    if (row.kind === 'craft-plan') {
+      const list = row.record.list;
+      return (
+        list
+          .slice(0, 2)
+          .map((line) => `${sourceLink(index, line.id)} × ${esc(line.quantity)}`)
+          .join(' · ') + (list.length > 2 ? ` · 另有 ${list.length - 2} 种配方` : '')
+      );
+    }
+    if (row.kind === 'itinerary') return `${row.record.steps.length} 项选择 · ${statuses[row.record.status]}`;
+    return esc(content(row, index).slice(0, 140));
+  }
   const statuses = { draft: '尚未出发', active: '正在进行', ended: '已结束' };
   function itinerarySource(source, index) {
     const kind = { user: '个人安排', quest: '任务', database: '图鉴' }[source.type];
     const label = source.type === 'user' ? '' : goalSourceName(source, index) + ' · ';
     return `${kind}：${label}${source.id} · ${source.field}`;
+  }
+  function itinerarySourceHtml(source, index) {
+    const kind = { user: '个人安排', quest: '任务', database: '图鉴' }[source.type];
+    const label = source.type === 'user' ? '' : goalSourceLink(source, index) + ' · ';
+    return `${esc(kind)}：${label}${esc(source.id)} · ${esc(source.field)}`;
   }
   function itineraryContent(record, index) {
     return [
@@ -92,11 +147,11 @@ export function createJourneyTrashViews({ esc, act, when }) {
     return `<section class="detail-block itinerary-recovery-detail"><h3>${esc(heading)}</h3><p class="preserve-text">行程名称：${esc(record.name)} · ${statuses[record.status]} · ${record.steps.length} 项选择</p>${record.steps
       .map((step, at) => {
         const sourceDetails = [
-          `原行动：${step.actionId}`,
-          ...(step.continuationId ? [`原接续行动：${step.continuationId}`] : []),
-          ...step.sources.map((source) => itinerarySource(source, index)),
+          `原行动：${esc(step.actionId)}`,
+          ...(step.continuationId ? [`原接续行动：${esc(step.continuationId)}`] : []),
+          ...step.sources.map((source) => itinerarySourceHtml(source, index)),
         ].join('\n');
-        return `<div class="mb"><h4 class="preserve-text">${at + 1}. ${esc(step.title)}</h4><p class="small">${step.placeId ? '确切资料场景：' + esc(sourceName(index, step.placeId)) + ' · ' + esc(step.placeId) : '未选择资料场景'}<br>${step.skipped ? '仅本次跳过' : '本次未跳过'} · ${step.progressMode === 'save' ? '按当前存档参照核对进度' : '个人手动处理'}</p><details><summary>来源与接续</summary><p class="preserve-text small">${esc(sourceDetails)}</p></details></div>`;
+        return `<div class="mb"><h4 class="preserve-text">${at + 1}. ${esc(step.title)}</h4><p class="small">${step.placeId ? '确切资料场景：' + sourceLink(index, step.placeId) + ' · ' + esc(step.placeId) : '未选择资料场景'}<br>${step.skipped ? '仅本次跳过' : '本次未跳过'} · ${step.progressMode === 'save' ? '按当前存档参照核对进度' : '个人手动处理'}</p><details><summary>来源与接续</summary><p class="preserve-text small">${sourceDetails}</p></details></div>`;
       })
       .join('')}</section>`;
   }
@@ -105,16 +160,16 @@ export function createJourneyTrashViews({ esc, act, when }) {
     if (row.kind === 'itinerary')
       return `${itineraryDetail(record, index, { heading: record.name })}<p class="small muted">本次行程完整副本 · ${preview ? '准备保留，尚未确认' : '保留于 ' + when(row.deletedAt)}</p><p class="save-note">找回时仅替换本次行程的名称、状态、顺序、确切场景与本次跳过选择；当前行程先留作可找回副本。后来保存的待办、赠礼、目标、手记继续保留；个人已处理按当前状态保留，游戏进度按当前参照重新核对。</p>`;
     if (row.kind === 'craft-plan')
-      return `<section class="detail-block"><h3 class="preserve-text">${esc(record.name)}</h3><p class="small muted">制作计划 · ${preview ? '准备移除，尚未确认' : '移除于 ' + when(row.deletedAt)}</p><p class="preserve-text">${esc(craftContent(record, index))}</p><p class="save-note">找回为独立保存的计划，不自动打开或改变当前编辑清单及其加工选择、预留设置；按当前参照重新核对共享用料，不重放完成事件或重新关联历史记录。</p></section>`;
+      return `<section class="detail-block"><h3 class="preserve-text">${esc(record.name)}</h3><p class="small muted">制作计划 · ${preview ? '准备移除，尚未确认' : '移除于 ' + when(row.deletedAt)}</p>${craftDetail(record, index)}<p class="save-note">找回为独立保存的计划，不自动打开或改变当前编辑清单及其加工选择、预留设置；按当前参照重新核对共享用料，不重放完成事件或重新关联历史记录。</p></section>`;
     const goalSource =
       row.kind === 'goal' && record.source
-        ? `<p class="small muted">原资料：${esc({ guide: '线索', quest: '任务', database: '图鉴', planner: '备料计划' }[record.source.type])} · ${esc(goalSourceName(record.source, index))}${goalSourceQuantity(record.source)}</p>`
+        ? `<p class="small muted">原资料：${esc({ guide: '线索', quest: '任务', database: '图鉴', planner: '备料计划' }[record.source.type])} · ${goalSourceLink(record.source, index)}${goalSourceQuantity(record.source)}</p>`
         : '';
     const goalState =
       row.kind === 'goal'
         ? `<p class="small muted">${record.pinned ? '原目标已置顶' : '原目标未置顶'}${record.progressMode ? ' · ' + (record.progressMode === 'auto' ? '按存档自动跟踪' : '手动管理进度') : ''}${record.createdAt ? ' · 创建于 ' + when(record.createdAt) : ''}</p>`
         : '';
-    return `<section class="detail-block"><h3>${esc(title(row, index))}</h3><p class="small muted">${esc(kinds[row.kind])} · ${preview ? '准备移除，尚未确认' : '移除于 ' + when(row.deletedAt)}</p>${row.kind === 'gift' ? `<p>精确品质物品 × ${record.quantity}</p>` : ''}${row.kind !== 'place' && record.placeId ? `<p>${esc(sourceName(index, record.placeId))}</p>` : ''}<p>${record.done ? '原记录为个人已完成' : '原记录为尚未完成'}${row.kind === 'place' ? ' · ' + (record.favorite ? '原记录优先显示此地点' : '原记录未优先显示') : ''}</p>${goalState}${goalSource}<p class="preserve-text">${esc(record.detail || record.note || '')}</p><p class="save-note">恢复后以当前参照重新核对物资用途；不恢复游戏状态或重放完成事件。</p></section>`;
+    return `<section class="detail-block"><h3>${titleHtml(row, index)}</h3><p class="small muted">${esc(kinds[row.kind])} · ${preview ? '准备移除，尚未确认' : '移除于 ' + when(row.deletedAt)}</p>${row.kind === 'gift' ? `<p>精确品质物品 × ${esc(record.quantity)}</p>` : ''}${row.kind !== 'place' && record.placeId ? `<p>${sourceLink(index, record.placeId)}</p>` : ''}<p>${record.done ? '原记录为个人已完成' : '原记录为尚未完成'}${row.kind === 'place' ? ' · ' + (record.favorite ? '原记录优先显示此地点' : '原记录未优先显示') : ''}</p>${goalState}${goalSource}<p class="preserve-text">${esc(record.detail || record.note || '')}</p><p class="save-note">恢复后以当前参照重新核对物资用途；不恢复游戏状态或重放完成事件。</p></section>`;
   }
   function entry(p) {
     return p.journeyTrash?.length
@@ -134,7 +189,7 @@ export function createJourneyTrashViews({ esc, act, when }) {
         .slice((page - 1) * 20, page * 20)
         .map(
           (row) =>
-            `<article class="detail-block" data-journey-trash-id="${esc(row.id)}"><h3>${esc(title(row, index))}</h3><p class="small muted">${esc(kinds[row.kind])} · ${when(row.deletedAt)}</p><p class="preserve-text small">${esc(content(row, index).slice(0, 140))}</p><div class="row wrap">${act(prefix + '-detail', '查看完整内容', 'btn', (readOnly ? p.id + '|' : '') + row.id)}${readOnly ? '' : act('journey-trash-restore-preview', row.kind === 'itinerary' ? '找回这一程…' : '找回这项安排…', 'btn primary', row.id) + (row.kind === 'goal' ? act('journey-trash-copy-goal-preview', '按原文字另存为独立目标…', 'btn', row.id) : '') + act('journey-trash-purge-preview', '永久清除…', 'text-btn', row.id)}</div></article>`,
+            `<article class="detail-block" data-journey-trash-id="${esc(row.id)}"><h3>${titleHtml(row, index)}</h3><p class="small muted">${esc(kinds[row.kind])} · ${when(row.deletedAt)}</p><p class="preserve-text small">${summaryHtml(row, index)}</p><div class="row wrap">${act(prefix + '-detail', '查看完整内容', 'btn', (readOnly ? p.id + '|' : '') + row.id)}${readOnly ? '' : act('journey-trash-restore-preview', row.kind === 'itinerary' ? '找回这一程…' : '找回这项安排…', 'btn primary', row.id) + (row.kind === 'goal' ? act('journey-trash-copy-goal-preview', '按原文字另存为独立目标…', 'btn', row.id) : '') + act('journey-trash-purge-preview', '永久清除…', 'text-btn', row.id)}</div></article>`,
         )
         .join('') || '<p class="small muted">没有匹配的已移除安排。</p>'
     }<div class="row wrap">${page > 1 ? act(prefix + '-page', '上一页', 'btn', (readOnly ? p.id + '|' : '') + (page - 1)) : ''}${page < pages ? act(prefix + '-page', '下一页', 'btn', (readOnly ? p.id + '|' : '') + (page + 1)) : ''}</div></section>`;

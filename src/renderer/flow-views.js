@@ -19,14 +19,14 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     return id ? button('flow-quest', label, id) : '';
   };
   const statusPill = (status) => {
-    const labels = { met: '已核对满足', unmet: '尚未满足', unknown: '待核对' };
+    const labels = { met: '已满足', unmet: '未满足', unknown: '未确认' };
     return pill(labels[status] || '待核对', status === 'met' ? 'green' : status === 'unmet' ? 'orange' : '');
   };
   function conditions(rows) {
     const items = list(rows);
     return items.length
       ? `<ul class="flow-conditions">${items
-          .map((row) => `<li><span>${text(row.text)}</span>${statusPill(row.status)}</li>`)
+          .map((row) => `<li><span>${prose(row.text)}</span>${statusPill(row.status)}</li>`)
           .join('')}</ul>`
       : '';
   }
@@ -36,17 +36,17 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const name = value.name || value.label || '';
     return new RegExp(`^${prefix}-\\d+$`).test(String(value.id || ''))
       ? button(action, name, value.id)
-      : text(name);
+      : prose(name);
   }
   function sources(rows) {
     const items = list(rows);
     return items.length
-      ? `<div class="flow-sources"><h4>来源与参考版本</h4>${items
+      ? `<details class="flow-sources"><summary>资料来源</summary>${items
           .map(
             (source) =>
               `<p>${typeof source.id === 'string' && source.id ? button('source', source.title || '查看来源', source.id) : text(source.title || '来源待核对')}${source.date || source.version ? `<span class="small muted"> · ${[source.date, source.version].filter(Boolean).map(text).join(' · ')}</span>` : ''}</p>`,
           )
-          .join('')}</div>`
+          .join('')}</details>`
       : '';
   }
   function choiceMaterials(row) {
@@ -60,41 +60,39 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   function delivery(row) {
     const options = list(row.deliveryOptions);
     return options.length
-      ? `<section class="flow-delivery" data-flow-delivery><h4>这一类的交付项</h4><p class="small save-note">按当前路线选一项核对，不合计替代物品；持有数量不证明其他交付条件已满足。</p><ul>${options.map((option) => `<li>${button('database-detail', option.name, option.id)}<p class="small">资料需 ${text(option.required)} 件 · ${option.owned === null ? '保存持有待核对' : `保存持有 ${text(option.owned)} 件${option.owned < option.required ? ` · 数量还缺 ${text(option.required - option.owned)} 件` : ' · 数量已齐'}`}</p>${questButton(option.questId, '查看交付步骤')}</li>`).join('')}</ul></section>`
+      ? `<section class="flow-delivery" data-flow-delivery><h4>可交付物品</h4><p class="small save-note">选择其中一种交付。</p><ul>${options.map((option) => `<li>${button('database-detail', option.name, option.id)}<p class="small">需 ${text(option.required)} 件 · ${option.owned === null ? '持有量未知' : `持有 ${text(option.owned)} 件${option.owned < option.required ? ` · 数量还缺 ${text(option.required - option.owned)} 件` : ' · 数量已齐'}`}</p>${questButton(option.questId, '查看交付步骤')}</li>`).join('')}</ul></section>`
       : '';
   }
   function advancement(row) {
     const affected = list(row.affectedTasks);
     if (!affected.length) return '';
-    return `<div class="flow-affected" data-flow-affected><h4>推进后受影响的任务</h4><p class="small">触发：${text(row.deadlineLabel || row.triggerName || '见下列条件')}</p><ul>${affected.map((task) => `<li><strong>${questButton(task.questId, task.name) || text(task.name)}</strong>：${prose(task.effect)}${task.evidence ? `<p class="small save-note">${text(task.evidence)}</p>` : ''}</li>`).join('')}</ul></div>`;
+    return `<div class="flow-affected" data-flow-affected><h4>推进后影响</h4><ul>${affected.map((task) => `<li>${questButton(task.questId, task.name) || prose(task.name)}：${prose(task.effect)}</li>`).join('')}</ul></div>`;
   }
-  function rule(row, warning = false) {
+  function rule(row, warning = false, scope = 'rule') {
     const stage = row.kind === 'stage';
     const choices = list(row.choices);
     const steps = list(row.steps);
     const conditionRows = list(row.conditions);
-    const hasDetails = choices.length || steps.length || list(row.sources).length || row.uncertainty;
-    const stateLabel = {
-      done: '已完成',
-      failed: '已失败',
-      active: '进行中',
-      'not-started': '存档记录尚未开始',
-      'not-accepted': '存档记录未接取',
-      unrecorded: '尚待核对',
-      'conditions-partial': '部分条件满足 · 仍待核对',
-      'conditions-match': '已读取的条件匹配',
-    }[row.state];
+    const stateLabel = { done: '已完成', failed: '已失败', active: '进行中' }[row.state];
     const pickup = row.pickup || {};
     const location = target(pickup.place, 'world-place', 'place');
     const person = target(pickup.person, 'database-detail', 'npc');
-    const message = row.message || row.warning;
+    const message =
+      row.deadlineReached && !row.done && !row.failed
+        ? '已越过提示节点，请确认任务是否仍可继续。'
+        : row.compactWarning || row.message || row.warning || pickup.action;
+    const fullWarning =
+      row.warning && row.warning !== message
+        ? `<p class="flow-warning-detail">${prose(row.warning)}</p>`
+        : '';
     const pickupBody =
       location || person || pickup.action
-        ? `<div class="flow-pickup">${location || person ? `<p>${location ? `<span class="small muted">${stage ? '行动地点' : '接取地点'} </span>${location}` : ''}${location && person ? ' · ' : ''}${person ? `<span class="small muted">人物 </span>${person}` : ''}</p>` : ''}${pickup.action ? `<p><span class="small muted">${stage ? '接下来' : '怎么接'} </span>${prose(pickup.action)}</p>` : ''}${pickup.executionPlace ? `<p class="small"><span class="muted">接取后的目的地线索 </span>${text(pickup.executionPlace)}</p>` : ''}</div>`
+        ? `<div class="flow-pickup">${location || person ? `<p>${location}${location && person ? ' · ' : ''}${person}</p>` : ''}${pickup.action ? `<p>${prose(pickup.action)}</p>` : ''}${pickup.executionPlace ? `<p class="small">前往 ${prose(pickup.executionPlace)}</p>` : ''}</div>`
         : '';
+    const affected = list(row.affectedTasks);
     return persist(
-      `<article class="flow-rule${warning ? ' flow-risk' : ''}" data-flow-rule="${text(row.id || '')}"${warning ? ` data-flow-warning="${text(row.id || row.questId || '')}"` : ''}><div class="row between"><h3>${text(row.name || row.title || '任务线索')}</h3>${stateLabel ? pill(stateLabel, row.state === 'done' ? 'green' : row.state === 'failed' ? 'orange' : '') : ''}</div>${row.done || row.failed ? `<p class="small save-note">存档已记录${row.done ? '完成' : '失败'}；以下攻略供回顾，不表示全部分支均已经历。</p>` : ''}${message ? `<p class="flow-warning-message">${text(message)}</p>` : ''}${advancement(row)}${recommendation(row)}${delivery(row)}${row.deadlineReached && !row.done && !row.failed ? '<p class="small flow-warning-message">已到资料提示的推进边界，请先核对任务状态与来源。</p>' : ''}${warning ? '' : pickupBody + conditions(conditionRows) + questButton(row.questId || row.id)}${hasDetails ? `<details class="flow-rule-details"><summary>${warning ? (stage ? '行动地点、选择影响与来源' : '接取位置、选择影响与来源') : '查看步骤、选择影响与来源'}</summary>${warning ? pickupBody + conditions(conditionRows) + questButton(row.questId || row.id) : ''}${row.uncertainty ? `<p class="small save-note">${text(row.uncertainty)}</p>` : ''}${steps.length ? `<ol class="flow-guide-steps">${steps.map((step) => `<li>${prose(step)}</li>`).join('')}</ol>` : ''}${choices.length ? `<div class="flow-choices"><h4>选择与各自影响 · 涉及剧情</h4><dl>${choices.map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响尚待核对')}</dd>`).join('')}</dl></div>` : ''}${sources(row.sources)}</details>` : ''}</article>`,
-      'rule-' + row.id,
+      `<article class="flow-rule${warning ? ' flow-risk' : ''}" data-flow-rule="${text(row.id || '')}"${warning ? ` data-flow-warning="${text(row.id || row.questId || '')}"` : ''}><div class="row between"><h3>${prose(row.name || row.title || '任务线索')}</h3>${stateLabel ? pill(stateLabel, row.state === 'done' ? 'green' : row.state === 'failed' ? 'orange' : '') : ''}</div>${message ? `<p class="flow-warning-message">${prose(message)}</p>` : ''}<details class="flow-rule-details"><summary>做法与影响</summary>${fullWarning}${pickupBody}${row.deadlineLabel || row.triggerName ? `<p>截止：${prose(row.deadlineLabel || row.triggerName)}</p>` : ''}${affected.length ? advancement(row) : ''}${recommendation(row)}${delivery(row)}${conditions(conditionRows)}${steps.length ? `<ol class="flow-guide-steps">${steps.map((step) => `<li>${prose(step)}</li>`).join('')}</ol>` : ''}${choices.length ? `<div class="flow-choices"><h4>选择与影响</h4><dl>${choices.map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响未知')}</dd>`).join('')}</dl></div>` : ''}${questButton(row.questId || row.id)}${row.uncertainty ? `<details><summary>资料说明</summary><p class="small">${text(row.uncertainty)}</p></details>` : ''}${sources(row.sources)}</details></article>`,
+      'rule-' + scope + '-' + row.id,
     );
   }
   const routeName = (route) =>
@@ -136,7 +134,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       `<p class="small muted">${text(route.efficiency || '效率尚待核实')}</p>${sources(route.sources)}`;
     const routeList = (routes) =>
       routes.length
-        ? `<ul>${routes.map((route) => `<li><strong>${text(routeName(route))}</strong>${route.detail ? `<p>${text(route.detail)}</p>` : ''}${routeLinks(route)}${routeEvidence(route)}</li>`).join('')}</ul>`
+        ? `<ul>${routes.map((route) => `<li><strong>${prose(routeName(route))}</strong>${route.detail ? `<p>${prose(route.detail)}</p>` : ''}${routeLinks(route)}${routeEvidence(route)}</li>`).join('')}</ul>`
         : '';
     const items = list(rows);
     return items.length
@@ -167,13 +165,11 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
             const alternatives = routes.filter((route) => route.alternative);
             const first = primary[0];
             const preview = first
-              ? `<div class="flow-material-source"><p class="small"><span class="muted">主要来源 </span><strong>${text(routeName(first))}</strong>${first.detail ? `：${text(first.detail)}` : ''}</p>${routeLinks(first)}</div>`
+              ? `<div class="flow-material-source"><p class="small"><span class="muted">主要来源 </span><strong>${prose(routeName(first))}</strong>${first.detail ? `：${prose(first.detail)}` : ''}</p>${routeLinks(first)}</div>`
               : '<p class="small muted">暂无已知主要来源，可打开物品资料继续查找。</p>';
             return `<div class="flow-material"><div class="row between">${/^item-\d+$/.test(String(material.id || '')) ? button('database-detail', material.name, material.id) : text(material.name)}<span>${required === null ? '需求数量待核对' : `需 ${text(required)}`}${owned === null ? ' · 库存待核对' : ` · 持有 ${text(owned)}`}${missing === null ? ' · 缺口待核对' : missing > 0 ? ` · 缺 ${text(missing)}` : ` · ${stockStatus}`}</span></div>${preview}${routes.length ? `<details><summary>效率、来源依据与其他获取路线</summary>${first ? routeEvidence(first) : ''}${routeList(primary.slice(1))}${alternatives.length ? `<details class="flow-material-alternatives"><summary>其他商人线索 · ${alternatives.length} 处 · 可达与库存待核对</summary>${routeList(alternatives)}</details>` : ''}</details>` : ''}</div>`;
           })
-          .join(
-            '',
-          )}<p class="small save-note">持有量来自已保存进度；交付前仍需核对其他任务的留用数量。来源线索不保证当前可达或有货。</p></div>`
+          .join('')}</div>`
       : '';
   }
   function sharedMaterialSummary(rows) {
@@ -198,10 +194,17 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       : '';
   }
   function compactStepTargets(row) {
-    const people = list(row.people).map((person) => target(person, 'database-detail', 'npc'));
-    const places = list(row.places).map((place) => target(place, 'world-place', 'place'));
+    const action = prose(row.nextAction || row.description);
+    // Keep an exact target when prose only resolves to a namesake chooser.
+    const unlinked = (entry) => !entry.id || !action.includes(`data-entity-id="${text(entry.id)}"`);
+    const people = list(row.people)
+      .filter(unlinked)
+      .map((person) => target(person, 'database-detail', 'npc'));
+    const places = list(row.places)
+      .filter(unlinked)
+      .map((place) => target(place, 'world-place', 'place'));
     return people.length || places.length
-      ? `<p class="flow-targets">${people.join('、')}${people.length && places.length ? ' · ' : ''}${places.length ? `${places.join('、')} <span class="small muted">地点线索</span>` : ''}</p>`
+      ? `<p class="flow-targets">${people.join('、')}${people.length && places.length ? ' · ' : ''}${places.join('、')}</p>`
       : '';
   }
   function compactMaterials(
@@ -273,13 +276,13 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   function step(row, rootId, { summaryInLead = false, sharedMaterials = [] } = {}) {
     const upcoming = list(row.upcoming);
     return persist(
-      `<div class="flow-step">${summaryInLead || row.id === rootId || row.name === row.nextAction ? '' : `<h4>${text(row.name || '当前步骤')}</h4>`}${summaryInLead ? '' : `<p class="flow-next-action"><span class="small muted">当前行动 </span>${prose(row.nextAction || row.description || '请打开任务资料，核对当前要求。')}</p>`}${row.description && row.description !== row.nextAction ? `<details><summary>任务说明 · 可能涉及剧情</summary><p class="preserve-text">${prose(row.description)}</p></details>` : ''}${summaryInLead ? '' : stepPeople(row) + stepPlaces(row)}${conditions(row.requirements)}${summaryInLead ? '' : materials(row.materials, sharedMaterials)}${upcoming.length ? `<details class="flow-upcoming"><summary>后续相关步骤与分支 · 涉及剧情</summary><ul>${upcoming.map((next) => `<li>${questButton(next.id, next.name) || text(next.name)}${next.reason ? `<p class="small muted">${text(next.reason)}</p>` : ''}</li>`).join('')}</ul><p class="small save-note">相关步骤只作核对线索，不代表已解锁或确定执行顺序。</p></details>` : ''}${row.id === rootId ? '' : questButton(row.id)}</div>`,
+      `<div class="flow-step">${summaryInLead || row.id === rootId || row.name === row.nextAction ? '' : `<h4>${questButton(row.id, row.name || '当前步骤') || prose(row.name || '当前步骤')}</h4>`}${summaryInLead ? '' : `<p class="flow-next-action"><span class="small muted">当前行动 </span>${prose(row.nextAction || row.description || '请打开任务资料，核对当前要求。')}</p>`}${row.description && row.description !== row.nextAction ? `<details><summary>任务说明 · 可能涉及剧情</summary><p class="preserve-text">${prose(row.description)}</p></details>` : ''}${summaryInLead ? '' : stepPeople(row) + stepPlaces(row)}${conditions(row.requirements)}${summaryInLead ? '' : materials(row.materials, sharedMaterials)}${upcoming.length ? `<details class="flow-upcoming"><summary>后续相关步骤与分支 · 涉及剧情</summary><ul>${upcoming.map((next) => `<li>${questButton(next.id, next.name) || text(next.name)}${next.reason ? `<p class="small muted">${text(next.reason)}</p>` : ''}</li>`).join('')}</ul></details>` : ''}</div>`,
       'step-' + row.id,
     );
   }
   function decision(row) {
     return persist(
-      `<aside class="flow-decision" data-flow-decision="${text(row.id)}"><h4>当前步骤有关键选择 · ${text(row.name)}</h4>${recommendation(row)}<p>${prose(row.warning || row.name)}</p><dl class="flow-choices">${list(
+      `<aside class="flow-decision" data-flow-decision="${text(row.id)}"><h4>当前步骤有关键选择 · ${questButton(row.questId, row.name) || prose(row.name)}</h4>${recommendation(row)}<p>${prose(row.warning || row.name)}</p><dl class="flow-choices">${list(
         row.choices,
       )
         .map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响待核对')}</dd>`)
@@ -298,7 +301,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       .map((row) => `${row.status} ${row.count}`)
       .join(' · ');
     return persist(
-      `<article class="flow-task" data-flow-quest="${text(task.id || '')}">${summaryInLead ? '' : `<div class="row between"><h3>${questButton(task.id, task.name) || text(task.name)}</h3>${pill(task.kind === 'Primary' ? '主线' : '支线', task.kind === 'Primary' ? 'green' : '')}</div>`}${steps.length ? steps.map((row, index) => step(row, task.id, { summaryInLead: summaryInLead && index === 0, sharedMaterials })).join('') : '<p class="small muted">这份存档只有任务记录，尚无可展示的当前步骤；请核对任务资料。</p>'}${progress.length ? `<details class="flow-task-progress"><summary>已记录的步骤 · ${text(counts)}</summary><ul class="flow-progress-list">${progress.map((row) => `<li>${questButton(row.id, row.name)}${pill(row.status, row.status === '已完成' ? 'green' : row.status === '已失败' ? 'orange' : '')}</li>`).join('')}</ul><p class="small save-note">只列本次已保存的步骤记录；列表不代表时间顺序或全部分支，未出现的步骤仍待核对。</p></details>` : ''}${summaryInLead ? '' : questButton(task.id)}</article>`,
+      `<article class="flow-task"${summaryInLead ? '' : ` data-flow-quest="${text(task.id || '')}"`}>${summaryInLead ? '' : `<div class="row between"><h3>${questButton(task.id, task.name) || text(task.name)}</h3>${pill(task.kind === 'Primary' ? '主线' : '支线', task.kind === 'Primary' ? 'green' : '')}</div>`}${steps.length ? steps.map((row, index) => step(row, task.id, { summaryInLead: summaryInLead && index === 0, sharedMaterials })).join('') : '<p class="small muted">这份存档只有任务记录，尚无可展示的当前步骤；请核对任务资料。</p>'}${progress.length ? `<details class="flow-task-progress"><summary>已记录的步骤 · ${text(counts)}</summary><ul class="flow-progress-list">${progress.map((row) => `<li>${questButton(row.id, row.name)}${pill(row.status, row.status === '已完成' ? 'green' : row.status === '已失败' ? 'orange' : '')}</li>`).join('')}</ul></details>` : ''}</article>`,
       'task-' + task.id,
     );
   }
@@ -306,13 +309,13 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const current = flow.chapter;
     const changes = list(flow.changes);
     if (!current && !changes.length) return '';
-    return `<section class="flow-chapter"><h2>主线节点与阶段变化</h2>${current ? `<h3>${text(current.name || '当前主线')}</h3>${current.mainName ? `<p>${text(current.mainName)}</p>` : ''}${questButton(current.questId)}${current.basis ? `<p class="small save-note">${text(current.basis)}</p>` : ''}${current.next ? `<p><span class="small muted">推进前核对的节点 </span>${questButton(current.next.questId, current.next.title) || text(current.next.title)}</p>` : ''}${current.nextMilestone ? `<p><span class="small muted">下一主线关键节点 </span>${questButton(current.nextMilestone.questId, current.nextMilestone.title) || text(current.nextMilestone.title)}</p><p class="small save-note">${text(current.nextMilestone.note)}</p>${sources(current.nextMilestone.sources)}` : ''}` : ''}${changes.length ? `<ul class="flow-changes">${changes.map((change) => `<li><strong>${text(change.title || '任务变化')}</strong>${change.triggerName ? `<p><span class="small muted">推进关联 </span>${text(change.triggerName)}</p>` : ''}${change.consequence ? `<p>${prose(change.consequence)}</p>` : ''}${advancement(change)}</li>`).join('')}</ul>` : ''}</section>`;
+    return `<section class="flow-chapter"><h2>主线节点与阶段变化</h2>${current ? `<h3>${prose(current.name || '当前主线')}</h3>${current.mainName ? `<p>${prose(current.mainName)}</p>` : ''}${questButton(current.questId)}${current.next ? `<p><span class="small muted">推进前核对的节点 </span>${questButton(current.next.questId, current.next.title) || text(current.next.title)}</p>` : ''}${current.nextMilestone ? `<p><span class="small muted">下一主线关键节点 </span>${questButton(current.nextMilestone.questId, current.nextMilestone.title) || text(current.nextMilestone.title)}</p><p class="small save-note">${text(current.nextMilestone.note)}</p>${sources(current.nextMilestone.sources)}` : ''}` : ''}${changes.length ? `<ul class="flow-changes">${changes.map((change) => `<li><strong>${prose(change.title || '任务变化')}</strong>${change.triggerName ? `<p><span class="small muted">推进关联 </span>${prose(change.triggerName)}</p>` : ''}${change.consequence ? `<p>${prose(change.consequence)}</p>` : ''}${advancement(change)}</li>`).join('')}</ul>` : ''}</section>`;
   }
   function offlineIndex(flow) {
     const guide = list(flow.guide);
     const chapters = list(flow.chapters);
     return persist(
-      `${guide.length ? `<details class="flow-guide"><summary>全部关键攻略条目 · ${guide.length} 项</summary><p class="small save-note">按资料浏览，不表示这些任务当前都能接取。具体条件、截止与来源请逐项核对。</p>${guide.map((entry) => rule(entry)).join('')}</details>` : ''}${
+      `${guide.length ? `<details class="flow-guide"><summary>全部关键攻略条目 · ${guide.length} 项</summary>${guide.map((entry) => rule(entry, false, 'offline')).join('')}</details>` : ''}${
         chapters.length
           ? `<details class="flow-main-index"${flow.available ? '' : ' open'}><summary>离线主线索引</summary>${chapters
               .map(
@@ -324,14 +327,17 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
                     )
                     .join('')}</ul></section>`,
               )
-              .join(
-                '',
-              )}<p class="small save-note">索引供查询主线资料，排列不保证当前周目的推进顺序；未出现在记录不代表未接或错过。</p></details>`
+              .join('')}</details>`
           : ''
       }`,
       'offline',
     );
   }
+  const compactAdvice = (row) =>
+    persist(
+      `<article class="flow-suggestion" data-flow-suggestion="${text(row.id)}"><p>${prose(row.recommendation?.hint || row.recommendation?.action || row.pickup?.action || row.warning)}</p><details><summary>做法与理由</summary>${rule(row, false, 'advice')}</details></article>`,
+      `compact-advice-${row.id}`,
+    );
   function compactPanel(flow, sections = ['advice', 'opportunities', 'milestones']) {
     const decisions = list(flow.decisions);
     const decisionIds = new Set(decisions.map((row) => row.id));
@@ -342,11 +348,6 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const opportunities = list(flow.opportunities).filter((row) => !warningIds.has(row.id));
     const reference = flow.reference;
     const visibleSections = new Set(sections);
-    const compactAdvice = (row) =>
-      persist(
-        `<article class="flow-suggestion" data-flow-suggestion="${text(row.id)}"><p>${prose(row.recommendation?.hint || row.recommendation?.action || row.pickup?.action || row.warning)}</p><details><summary>做法与理由</summary>${rule(row)}</details></article>`,
-        `compact-advice-${row.id}`,
-      );
     const compactDecision = (row) => {
       const value = row.recommendation;
       return persist(
@@ -364,7 +365,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const firstStep = first?.steps?.[0];
     const lead = first
       ? `<section class="flow-now flow-active" data-flow-now data-flow-quest="${text(first.id)}"><h3>${questButton(first.id, first.name)}</h3><p class="flow-next-action">${prose(firstStep?.nextAction || firstStep?.description || '请核对游戏任务栏中的当前要求。')}</p>${firstStep ? compactStepTargets(firstStep) + compactMaterials(firstStep.materials, flow.sharedMaterials, { scope: `${first.id}-${firstStep.id}` }) : ''}<details class="flow-now-details" data-persist-detail="flow-now-${text(first.id)}-${text(firstStep?.id)}"><summary>条件与完整步骤</summary>${firstStep ? stepPeople(firstStep) + stepPlaces(firstStep) : ''}${activeTask(first, { summaryInLead: true, sharedMaterials: flow.sharedMaterials })}</details></section>`
-      : `<div class="flow-empty"><p>${text(flow.reason || (flow.available ? '当前步骤待核对，可展开下方流程线索。' : '尚无可读存档，可先查询攻略。'))}</p>${flow.referenceNeedsSelection ? button('save-slot', '选择流程参照', '', 'btn soft') : ''}</div>`;
+      : `<div class="flow-empty"><p>${text(flow.reason || (flow.available ? '当前步骤待核对，可展开下方流程线索。' : '尚无可读存档，可先查询攻略。'))}</p>${flow.referenceNeedsSelection ? button('navigate', '检查游戏连接', 'settings', 'btn soft') : ''}</div>`;
     const riskGroups = new Map();
     for (const row of warnings) {
       const deadline = row.compactDeadline || row.deadlineLabel || row.triggerName;
@@ -389,26 +390,34 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
             .map((row) => row.id)
             .sort()
             .join('-'),
-        )}" open><summary><strong>推进前核对 · ${warnings.length} 项</strong></summary>${groups.map(({ deadline, rows }) => `<details class="flow-risk-window" data-persist-detail="flow-risk-window-${text(rows[0].id)}"><summary>${rows.map((row) => `<span class="flow-risk-preview">${text(riskPreview(row))}</span>`).join('')}</summary><p class="small flow-risk-deadline">${prose(deadline || rows[0].name || '推进提醒')}</p>${rows.map((row) => `<div data-flow-impact="${text(row.id)}">${rule(row, true)}</div>`).join('')}</details>`).join('')}</details></section>`
+        )}" open><summary><strong>推进前确认 · ${warnings.length} 项</strong></summary>${groups.map(({ deadline, rows }) => `<details class="flow-risk-window" data-persist-detail="flow-risk-window-${text(rows[0].id)}"><summary>${rows.map((row) => `<span class="flow-risk-preview">${prose(riskPreview(row))}</span>`).join('')}</summary><p class="small flow-risk-deadline">${prose(deadline || rows[0].name || '推进提醒')}</p>${rows.map((row) => `<div data-flow-impact="${text(row.id)}">${rule(row, true, 'risk')}</div>`).join('')}</details>`).join('')}</details></section>`
       : '';
     const current = decisions.length
-      ? `<details class="flow-task-peek" data-persist-detail="flow-task-peek-${text(first?.id)}"><summary>当前任务 · ${text(first?.name || '步骤待核对')}</summary>${lead}</details>`
+      ? `<details class="flow-task-peek" data-persist-detail="flow-task-peek-${text(first?.id)}"><summary>当前任务 · ${prose(first?.name || '步骤待核对')}</summary>${lead}</details>`
       : lead;
     return persist(
-      `<section class="flow-panel flow-compact" data-flow><div class="flow-compact-reference"><span class="flow-reference" title="${reference ? text(when(reference.modifiedAt)) + '的已保存进度；未保存对话无法识别' : '尚无可读存档'}">${reference ? `${flow.referenceMode === 'slot' ? '固定' : '存档'} ${text(reference.name)} · 已保存进度` : '离线攻略'}</span><span class="row">${button('save-slot', '参照', '')}${button('companion-display', '显示', '')}</span></div>${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${compactDecision(decisions[0])}${decisions.length > 1 ? `<details data-persist-detail="compact-more-choices"><summary>其他关键选择 · ${decisions.length - 1}</summary>${decisions.slice(1).map(compactDecision).join('')}</details>` : ''}</section>` : ''}${urgent}${decisions.length ? '' : current}${visibleSections.has('advice') && advice.length ? `<section class="flow-advice"><h2>顺路可做</h2>${compactAdvice(advice[0])}${advice.length > 1 ? `<details data-persist-detail="compact-more-advice"><summary>更多建议 · ${advice.length - 1}</summary>${advice.slice(1).map(compactAdvice).join('')}</details>` : ''}</section>` : ''}${decisions.length ? current : ''}${
+      `<section class="flow-panel flow-compact" data-flow>${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${compactDecision(decisions[0])}${decisions.length > 1 ? `<details data-persist-detail="compact-more-choices"><summary>其他关键选择 · ${decisions.length - 1}</summary>${decisions.slice(1).map(compactDecision).join('')}</details>` : ''}</section>` : ''}${urgent}${decisions.length ? '' : current}${visibleSections.has('advice') && advice.length ? `<section class="flow-advice"><h2>顺路可做</h2>${compactAdvice(advice[0])}${advice.length > 1 ? `<details data-persist-detail="compact-more-advice"><summary>更多建议 · ${advice.length - 1}</summary>${advice.slice(1).map(compactAdvice).join('')}</details>` : ''}</section>` : ''}${decisions.length ? current : ''}${
         active.length > 1
           ? `<details data-persist-detail="compact-other-active" class="flow-all-active"><summary>其他进行中任务 · ${active.length - 1}</summary>${active
               .slice(1)
               .map((task) => activeTask(task, { sharedMaterials: flow.sharedMaterials }))
               .join('')}</details>`
           : ''
-      }${list(flow.unindexedActive).length ? `<details data-persist-detail="compact-unindexed" class="flow-unindexed" data-flow-unindexed><summary>另有 ${flow.unindexedActive.length} 条进行中记录待识别</summary><p class="small save-note">请核对游戏任务栏；资料尚不能确定这些记录的名称与下一步。</p><p>${flow.unindexedActive.map((row) => '#' + text(row.id)).join('、')}</p></details>` : ''}${visibleSections.has('opportunities') ? `<details data-persist-detail="compact-opportunities" class="flow-opportunities"><summary>未接任务线索 · ${opportunities.length}</summary><p class="small save-note">按已保存记录和整理资料匹配；隐藏条件仍需在游戏确认。</p>${opportunities.map((row) => rule(row)).join('') || '<p class="small muted">暂未匹配到接取线索。</p>'}</details>` : ''}${visibleSections.has('milestones') ? `<details data-persist-detail="compact-stage" class="flow-stage-details"><summary>下一节点与阶段变化</summary>${chapter(flow) || '<p class="small muted">当前主线节点待核对。</p>'}${flow.stageUncertainty ? `<p class="small save-note" data-flow-stage-uncertain>${text(flow.stageUncertainty)}</p>` : ''}</details>` : ''}<details data-persist-detail="compact-reference" class="flow-reference-details"><summary>保存时间与攻略范围</summary><p class="small">${reference ? `${text(reference.name)} · ${text(when(reference.modifiedAt))}的已保存进度` : '尚无可读存档参照'}</p><p class="small save-note flow-choice-freshness">随行自动对照保存进度。选项前请先保存并核对参照；未保存的对话无法识别。</p><p class="flow-coverage small save-note">已整理 ${text(flow.coverage?.curatedRules ?? list(flow.guide).length)} 条关键攻略规则，不能保证全任务防漏。</p>${offlineIndex(flow)}</details></section>`,
+      }${list(flow.unindexedActive).length ? `<details data-persist-detail="compact-unindexed" class="flow-unindexed" data-flow-unindexed><summary>另有 ${flow.unindexedActive.length} 条进行中记录待识别</summary><p class="small save-note">请核对游戏任务栏；资料尚不能确定这些记录的名称与下一步。</p></details>` : ''}${visibleSections.has('opportunities') ? `<details data-persist-detail="compact-opportunities" class="flow-opportunities"><summary>未接任务线索 · ${opportunities.length}</summary>${opportunities.map((row) => rule(row, false, 'opportunity')).join('') || '<p class="small muted">暂未匹配到接取线索。</p>'}</details>` : ''}${visibleSections.has('milestones') ? `<details data-persist-detail="compact-stage" class="flow-stage-details"><summary>下一节点与阶段变化</summary>${chapter(flow) || '<p class="small muted">当前主线节点待核对。</p>'}${flow.stageUncertainty ? `<p class="small save-note" data-flow-stage-uncertain>${text(flow.stageUncertainty)}</p>` : ''}</details>` : ''}${list(flow.guide).length || list(flow.chapters).length ? `<details class="flow-offline-details" data-persist-detail="compact-offline"><summary>全部流程资料</summary>${offlineIndex(flow)}</details>` : ''}</section>`,
       'compact-panel',
     );
   }
   function panel(flow, { compact = false, summary = false, sections } = {}) {
     if (!flow) flow = { available: false, reason: '正在核对流程资料。' };
     if (compact) return compactPanel(flow, sections);
+    if (flow.available === false) {
+      const updating = /^(正在核对|存档正在更新)/.test(flow.reason || '');
+      const offline = flow.referenceMode === 'none';
+      return persist(
+        `<section class="flow-panel${summary ? ' flow-summary' : ''}" data-flow><div class="flow-heading"><p${updating ? ' role="status"' : ''}>${updating ? '正在更新进度…' : offline ? '查询流程资料' : '暂无可读进度'}</p>${!updating && !offline ? button('navigate', '检查游戏连接', 'settings') : ''}</div>${summary ? `<div class="flow-more">${button('navigate', '查看完整流程、攻略与主线索引', 'checklist', 'btn soft')}</div>` : offlineIndex(flow)}</section>`,
+        'panel',
+      );
+    }
     const decisions = list(flow.decisions);
     const decisionIds = new Set(decisions.map((row) => row.id));
     const warnings = list(flow.warnings).filter((row) => !decisionIds.has(row.id));
@@ -416,7 +425,10 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       (row) => (row.activeRule || row.kind === 'stage') && !decisionIds.has(row.id),
     );
     const active = list(flow.active);
-    const activeCard = (task) => activeTask(task, { sharedMaterials: flow.sharedMaterials });
+    const activeCard = (task) => {
+      const next = list(task.steps)[0];
+      return `<article class="flow-task flow-task-summary" data-flow-quest="${text(task.id)}"><div class="row between"><h3>${questButton(task.id, task.name)}</h3>${pill(task.kind === 'Primary' ? '主线' : '支线')}</div>${next ? `<p class="flow-next-action">${prose(next.nextAction || next.description)}</p>${compactStepTargets(next)}${compactMaterials(next.materials, flow.sharedMaterials, { scope: 'main-' + task.id })}` : ''}<details data-persist-detail="main-task-${text(task.id)}"><summary>完整步骤</summary>${activeTask(task, { summaryInLead: true, sharedMaterials: flow.sharedMaterials })}</details></article>`;
+    };
     const unindexed = list(flow.unindexedActive);
     const shared = list(flow.sharedMaterials);
     const warningIds = new Set([...warnings, ...decisions].map((row) => row.id).filter(Boolean));
@@ -429,25 +441,46 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       ? take(active).map(activeCard).join('')
       : `${active.slice(0, 3).map(activeCard).join('')}${remaining ? `<details class="flow-all-active"><summary>其余 ${remaining} 项进行中任务</summary>${active.slice(3).map(activeCard).join('')}</details>` : ''}`;
     const riskBody = warnings.length
-      ? take(warnings)
-          .map((warning) => rule(warning, true))
-          .join('')
-      : `<p class="small muted">${decisions.length ? '当前步骤的选择建议已列在上方；其他已整理关键提醒暂未命中。' : '当前参照未命中已整理的关键提醒，覆盖范围见下方。'}</p>`;
+      ? warnings
+          .slice(0, summary ? 3 : warnings.length)
+          .map((warning) => rule(warning, true, 'risk'))
+          .join('') +
+        (summary && warnings.length > 3
+          ? `<details data-persist-detail="main-more-risks"><summary>更多推进提醒 · ${warnings.length - 3}</summary>${warnings
+              .slice(3)
+              .map((warning) => rule(warning, true, 'risk'))
+              .join('')}</details>`
+          : '')
+      : `<p class="small muted">${decisions.length ? '暂无其他推进提醒' : '暂无推进提醒'}</p>`;
     const riskContent =
       compact && active.length && warnings.length
         ? `<details class="flow-compact-risks" data-persist-detail="flow-risk-summary"><summary>${warnings.length} 项推进提醒 · ${text(warnings[0].name || warnings[0].title)}</summary>${riskBody}</details>`
         : riskBody;
-    const summaryMore = summary && (warnings.length > 3 || active.length > 3 || opportunities.length > 3);
     return persist(
-      `<section class="flow-panel${compact ? ' flow-compact' : ''}${summary ? ' flow-summary' : ''}${warnings.length ? ' flow-has-risks' : ''}" data-flow><div class="flow-heading"><div class="eyebrow">江湖流程</div><h2>这一阶段，先做什么</h2><p class="small flow-reference">${reference ? `${text(reference.mapName || '场景待核对')} · ${text(reference.name)} · ${text(when(reference.modifiedAt))}的已保存进度` : '离线攻略仍可查看'}</p>${flow.stageUncertainty ? `<p class="small save-note" data-flow-stage-uncertain>${text(flow.stageUncertainty)}</p>` : ''}${!flow.available ? `<div class="notice flow-empty"><strong>尚未对照可读存档</strong><p>${text(flow.reason || '选择本周目的存档参照后，可对照当前任务；现在也能浏览攻略与主线索引。')}</p>${flow.referenceNeedsSelection ? button('save-slot', '检查并选择流程参照', '') : ''}</div>` : flow.reason ? `<p class="small save-note">${text(flow.reason)}</p>` : ''}</div>${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${decisions.map(decision).join('')}<p class="small save-note flow-choice-freshness">依据已保存的步骤；选项前先保存并核对这份参照。随行自动对照新存档，未保存的对话无法识别。</p></section>` : ''}<section class="flow-risks"><h2>${icon('pin')} 推进前请确认</h2>${riskContent}</section><section class="flow-active"><h2>当前任务与下一行动${active.length ? ` · ${active.length} 项` : ''}</h2>${sharedMaterialSummary(
+      `<section class="flow-panel${compact ? ' flow-compact' : ''}${summary ? ' flow-summary' : ''}${warnings.length ? ' flow-has-risks' : ''}" data-flow>${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${decisions.map(decision).join('')}</section>` : ''}<section class="flow-risks"><h2>${icon('pin')} 推进前请确认</h2>${riskContent}</section><section class="flow-active"><h2>当前任务与下一行动${active.length ? ` · ${active.length} 项` : ''}</h2>${sharedMaterialSummary(
         shared,
-      )}${unindexed.length ? `<aside class="flow-unindexed" data-flow-unindexed><details><summary>另有 ${unindexed.length} 条进行中记录待识别</summary><p class="small save-note">这些记录尚未收录在任务资料中，可能是隐藏剧情或版本新增任务。请核对游戏任务栏中额外进行中的任务；这里暂不能判断名称与下一步。</p><p class="small">${unindexed.map((record) => `#${text(record.id)}${record.tracked ? '（当前追踪）' : ''}`).join('、')}</p></details></aside>` : ''}${activeBody || `<p class="small muted">${flow.available ? '这份存档暂无可展示的已识别进行中步骤；可在下方查找任务线索。' : '读取存档后在这里显示当前行动，无需先安排个人行程。'}</p>`}</section>${advice.length ? `<details class="flow-advice"><summary>任务选择、材料留用与额外收益 · ${advice.length} 项</summary>${advice.map((row) => rule(row)).join('')}</details>` : ''}<section class="flow-opportunities"><h2>未接取任务与接取线索${opportunities.length ? ` · ${opportunities.length} 项` : ''}</h2><p class="small save-note">按存档记录、已核对的前置与已整理阶段攻略列出；部分条件仍待核对，不保证当前可接。</p>${
+      )}${unindexed.length ? `<aside class="flow-unindexed" data-flow-unindexed><details><summary>另有 ${unindexed.length} 条进行中记录待识别</summary><p class="small save-note">这些记录尚未收录在任务资料中，可能是隐藏剧情或版本新增任务。请核对游戏任务栏中额外进行中的任务；这里暂不能判断名称与下一步。</p></details></aside>` : ''}${activeBody || `<p class="small muted">${flow.available ? '暂无进行中步骤，可在下方查找任务。' : '连接游戏进度后显示当前行动。'}</p>`}</section>${
+        advice.length
+          ? `<section class="flow-advice"><h2>推荐做法</h2>${compactAdvice(advice[0])}${
+              advice.length > 1
+                ? `<details data-persist-detail="main-more-advice"><summary>更多建议 · ${advice.length - 1}</summary>${advice
+                    .slice(1)
+                    .map((row) => rule(row, false, 'advice'))
+                    .join('')}</details>`
+                : ''
+            }</section>`
+          : ''
+      }<section class="flow-opportunities"><h2>未接取任务与接取线索${opportunities.length ? ` · ${opportunities.length} 项` : ''}</h2>${
         opportunities.length
-          ? take(opportunities)
-              .map((entry) => rule(entry))
-              .join('')
+          ? rule(opportunities[0], false, 'opportunity') +
+            (opportunities.length > 1
+              ? `<details data-persist-detail="main-more-opportunities"><summary>更多未接任务 · ${opportunities.length - 1}</summary>${opportunities
+                  .slice(1)
+                  .map((entry) => rule(entry, false, 'opportunity'))
+                  .join('')}</details>`
+              : '')
           : '<p class="small muted">当前已整理的规则没有更多匹配线索，可继续浏览全部攻略。</p>'
-      }</section>${chapter(flow)}<p class="flow-coverage small save-note">已索引 ${text(coverage.tasks ?? '—')} 条任务与步骤、${text(coverage.mainRoots ?? '—')} 条主线根任务；整理了 ${text(coverage.curatedRules ?? list(flow.guide).length)} 条关键攻略规则。精选规则不保证全任务防漏，未保存的变化不会计入。</p>${summary ? `<div class="flow-more">${summaryMore ? '<p class="small muted">这里展示前 3 项；完整流程保留全部任务和提醒。</p>' : ''}${button('navigate', '查看完整流程、攻略与主线索引', 'checklist', 'btn soft')}</div>` : offlineIndex(flow)}</section>`,
+      }</section>${chapter(flow)}${summary ? `<div class="flow-more">${button('navigate', '查看完整流程、攻略与主线索引', 'checklist', 'btn soft')}</div>` : offlineIndex(flow)}</section>`,
       'panel',
     );
   }

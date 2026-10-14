@@ -8,6 +8,7 @@ const { _electron } = require('playwright'),
   { Store } = require('../src/core/store.cjs'),
   { syntheticSave } = require('../tests/fixtures.cjs'),
   catalog = require('../src/data/catalog.cjs');
+const { selectProgress } = require('./progress-settings.cjs');
 const base = path.resolve(__dirname, '..'),
   override = process.env.YIJIAN_EXECUTABLE,
   executable = path.join(
@@ -46,6 +47,7 @@ const store = new Store(userData, catalog);
 store.setPath('savePath', source);
 store.mutate({ type: 'settings', value: { autoBackup: false } });
 store.mutate({ type: 'reserve-set', id: '10216', count: 1 });
+store.mutate({ type: 'reserve-set', id: '1000', count: 2 });
 store.mutate({
   type: 'craft-plan-save',
   name: '已有铁锭计划甲',
@@ -95,11 +97,29 @@ async function stock(target = page) {
 (async () => {
   try {
     await launch();
+    await item(page, 'item-1000', '纯钢剑');
+    await page.locator('.reservation-editor > summary').click();
+    assert.equal(await page.locator('#reserve-count').inputValue(), '2');
+    for (const value of ['7', '']) {
+      await page.locator('#reserve-count').fill(value);
+      const recipe = page.locator('.drawer [data-action="database-detail"][data-id="fusion-1100"]').first();
+      const folds = recipe.locator('xpath=ancestor::details');
+      for (let i = 0; i < (await folds.count()); i++)
+        if (!(await folds.nth(i).evaluate((node) => node.open)))
+          await folds.nth(i).locator(':scope > summary').click();
+      await recipe.click();
+      await page.locator('.drawer h1').waitFor();
+      await page.locator('[data-action="drawer-back"]').click();
+      assert.equal(await page.locator('#reserve-count').inputValue(), value);
+      assert.equal((await current()).reservations['1000'], 2);
+    }
+    await page.locator('#overlay [data-action="close-overlay"]').first().click();
+    checks.push('物品预留未提交的数字或空值在查看配方后返回完整保留，正式预留仍为2');
     await item();
     assert.deepEqual(await stock(), ['10', '7', '3']);
     assert.match(await page.locator('.item-usage').innerText(), /已有铁锭计划甲/);
     assert.match(await page.locator('.item-usage').innerText(), /已有铁锭计划乙/);
-    assert.match(await page.locator('.item-usage').innerText(), /绿.*品质/);
+    assert.equal(await page.locator('[data-action="reserve-save"]').getAttribute('data-id'), 'item-10216');
     assert.equal(await page.locator('.item-usage-row').count(), 3);
     checks.push('精确绿品质铁锭汇总手动留用和两份已有计划，真实持有10、占用7、余量3，重复背包条目正确合并');
     const firstPlan = (await current()).craftPlans.find((p) => p.name === '已有铁锭计划甲');
@@ -108,14 +128,15 @@ async function stock(target = page) {
     assert.equal((await current()).activeCraftPlanId, firstPlan.id);
     await item();
     assert.deepEqual(await stock(), ['10', '7', '3']);
+    await page.locator('.reservation-editor > summary').click();
     await page.locator('#reserve-count').fill('2');
     await page.locator('[data-action="reserve-save"]').click();
     assert.deepEqual(await stock(), ['10', '8', '2']);
     checks.push('点用途回到相应制作计划，返回物品不重复占用编辑计划；修改留用后预算立即更新');
-    await page.locator('#item-save').selectOption('');
-    assert.deepEqual(await stock(), ['待核对', '待核对', '待核对']);
-    assert.match(await page.locator('.item-usage').innerText(), /尚未选择|待核对/);
-    await page.locator('#item-save').selectOption('@latest');
+    await selectProgress(page, '');
+    assert.deepEqual(await stock(), ['—', '—', '—']);
+    assert.match(await page.locator('.item-usage').innerText(), /库存未读取/);
+    await selectProgress(page, '@latest');
     assert.deepEqual(await stock(), ['10', '8', '2']);
     checks.push('仅查资料保留未知数值，重新选择最新保存后恢复真实预算');
     await page.keyboard.press('Escape');
@@ -127,6 +148,10 @@ async function stock(target = page) {
     await item(companion);
     assert.deepEqual(await stock(companion), ['10', '8', '2']);
     await item();
+    await page.locator('.reservation-editor > summary').click();
+    await page.locator('#reserve-count').fill('7');
+    await companion.locator('.reservation-editor > summary').click();
+    await companion.locator('#reserve-count').fill('');
     const completed = await companion.evaluate(
       (plan) =>
         window.journal.mutate({ type: 'craft-plan-complete', id: plan.id, value: true, expectedPlan: plan }),
@@ -146,13 +171,16 @@ async function stock(target = page) {
           .map((e) => e.textContent)
           .join(',') === '10,5,5',
     );
+    assert.equal(await page.locator('#reserve-count').inputValue(), '7');
+    assert.equal(await companion.locator('#reserve-count').inputValue(), '');
+    assert.equal((await current()).reservations['10216'], 2);
     await page.locator('.item-usage').scrollIntoViewIfNeeded();
     await page.screenshot({
       path: path.join(results, 'item-usage-current.png'),
       animations: 'disabled',
       timeout: 15000,
     });
-    checks.push('主窗口与小窗同时反查，另一窗口完成计划后释放3个真实库存，两窗口详情自动重新核对');
+    checks.push('另一窗口完成计划后两窗口预算自动更新，未提交的预留数字和空值分别保留，正式预留不变');
     await page.keyboard.press('Escape');
     await app.close();
     app = null;

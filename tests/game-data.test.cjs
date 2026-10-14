@@ -253,12 +253,12 @@ test('night chest rewards link dated acquisition guidance without replacing nati
     );
     const html = views.detail(index, id);
     assert.match(html, /阶段获取线索.*祖师殿右侧宝箱/s);
-    assert.match(html, /data-action="flow-quest" data-id="quest-5830"/);
+    assert.match(html, /data-action="world-quest" data-id="quest-5830"/);
     assert.match(html, /data-action="source" data-id="flow:flow061WudangNight"/);
     assert.match(html, /2025-07-14.*2026-08-13/s);
     assert.match(html, /使用效果与数值/);
     assert.match(html, new RegExp(`data-picture="${id}"`));
-    if (id === 'item-13701') assert.match(html, /初始私物中的人物线索/);
+    if (id === 'item-13701') assert.match(html, /可能持有的侠客/);
   }
   assert.equal(index.entries.find((entry) => entry.id === 'item-10217').acquisitionRoutes, undefined);
   assert.deepEqual(raw, before);
@@ -308,7 +308,7 @@ test('wooden sword codex connects house pickup and later return while preserving
   });
   const html = views.detail(index, item.id);
   assert.match(html, /阶段获取线索.*江吟风故居/s);
-  assert.match(html, /data-action="flow-quest" data-id="quest-5351"/);
+  assert.match(html, /data-action="world-quest" data-id="quest-5351"/);
   assert.match(html, /data-action="source" data-id="flow:flow062XiaotongXu"/);
   assert.match(html, /2024-08-28.*2025-07-16.*2024-12-07.*2025-07-16/s);
   assert.match(html, /data-picture="item-10393"/);
@@ -524,13 +524,13 @@ test('recipe detail shows chosen total ranges and separate quality candidates be
         totals.includes('data-id="item-' + itemId + '">' + name + '</button> · ' + quality + '色 × ' + count),
       );
     }
-    assert.match(totals, /尚未计入背包/);
+    assert.doesNotMatch(totals, /已保存持有|当前持有/);
     assert.doesNotMatch(totals, /NaN|Infinity|概率|%|已有|缺 0/);
     assert.equal((totals.match(/data-recipe-output-id=/g) || []).length, outputs.length);
     assert.ok(html.indexOf('data-recipe-total-outputs') < html.indexOf('data-action="craft-add"'));
-    assert.match(html, /每次产出参考/);
+    assert.match(html, /每次产出/);
     assert.doesNotMatch(html, /material-owned|缺 0/);
-    assert.equal(totals.includes('不会同时得到全部最大数量'), id === 'fusion-1100');
+    assert.equal(totals.includes('随机产出，各候选不会全部同时获得'), id === 'fusion-1100');
     assert.deepEqual(recipe, before);
   }
   const copper = entry('fusion-9501');

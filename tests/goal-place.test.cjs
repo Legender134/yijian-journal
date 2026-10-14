@@ -15,6 +15,123 @@ const catalog = require('../src/data/catalog.cjs'),
 const PLACE = 'place-9',
   OTHER = 'place-10';
 const current = (store) => store.get().profiles[0];
+test('offline archive identities open static details while unknown IDs and private text stay literal', async () => {
+  const { createProtectionViews } = await import(
+    require('node:url').pathToFileURL(path.join(__dirname, '../src/renderer/protection-views.js')).href
+  );
+  const esc = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+    );
+  const index = {
+    entries: [
+      { id: 'npc-7', gameId: 7, name: '人物', kind: '人物' },
+      { id: 'item-9', gameId: 9, name: '同名物品', kind: '物品' },
+      { id: 'item-10', gameId: 10, name: '同名物品', kind: '物品' },
+      { id: 'fusion-11', gameId: 11, name: '配方', kind: '配方' },
+    ],
+    world: {
+      quests: [{ id: 'quest-2', gameId: 2, name: '任务' }],
+      maps: [
+        { id: 'place-1', key: 'Scene', name: '地点' },
+        { id: 'place-8', key: 'OldA', name: '重复地点甲' },
+        { id: 'place-8', key: 'OldB', name: '重复地点乙' },
+      ],
+    },
+  };
+  const factory = createProtectionViews({
+    esc,
+    getIndex: () => index,
+    name: (id) =>
+      id === 'place-8'
+        ? '原地点（场景待核对）'
+        : [...index.entries, ...index.world.quests, ...index.world.maps].find((e) => e.id === id)?.name,
+    act: (action, label, cls, id) =>
+      `<button data-action="${action}" data-id="${esc(id || '')}">${label}</button>`,
+    backupViews: { page: () => '' },
+    journalPage: () => '',
+    historyBackupView: {},
+    pill: esc,
+    when: esc,
+    hours: esc,
+    bytes: esc,
+    notice: esc,
+    iconButton: () => '',
+  });
+  const p = {
+    id: 'history',
+    name: '人物',
+    notes: '<人物同名物品>',
+    goals: [
+      { title: '同名物品', detail: '<人物>', source: { type: 'database', id: 'item-9' }, placeId: 'place-1' },
+    ],
+    craftPlans: [
+      { id: 'plan', name: '同名物品', list: [{ id: 'fusion-11', quantity: 2 }], choices: { 9: 'fusion-11' } },
+    ],
+    journey: {
+      todos: [{ title: '<人物>', placeId: 'place-8' }],
+      gifts: [{ npcId: 'npc-7', itemId: 'item-10', quantity: 1 }],
+      places: [{ placeId: 'place-1', note: '<同名物品>' }],
+      handledActionIds: [],
+      itinerary: {
+        name: '同名物品',
+        status: 'draft',
+        steps: [
+          {
+            title: '<人物>',
+            placeId: 'place-1',
+            sources: [
+              { type: 'quest', id: 'quest-2', field: '目标' },
+              { type: 'user', id: 'item-9', field: 'journey' },
+            ],
+          },
+        ],
+      },
+    },
+  };
+  const h = {
+    id: 'archive',
+    compatible: true,
+    createdAt: '2026-10-09T08:00:00.000Z',
+    journal: { profiles: [p] },
+    backups: [],
+    timeline: { records: [] },
+  };
+  const file = {
+    name: '合成.sav',
+    bytes: 1,
+    modifiedAt: h.createdAt,
+    metadata: {
+      map: 'OldB',
+      mapName: '原场景名',
+      quests: [
+        { id: 2, name: '原任务名', step: 4 },
+        { id: 99, name: '<未知任务>', step: 1 },
+      ],
+      inventory: [
+        { id: 10, name: '原物品名', count: 3 },
+        { id: 99, name: '<未知物品>', count: 7 },
+      ],
+    },
+  };
+  const before = structuredClone({ h, file, index });
+  const html = factory.page({ archives: [], loaded: true, history: h });
+  for (const id of ['npc-7', 'item-9', 'item-10', 'fusion-11', 'quest-2', 'place-1'])
+    assert.match(html, new RegExp(`data-action="archive-entity" data-id="${id}"`));
+  assert.doesNotMatch(html, /data-id="place-8"/);
+  assert.match(html, /&lt;人物同名物品&gt;/);
+  assert.match(html, /<summary>同名物品 · 1 种配方<\/summary>/);
+  assert.match(html, /<p class="small">item-9 <span class="mono">user · item-9/);
+  const preview = factory.preview(file);
+  for (const id of ['place-8:OldB', 'quest-2', 'item-10'])
+    assert.match(preview, new RegExp(`data-action="archive-entity" data-id="${id}"`));
+  assert.doesNotMatch(preview, /data-id="(?:item|quest)-99"/);
+  assert.match(preview, /&lt;未知物品&gt; × 7/);
+  assert.match(preview, /&lt;未知任务&gt;/);
+  assert.match(preview, /不参与当前库存/);
+  assert.deepEqual({ h, file, index }, before);
+});
 function setup(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-goal-place-'));
   t.after(() => {
@@ -337,7 +454,7 @@ test('protection and complete migration preserve goal places, pending changes, r
   assert.deepEqual(fs.readFileSync(store.file), bytes);
 });
 
-test('read-only protection history shows each saved goal scene, preserves unknown IDs and never infers a legacy place', async () => {
+test('read-only protection history shows readable saved scenes, preserves unknown IDs in data and never infers a legacy place', async () => {
   const { createProtectionViews } = await import(
     'data:text/javascript;base64,' +
       fs.readFileSync(path.join(__dirname, '../src/renderer/protection-views.js')).toString('base64')
@@ -347,12 +464,20 @@ test('read-only protection history shows each saved goal scene, preserves unknow
       /[&<>"']/g,
       (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
     );
+  const { placeChoiceLabel } = await import(
+    require('node:url').pathToFileURL(path.join(__dirname, '../src/renderer/place-picker.js')).href
+  );
+  const maps = world.maps.map((place) =>
+    place.id === 'place-14' ? { ...place, name: '<b>碗子山</b> & "地点"' } : place,
+  );
   const factory = createProtectionViews({
     backupViews: { page: () => '' },
     journalPage: () => '',
     historyBackupView: {},
     esc,
-    act: () => '',
+    act: (action, label) => label,
+    getIndex: () => ({ world: { maps } }),
+    placeLabel: placeChoiceLabel,
     pill: esc,
     notice: esc,
     empty: esc,
@@ -407,11 +532,19 @@ test('read-only protection history shows each saved goal scene, preserves unknow
   const before = structuredClone(history);
   const html = factory.page({ history, archives: [], loaded: true });
   const goals = html.match(/<summary>目标记录<\/summary>(.*?)<\/details>/s)[1];
-  assert.match(goals, /○ 同名村中采药 · 梧桐村 · 场景 #9<br>带上空行囊/);
-  assert.match(goals, /✓ 同名村中采药 · 梧桐村 · 场景 #10<br>带上空行囊/);
-  assert.ok(goals.includes('&lt;b&gt;碗子山&lt;/b&gt; &amp; &quot;地点&quot; · 场景 #14'));
-  assert.ok(goals.includes('野猪林 · 场景 #22'));
-  assert.ok(goals.includes('旧版未知地点 · place-999999999 · 场景 #999999999'));
+  const scene = (id) =>
+    esc(
+      placeChoiceLabel(
+        maps.find((place) => place.id === id),
+        maps,
+      ),
+    );
+  assert.ok(goals.includes('○ 同名村中采药 · ' + scene(PLACE) + '<br>带上空行囊'));
+  assert.ok(goals.includes('✓ 同名村中采药 · ' + scene(OTHER) + '<br>带上空行囊'));
+  assert.ok(goals.includes('&lt;b&gt;碗子山&lt;/b&gt; &amp; &quot;地点&quot;'));
+  assert.ok(goals.includes(scene('place-22')));
+  assert.ok(goals.includes('旧版未知地点 · 原选择待核对'));
+  assert.doesNotMatch(goals, /场景 #|place-999999999/);
   assert.match(goals, /旧目标无地点<br>计划前往梧桐村，尚未选择地点<\/p>/);
   assert.match(goals, /采药数量自定<br>收集数量：37 件/);
   assert.match(goals, /旧物品数量<br>收集数量：1 件/);
@@ -421,7 +554,7 @@ test('read-only protection history shows each saved goal scene, preserves unknow
   assert.ok(!goals.includes('<img'));
   assert.ok(goals.includes('&lt;script&gt;明早采药&lt;/script&gt;'));
   assert.ok(goals.includes('&lt;img src=x&gt; &amp; 原说明'));
-  assert.ok(html.includes('待办 · 梧桐村 · 场景 #9'));
-  assert.ok(html.includes('item-1006 × 1 · 梧桐村 · 场景 #10'));
+  assert.ok(html.includes('待办 · ' + scene(PLACE)));
+  assert.ok(html.includes('原选择待核对 × 1 · ' + scene(OTHER)));
   assert.deepEqual(history, before);
 });

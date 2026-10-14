@@ -92,12 +92,19 @@ async function launch() {
 }
 async function nav(id) {
   await page.locator('.nav-btn[data-id="' + id + '"]').click();
+  if (id === 'home') await expandHome();
+}
+async function expandHome() {
+  const section = page.locator('.home-optional');
+  if (!(await section.evaluate((element) => element.open))) await section.locator(':scope > summary').click();
 }
 async function compact() {
   const made = app.waitForEvent('window');
   await page.locator('.topbar [data-action="compact"]').click();
   companion = await made;
   companion.on('pageerror', (error) => errors.push(error.message));
+  await companion.locator('.compact-shell').waitFor();
+  await companion.locator('[data-compact-detail="flow-personal"] > summary').click();
   await companion.locator('[data-companion-itinerary]').waitFor();
   await app.evaluate(({ BrowserWindow }) => {
     const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact'));
@@ -197,15 +204,17 @@ async function expandUndo() {
       win.setContentSize(980, 660);
       return size;
     });
-    const homeNextBounds = await page
-      .locator('[data-home-itinerary-next] [data-action="journey-itinerary-handle"]')
-      .boundingBox();
+    const homeNextButton = page.locator(
+      '[data-home-itinerary-next] [data-action="journey-itinerary-handle"]',
+    );
+    await homeNextButton.scrollIntoViewIfNeeded();
+    const homeNextBounds = await homeNextButton.boundingBox();
     const homeViewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
     assert.ok(
       homeNextBounds &&
         homeNextBounds.y >= 0 &&
         homeNextBounds.y + homeNextBounds.height <= homeViewport.height,
-      'chosen next action must be usable in the first minimum main-window viewport',
+      'expanded personal next action must be reachable in the minimum main-window viewport',
     );
     visibility.push({ target: 'home', viewport: homeViewport, nextBounds: homeNextBounds });
     await page.screenshot({ path: path.join(resultDir, 'session-journey-home.png') });
@@ -223,6 +232,7 @@ async function expandUndo() {
     await compact();
     await next(companion, b.id);
     const nextButton = companion.locator('[data-itinerary-next] [data-action="journey-itinerary-handle"]');
+    await nextButton.scrollIntoViewIfNeeded();
     const nextBounds = await nextButton.boundingBox();
     const viewport = await companion.evaluate(() => ({ width: innerWidth, height: innerHeight }));
     assert.ok(
@@ -231,7 +241,7 @@ async function expandUndo() {
         nextBounds.y >= 0 &&
         nextBounds.x + nextBounds.width <= viewport.width &&
         nextBounds.y + nextBounds.height <= viewport.height,
-      'next action must be usable in the first small-window viewport',
+      'expanded personal next action must be reachable in the small-window viewport',
     );
     visibility.push({ viewport, nextBounds });
     await companion.screenshot({ path: path.join(resultDir, 'session-journey-companion-first-screen.png') });
@@ -319,6 +329,7 @@ async function expandUndo() {
     await app.close();
     app = null;
     await launch();
+    await expandHome();
     await page.locator('[data-home-itinerary]').waitFor();
     assert.match(await page.locator('[data-home-itinerary]').innerText(), /本次合成行程/);
     await page

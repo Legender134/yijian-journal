@@ -8,8 +8,7 @@ const world = require('../src/data/world-index.json');
 const { applyEntryCommand, appendSystemEvent, validateEntries } = require('../src/core/event-journal.cjs');
 const { giftItemLabel, giftPersonLabel } = require('../src/core/gift-labels.cjs');
 const views = import(
-  'data:text/javascript;base64,' +
-    fs.readFileSync(path.join(__dirname, '../src/renderer/event-journal-views.js')).toString('base64')
+  require('node:url').pathToFileURL(path.join(__dirname, '../src/renderer/event-journal-views.js')).href
 );
 const time = '2026-10-09T08:00:00.000Z';
 const index = { entries: game.entries, world };
@@ -89,15 +88,15 @@ test('same-title goals expose only their explicitly saved place and scene in cho
     { id: 'herbs-unplaced', title: '明早采药', detail: '去野猪林，尚未选择地点' },
   ];
   const expected = [
-    ['herbs-mountain', '明早采药 · 碗子山 · 场景 #14'],
-    ['herbs-woods', '明早采药 · 野猪林 · 场景 #22'],
+    ['herbs-mountain', '明早采药 · 碗子山'],
+    ['herbs-woods', '明早采药 · 野猪林'],
     ['herbs-unplaced', '明早采药'],
   ];
   const before = structuredClone(p);
   const choices = journalReferenceChoices(p, index, '明早采药');
   for (const [id, label] of expected) assert.equal(choices.find((row) => row.id === id).label, label);
   assert.deepEqual(
-    journalReferenceChoices(p, index, '明早采药 场景 #22').map((row) => row.id),
+    journalReferenceChoices(p, index, '明早采药 野猪林 带上空行囊').map((row) => row.id),
     ['herbs-woods'],
   );
   const factory = createEventJournalViews({ ...helpers, getIndex: () => index });
@@ -129,14 +128,14 @@ test('same-title goals expose only their explicitly saved place and scene in cho
     factory.page(stored, { readOnly: true }, index),
     factory.detail(stored, entries[0].id, { readOnly: true }),
   ]) {
-    assert.ok(html.includes('碗子山 · 场景 #14'));
-    assert.ok(html.includes('野猪林 · 场景 #22'));
+    assert.ok(html.includes('碗子山'));
+    assert.ok(html.includes('野猪林'));
   }
   assert.match(
     factory.selectedReferences(p, index, ['goal:herbs-woods']),
-    /aria-label="移除 目标 · 明早采药 · 野猪林 · 场景 #22 · 当前备忘：带上空行囊"/,
+    /aria-label="移除 目标 · 明早采药 · 野猪林 · 当前备忘：带上空行囊"/,
   );
-  assert.deepEqual(queryJournalEntries(stored, { query: '场景 #14' }, index).matchedIds, [entries[0].id]);
+  assert.deepEqual(queryJournalEntries(stored, { query: '碗子山' }, index).matchedIds, [entries[0].id]);
   const unplaced = factory.selectedReferences(p, index, ['goal:herbs-unplaced']);
   assert.ok(!unplaced.includes('场景 #'));
   assert.match(unplaced, /当前备忘：去野猪林，尚未选择地点/);
@@ -181,10 +180,13 @@ test('selected personal references retain escaped current memos without rewritin
   assert(missing.includes('原来的目标标题') && !missing.includes('当前备忘'));
 });
 
-test('real duplicate quest titles expose their exact game numbers in choices and accessible selected links', async () => {
+test('real duplicate quest titles expose stable variants in choices and accessible selected links', async () => {
   const { journalReferenceChoices, createEventJournalViews } = await views;
   const p = profile();
-  const expected = [5230, 9010, 9011].map((id) => [`quest-${id}`, `莫问授剑 · 任务 #${id}`]);
+  const expected = [5230, 9010, 9011].map((id, i) => [
+    `quest-${id}`,
+    `莫问授剑 · 【主线】拜师武当 · 资料 ${i + 1}/3`,
+  ]);
   const choices = journalReferenceChoices(p, index, '莫问授剑');
   assert.equal(choices.length, 3);
   const factory = createEventJournalViews({ ...helpers, getIndex: () => index });
@@ -206,7 +208,10 @@ test('real duplicate quest titles expose their exact game numbers in choices and
     entries[0].links.map((link) => link.id),
     expected.map(([id]) => id),
   );
-  assert.ok(entries[0].links.every((link) => link.label === '莫问授剑'));
+  assert.deepEqual(
+    entries[0].links.map((link) => [link.id, link.label]),
+    expected,
+  );
   const before = structuredClone(entries);
   const html = factory.selectedReferences(
     { ...p, journalEntries: entries },
@@ -214,7 +219,7 @@ test('real duplicate quest titles expose their exact game numbers in choices and
     expected.map(([id]) => 'quest:' + id),
     entries[0],
   );
-  for (const [, label] of expected) assert.ok(html.includes('当前资料：' + label));
+  for (const [, label] of expected) assert.ok(html.includes(label));
   assert.deepEqual(entries, before);
 });
 
@@ -227,7 +232,7 @@ test('long goal and place display context leaves the core persisted label within
   p.goals = [{ id: 'long-goal', title, detail: '', placeId: 'place-14' }];
   const displayIndex = { world: { maps: [{ id: 'place-14', gameId: 14, name: placeName }] } };
   const choice = journalReferenceChoices(p, displayIndex, 'long-goal')[0];
-  assert.ok(choice.label.endsWith(placeName + ' · 场景 #14'));
+  assert.ok(choice.label.endsWith(placeName));
   const entries = save([{ type: 'goal', id: 'long-goal' }], context(p));
   assert.equal(entries[0].links[0].label, title);
   assert.ok(entries[0].links[0].label.length <= 160);
@@ -237,7 +242,7 @@ test('long goal and place display context leaves the core persisted label within
     factory.referenceResults(p, displayIndex, 'long-goal'),
     factory.selectedReferences(p, displayIndex, ['goal:long-goal'], entries[0]),
   ]) {
-    assert.ok(html.includes(esc(placeName) + ' · 场景 #14'));
+    assert.ok(html.includes(esc(placeName)));
     assert.ok(html.includes(esc(title)));
     assert.ok(!html.includes('<标题'));
     assert.ok(!html.includes('<地点'));
@@ -263,18 +268,14 @@ test('goal context and action names escape markup, tolerate unknown scenes and d
     factory.selectedReferences(p, unsafeIndex, ['goal:unsafe-goal']),
   ]) {
     assert.ok(html.includes('&lt;script&gt;采药&lt;/script&gt;'));
-    assert.ok(html.includes('&lt;b&gt;山&lt;/b&gt; &amp; &quot;地点&quot; · 场景 #14'));
+    assert.ok(html.includes('&lt;b&gt;山&lt;/b&gt; &amp; &quot;地点&quot;'));
     assert.ok(!html.includes('<script>'));
     assert.ok(!html.includes('<img'));
   }
   assert.ok(
     factory.referenceResults(p, unsafeIndex, '采药').includes('&lt;img src=x&gt; &amp; &quot;备忘&quot;'),
   );
-  assert.ok(
-    factory
-      .selectedReferences(p, unsafeIndex, ['goal:unknown-goal'])
-      .includes('place-999999999 · 场景 #999999999'),
-  );
+  assert.ok(factory.selectedReferences(p, unsafeIndex, ['goal:unknown-goal']).includes('地点待核对'));
   const entry = { links: [{ type: 'goal', id: 'unsafe-goal', label: '原来的目标', detached: true }] };
   const detached = factory.selectedReferences(p, unsafeIndex, ['goal:unsafe-goal'], entry);
   assert.ok(detached.includes('原来的目标 · 原关联已移除'));
@@ -421,7 +422,10 @@ test('old names survive editing and rendering while known IDs supply current ide
   const augmented = structuredClone(entries);
   augmented[0].links[0].label = original;
   const html = factory.detail({ ...p, journalEntries: augmented }, entries[0].id, {}, index);
-  assert.equal(html.split('当前资料：').length - 1, 1);
+  const display = html.split('<details><summary>原始记录信息</summary>')[0];
+  assert.equal(display.split('当前资料：').length - 1, 1);
+  assert.ok(html.includes('<summary>原始记录信息</summary>'));
+  assert.equal(augmented[0].links[0].label, original);
 });
 
 test('missing and detached legacy references keep historical labels and do not acquire current qualities', async () => {
@@ -464,7 +468,7 @@ test('gift selection, stored user events and legacy display reuse exact gift qua
   const person = game.entries.find((row) => row.id === 'npc-5011');
   const item = game.entries.find((row) => row.id === 'item-1006');
   const expected = `${giftPersonLabel(person, game.entries)} · ${giftItemLabel(item)} × 2`;
-  assert.ok(expected.includes('资料编号'));
+  assert.match(expected, /（资料 [1-9]\d*\/[1-9]\d*）/);
   const choice = journalReferenceChoices(p, index, '长虹剑').find((row) => row.type === 'gift');
   assert.equal(choice.label, expected);
   const entries = appendSystemEvent(
@@ -508,12 +512,13 @@ test('real same-name places retain exact scene suffix rules alongside database i
     { type: 'place', id: 'place-63' },
     { type: 'database', id: 'item-1006' },
   ]);
-  assert.equal(entries[0].links[0].label, '梧桐村 · 场景 #63');
+  assert.equal(entries[0].links[0].label, '梧桐村 · 场景 3');
   entries[0].links[0] = { type: 'place', id: 'place-63', label: '旧名 · 场景 #9', detached: true };
   const factory = createEventJournalViews({ ...helpers, getIndex: () => index });
   const p = { ...profile(), journalEntries: entries };
   const html = factory.detail(p, entries[0].id, { readOnly: true });
-  assert.ok(html.includes('旧名 · 场景 #9 · 场景 #63 · 原关联已移除'));
+  assert.ok(html.includes('旧名 · 场景 #9 · 原关联已移除'));
+  assert.ok(!html.includes('场景 3'));
   entries[0].links[0].label = '旧名 · 场景 #63';
   const exact = factory.detail(p, entries[0].id, { readOnly: true });
   assert.ok(exact.includes('旧名 · 场景 #63 · 原关联已移除'));
@@ -542,4 +547,201 @@ test('both current identities and preserved legacy names are escaped on all refe
     assert.ok(!html.includes('<script>'));
   }
   assert.ok(factory.detail(p, entries[0].id).includes('&lt;script&gt;legacy&lt;/script&gt;'));
+});
+
+test('legacy system identity suffixes render human variants while edits preserve exact saved labels and IDs', async () => {
+  const { createEventJournalViews, queryJournalEntries } = await views;
+  const entries = save([
+    { type: 'place', id: 'place-63' },
+    { type: 'quest', id: 'quest-9010' },
+    { type: 'database', id: 'npc-5011' },
+  ]);
+  const person = game.entries.find((row) => row.id === 'npc-5011');
+  entries[0].links[0].label = '梧桐村 · 场景 #63';
+  entries[0].links[1].label = '莫问授剑 · 任务 #9010';
+  entries[0].links[2].label = `人物 · ${person.name}（资料编号 ${person.gameId}）`;
+  const p = { ...profile(), journalEntries: entries };
+  const before = structuredClone(entries);
+  const factory = createEventJournalViews({ ...helpers, getIndex: () => index });
+  for (const html of [
+    factory.page(p, {}, index),
+    factory.selectedReferences(
+      p,
+      index,
+      entries[0].links.map((link) => `${link.type}:${link.id}`),
+      entries[0],
+    ),
+    factory.detail(p, entries[0].id).split('<details><summary>原始记录信息</summary>')[0],
+    factory
+      .revisionContent({ id: 'old-version', entry: entries[0], replacedAt: time })
+      .split('<details><summary>原始记录信息</summary>')[0],
+  ]) {
+    assert.ok(html.includes('梧桐村 · 场景 3'));
+    assert.ok(html.includes('莫问授剑 · 【主线】拜师武当 · 资料 2/3'));
+    assert.match(html, /人物 · .*（资料 [1-9]\d*\/[1-9]\d*）/);
+    assert.doesNotMatch(html, /场景 #|任务 #|资料编号/);
+  }
+  const updated = applyEntryCommand(
+    entries,
+    command(
+      entries[0].links.map(({ type, id }) => ({ type, id })),
+      {
+        type: 'journal-entry-update',
+        id: entries[0].id,
+        expectedEntry: entries[0],
+        body: '继续写原来的记录',
+      },
+    ),
+    context(p),
+    { now: time },
+  );
+  assert.deepEqual(updated[0].links, before[0].links);
+  assert.deepEqual(entries, before);
+  assert.deepEqual(queryJournalEntries(p, { query: '场景 #63 任务 #9010' }, index).matchedIds, [
+    entries[0].id,
+  ]);
+  assert.deepEqual(queryJournalEntries(p, { query: '梧桐村 场景 3 资料 2/3' }, index).matchedIds, [
+    entries[0].id,
+  ]);
+  const raw = factory.detail(p, entries[0].id).split('<details><summary>原始记录信息</summary>')[1];
+  for (const link of before[0].links) {
+    assert.ok(raw.includes(esc(link.label)));
+    assert.ok(raw.includes(link.id));
+  }
+});
+
+test('same-name people use exact stable variants in fresh saved links and accessible choices', async () => {
+  const { createEventJournalViews, journalReferenceChoices } = await views;
+  const person = game.entries.find((row) => row.id === 'npc-5011');
+  const people = [...new Map([...world.people, ...game.entries].map((row) => [row.id, row])).values()].filter(
+    (row) => row.kind === '人物' && row.name === person.name,
+  );
+  assert.ok(people.length > 1);
+  const expected = people.map((row, position) => [
+    row.id,
+    `人物 · ${row.name}（资料 ${position + 1}/${people.length}）`,
+  ]);
+  const choices = journalReferenceChoices(profile(), index, person.name).filter((row) =>
+    expected.some(([id]) => row.id === id),
+  );
+  assert.equal(new Set(choices.map((row) => row.label)).size, expected.length);
+  const factory = createEventJournalViews(helpers);
+  const html = factory.referenceResults(profile(), index, person.name);
+  for (const [id, label] of expected) {
+    assert.equal(choices.find((row) => row.id === id).label, label);
+    assert.equal(save([{ type: 'database', id }])[0].links[0].label, label);
+    assert.ok(html.includes(`aria-label="关联 图鉴 · ${label}"`));
+    assert.deepEqual(
+      journalReferenceChoices(profile(), index, label).map((row) => row.id),
+      [id],
+    );
+  }
+});
+
+test('ambiguous legacy place IDs and detached references never borrow a current scene identity', async () => {
+  const { createEventJournalViews, journalReferenceChoices, queryJournalEntries } = await views;
+  for (const name of ['山野客栈', '仙人渡', '客房', '仙人渡密室'])
+    assert.equal(
+      journalReferenceChoices(profile(), index, name).filter(
+        (row) => row.type === 'place' && ['place-96', 'place-97'].includes(row.id),
+      ).length,
+      0,
+    );
+  const entries = save([{ type: 'place', id: 'place-63' }]);
+  entries[0].links = [
+    { type: 'place', id: 'place-96', label: '当年投宿的客栈 · 场景 #96' },
+    { type: 'place', id: 'place-63', label: '旧名 · 场景 #9', detached: true },
+    { type: 'quest', id: 'quest-9010', label: '原来的任务 · 任务 #9010', detached: true },
+    { type: 'database', id: 'npc-5011', label: '原来的朋友（资料编号 5011）', detached: true },
+  ];
+  const p = { ...profile(), journalEntries: entries };
+  const before = structuredClone(p);
+  const factory = createEventJournalViews({ ...helpers, getIndex: () => index });
+  for (const html of [
+    factory.page(p, { readOnly: true }, index),
+    factory.selectedReferences(
+      p,
+      index,
+      entries[0].links.map((link) => `${link.type}:${link.id}`),
+      entries[0],
+    ),
+  ]) {
+    for (const link of entries[0].links) assert.ok(html.includes(link.label));
+    assert.doesNotMatch(html, /当前资料：|场景 3|资料 2\/3/);
+  }
+  for (const name of ['山野客栈', '仙人渡'])
+    assert.equal(queryJournalEntries(p, { query: name }, index).total, 0);
+  assert.deepEqual(queryJournalEntries(p, { query: '当年投宿的客栈' }, index).matchedIds, [entries[0].id]);
+  assert.ok(factory.selectedReferences(p, index, ['place:place-96']).includes('原关联资料'));
+  assert.deepEqual(p, before);
+});
+
+test('legacy duplicate places stay unresolved in drafts, trash, history and newly recorded actions', async () => {
+  const load = (file) =>
+    import(require('node:url').pathToFileURL(path.join(__dirname, '../src/renderer', file)).href);
+  const [
+    { createIntentDraftViews },
+    { createJourneyTrashViews },
+    { createProtectionViews },
+    { placeChoiceLabel },
+  ] = await Promise.all(
+    ['intent-draft-views.js', 'journey-trash-views.js', 'protection-views.js', 'place-picker.js'].map(load),
+  );
+  const draftViews = createIntentDraftViews({ ...helpers, placeLabel: placeChoiceLabel });
+  const trashViews = createJourneyTrashViews({ ...helpers, placeLabel: placeChoiceLabel });
+  const app = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const body = app
+    .slice(app.indexOf('const protectionViews ='))
+    .match(/  name: \(id\) => \{([\s\S]*?)\n  \},\n\}\);/)[1];
+  const name = require('node:vm').runInNewContext('(id) => {' + body + '}', {
+    gameIndex: index,
+    catalog: { entries: [] },
+  });
+  const archiveViews = createProtectionViews({
+    ...helpers,
+    name,
+    backupViews: { page: () => '' },
+    journalPage: () => '',
+    historyBackupView: {},
+  });
+  for (const id of ['place-96', 'place-97']) {
+    const expected = '原地点（场景待核对）';
+    const matches = world.maps.filter((row) => row.id === id);
+    assert.equal(matches.length, 2);
+    assert.equal(draftViews.title({ kind: 'journey-place', targetId: id, values: {} }, index), expected);
+    assert.equal(trashViews.title({ kind: 'place', record: { placeId: id } }, index), expected);
+    assert.equal(name(id), expected);
+    const p = { ...profile(), name: '合成历史', notes: '', craftPlans: [] };
+    p.journey.places = [{ placeId: id, note: '保留原笔记' }];
+    p.journey.todos = [{ id: 'old-todo', title: '原待办', placeId: id, done: true }];
+    p.journey.gifts = [];
+    p.journey.handledActionIds = [];
+    const before = structuredClone(p);
+    const html = archiveViews.page({
+      archives: [],
+      loaded: true,
+      history: {
+        id: 'synthetic-history',
+        createdAt: time,
+        compatible: true,
+        journal: { profiles: [p] },
+        backups: [],
+        timeline: { records: [] },
+      },
+    });
+    assert(html.includes(expected));
+    assert(html.includes('保留原笔记'));
+    for (const place of matches) assert(!html.includes(place.name), 'history does not choose a scene');
+    const entries = appendSystemEvent(
+      [],
+      { type: 'todo', id: 'old-todo', beforeDone: false, afterDone: true },
+      context(p),
+      { now: time, id: 'synthetic-place-event' },
+    );
+    const link = entries[0].links.find((row) => row.type === 'place');
+    assert.equal(link.id, id);
+    assert.equal(link.label, expected);
+    assert.deepEqual(p, before);
+  }
+  assert.equal(name('place-9'), '梧桐村');
 });

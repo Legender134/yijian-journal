@@ -262,7 +262,7 @@ function createFlowProjector({
         name: cleanName(q.name),
         nextAction:
           !q.parentId && children.get(q.gameId)?.length
-            ? '这份存档仅记录任务进行中；具体步骤请先核对游戏任务栏。'
+            ? '下一步未识别，请查看游戏任务栏。'
             : cleanName(q.name),
         description: q.description,
         people: npcs,

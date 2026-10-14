@@ -1,16 +1,13 @@
 'use strict';
 const test = require('node:test'),
   assert = require('node:assert/strict');
-const fs = require('node:fs'),
-  path = require('node:path');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { journeyPlan, createJourneyPlanner } = require('../src/core/journey-plan.cjs');
 const { resourceBudget } = require('../src/core/resource-budget.cjs');
 const game = require('../src/data/game-index.json'),
   world = require('../src/data/world-index.json');
-const rendering = import(
-  'data:text/javascript;base64,' +
-    fs.readFileSync(path.join(__dirname, '../src/renderer/journey-views.js')).toString('base64')
-);
+const rendering = import(pathToFileURL(path.join(__dirname, '../src/renderer/journey-views.js')).href);
 const profile = {
   id: 'synthetic-profile',
   referenceMode: 'none',
@@ -55,11 +52,66 @@ test('a craft action names the actual blue sword rather than its learning bluepr
   assert.equal(craft.recipe.name, '白光剑精良图纸');
   assert.equal(craft.recipe.quantity, 2);
   const view = await html(plan);
-  assert.match(view, /执行配方：白光剑精良图纸 · 2 次/);
+  assert.match(
+    view,
+    /执行配方：<button data-action="database-detail" data-id="fusion-1001">白光剑精良图纸<\/button> · 2 次/,
+  );
   assert.match(view, /data-journey-craft-output="1005"[\s\S]*data-id="item-1005"[\s\S]*蓝色品质 × 2/);
   assert.match(view, /计划产物尚未进入背包/);
   assert.deepEqual(p, before);
   assert.deepEqual(budget, budgetBefore);
+});
+
+test('processing ingredients and preceding recipes link their exact catalogue identities', async () => {
+  const p = {
+    ...profile,
+    referenceMode: 'slot',
+    saveSlot: 'synthetic.sav',
+    craftPlans: [],
+    craftList: [{ id: 'fusion-1002', quantity: 1 }],
+  };
+  const reference = {
+    name: 'synthetic.sav',
+    hash: 'synthetic-hash',
+    modifiedAt: '2026-10-08T00:00:00Z',
+    metadata: {
+      quests: [],
+      inventory: [
+        { id: 10205, count: 10 },
+        { id: 10207, count: 3 },
+      ],
+      money: 100000,
+    },
+  };
+  const plan = journeyPlan(p, reference, resourceBudget(p, reference));
+  assert(plan.actions.some((a) => a.processingStep));
+  const view = await html(plan);
+  const processing = [
+    ...view.matchAll(/<details open><summary>加工这一步需要什么<\/summary>([\s\S]*?)<\/details>/g),
+  ]
+    .map((match) => match[1])
+    .join('\n');
+  for (const [id, name] of [
+    ['item-10207', '金矿石'],
+    ['item-10205', '煤炭'],
+    ['item-10216', '铁锭'],
+    ['fusion-9500', '铁锭'],
+  ])
+    assert.match(
+      processing,
+      new RegExp('data-action="database-detail" data-id="' + id + '">' + name + '</button>'),
+    );
+  assert.match(processing, /预计来自先前加工 <button/);
+  const stage = plan.actions.find((a) => a.processingStep);
+  stage.processingStep.materials[0].sources.push({
+    id: 987654321,
+    count: 1,
+    source: 'planned-output',
+    recipeId: 'fusion-unknown',
+  });
+  const missing = await html(plan);
+  assert.doesNotMatch(missing, /data-id="(?:item-987654321|fusion-unknown)"/);
+  assert.match(missing, /物品资料待补充/);
 });
 test('alternative quality outputs remain separate possible items, never summed into a guaranteed result', async () => {
   const data = structuredClone(game),

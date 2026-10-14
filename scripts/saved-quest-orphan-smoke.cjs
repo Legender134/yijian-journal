@@ -45,10 +45,14 @@ const report = {
   errors: [],
 };
 let app, page;
-async function openFromHome(id) {
+async function openRecordedQuest(id, slot) {
   await page.locator('.nav-btn[data-id="home"]').click();
-  await page.locator(`[data-action="save-quest-jump"][data-id="${id}"]`).first().click();
+  await page.locator('[data-flow-quest="quest-14073"]').waitFor();
+  await page.locator('.nav-btn[data-id="saves"]').click();
+  await page.locator(`[data-action="save-detail"][data-id="${slot}"]`).click();
   const section = page.locator('.save-recorded-quests');
+  await section.locator(':scope > summary').click();
+  await section.locator(`[data-quest-id="${id}"] details > summary`).click();
   await section.locator(`[data-quest-id="${id}"] details[open]`).waitFor();
   assert.match(await section.locator(':scope > summary').innerText(), /任务记录 · 1 项/);
   assert(!/任务状态已变化/.test(await page.locator('#toasts').innerText()));
@@ -69,11 +73,11 @@ async function openFromHome(id) {
     await page.context().setOffline(true);
     await page.locator('.layout').waitFor();
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.showInactive()));
-    let section = await openFromHome(14082);
+    let section = await openRecordedQuest(14082, '1.sav');
     assert.match(await section.innerText(), /未记录上级任务/);
     await page.screenshot({ path: path.join(out, 'orphan-current-step.png'), animations: 'disabled' });
     report.checks.push(
-      'home orphan task opens the same recorded active step, count and truthful parent context without a changed-state warning',
+      'home shows the active task; save records retain its exact orphan step, count and parent context',
     );
     await section.locator('[data-action="save-quest-filter"][data-id="done"]').click();
     assert.equal(await section.locator('.saved-quest').count(), 0);
@@ -85,7 +89,7 @@ async function openFromHome(id) {
       window.journal.mutate({ type: 'save-slot', value: '2.sav', mode: 'slot' }),
     );
     assert(response.ok, response.error);
-    section = await openFromHome(14073);
+    section = await openRecordedQuest(14073, '2.sav');
     assert.equal(await section.locator('.saved-quest').count(), 1);
     assert.equal(await section.locator('.quest-step').count(), 1);
     assert(!/未记录上级任务/.test(await section.innerText()));

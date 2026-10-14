@@ -3,6 +3,7 @@ const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
 const { _electron } = require('playwright');
+const { selectProgress, progressValue } = require('./progress-settings.cjs');
 const { Store } = require('../src/core/store.cjs'),
   { sha } = require('../src/core/saves.cjs'),
   { syntheticSave } = require('../tests/fixtures.cjs');
@@ -103,10 +104,7 @@ const shot = async (name) => {
     await launch();
     report.version = (await win.evaluate(() => window.journal.bootstrap())).data.version;
     await nav('world');
-    await win
-      .locator('#world-save')
-      .filter({ has: win.locator('option[value="1.sav"]') })
-      .waitFor();
+    await selectProgress(win, '1.sav');
     await win.locator('#world-search').fill('武当求助');
     await win.locator('[data-action="world-quest"][data-id="quest-5200"]').click();
     assert.ok((await win.locator('.world-drawer .tag-row').innerText()).includes('进行中'));
@@ -117,12 +115,12 @@ const shot = async (name) => {
         .evaluate((e) => e.open),
       false,
     );
-    await win.locator('[data-action="world-quest"][data-id="quest-5201"]').click();
+    await win.locator('.world-drawer .world-steps [data-action="world-quest"][data-id="quest-5201"]').click();
     await win.locator('[data-action="drawer-back"]').click();
     assert.ok((await win.locator('.world-drawer h1').innerText()).includes('武当求助'));
     await win.locator('[data-action="world-quest-goal"]').click();
     await close();
-    await win.locator('#world-save').selectOption('2.sav');
+    await selectProgress(win, '2.sav');
     await win.locator('#world-status').selectOption('active');
     await win.locator('.world-quest-card').filter({ hasText: '已完成' }).waitFor();
     assert.ok((await win.locator('.world-quest-card').innerText()).includes('进行中的步骤'));
@@ -134,7 +132,7 @@ const shot = async (name) => {
     await win.locator('#world-scope').selectOption('all');
     await win.locator('#world-search').fill(quest.name);
     await win.locator(`.world-quest-card[data-id="${quest.id}"]`).click();
-    assert.ok((await win.locator('.world-drawer').innerText()).includes('未出现在记录'));
+    assert.match(await win.locator('.world-drawer .tag-row').innerText(), /未记录/);
     assert.ok((await win.locator('.world-drawer .material-row').first().innerText()).includes('库存 0'));
     const itemButton = win.locator('.world-drawer .material-row [data-action="database-detail"]').first();
     await itemButton.click();
@@ -144,7 +142,8 @@ const shot = async (name) => {
     await win.locator('[data-action="world-kind"][data-id="places"]').click();
     await win.locator('#world-search').fill('梧桐村');
     await win.locator('.world-place-card').first().click();
-    assert.ok((await win.locator('.world-drawer').innerText()).includes('不是全地图收集清单'));
+    await win.locator('.world-drawer .place-map-frame').waitFor();
+    assert.equal(await win.locator('.world-drawer .place-map-pin.is-selected').count(), 1);
     await shot('14-place');
     await close();
     report.checks.push(
@@ -154,17 +153,17 @@ const shot = async (name) => {
     await win.locator('[data-action="database-kind"][data-id="人物"]').click();
     await win.locator('#list-search').fill('卫霍');
     await win.locator('.database-card[data-id="npc-10047"]').click();
-    await win.locator('#person-save').selectOption('1.sav');
+    await selectProgress(win, '1.sav');
     await win.locator('.person-gifts').filter({ hasText: gift.name }).waitFor();
     assert.ok((await win.locator('.person-gifts').innerText()).includes('7 件'));
     await shot('15-gifts');
     await win.locator(`.person-gifts [data-id="${gift.id}"]`).click();
     await win.locator('[data-action="drawer-back"]').click();
-    assert.equal(await win.locator('#person-save').inputValue(), '1.sav');
-    await win.locator('#person-save').selectOption('2.sav');
-    await win.locator('.person-gifts').filter({ hasText: '没有记录符合偏好' }).waitFor();
-    await win.locator('#person-save').selectOption('3.sav');
-    assert.ok((await win.locator('.person-gifts').innerText()).includes('物品示例'));
+    assert.equal(await progressValue(win), '1.sav');
+    await selectProgress(win, '2.sav');
+    await win.locator('.person-gifts').filter({ hasText: '背包中暂无合适礼物' }).waitFor();
+    await selectProgress(win, '3.sav');
+    assert.ok((await win.locator('.person-gifts').innerText()).includes('可送礼物'));
     await win.locator('[data-action="world-person"]').click();
     assert.equal(await win.locator('#world-search').inputValue(), '卫霍');
     assert.ok(await win.locator('.world-quest-card').count());
@@ -178,7 +177,7 @@ const shot = async (name) => {
     await win.locator('.craft-suggestions [data-action="craft-add"][data-id="fusion-1003"]').click();
     await win.locator('#craft-qty-fusion-1002').fill('2');
     await win.locator('#craft-search').focus();
-    await win.locator('#craft-save').selectOption('1.sav');
+    await selectProgress(win, '1.sav');
     await win.locator('[data-action="craft-calculate"]').click();
     await win.locator('.craft-totals').first().waitFor();
     const list = [
@@ -230,7 +229,7 @@ const shot = async (name) => {
     report.checks.push(
       'shared-stock allocation and fees, quantity edits/additions, invalid IPC/input refusal, goal source and recipe-to-planner flow',
     );
-    await win.locator('#craft-save').selectOption('');
+    await selectProgress(win, '');
     await win.locator('[data-action="craft-calculate"]').click();
     await win.locator('.craft-totals').first().filter({ hasText: '未核对' }).waitFor();
     assert.ok(!(await win.locator('.craft-materials').innerText()).includes('还缺'));
@@ -238,9 +237,9 @@ const shot = async (name) => {
       await win.locator('.craft-material').count(),
       'Unknown stock is still shown after missing-only filter',
     );
-    await win.locator('#craft-save').selectOption('3.sav');
+    await selectProgress(win, '3.sav');
     await win.locator('[data-action="craft-calculate"]').click();
-    assert.ok((await win.locator('.craft-result-card').innerText()).includes('背包未能读取'));
+    assert.ok((await win.locator('.craft-result-card').innerText()).includes('库存未读取'));
     assert.ok(await win.locator('.craft-material').count());
     const oldHash = sha(fs.readFileSync(path.join(data, 'journal.json')));
     await app.close();
@@ -250,6 +249,7 @@ const shot = async (name) => {
     await nav('materials');
     await win.locator('#craft-qty-fusion-1002').waitFor();
     assert.equal(await win.locator('#craft-qty-fusion-1002').inputValue(), '5');
+    await selectProgress(win, '1.sav');
     await win.locator('[data-action="profiles"]').click();
     await win.locator('#profile-name').fill('第二程');
     await win.locator('[data-action="profile-create"]').click();
@@ -263,12 +263,12 @@ const shot = async (name) => {
     );
     fs.renameSync(path.join(source, '1.sav'), path.join(data, 'held-1.sav'));
     await nav('world');
-    assert.equal(await win.locator('#world-save').inputValue(), '1.sav');
-    await win.locator('.world-reference').filter({ hasText: '已不存在' }).waitFor();
+    assert.equal(await progressValue(win), '1.sav');
+    await win.locator('main.content .notice').filter({ hasText: '已不存在' }).waitFor();
     await nav('materials');
     await win.locator('.craft-result-card').filter({ hasText: '已不存在' }).waitFor();
     assert.equal(await win.locator('.craft-totals').first().count(), 0);
-    assert.equal(await win.locator('#craft-save').inputValue(), '1.sav');
+    assert.equal(await progressValue(win), '1.sav');
     fs.renameSync(path.join(data, 'held-1.sav'), path.join(source, '1.sav'));
     await win.locator('[data-action="craft-calculate"]').click();
     await win.locator('.craft-totals').first().waitFor();
@@ -301,7 +301,7 @@ const shot = async (name) => {
     await nav('materials');
     await win.locator('.craft-totals').first().waitFor();
     report.checks.push('global task/place search, Chinese composition and offline restart');
-    // A deliberately delayed IPC fixture exercises UI cancellation without touching real files.
+    // Hold one real calculation until after Settings/profile navigation completes.
     await app.evaluate(
       ({ ipcMain }, { base, source, data }) => {
         const load = process.getBuiltinModule('node:module').createRequire(pathModule(base));
@@ -314,22 +314,51 @@ const shot = async (name) => {
         ipcMain.removeHandler('journal:material-plan');
         ipcMain.handle('journal:material-plan', async (_e, list, name) => {
           const plan = materialPlan(list, name ? reader.details(source, name).metadata : null);
-          await new Promise((r) => setTimeout(r, 250));
+          const gate = globalThis.__materialSmokeGate;
+          if (gate && !gate.used) {
+            gate.used = true;
+            gate.name = name;
+            await new Promise((resolve) => {
+              gate.release = resolve;
+              gate.didStart();
+            });
+          }
           return { ok: true, data: plan };
         });
       },
       { base, source, data },
     );
-    await win.locator('#craft-save').selectOption('1.sav');
-    await win.locator('[data-action="craft-calculate"]').click();
-    await win.locator('#craft-save').selectOption('2.sav');
+    const holdCalculation = async (name) => {
+      await app.evaluate(() => {
+        const gate = (globalThis.__materialSmokeGate = { used: false });
+        gate.started = new Promise((resolve) => (gate.didStart = resolve));
+      });
+      await win.locator('[data-action="craft-calculate"]').click();
+      assert.equal(
+        await app.evaluate(async () => {
+          const gate = globalThis.__materialSmokeGate;
+          await gate.started;
+          return gate.name;
+        }),
+        name,
+      );
+    };
+    const releaseCalculation = async () => app.evaluate(() => globalThis.__materialSmokeGate.release());
+    await selectProgress(win, '1.sav');
+    await holdCalculation('1.sav');
+    await selectProgress(win, '2.sav');
+    await win.locator('.craft-totals').first().waitFor();
+    const currentCalculation = await win.locator('.craft-result-card').innerText();
+    assert.match(currentCalculation, /已分配 0/);
+    await releaseCalculation();
     await win.waitForTimeout(350);
-    assert.equal(await win.locator('.craft-totals').first().count(), 0);
+    assert.equal(await win.locator('.craft-result-card').innerText(), currentCalculation);
     assert.ok(!(await win.locator('.craft-result-card').innerText()).includes('正在核对'));
-    await win.locator('[data-action="craft-calculate"]').click();
+    await holdCalculation('2.sav');
     await win.locator('[data-action="profiles"]').click();
     await win.locator('#profile-name').fill('迟到结果验证');
     await win.locator('[data-action="profile-create"]').click();
+    await releaseCalculation();
     await win.waitForTimeout(350);
     assert.equal(await win.locator('.craft-line').count(), 0);
     assert.equal(await win.locator('.craft-totals').first().count(), 0);

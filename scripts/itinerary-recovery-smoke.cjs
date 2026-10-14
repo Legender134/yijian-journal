@@ -287,10 +287,15 @@ function assertIndependent(p, before) {
     if ((await historicTrip.getAttribute('open')) === null)
       await historicTrip.locator('summary').first().click();
     text = await historicTrip.innerText();
-    for (const expected of [original.name, 'place-22', 'place-9', '仅本次跳过'])
-      assert(text.includes(expected), expected);
+    for (const expected of [original.name, '仅本次跳过']) assert(text.includes(expected), expected);
+    assert.deepEqual(
+      await historicTrip
+        .locator('[data-action="archive-entity"][data-id^="place-"]')
+        .evaluateAll((nodes) => nodes.map((node) => node.dataset.id)),
+      ['place-22', 'place-9'],
+    );
     assert(text.indexOf('先去精确场景二十二') < text.indexOf('精确场景九的原事项'));
-    assert.equal(await historicTrip.locator('[data-action]').count(), 0);
+    assert.equal(await historicTrip.locator('[data-action]:not([data-action="archive-entity"])').count(), 0);
     const historicalTrash = page.locator('.journey-trash-panel').first();
     assert.equal(
       await historicalTrash
@@ -303,9 +308,12 @@ function assertIndependent(p, before) {
       animations: 'disabled',
     });
     await historicalTrash.locator('[data-action="historical-journey-trash-detail"]').click();
-    assert.match(
-      await page.locator('#overlay').innerText(),
-      /历史已移除安排 · 只读[\s\S]*place-22[\s\S]*place-9/,
+    assert.match(await page.locator('#overlay').innerText(), /历史已移除安排 · 只读/);
+    assert.deepEqual(
+      await page
+        .locator('#overlay [data-action="archive-entity"][data-id^="place-"]')
+        .evaluateAll((nodes) => nodes.map((node) => node.dataset.id)),
+      ['place-22', 'place-9'],
     );
     text = await page.locator('#overlay').innerText();
     assert(!text.includes(A));

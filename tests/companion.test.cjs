@@ -38,6 +38,7 @@ function setup({ layout } = {}) {
     setIgnoreMouseEvents: (b) => actions.push(['ignore', b]),
     setOpacity: () => {},
     hide: () => {
+      actions.push(['hide']);
       visible = false;
     },
     showInactive: () => {
@@ -45,6 +46,7 @@ function setup({ layout } = {}) {
       visible = true;
     },
     show: () => {
+      actions.push(['show']);
       visible = true;
     },
     focus: () => actions.push(['focus']),
@@ -83,9 +85,7 @@ function setup({ layout } = {}) {
     },
   };
 }
-test('manual companion geometry survives polling, passive mode and reopen while defaults remain selectable', async (t) => {
-  // Geometry checks must not expire the separate foreground grace period under CI load.
-  t.mock.method(Date, 'now', () => 1_800_000_000_000);
+test('manual companion geometry survives polling, passive mode and reopen while defaults remain selectable', async () => {
   const { WindowLayout } = require('../src/core/window-layout.cjs');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-companion-layout-'));
   try {
@@ -171,8 +171,15 @@ test('explicit edge tuck remains clickable without taking focus and restores the
     assert.equal(f.win.getBounds().width, 66);
     assert.deepEqual(new WindowLayout(dir).get('companion'), chosen);
     f.set({ ...game, gameForeground: false, ownForeground: false });
-    assert.equal(f.win.isVisible(), false);
+    assert.equal(f.win.isVisible(), true);
     assert.equal(f.controller.mode, 'tucked');
+    f.set({ ...game, available: false, gameForeground: false, ownForeground: false });
+    assert.equal(f.win.isVisible(), true);
+    f.set(null);
+    f.win.emit('blur');
+    assert.equal(f.win.isVisible(), true);
+    assert.equal(f.controller.mode, 'tucked');
+    assert.equal(f.actions.filter((a) => a[0] === 'focus').length, focusCount);
     f.set(game);
     assert.equal(f.win.isVisible(), true);
     f.controller.expand();
@@ -183,7 +190,7 @@ test('explicit edge tuck remains clickable without taking focus and restores the
     assert.equal(f.win.isVisible(), true);
     assert.deepEqual(f.actions.filter((a) => a[0] === 'ignore').at(-1), ['ignore', false]);
     f.set({ ...game, gameForeground: false, ownForeground: false });
-    assert.equal(f.win.isVisible(), false);
+    assert.equal(f.win.isVisible(), true);
     f.set(game);
     assert.equal(f.win.isVisible(), true);
     f.controller.expand();
@@ -253,7 +260,76 @@ test('passive hints are nonfocusable, click-through, DPI anchored and hidden out
   f.settings({ companionEnabled: false });
   assert.equal(f.win.isVisible(), false);
 });
-test('only explicit expansion accepts input, collapsing returns verified originating game and external Alt Tab hides', async () => {
+test('manual expansion remains visible across app switches and game focus without taking focus again', (t) => {
+  let now = 1_800_000_000_000;
+  t.mock.method(Date, 'now', () => now);
+  const f = setup();
+  f.set(game);
+  f.win.emit('ready-to-show');
+  f.controller.rendererReady();
+  f.controller.expand();
+  const focusCount = f.actions.filter((a) => a[0] === 'focus').length;
+  assert.equal(focusCount, 1);
+  now += 10_000;
+  for (const state of [
+    { ...game, gameForeground: false, ownForeground: true },
+    { ...game, gameForeground: false, ownForeground: false },
+    game,
+    { ...game, available: false, gameForeground: false, ownForeground: false },
+    null,
+  ]) {
+    f.set(state);
+    f.win.emit('blur');
+    assert.equal(f.win.isVisible(), true);
+    assert.equal(f.controller.mode, 'expanded');
+  }
+  f.quiet(true);
+  f.settings({ companionEnabled: false });
+  assert.equal(f.win.isVisible(), true);
+  assert.equal(f.actions.filter((a) => a[0] === 'focus').length, focusCount);
+  assert.equal(f.actions.filter((a) => a[0] === 'hide').length, 0);
+
+  // Recover an unexpected native hide without activating over the user's other app.
+  f.win.hide();
+  f.controller.update();
+  assert.equal(f.win.isVisible(), true);
+  assert.deepEqual(f.actions.at(-1), ['inactive']);
+  assert.equal(f.actions.filter((a) => a[0] === 'focus').length, focusCount);
+});
+test('switching apps before first readiness cancels activation inside the focus deadline', (t) => {
+  let now = 1_800_000_000_000;
+  t.mock.method(Date, 'now', () => now);
+  for (const open of ['expand', 'showEdits']) {
+    const f = setup();
+    f.set(game);
+    f.controller[open]();
+    now += 200;
+    f.set({ ...game, gameForeground: false, ownForeground: false });
+    now += 100;
+    f.win.emit('ready-to-show');
+    f.controller.rendererReady();
+    assert.equal(f.win.isVisible(), true);
+    assert.equal(f.controller.mode, 'expanded');
+    assert.equal(f.actions.filter((a) => a[0] === 'focus' || a[0] === 'show').length, 0);
+    assert(f.actions.some((a) => a[0] === 'inactive'));
+  }
+});
+test('manual opening without a game remains visible after delayed readiness without stale focus', (t) => {
+  let now = 1_800_000_000_000;
+  t.mock.method(Date, 'now', () => now);
+  const f = setup();
+  f.controller.expand();
+  now += 10_000;
+  f.win.emit('ready-to-show');
+  f.controller.rendererReady();
+  f.win.emit('blur');
+  f.set(null);
+  assert.equal(f.win.isVisible(), true);
+  assert.equal(f.controller.mode, 'expanded');
+  assert.equal(f.actions.filter((a) => a[0] === 'focus').length, 0);
+  assert(f.actions.some((a) => a[0] === 'inactive'));
+});
+test('explicit collapse returns to passive hints and monitor ticks do not reopen the panel', async () => {
   const f = setup();
   f.set(game);
   f.win.emit('ready-to-show');
@@ -262,12 +338,20 @@ test('only explicit expansion accepts input, collapsing returns verified origina
   assert.equal(f.controller.mode, 'expanded');
   assert(f.actions.some((a) => a[0] === 'focus'));
   assert(f.actions.some((a) => a[0] === 'ignore' && a[1] === false));
-  f.controller.grace = 0;
   f.set({ ...game, gameForeground: false, ownForeground: true });
   assert.equal(f.win.isVisible(), true);
   f.set({ ...game, gameForeground: false, ownForeground: false });
-  assert.equal(f.win.isVisible(), false);
+  assert.equal(f.win.isVisible(), true);
   await f.controller.collapse();
+  assert.equal(f.controller.mode, 'hint');
+  assert.equal(f.win.isVisible(), false);
+  const focusCount = f.actions.filter((a) => a[0] === 'focus').length;
+  for (let i = 0; i < 3; i++) {
+    f.set(game);
+    assert.equal(f.controller.mode, 'hint');
+    assert.equal(f.win.isVisible(), true);
+  }
+  assert.equal(f.actions.filter((a) => a[0] === 'focus').length, focusCount);
   assert.deepEqual(
     f.actions.filter((a) => a[0] === 'restore'),
     [['restore', '123']],

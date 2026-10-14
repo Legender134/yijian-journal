@@ -16,6 +16,8 @@ Copyright (c) 2018 Destiny Item Manager，MIT License。完整许可保留于 [s
 
 游戏商店与权利人信息：[Steam 官方商店页](https://store.steampowered.com/app/1876890/)。图鉴初始资料不一定反映当前周目状态；实际内容以玩家拥有的游戏为准。
 
+`src/data/world-map.json` 与对应地图底图沿用上述游戏内容权利声明。地图位置来自同一 Build 的官方地图标记、控件布局与场景入口关联；来源文件及底图的 SHA-256 保存在该文件的 `provenance` 中。没有可靠标记的场景不补造位置，原始游戏资源和导出缓存不随项目提交或打包。
+
 `src/data/npc-facts.json` 是同一 Build 的人物静态等级、初始私物及随机候选投影，沿用上述游戏数据权利声明。原始 `NPCs.uexp`、`DropPools.uexp` 与导出数据的 SHA-256 保存在文件的 `provenance` 中。私有原始游戏表不随项目提交或打包；`scripts/build-npc-facts.cjs` 可从本机导出数据复现这份投影。
 
 ## UE4SS

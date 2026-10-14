@@ -53,11 +53,11 @@ async function launch({ activeDataRoot = dataRoot, output = failedPackage } = {}
   const env = {
     ...process.env,
     YIJIAN_TEST_DATA: activeDataRoot,
-    YIJIAN_TEST_HIDDEN: '1',
     TEMP: path.join(run, 'temp'),
     TMP: path.join(run, 'temp'),
   };
   delete env.ELECTRON_RUN_AS_NODE;
+  delete env.YIJIAN_TEST_HIDDEN;
   executablePath = nativeElectron();
   app = await _electron.launch({
     executablePath,

@@ -6,6 +6,8 @@ function giftItemLabel(item) {
 function giftPersonLabel(person, entries) {
   if (!person) return '';
   const sameName = entries.filter((row) => row.kind === '人物' && row.name === person.name);
-  return sameName.length > 1 ? `${person.name}（资料编号 ${person.gameId ?? person.id}）` : person.name;
+  return sameName.length > 1
+    ? `${person.name}（资料 ${sameName.findIndex((row) => row.id === person.id) + 1}/${sameName.length}）`
+    : person.name;
 }
 module.exports = { giftItemLabel, giftPersonLabel };

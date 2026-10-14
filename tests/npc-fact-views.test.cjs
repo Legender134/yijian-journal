@@ -20,9 +20,9 @@ test('character detail connects fixed and random private items without revealing
     index,
     index.entries.find((e) => e.id === 'npc-10023'),
   );
-  assert.match(qin, /静态等级 35/);
+  assert.match(qin, /初始等级 35/);
   assert.match(qin, /data-id="item-100312"/);
-  assert.match(qin, /实际持有请先观察/);
+  assert.match(qin, /初始私物 · 5 种/);
   assert.doesNotMatch(qin, /<details[^>]*\bopen\b/);
   const hammer = view.person(
     index,
@@ -30,7 +30,7 @@ test('character detail connects fixed and random private items without revealing
   );
   assert.match(hammer, /data-npc-private-items/);
   assert.match(hammer, /data-npc-random-items/);
-  assert.match(hammer, /随机初始私物候选/);
+  assert.match(hammer, /随机私物/);
   assert.doesNotMatch(hammer, /掉率|胜率|%|必得/);
   assert.equal(view.person(index, { id: 'npc-unknown' }), '');
 });
@@ -76,9 +76,10 @@ test('repeated initial source rows show their recorded total and untrusted names
       randomItems: [{ poolId: 7, count: 5 }],
     },
   });
-  assert.match(html, /初始固定私物线索 · 1 种/);
-  assert.match(html, /资料 ×3/);
+  assert.match(html, /初始私物 · 1 种/);
+  assert.match(html, /<small>×3<\/small>/);
   assert.match(html, /&lt;img onerror=&quot;bad&quot;&gt;/);
   assert.doesNotMatch(html, /<img |获得 5/);
-  assert.match(html, /不保证同时持有或获得/);
+  assert.match(html, /随机私物 · 1 组.*候选 1 · 1 种/s);
+  assert.doesNotMatch(html, /固定私物[^<]*×5|必得/);
 });

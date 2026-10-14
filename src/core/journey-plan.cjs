@@ -71,7 +71,11 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
       ? `核对并制作：${item.name}${item.quality ? '（' + item.quality + '色品质）' : ''} × ${quantity} 次配方`
       : `核对并执行配方：${recipe.name} × ${quantity} 次`;
   }
-  const maps = new Map(worldIndex.maps.map((p) => [p.id, p]));
+  const maps = new Map(
+    worldIndex.maps
+      .filter((place) => worldIndex.maps.filter((other) => other.id === place.id).length === 1)
+      .map((p) => [p.id, p]),
+  );
   const byKey = new Map(worldIndex.maps.map((p) => [p.key, p]));
   const placeNames = new Map();
   const children = new Map();
@@ -154,9 +158,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
     const found = [];
     const mentions = literalPlaceMentions(text, [
       ...placeNames.keys(),
-      ...placeAliases
-        .filter((alias) => placeNames.has(alias.name))
-        .flatMap((alias) => alias.mentions),
+      ...placeAliases.filter((alias) => placeNames.has(alias.name)).flatMap((alias) => alias.mentions),
     ]);
     for (const [name, variants] of placeNames)
       if (mentions.has(name))
@@ -384,6 +386,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
         addAction('quest', [q.id], {
           title: goal.title || q.name,
           detail: q.description || '',
+          detailIsPublic: true,
           questId: q.id,
           goalIds: [goal.id],
           progress,
@@ -462,6 +465,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
       addAction('quest', [q.id], {
         title: savedStatus === 'active' && !manual ? q.name : `核对任务：${q.name}`,
         detail: q.description || '资料未提供说明。',
+        detailIsPublic: true,
         questId: q.id,
         goalIds: goals.map((g) => g.id),
         progress: {
@@ -761,6 +765,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
                 ? `备料已齐：${group.name}`
                 : `补充 ${missing} 份${group.name}`,
           detail: group.descriptions.join('；') || `为${plan.name || '制作计划'}准备材料。`,
+          detailIsPublic: group.descriptions.some(Boolean),
           ownerId: plan.id,
           ownerName: plan.name,
           material: {
@@ -820,6 +825,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
         addAction('craft', [plan.id, recipe.id], {
           title: craftTitle(recipe, quantity),
           detail: recipe.description || '',
+          detailIsPublic: true,
           ownerId: plan.id,
           ownerName: plan.name,
           recipeId: recipe.id,
@@ -874,6 +880,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
               ? `${goal.title} · ${collectionTitle}`
               : collectionTitle,
           detail: goal.detail || item.description || '',
+          detailIsPublic: !goal.detail,
           goalIds: [goal.id],
           progress: { status: 'manual', label: '用户收集目标', source: null },
           material: {
@@ -923,7 +930,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
         });
     for (const p of state.places)
       addAction('place', [p.placeId], {
-        title: `地点目标：${maps.get(p.placeId).name}`,
+        title: `地点目标：${maps.get(p.placeId)?.name || '需重新选择地点'}`,
         detail: p.note,
         userDone: p.done,
         favorite: p.favorite,
@@ -1015,7 +1022,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
             name: p.name,
             mapIds: [],
             actionIds: [],
-            favorite: state.places.some((r) => r.favorite && maps.get(r.placeId).name === p.name),
+            favorite: state.places.some((r) => r.favorite && maps.get(r.placeId)?.name === p.name),
             sources: [],
             navigation: [],
           });
@@ -1194,7 +1201,16 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
         const placePending = choice.placeId === undefined && candidates.length > 0;
         const placeLabel =
           choice.placeId !== undefined
-            ? `${place?.name || '原场景 ' + choice.placeId} · 场景 #${choice.placeId.slice(6)}`
+            ? place
+              ? place.name +
+                (placeNames.get(place.name)?.length > 1
+                  ? ' · 场景 ' +
+                    (placeNames
+                      .get(place.name)
+                      .findIndex((row) => row.id === place.id && row.key === place.key) +
+                      1)
+                  : '')
+              : '原地点待核对'
             : placePending
               ? `${[...new Set(action.places.map((p) => p.name))].join('、')} · 场景待核定`
               : '未分组事项';
@@ -1256,7 +1272,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
               ? null
               : {
                   id: choice.placeId,
-                  name: place?.name || `原场景 ${choice.placeId}`,
+                  name: place?.name || '原地点待核对',
                   key: place?.key || '',
                 },
           sources: action ? structuredClone(action.sources) : structuredClone(choice.sources),

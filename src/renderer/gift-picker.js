@@ -69,7 +69,10 @@ export function giftChoiceLabel(entry, entries, counts) {
           row.name === entry.name &&
           (entry.kind !== '物品' || (row.quality === entry.quality && row.type === entry.type)),
       ).length;
-  return identical > 1 ? `${base} · 资料编号 ${entry.gameId ?? entry.id}` : base;
+  const variants = identical > 1 ? entries.filter((row) => identityKey(row) === identityKey(entry)) : [];
+  return identical > 1
+    ? `${base} · 资料 ${variants.findIndex((row) => row.id === entry.id) + 1}/${identical}`
+    : base;
 }
 export function giftChoices(index, kind, view = {}) {
   const entries = index.entries || [];

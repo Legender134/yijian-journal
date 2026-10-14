@@ -103,20 +103,26 @@ const errors = [],
     checks.push('关闭自动备份时，当前行程仍会自然读取新存档并投射任务完成');
     await page.screenshot({ path: path.join(results, 'natural-planning-journey.png') });
     await page.locator('.nav-btn[data-id="home"]').click();
+    await page.locator('.home-optional > summary').click();
     await page.locator('[data-action="recipe-discovery-open"]').first().click();
-    await page.locator('.recipe-discovery-source').waitFor();
-    assert.match(await page.locator('.recipe-discovery-source').innerText(), new RegExp(expectedHash));
+    await page.locator('[data-recipe-discovery-id="fusion-1000"]').waitFor();
+    assert.equal(
+      (await page.evaluate(() => window.journal.recipeDiscovery())).data.referenceIdentity.hash,
+      expectedHash,
+    );
     assert.equal(await page.locator('[data-recipe-discovery-id="fusion-1000"]').count(), 1);
     assert.equal(await page.evaluate(() => document.hidden), false);
     expectedHash = save(4, false);
     await page.waitForFunction(
-      (expected) =>
-        document.querySelector('.recipe-discovery-source')?.textContent.includes(expected) &&
-        !document.querySelector('[data-recipe-discovery-id="fusion-1000"]'),
-      expectedHash,
+      () => !document.querySelector('[data-recipe-discovery-id="fusion-1000"]'),
+      null,
       { timeout: 13000 },
     );
-    checks.push('余料配方页自然跟随库存变化，更新真实参照摘要和可支持的配方');
+    assert.equal(
+      (await page.evaluate(() => window.journal.recipeDiscovery())).data.referenceIdentity.hash,
+      expectedHash,
+    );
+    checks.push('余料配方页自然跟随库存变化，更新可支持的配方');
     await page.screenshot({ path: path.join(results, 'natural-planning-recipe-discovery.png') });
     expectedHash = save(4, true);
     const setup = await page.evaluate(async () => {
@@ -149,6 +155,8 @@ const errors = [],
       { timeout: 13000 },
     );
     const planResponse = await page.evaluate(() => window.journal.journeyPlan());
+    if (!(await page.locator('.home-optional').evaluate((el) => el.open)))
+      await page.locator('.home-optional > summary').click();
     assert(planResponse.ok, planResponse.error);
     const plan = planResponse.data,
       shown = await page
@@ -162,14 +170,14 @@ const errors = [],
       assert(action && !action.prepared && !action.gameComplete && !action.userDone && !action.handled);
     }
     assert(!/备料已齐：/.test(await page.locator('.home-journey').innerText()));
-    assert.match(await page.locator('.home-journey').innerText(), /纯钢剑（蓝色品质） × 1 次配方/);
+    assert.match(await page.locator('.home-journey').innerText(), /纯钢剑（蓝色品质） × 1 次\s*配方/);
     const craft = plan.actions.find((a) => a.kind === 'craft' && a.recipeId === 'fusion-1000');
     await page.locator('.home-journey [data-action="journey-focus"][data-id="' + craft.id + '"]').click();
     const craftCard = page.locator('[data-journey-id="' + craft.id + '"]');
     await craftCard.locator('.journey-evidence > summary').click();
     assert.match(
       await craftCard.locator('.journey-craft-results').innerText(),
-      /执行配方：纯钢剑精良图纸 · 1 次[\s\S]*预计产物：[\s\S]*纯钢剑[\s\S]*蓝色品质 × 1[\s\S]*尚未进入背包/,
+      /执行配方：\s*纯钢剑精良图纸\s*· 1 次[\s\S]*预计产物：[\s\S]*纯钢剑[\s\S]*蓝色品质 × 1[\s\S]*尚未进入背包/,
     );
     await craftCard.locator('[data-journey-craft-output] [data-action="database-detail"]').click();
     await page.locator('.game-detail-title').waitFor();

@@ -5,6 +5,7 @@ module.exports = Object.freeze([
   'scripts/usability-smoke.cjs',
   'scripts/review-regressions.cjs',
   'scripts/icons-smoke.cjs',
+  'scripts/place-map-smoke.cjs',
   'scripts/smoke.cjs',
   'scripts/features-smoke.cjs',
   'scripts/comparison-smoke.cjs',

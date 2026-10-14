@@ -56,14 +56,13 @@
 }
 .flow-rule,
 .flow-task {
-  padding: 15px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
   margin: 10px 0;
 }
 .flow-risk {
-  background: var(--orange-soft);
-  border-left: 4px solid var(--orange);
+  padding-left: 12px;
+  border-left: 3px solid var(--orange);
 }
 .flow-warning-message {
   color: #754322;
@@ -151,9 +150,7 @@
 }
 .flow-recommendation {
   margin: 8px 0;
-  padding: 8px 10px;
-  background: var(--green-soft);
-  border-radius: 6px;
+  padding: 0;
 }
 .flow-decision .flow-recommendation {
   padding: 0;
@@ -165,9 +162,7 @@
   font-weight: 600;
 }
 .flow-affected {
-  padding: 8px 10px;
-  border: 1px solid #d9b797;
-  border-radius: 6px;
+  padding: 0;
   margin: 8px 0;
 }
 .flow-affected h4 {
@@ -507,7 +502,7 @@
 .pictured-link,
 .pictured-label {
   display: inline-flex;
-  gap: 9px;
+  gap: 5px;
   align-items: center;
   text-align: left;
   max-width: 100%;
@@ -546,11 +541,36 @@
 .flow-now h3 .game-picture,
 .duel-card summary .game-picture {
   display: inline-flex;
-  width: 21px;
-  height: 21px;
+  width: 20px;
+  height: 20px;
   margin-right: 4px;
   vertical-align: -4px;
   border-radius: 4px;
+}
+.game-picture-tiny {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+.entity-inline .game-picture img,
+.game-picture-tiny img {
+  padding: 0;
+}
+.entity-inline .game-picture svg {
+  width: 15px;
+  height: 15px;
+}
+.start-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.home-optional > summary {
+  color: var(--green);
+  cursor: pointer;
+}
+.home-optional[open] > summary {
+  margin-bottom: 16px;
 }
 .world-quest-card h3,
 .database-card h3 {

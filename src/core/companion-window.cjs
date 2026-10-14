@@ -39,15 +39,20 @@ function edgeBounds(rect, anchor, scale = 1) {
   };
 }
 class CompanionWindow {
-  constructor({ create, monitor, screen, settings, quiet, changed, layout, layoutError, test = false }) {
-    Object.assign(this, { create, monitor, screen, settings, quiet, changed, layout, layoutError, test });
+  constructor({ create, monitor, screen, settings, quiet, changed, layout, layoutError }) {
+    Object.assign(this, { create, monitor, screen, settings, quiet, changed, layout, layoutError });
     this.mode = 'hint';
     this.window = null;
     this.ready = false;
     this.nativeReady = false;
     this.uiReady = false;
     this.returnHwnd = null;
-    monitor?.on('change', () => this.update());
+    monitor?.on('change', () => {
+      // Cancel pending activation as soon as the user switches elsewhere,
+      // even when the first renderer becomes ready within the focus deadline.
+      if (!monitor.state?.gameForeground && !monitor.state?.ownForeground) this.wantFocus = false;
+      this.update();
+    });
   }
   ensure() {
     if (this.window && !this.window.isDestroyed()) return this.window;
@@ -129,7 +134,7 @@ class CompanionWindow {
     this.returnHwnd = this.monitor?.state?.gameForeground ? this.monitor.state.hwnd : null;
     this.mode = 'expanded';
     this.wantFocus = true;
-    this.grace = Date.now() + 750;
+    this.focusUntil = Date.now() + 750;
     this.ensure();
     this.update();
     return true;
@@ -139,7 +144,7 @@ class CompanionWindow {
     // Unlike the shortcut toggle, repeated requests keep it expanded.
     this.mode = 'expanded';
     this.wantFocus = true;
-    this.grace = Date.now() + 750;
+    this.focusUntil = Date.now() + 750;
     this.ensure();
     this.update();
   }
@@ -169,21 +174,10 @@ class CompanionWindow {
   update() {
     const s = this.monitor?.state,
       p = preferences(this.settings());
-    if (this.mode === 'expanded' && !this.wantFocus && Date.now() > this.grace && s?.gameForeground) {
-      this.mode = 'hint';
-      this.returnHwnd = null;
-    }
+    // Explicitly opened panels and edge tabs belong to the user, independent of
+    // the game or journal's foreground state. Only passive hints follow gameplay.
     const visible =
-      this.mode === 'expanded'
-        ? this.test ||
-          s?.ownForeground ||
-          (!s && this.window?.isFocused?.()) ||
-          Date.now() <= this.grace ||
-          (this.wantFocus && s?.gameForeground)
-        : this.mode === 'tucked'
-          ? // Keep this explicit control reachable while menus/dialogue pause automatic hints.
-            this.test || !s?.available || s.gameForeground || s.ownForeground
-          : p.enabled && s?.gameForeground && !this.quiet();
+      this.mode === 'expanded' || this.mode === 'tucked' || (p.enabled && s?.gameForeground && !this.quiet());
     this.visible = !!visible;
     if (!visible) {
       this.wantFocus = false;
@@ -238,9 +232,12 @@ class CompanionWindow {
     if (!win.isVisible()) win.showInactive();
     if (expanded && this.wantFocus) {
       this.wantFocus = false;
-      this.grace = Date.now() + 750;
-      win.show();
-      win.focus();
+      // A slow renderer must not activate later over a different application.
+      // Subsequent monitoring and visibility recovery only use showInactive().
+      if (Date.now() <= this.focusUntil) {
+        win.show();
+        win.focus();
+      }
     }
     this.publish();
   }

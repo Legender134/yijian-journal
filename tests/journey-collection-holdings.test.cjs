@@ -75,7 +75,7 @@ test('ten requested items use the saved four-item reference without reserving, a
   assert.deepEqual({ p, r }, before);
 });
 
-test('a collection card shows saved holdings and its reference without reserving stock or completing the personal goal', async () => {
+test('a collection card shows saved holdings without exposing save metadata, reserving stock or completing the personal goal', async () => {
   const p = profile(),
     r = reference([{ id: 1000, count: 5 }]),
     before = structuredClone({ p, r }),
@@ -89,7 +89,12 @@ test('a collection card shows saved holdings and its reference without reserving
   assert.equal(action.material.allocationKnown, undefined);
   assert.match(view, /需 1 · 已保存持有 5/);
   assert.match(view, /仅收藏目标，未预留库存；可用数量另核对/);
-  assert.match(view, /存档参照：synthetic-collection\.sav · 2026-10-10T01:02:03\.000Z/);
+  assert.deepEqual(plan.reference, {
+    name: r.name,
+    hash: r.hash,
+    modifiedAt: r.modifiedAt,
+  });
+  assert.doesNotMatch(view, /synthetic-collection\.sav|2026-10-10T01:02:03/);
   assert.match(view, /用户收集目标/);
   assert.match(view, /data-action="journey-handle"/);
   assert.doesNotMatch(view, /journey-handled|已分配|还缺 0|可卖/);
@@ -147,12 +152,12 @@ test('unknown inventory is not presented as zero, including absent, unreadable, 
     assert.match(view, /已保存持有量待核对/);
     assert.match(view, /仅收藏目标，未预留库存；可用数量另核对/);
     assert.doesNotMatch(view, /已保存持有 0|已分配|还缺 0|foreign-synthetic\.sav/);
-    if (plan.reference) assert.match(view, /存档参照：synthetic-collection\.sav/);
-    else assert.doesNotMatch(view, /存档参照：/);
+    if (plan.reference) assert.equal(plan.reference.name, 'synthetic-collection.sav');
+    assert.doesNotMatch(view, /存档参照：|synthetic-collection\.sav/);
   }
 });
 
-test('an action save source takes precedence over the page reference for that collection card', async () => {
+test('collection cards retain their projected holdings when the surrounding page reference changes', async () => {
   const plan = journeyPlan(profile(), reference([{ id: 1000, count: 5 }])),
     action = collection(plan);
   action.sources.push({ type: 'save', ...plan.reference });
@@ -162,11 +167,13 @@ test('an action save source takes precedence over the page reference for that co
     hash: 'other-synthetic-hash',
   };
   const view = card(await html(plan), action);
-  assert.match(view, /存档参照：synthetic-collection\.sav · 2026-10-10T01:02:03\.000Z/);
-  assert.doesNotMatch(view, /other-page-reference/);
+  assert.equal(action.sources.find((source) => source.type === 'save').name, 'synthetic-collection.sav');
+  assert.equal(action.material.onHand, 5);
+  assert.match(view, /需 1 · 已保存持有 5/);
+  assert.doesNotMatch(view, /other-page-reference|synthetic-collection\.sav/);
 });
 
-test('collection names, details and reference labels are escaped in the action card', async () => {
+test('collection names and details are escaped while private reference labels stay out of the action card', async () => {
   const data = structuredClone(game),
     p = profile(),
     r = reference([{ id: 1000, count: 5 }]);
@@ -178,10 +185,7 @@ test('collection names, details and reference labels are escaped in the action c
     view = card(await html(plan, data), collection(plan));
   assert.match(view, /&lt;img src=x onerror=&quot;synthetic&quot;&gt;/);
   assert.match(view, /&lt;script&gt;synthetic&lt;\/script&gt;/);
-  assert.match(
-    view,
-    /存档参照：synthetic&lt;&amp;&quot;collection\.sav · &lt;svg onload=&quot;synthetic&quot;&gt;/,
-  );
+  assert.doesNotMatch(view, /synthetic&lt;&amp;&quot;collection\.sav|svg onload/);
   assert.doesNotMatch(view, /<img|<script|<svg/);
 });
 

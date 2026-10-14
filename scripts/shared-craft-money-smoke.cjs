@@ -4,6 +4,7 @@ const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
 const { _electron } = require('playwright');
+const { selectProgress, progressValue } = require('./progress-settings.cjs');
 const { Store } = require('../src/core/store.cjs');
 const { syntheticSave } = require('../tests/fixtures.cjs');
 const catalog = require('../src/data/catalog.cjs');
@@ -82,7 +83,7 @@ const current = async () => {
 };
 const nav = (id) => page.locator(`.nav-btn[data-id="${id}"]`).click();
 async function calculate(name) {
-  if (name !== undefined) await page.locator('#craft-save').selectOption(name);
+  if (name !== undefined) await selectProgress(page, name);
   await page.locator('[data-action="craft-calculate"]').click();
   await page.locator('.craft-result-card [data-shared-craft-money]').waitFor();
 }
@@ -109,7 +110,7 @@ async function openPriority() {
     await nav('materials');
     await page.locator('[data-shared-craft-money]').first().waitFor();
     assert.match(await page.locator('main.content').innerText(), /共同还差 144 文/);
-    await page.locator('#craft-save').selectOption('0.sav');
+    await selectProgress(page, '0.sav');
     await page.locator('[data-action="resource-priority-open"]').waitFor();
     assert.match(await page.locator('main.content').innerText(), /1,294.*共同还差 294 文/s);
     await api('mutate', { type: 'craft-plan-reserve', id: 'b', value: false });
@@ -146,6 +147,7 @@ async function openPriority() {
     companion = await made;
     companion.on('pageerror', (e) => errors.push(e.message));
     await companion.locator('.compact-shell').waitFor();
+    await companion.locator('[data-compact-detail="flow-personal"] > summary').click();
     await companion.locator('.companion-materials [data-shared-craft-money]').waitFor();
     assert.match(
       await companion.locator('.companion-materials [data-shared-craft-money]').innerText(),
@@ -163,7 +165,7 @@ async function openPriority() {
       /1,294.*共同还差 294 文/,
     );
     await openPriority();
-    assert.match(await page.locator('.resource-priority-editor').innerText(), /对照 0\.sav/);
+    assert.equal(await progressValue(page), '0.sav');
     await page.locator('[data-action="resource-priority-move"][data-id="b"][data-direction="up"]').click();
     await page.waitForFunction(() =>
       document.querySelector('.resource-priority-order .spacer')?.textContent.includes('计划 b'),
@@ -177,26 +179,26 @@ async function openPriority() {
     assert.equal((await current()).resourcePriority, undefined);
     await page.locator('[data-action="resource-priority-refresh"]').click();
     await page.locator('[data-action="resource-priority-save"]').waitFor();
-    assert.match(await page.locator('.resource-priority-editor').innerText(), /对照 0\.sav/);
+    assert.equal(await progressValue(page), '0.sav');
     await page.screenshot({ path: path.join(data, 'local-save-priority.png'), animations: 'disabled' });
     await page.locator('[data-action="resource-priority-save"]').click();
     await page.locator('[role="dialog"]').waitFor({ state: 'detached' });
     const saved = await current();
     assert.deepEqual(saved.resourcePriority, ['b', 'a']);
-    assert.equal(saved.referenceMode, 'latest');
-    assert.equal(saved.saveSlot || '', '');
+    assert.equal(saved.referenceMode, 'slot');
+    assert.equal(saved.saveSlot, '0.sav');
     assert.equal(
       (await api('refresh')).allocations.directMissingTotal,
-      0,
-      'the profile default still reads abundant 1.sav',
+      5,
+      'the shared profile reference retains the selected limited 0.sav',
     );
-    assert.equal(await page.locator('#craft-save').inputValue(), '0.sav');
+    assert.equal(await progressValue(page), '0.sav');
     assert.match(
       await page.locator('.craft-result-card [data-shared-craft-money]').innerText(),
       /1,294.*共同还差 294 文/,
     );
     checks.push(
-      '局部0.sav的5件/8件缺口、费用与排序入口/预览/确认一致；0.sav hash变化拒绝旧确认；周目默认latest未改变',
+      '统一0.sav的5件/8件缺口、费用与排序入口/预览/确认一致；0.sav hash变化拒绝旧确认；其他页面沿用同一进度',
     );
 
     const id = saved.id;
@@ -251,20 +253,18 @@ async function openPriority() {
       /存档铜钱待核对/,
     );
     await openPriority();
-    assert.match(await page.locator('.resource-priority-editor').innerText(), /没有可读存档参照/);
+    assert.match(await page.locator('.resource-priority-editor').innerText(), /库存未读取/);
     await page.locator('[data-action="resource-priority-save"]').click();
     await page.locator('[role="dialog"]').waitFor({ state: 'detached' });
-    assert.equal((await current()).referenceMode, 'latest');
-    checks.push(
-      '主进程拒绝计划变化、更新中存档的预览与确认、外国周目和非法参照；局部none保持未知且不改默认参照',
-    );
+    assert.equal((await current()).referenceMode, 'none');
+    checks.push('主进程拒绝计划变化、更新中存档的预览与确认、外国周目和非法参照；统一none使持有量保持未知');
 
     await calculate('1.sav');
     await page.locator('[data-craft-plan-id="a"] [data-action="craft-plan-complete"]').click();
     await page.locator('[data-action="craft-plan-complete-confirm"]').click();
     await page.locator('[role="dialog"]').waitFor({ state: 'detached' });
     await calculate('1.sav');
-    assert.match(await page.locator('.craft-result-card').innerText(), /若重新制作的费用尚未纳入共同预算/);
+    assert.match(await page.locator('.craft-result-card').innerText(), /重做预览未纳入共同预算/);
     assert.match(
       await page.locator('.craft-result-card [data-shared-craft-money]').innerText(),
       /预计需 572 文/,

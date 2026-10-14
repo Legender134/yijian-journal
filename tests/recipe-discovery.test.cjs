@@ -375,7 +375,7 @@ test('discovery cards show conditional totals and exact product links separately
   assert.match(html, /制作 2 次的产物/);
   assert.match(html, /data-id="item-1002">纯钢剑<\/button> · 蓝色 × 2/);
   assert.match(html, /data-id="item-1000">纯钢剑<\/button> · 白色 × 0–2/);
-  assert.match(html, /可能未得到其中某项/);
+  assert.match(html, /随机产出，各候选不会全部同时获得/);
   assert.match(html, /data-id="item-100091"/);
   assert.match(html, /尚未计入背包/);
 });

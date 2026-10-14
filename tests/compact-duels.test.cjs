@@ -78,7 +78,7 @@ test('compact defaults prioritize actionable facts and fold explanations without
   const row = opponent();
   const html = (await views).page(flowFor(row), { compact: true, scope: 'synthetic' });
   const visible = collapsedText(html);
-  assert.match(visible, /合成对手.*静态等级 30.*测试村客栈二楼.*测试兵器.*切磋私物.*测试武学.*武学请教/s);
+  assert.match(visible, /合成对手.*初始等级 30.*测试村客栈二楼.*测试兵器.*切磋私物.*测试武学.*武学请教/s);
   assert.match(visible, /等 3 项.*先补准备 · 气血：存档气血约 30%/s);
   assert.doesNotMatch(
     visible,
@@ -100,7 +100,7 @@ test('compact defaults prioritize actionable facts and fold explanations without
   assert.match(html, /掉落概率待核对，不保证首胜获得/);
   assert.match(html, /合成来源.*测试作者.*测试版本/s);
   assert.match(html, /静态等级不能换算胜率/);
-  assert.match(html, /未列人物不代表没有重要物品/);
+  assert.doesNotMatch(html, /未列人物不代表没有重要物品/);
   assert.match(html, /duel-card-synthetic-synthetic-duel/);
   assert.match(html, /duel-info-synthetic-synthetic-duel/);
   assert.doesNotMatch(html, /<details[^>]*\sopen(?:[\s=>])/);
@@ -125,7 +125,7 @@ test('compact readiness preserves unknown facts and visible incomplete prerequis
   assert.doesNotMatch(visible, /已记录|准备完成|能打|必胜/);
   assert.match(html, /未完成剧情<\/button>：尚未完成/);
   assert.match(html, /未知剧情<\/button>：记录待核对/);
-  assert.match(html, /前置记录仍待核对，不能据此认定现在可以挑战/);
+  assert.match(html, /前置条件未确认/);
 });
 
 test('deferred challenges keep the level gap as their key preparation rather than implying a refill is enough', async () => {
@@ -181,21 +181,21 @@ test('other phases and page coverage remain folded while empty saved-state statu
   assert.match(collapsedText(html), /其他阶段 · 1 人.*依据与覆盖/s);
   assert.doesNotMatch(collapsedText(html), /其他阶段人物|不能据此判断|测试难度|未列人物/);
   assert.match(html, /其他阶段人物/);
-  assert.match(html, /不能据此判断这些人物当前在场或可挑战/);
+  assert.ok(html.includes(flow.duels.reason));
   flow.duels.candidates = [];
   assert.match(collapsedText(view.page(flow, { compact: true })), /当前阶段暂无已整理线索/);
   flow.duels.available = false;
   assert.match(collapsedText(view.page(flow, { compact: true })), /尚未对照可读存档/);
 });
 
-test('the main page retains its full readiness, collection and coverage presentation', async () => {
+test('the main page retains its full readiness and collection presentation', async () => {
   const row = opponent();
   const html = (await views).page(flowFor(row));
   const visible = collapsedText(html);
-  assert.match(visible, /本阶段比武与重要收益.*测试难度.*合成对手.*静态等级 30.*测试村客栈二楼/s);
+  assert.match(visible, /本阶段比武与重要收益.*合成对手.*初始等级 30.*测试村客栈二楼/s);
   assert(visible.includes(row.readiness.action));
   assert(visible.includes(row.readiness.reason));
   assert.match(visible, /测试兵器.*切磋私物.*测试武学.*武学请教.*测试丹方.*剧情奖励/s);
-  assert.match(visible, /已整理 1 位人物/);
+  assert.match(html, /合成来源.*测试作者.*测试版本/s);
   assert.doesNotMatch(html, /duel-compact-card/);
 });

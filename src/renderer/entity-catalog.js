@@ -1,6 +1,10 @@
 // Stable, typed relationships from the shipped index; never infer live state.
 const catalogs = new WeakMap();
 const list = (value) => (Array.isArray(value) ? value : []);
+export const placeEntityId = (place, maps) =>
+  maps.some((other) => other.id === place.id && other.key !== place.key)
+    ? place.id + ':' + place.key
+    : place.id;
 export const questStatus = (id, reference) => {
   const rows = reference?.metadata?.quests;
   if (!Array.isArray(rows)) return '未核对存档';
@@ -10,10 +14,33 @@ export const questStatus = (id, reference) => {
 };
 
 export function entityCatalog(index) {
-  if (catalogs.has(index.entries)) return catalogs.get(index.entries);
+  if (catalogs.has(index)) return catalogs.get(index);
   const quests = list(index.world?.quests);
-  const entries = new Map(index.entries.map((e) => [e.id, e]));
+  const maps = list(index.world?.maps);
+  const entries = new Map(list(index.entries).map((e) => [e.id, e]));
   for (const q of quests) entries.set(q.id, { ...q, kind: '任务' });
+  const placeChoices = new Map();
+  for (const place of maps) {
+    const id = placeEntityId(place, maps);
+    const entity = { ...place, id, originalId: place.id, kind: '地点' };
+    entries.set(id, entity);
+    if (id !== place.id) {
+      if (!placeChoices.has(place.id)) placeChoices.set(place.id, []);
+      placeChoices.get(place.id).push(entity);
+    }
+  }
+  // Several distinct scenes share one official marker. Resolve a map click to
+  // a choice of scenes rather than whichever overlapping button was painted last.
+  const mapPoints = new Map();
+  for (const marker of list(index.world?.mapAtlas?.markers)) {
+    const place = maps.find((row) => row.key === marker.key);
+    if (!place) continue;
+    const id = `map-point:${marker.x}:${marker.y}`;
+    const rows = mapPoints.get(id) || [];
+    rows.push(entries.get(placeEntityId(place, maps)));
+    mapPoints.set(id, rows);
+  }
+  for (const [id, rows] of mapPoints) if (rows.length > 1) placeChoices.set(id, rows);
   const children = new Map(),
     names = new Map(),
     questByNumber = new Map();
@@ -23,7 +50,7 @@ export function entityCatalog(index) {
     children.get(q.parentId).push(entries.get(q.id));
   }
   const addName = (name, e) => {
-    if (name.length < 2) return;
+    if (typeof name !== 'string' || name.length < 2) return;
     const rows = names.get(name) || [];
     if (!rows.some((row) => row.id === e.id)) rows.push(e);
     names.set(name, rows);
@@ -33,13 +60,43 @@ export function entityCatalog(index) {
     if (e.kind === '人物' && e.name.includes('-')) addName(e.name.split('-').at(-1), e);
     if (e.kind === '任务') addName(e.name.replace(/^【[^】]+】/, ''), e);
   }
+  for (const alias of list(index.world?.placeAliases)) {
+    for (const place of maps.filter((place) => place.name === alias.name)) {
+      for (const mention of list(alias.mentions)) addName(mention, entries.get(placeEntityId(place, maps)));
+    }
+  }
+  // The guide calls the formal 拜师武当 ceremony 拜入武当. Bind this verified
+  // wording once, rather than storing entity links in every sentence.
+  const initiation = entries.get('quest-5213');
+  if (initiation?.name.replace(/^【[^】]+】/, '') === '拜师武当') addName('拜入武当', initiation);
+  const namedFacts = [...names.keys()].filter((name) =>
+    names.get(name).some((entry) => entry.kind !== '任务'),
+  );
+  const personNames = [...names.keys()].filter((name) =>
+    names.get(name).some((entry) => entry.kind === '人物'),
+  );
+  const personPattern = new RegExp(
+    personNames
+      .sort((a, b) => b.length - a.length)
+      .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|') || '(?!)',
+    'gu',
+  );
   const proseNames = [...names.keys()]
-    .filter((name) =>
-      names
-        .get(name)
-        .some(
-          (e) => ['人物', '物品'].includes(e.kind) || (e.kind === '任务' && !e.parentId && name.length >= 3),
-        ),
+    // Long step instructions are explicit task links in the task list. In prose
+    // they must not swallow the people and places mentioned inside the sentence.
+    .filter(
+      (name) =>
+        !names
+          .get(name)
+          .every(
+            (entry) =>
+              entry.kind === '任务' &&
+              entry.parentId &&
+              (name.length > 12 ||
+                /[，。；]/.test(name) ||
+                namedFacts.some((fact) => fact !== name && name.includes(fact))),
+          ),
     )
     .sort((a, b) => b.length - a.length || a.localeCompare(b, 'zh-CN'));
   const pattern = new RegExp(
@@ -47,7 +104,9 @@ export function entityCatalog(index) {
     'gu',
   );
   const resolve = (id) =>
-    id?.startsWith('name:') ? names.get(id.slice(5)) || [] : entries.has(id) ? [entries.get(id)] : [];
+    id?.startsWith('name:')
+      ? names.get(id.slice(5)) || []
+      : placeChoices.get(id) || (entries.has(id) ? [entries.get(id)] : []);
   const root = (q) => {
     const seen = new Set();
     while (q.parentId && questByNumber.has(q.parentId) && !seen.has(q.gameId)) {
@@ -71,11 +130,14 @@ export function entityCatalog(index) {
   };
   const mentions = (text) => {
     const found = new Map();
-    pattern.lastIndex = 0;
-    for (const match of String(text || '').matchAll(pattern)) {
+    personPattern.lastIndex = 0;
+    for (const match of String(text || '').matchAll(personPattern)) {
       for (const e of names.get(match[0]) || []) {
         if (e.kind === '人物')
-          found.set(e.id, { entity: e, ambiguous: (names.get(match[0]) || []).length > 1 });
+          found.set(e.id, {
+            entity: e,
+            ambiguous: (names.get(match[0]) || []).filter((row) => row.kind === '人物').length > 1,
+          });
       }
     }
     return [...found.values()];
@@ -174,6 +236,6 @@ export function entityCatalog(index) {
     return result;
   };
   const catalog = { entries, names, pattern, resolve, root, family, taskRelations, personRelations };
-  catalogs.set(index.entries, catalog);
+  catalogs.set(index, catalog);
   return catalog;
 }

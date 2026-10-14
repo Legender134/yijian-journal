@@ -69,6 +69,194 @@ function detailsWithClass(html, className) {
     });
 }
 
+function renderFoldHarness(compact) {
+  const fs = require('node:fs'),
+    vm = require('node:vm');
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const start = source.indexOf('function captureDetailFolds('),
+    end = source.indexOf('function intentDraftBanner(', start);
+  const p = { id: 'synthetic-profile', referenceMode: 'latest', saveSlot: '', goals: [] };
+  const viewport = { scrollTop: 0, scrollIntoView() {} };
+  const root = {
+    rows: [],
+    contains: () => false,
+    querySelector: (selector) =>
+      ['.content', '.compact-body', '.sidebar-nav', '.sidebar-nav .nav-btn.active'].includes(selector)
+        ? viewport
+        : null,
+    querySelectorAll(selector) {
+      return selector === 'details[data-persist-detail]' ? this.rows : [];
+    },
+    set innerHTML(html) {
+      this.rows = [...html.matchAll(/<details\b([^>]*)>/g)].map(([, attrs]) => ({
+        dataset: { persistDetail: attrs.match(/data-persist-detail="([^"]+)"/)[1] },
+        open: /\bopen\b/.test(attrs),
+      }));
+    },
+  };
+  const context = {
+    compact,
+    root,
+    catalog: {},
+    state: { settings: { savePath: 'synthetic-saves' } },
+    profile: () => p,
+    route: 'home',
+    composing: false,
+    handbookSuspended: false,
+    companionMode: 'expanded',
+    companionMaterialFolds: { profileId: null, values: new Map() },
+    detailFolds: { scope: '', values: new Map() },
+    document: { activeElement: null },
+    entityPreviews: { close() {} },
+    captureIntentDrafts() {},
+    syncItineraryIntentEditors() {},
+    availableIntentDrafts: () => [],
+    availableJournalDrafts: () => [],
+    goalDone: () => false,
+    headings: {},
+    pending: false,
+  };
+  const page = () =>
+    '<details data-persist-detail="default-open" open></details>' +
+    (context.pending
+      ? ''
+      : '<details data-persist-detail="task-progress"></details><details data-persist-detail="material"></details>');
+  for (const name of [
+    'compactPage',
+    'homePage',
+    'checklistPage',
+    'duelsPage',
+    'libraryPage',
+    'databaseView',
+    'worldPage',
+    'materialPage',
+    'recipeDiscoveryPage',
+    'goalsPage',
+    'savesPage',
+    'settingsPage',
+    'archivesPage',
+    'journeyPage',
+    'journalPage',
+  ])
+    context[name] = page;
+  for (const name of ['navigationView', 'iconButton', 'healthAlert', 'icon', 'act', 'esc'])
+    context[name] = () => '';
+  vm.createContext(context);
+  vm.runInContext(source.slice(start, end) + '\nthis.render = render;', context);
+  return {
+    context,
+    p,
+    root,
+    render: context.render,
+    fold: (key) => root.rows.find((row) => row.dataset.persistDetail === key),
+  };
+}
+
+test('repeated shipped guide entries keep independent stable folds in risks, advice, opportunities and the full index', async () => {
+  const { flowSnapshot } = require('../src/core/flow.cjs');
+  const view = await views;
+  for (const compact of [false, true]) {
+    for (const quest of [5200, 14073, 20000]) {
+      const flow = flowSnapshot(
+        { id: 'synthetic', referenceMode: 'slot', saveSlot: '2.sav' },
+        {
+          name: '2.sav',
+          hash: 'a'.repeat(64),
+          metadata: {
+            trackingMainQuest: quest,
+            trackingQuest: quest,
+            quests: [{ id: quest, step: 1 }],
+            inventory: [],
+          },
+        },
+      );
+      const html = view.panel(flow, { compact });
+      const keys = [...html.matchAll(/data-persist-detail="([^"]+)"/g)].map((match) => match[1]);
+      assert.equal(
+        new Set(keys).size,
+        keys.length,
+        `unique keys for ${compact ? 'companion' : 'main'} quest ${quest}`,
+      );
+      const harness = renderFoldHarness(compact);
+      harness.context[compact ? 'compactPage' : 'homePage'] = () => html;
+      harness.render();
+      const displayed = harness.root.rows.filter((row) =>
+        /^flow-rule-(risk|advice|opportunity)-/.test(row.dataset.persistDetail),
+      );
+      if (quest === 5200)
+        assert(displayed.length > 0, 'early-game rules appear both in context and the full guide');
+      for (const row of displayed) row.open = true;
+      harness.render(true);
+      for (const row of displayed) assert.equal(harness.fold(row.dataset.persistDetail).open, true);
+      assert(
+        harness.root.rows
+          .filter((row) => row.dataset.persistDetail.startsWith('flow-rule-offline-'))
+          .every((row) => !row.open),
+        'a closed full-index copy cannot overwrite the open contextual copy',
+      );
+    }
+  }
+});
+
+for (const compact of [false, true]) {
+  const mode = compact ? 'compact' : 'main';
+  test(`${mode} render retains open and closed disclosures through pending save data`, () => {
+    const harness = renderFoldHarness(compact);
+    const { context, render, fold } = harness;
+    render();
+    fold('task-progress').open = true;
+    fold('material').open = true;
+    fold('default-open').open = false;
+    context.pending = true;
+    render(true);
+    assert.equal(fold('task-progress'), undefined);
+    assert.equal(fold('default-open').open, false);
+    context.pending = false;
+    render(true);
+    assert.equal(fold('task-progress').open, true);
+    assert.equal(fold('material').open, true);
+    assert.equal(fold('default-open').open, false);
+    fold('task-progress').open = false;
+    context.pending = true;
+    render(true);
+    context.pending = false;
+    render(true);
+    assert.equal(fold('task-progress').open, false, 'a later user close replaces the cached open state');
+    render(false);
+    assert.equal(fold('material').open, false, 'explicit navigation starts with the page defaults');
+    assert.equal(fold('default-open').open, true);
+  });
+
+  test(`${mode} render does not carry folds into a different reading context`, () => {
+    const changes = [
+      ({ p }) => {
+        p.id = 'other-profile';
+      },
+      ({ context }) => {
+        context.route = 'checklist';
+      },
+      ({ p }) => {
+        p.referenceMode = 'slot';
+      },
+      ({ p }) => {
+        p.saveSlot = '2.sav';
+      },
+      ({ context }) => {
+        context.state.settings.savePath = 'other-synthetic-saves';
+      },
+    ];
+    for (const change of changes) {
+      const harness = renderFoldHarness(compact);
+      harness.render();
+      harness.fold('task-progress').open = true;
+      harness.render(true);
+      change(harness);
+      harness.render(true);
+      assert.equal(harness.fold('task-progress').open, false);
+    }
+  });
+}
+
 test('a pending choice shows conditional material stock and sources without declaring the branch active', async () => {
   const { flowSnapshot } = require('../src/core/flow.cjs');
   const view = await views;
@@ -216,6 +404,58 @@ test('compact current action exposes person, place and saved quantities before o
   assert.match(html, /前置待核对/, 'conditions remain available');
 });
 
+test('main and companion avoid repeating linked action targets but retain exact targets behind ambiguous names', async () => {
+  const { createFlowViews } = await import(
+    pathToFileURL(path.join(__dirname, '../src/renderer/flow-views.js')).href
+  );
+  for (const ambiguous of [false, true]) {
+    const view = createFlowViews({
+      ...options,
+      richText: (value) =>
+        esc(value).replace(
+          '测试人物',
+          `<button data-entity-id="${ambiguous ? 'name:测试人物' : 'npc-3'}">测试人物</button>`,
+        ),
+    });
+    for (const compact of [false, true]) {
+      const html = view.panel(current(), { compact });
+      const start = html.indexOf('data-flow-quest="quest-1"');
+      const visible = html.slice(start, html.indexOf('<details', start));
+      assert.equal((visible.match(/>测试人物<\/button>/g) || []).length, ambiguous ? 2 : 1);
+      assert.match(visible, /data-id="place-4"/, 'a destination absent from the action stays accessible');
+      if (ambiguous)
+        assert.match(visible, /data-id="npc-3"/, 'an exact target is not replaced by a namesake chooser');
+    }
+  }
+});
+
+test('main opportunities show one concise lead and fold other tasks and complete pickup steps', async () => {
+  const flow = {
+    ...current(),
+    opportunities: [
+      {
+        id: 'one',
+        name: '第一条线索',
+        warning: '先取药再离村',
+        pickup: { place: '合成山坡', action: '与采药人对话接取药草' },
+      },
+      { id: 'two', name: '第二条线索', pickup: { action: '去客栈找同伴' } },
+    ],
+  };
+  const html = (await views).panel(flow);
+  const opportunity = html.slice(html.indexOf('<section class="flow-opportunities"'));
+  const lead = opportunity.slice(0, opportunity.indexOf('<details'));
+  assert.match(lead, /第一条线索.*先取药再离村/s);
+  assert.doesNotMatch(lead, /合成山坡|与采药人|第二条线索/);
+  const [details] = detailsWithClass(opportunity, 'flow-rule-details');
+  assert.match(details.body, /合成山坡.*与采药人对话接取药草/s);
+  assert.match(
+    opportunity,
+    /<details data-persist-detail="main-more-opportunities"><summary>更多未接任务 · 1<\/summary>/,
+  );
+  assert.match(opportunity, /第二条线索.*去客栈找同伴/s);
+});
+
 test('unknown or invalid saved material values never become zero or sufficient stock', async () => {
   for (const extra of [
     { owned: null, missing: 0 },
@@ -251,7 +491,8 @@ test('folded full steps retain parallel current actions and the main view retain
     /另一路交付.*把另一种材料交给第二位测试人物.*data-id="npc-7".*另一种测试材料.*需 1 · 持有 1 · 持有量已足/s,
   );
   const main = view.panel(flow);
-  assert.match(main, /<h3>.*合成测试任务.*<h4>采药步骤<\/h4>/s);
+  assert.match(main, /<h3>.*data-id="quest-1">合成测试任务<\/button>/s);
+  assert.match(main, /完整步骤.*<h4><button[^>]*data-id="quest-6"[^>]*>另一路交付<\/button><\/h4>/s);
   assert.match(main, /把药草交给测试人物.*data-id="npc-3".*需 5 · 持有 2 · 缺 3/s);
 });
 
@@ -344,7 +585,7 @@ test('compact advancement retains each distinct deadline and its own affected ta
   const [risks] = detailsWithClass(html, 'flow-compact-risks');
   assert(risks);
   assert.match(risks.opening, /\bopen(?:\s|=|>)/);
-  assert.match(risks.summary, /推进前核对 · 2 项/s);
+  assert.match(risks.summary, /推进前确认 · 2 项/s);
   assert.doesNotMatch(risks.summary, /错过本次分支|对应经脉点|data-flow-impact/);
   const windows = detailsWithClass(risks.body, 'flow-risk-window');
   assert.equal(windows.length, 2);
@@ -361,7 +602,7 @@ test('compact advancement retains each distinct deadline and its own affected ta
     assert(window.body.includes(affected.effect));
     assert(!window.body.includes(warnings[1 - index].affectedTasks[0].effect));
   }
-  assert.equal((risks.body.match(/触发：/g) || []).length, 2);
+  assert.equal((risks.body.match(/截止：/g) || []).length, 2);
   assert(html.indexOf('<section class="flow-risks">') < html.indexOf('data-flow-now'));
   const main = (await views).panel({ ...current(), warnings });
   for (const warning of warnings) assert(main.includes(warning.affectedTasks[0].effect));
@@ -386,7 +627,7 @@ test('only explicit identical deadlines share a heading, without losing any name
   ];
   const html = (await views).panel({ warnings }, { compact: true });
   const [risks] = detailsWithClass(html, 'flow-compact-risks');
-  assert.match(risks.summary, /推进前核对 · 4 项/s);
+  assert.match(risks.summary, /推进前确认 · 4 项/s);
   const windows = detailsWithClass(risks.body, 'flow-risk-window');
   assert.equal(windows.length, 3, 'unknown windows stay separate even when their warning prose matches');
   assert.equal(windows.filter((window) => window.body.includes('闭关前')).length, 1);
@@ -471,7 +712,7 @@ test('compact materials show quantities and a source brief while their links and
     assert.match(folded, /flow-material-alternatives.*可达与库存待核对.*替代商人线索.*data-id="npc-12"/s);
     assert.equal((visible.match(/合成后山山洞采集点/g) || []).length, 1);
     assert.equal((html.match(/合成后山山洞采集点/g) || []).length, compact ? 2 : 1);
-    assert.match(html, /来源线索不保证当前可达或有货/);
+    assert.doesNotMatch(html, /来源线索不保证当前可达或有货/);
   }
 });
 
@@ -566,6 +807,72 @@ test('reading an old choice cannot open a different choice after the saved stage
   );
 });
 
+test('unavailable main progress shows one useful status and keeps offline guides reachable', async () => {
+  const view = await views;
+  const chapters = [{ name: '合成章节', roots: [{ id: 'quest-1', name: '合成任务' }] }];
+  for (const [extra, label, needsSettings] of [
+    [{ reason: '存档正在更新，稍后核对' }, '正在更新进度…', false],
+    [{ referenceMode: 'none' }, '查询流程资料', false],
+    [{ referenceMode: 'slot', referenceNeedsSelection: true }, '暂无可读进度', true],
+    [{ referenceMode: 'latest' }, '暂无可读进度', true],
+  ]) {
+    const flow = { available: false, chapters, ...extra };
+    for (const summary of [false, true]) {
+      const html = view.panel(flow, { summary });
+      assert(html.includes(label));
+      assert.equal(html.includes('检查游戏连接'), needsSettings);
+      assert.doesNotMatch(html, /class="flow-(risks|active|opportunities)"/);
+      assert(html.includes(summary ? 'data-id="checklist"' : '合成章节'));
+    }
+  }
+  assert.doesNotMatch(view.panel(current()), /class="flow-heading"/);
+});
+
+test('compact flow keeps the complete offline guide reachable behind one closed disclosure', async () => {
+  const view = await views;
+  for (const available of [true, false]) {
+    const html = view.panel(
+      {
+        available,
+        guide: [{ id: 'offscreen-guide', name: '后期完整攻略', warning: '合成推进后果' }],
+        chapters: [{ name: '后期章节', roots: [{ id: 'quest-900', name: '后期主线' }] }],
+      },
+      { compact: true, sections: [] },
+    );
+    const [details] = detailsWithClass(html, 'flow-offline-details');
+    assert.equal(details.summary, '全部流程资料');
+    assert.doesNotMatch(details.opening, /\bopen(?:\s|=|>)/);
+    assert.match(details.opening, /data-persist-detail="compact-offline"/);
+    assert.match(details.body, /后期完整攻略/);
+    assert.match(
+      details.body,
+      /data-action="flow-quest" data-id="quest-900"|data-action="flow-quest"[^>]*data-id="quest-900"/,
+    );
+    assert.doesNotMatch(details.body, /data-action="main"/);
+  }
+});
+
+test('main flow shows the first recommendation and folds additional advice', async () => {
+  const view = await views;
+  const advice = (id, action) => ({
+    id,
+    name: action,
+    activeRule: true,
+    recommendation: { action, reason: '合成推荐理由' },
+  });
+  const html = view.panel({
+    ...current(),
+    advice: [advice('first', '从白龟洞暗道前往关外'), advice('second', '其他准备建议')],
+  });
+  const start = html.indexOf('<section class="flow-advice">');
+  const more = html.indexOf('data-persist-detail="main-more-advice"', start);
+  assert(start >= 0 && more > start);
+  assert.match(html.slice(start, more), /从白龟洞暗道前往关外/);
+  assert.doesNotMatch(html.slice(start, more), /其他准备建议/);
+  assert.match(html.slice(more), /其他准备建议/);
+  assert.doesNotMatch(html, /<details[^>]*class="flow-advice"/);
+});
+
 test('compact disclosure state follows advice, task and material identities across stage changes', async () => {
   const view = await views;
   const keys = (html, summary) =>
@@ -651,6 +958,16 @@ test('default late-stage risk summaries expose every irreversible route before o
     for (const warning of flow.warnings) {
       assert(visible.includes(warning.compactWarning), warning.id);
       assert(risks.body.includes(warning.warning), warning.id + ' preserves the full qualification');
+    }
+    const home = view.panel(flow, { summary: true });
+    for (const warning of flow.warnings)
+      assert(home.includes(warning.warning), warning.id + ' remains reachable on the home page');
+    if (flow.warnings.length > 3) {
+      assert.match(
+        home,
+        /<details data-persist-detail="main-more-risks"><summary>更多推进提醒 · 1<\/summary>/,
+      );
+      assert(home.slice(home.indexOf('main-more-risks')).includes('关闭天机宫'));
     }
   }
 });

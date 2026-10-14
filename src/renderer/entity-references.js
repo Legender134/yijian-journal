@@ -1,21 +1,90 @@
 import { entityCatalog, questStatus } from './entity-catalog.js';
 import { itemNumericSummary } from './item-stat-views.js';
+import { sharedEntityArtwork } from './game-images.js';
+import { createPlaceMapViews } from './place-map-views.js';
 
 export function createEntityReferences({ index, esc, picture, icon, qualityText }) {
+  const placeMaps = createPlaceMapViews({ esc, icon });
   const catalog = () => index() && entityCatalog(index());
   const rows = (id) => catalog()?.resolve(id) || [];
+  function choiceSummary(entry, choices, reference = null) {
+    const sameName = choices.filter((row) => row.name === entry.name && row.kind === entry.kind);
+    const position = sameName.findIndex((row) => row.id === entry.id) + 1;
+    const facts = [];
+    if (sameName.length > 1)
+      facts.push(`${entry.kind === '地点' ? '场景' : '资料'} ${position}/${sameName.length}`);
+    if (entry.kind === '地点') {
+      if (reference?.metadata?.map === entry.key) facts.push('当前地点');
+      const related =
+        index().world?.quests?.filter((quest) =>
+          (quest.placements || []).some((placement) => placement.mapKey === entry.key),
+        ) || [];
+      const tasks = [...new Set(related.map((quest) => quest.name.replace(/^【[^】]+】/, '')))];
+      if (tasks.length) facts.push('任务：' + tasks.slice(0, 2).join('、'));
+      else if (sameName.length > 1) facts.push('暂无关联任务');
+    } else if (entry.kind === '人物') {
+      if (Number.isFinite(entry.npcFacts?.level)) facts.push('初始等级 ' + entry.npcFacts.level);
+      const place = index().world?.maps?.find((row) => row.key === entry.walkMap);
+      if (place) facts.push(place.name);
+      // Only exact NPC bindings can distinguish same-name characters. Prose
+      // mentions alone apply to every namesake and would invent a distinction.
+      const related =
+        index().world?.quests?.filter(
+          (quest) =>
+            (quest.requestNPCs || []).includes(entry.gameId) ||
+            (quest.finishNPCs || []).includes(entry.gameId) ||
+            (quest.placements || []).some((placement) => placement.npcId === entry.gameId),
+        ) || [];
+      const tasks = [
+        ...new Set(
+          related.map((quest) =>
+            catalog()
+              .root(quest)
+              .name.replace(/^【[^】]+】/, ''),
+          ),
+        ),
+      ];
+      if (tasks.length) facts.push('任务：' + tasks.slice(0, 2).join('、'));
+    } else if (entry.kind === '任务' && entry.parentId) {
+      facts.push(
+        catalog()
+          .root(entry)
+          .name.replace(/^【[^】]+】/, ''),
+      );
+    } else if (entry.quality) facts.push(entry.quality + '色品质');
+    return facts.join(' · ');
+  }
+  function variantSummary(id, reference = null) {
+    const entry = rows(id);
+    if (entry.length !== 1) return '';
+    const choices = (catalog().names.get(entry[0].name) || []).filter((row) => row.kind === entry[0].kind);
+    return choices.length > 1 ? choiceSummary(entry[0], choices, reference) : '';
+  }
   const artwork = (id, size = 'tiny') => {
     const choices = rows(id);
     if (choices.length === 1) return picture(choices[0].id, size);
-    const files = new Set(choices.map((e) => index().images?.[e.id] || ''));
-    if (files.size === 1 && !files.has('')) return picture(choices[0].id, size);
+    const shared = sharedEntityArtwork(index(), choices);
+    if (shared) return picture(shared, size);
     const kind = choices[0]?.kind;
-    return `<span class="game-picture game-picture-${size} image-unavailable" aria-hidden="true"><span class="image-fallback">${icon(kind === '人物' ? 'person' : kind === '任务' ? 'scroll' : 'bag')}</span></span>`;
+    const glyph =
+      { 人物: 'person', 任务: 'scroll', 地点: 'pin', 配方: 'scroll', 武学: 'sword' }[kind] || 'bag';
+    return `<span class="game-picture game-picture-${size} image-unavailable" aria-hidden="true"><span class="image-fallback">${icon(glyph)}</span></span>`;
   };
   function button(action, label, cls, id, glyph = '', accessibleLabel = '') {
+    const journal = action === 'journal-link' && /^(database|quest|place):(.+)$/.exec(id || '');
+    const entityId = journal ? journal[2] : id;
     const entity =
-      ['database-detail', 'world-quest', 'flow-quest', 'entity-choice'].includes(action) && rows(id).length;
-    return `<button type="button" class="${cls}${entity ? ' pictured-link entity-link' : ''}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''}${entity ? ` data-entity-id="${esc(id)}"` : ''}${accessibleLabel ? ` aria-label="${esc(accessibleLabel)}"` : ''}>${entity ? artwork(id) + '<span class="entity-link-label">' + (action === 'database-detail' ? qualityText.html(id, label) : label) + '</span>' : (glyph ? icon(glyph) : '') + label}</button>`;
+      (journal ||
+        [
+          'database-detail',
+          'archive-entity',
+          'world-quest',
+          'flow-quest',
+          'world-place',
+          'entity-choice',
+        ].includes(action)) &&
+      rows(entityId).length;
+    return `<button type="button" class="${cls}${entity ? ' pictured-link entity-link' : ''}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''}${entity ? ` data-entity-id="${esc(entityId)}"` : ''}${accessibleLabel ? ` aria-label="${esc(accessibleLabel)}"` : ''}>${entity ? artwork(entityId) + '<span class="entity-link-label">' + (action === 'database-detail' || action === 'archive-entity' || journal?.[1] === 'database' ? qualityText.html(entityId, label) : label) + '</span>' : (glyph ? icon(glyph) : '') + label}</button>`;
   }
   function text(value, taskAction = 'world-quest') {
     const source = String(value ?? ''),
@@ -31,7 +100,7 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       html +=
         choices.length === 1
           ? button(
-              e.kind === '任务' ? taskAction : 'database-detail',
+              e.kind === '任务' ? taskAction : e.kind === '地点' ? 'world-place' : 'database-detail',
               esc(match[0]),
               'text-btn entity-inline',
               e.id,
@@ -45,38 +114,51 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
     const choices = rows(id),
       e = choices[0];
     if (!e) return '';
-    const name = choices.length > 1 ? id.slice(5) : e.name;
-    let lines = [],
-      note = '';
+    const name =
+      choices.length > 1
+        ? id.startsWith('name:')
+          ? id.slice(5)
+          : [...new Set(choices.map((row) => row.name))].join(' / ')
+        : e.name;
+    const groupLabel = new Set(choices.map((row) => row.name)).size > 1 ? '资料选择' : '同名资料';
+    let lines = [];
     if (choices.length > 1) {
       lines = [
-        `${choices.length} 条同名资料，点击后选择具体人物、品质或步骤。`,
+        `${choices.length} 条${groupLabel}，点击选择。`,
         ...choices
           .slice(0, 3)
-          .map((row) => `${row.kind}${row.quality ? ' · ' + row.quality + '色' : ''} · #${row.gameId}`),
+          .map((row) => `${row.name} · ${choiceSummary(row, choices, context.reference) || row.kind}`),
       ];
-      note = '同名不等于同一身份或同一件装备。';
     } else if (e.kind === '人物') {
-      if (e.npcFacts)
+      const variant = variantSummary(id, context.reference);
+      if (variant) lines.push(variant);
+      else if (e.npcFacts)
         lines.push(
-          `静态等级 ${e.npcFacts.level} · 可查 ${new Set(e.npcFacts.fixedItems.map((item) => item.id)).size} 种初始固定私物`,
+          `初始等级 ${e.npcFacts.level} · ${new Set((e.npcFacts.fixedItems || []).map((item) => item.id)).size} 种固定私物`,
         );
       if (e.hobbies?.length) lines.push('赠礼偏好：' + e.hobbies.join('、'));
       const place = index().world?.maps?.find((m) => m.key === e.walkMap);
-      if (place) lines.push('资料中的行走场景：' + place.name);
+      if (place) lines.push('行走场景：' + place.name);
       const related = catalog().personRelations(e);
-      lines.push(
-        '相关任务：' +
-          (related.quests
-            .slice(0, 2)
-            .map((row) => row.entity.name.replace(/^【[^】]+】/, ''))
-            .join('、') || '暂无具名关联'),
-      );
-      note = '静态人物资料；当前地点、好感与能否交互需游戏内核对。';
+      if (!variant)
+        lines.push(
+          '相关任务：' +
+            (related.quests
+              .slice(0, 2)
+              .map((row) => row.entity.name.replace(/^【[^】]+】/, ''))
+              .join('、') || '暂无具名关联'),
+        );
     } else if (e.kind === '任务') {
       const state = context.statuses?.get(e.id) || questStatus(e.gameId, context.reference);
-      lines.push((context.name || context.reference?.name || '仅查资料') + ' · ' + state);
+      lines.push(state);
       const relation = catalog().taskRelations(e);
+      const active = relation.group.find(
+        (step) =>
+          step.id !== e.id &&
+          (context.statuses?.get(step.id) || questStatus(step.gameId, context.reference)) === '进行中',
+      );
+      if (context.nextStep || active) lines.push('下一步：' + (context.nextStep || active.name));
+      else if (e.parentId && e.description) lines.push(String(e.description).slice(0, 100));
       const people = relation.people.filter((row) =>
         row.roles.some((role) => ['接取人物', '完成人物'].includes(role)),
       );
@@ -96,15 +178,14 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
               .map((row) => row.entity.name)
               .join('、'),
         );
-      if (relation.group.length > 1)
-        lines.push('含 ' + (relation.group.length - 1) + ' 个相关步骤，点击查看状态与关联。');
-      note = '依据已保存记录；未出现不代表错过，相关步骤不保证执行顺序。';
+      const conditions = (e.requirements || []).filter((condition) => condition.name).slice(0, 2);
+      if (conditions.length) lines.push('条件：' + conditions.map((condition) => condition.name).join('、'));
     } else if (e.kind === '物品') {
       const numeric = itemNumericSummary(e, index());
-      lines.push(numeric || (e.stats ? '主要用于材料、学习或剧情；详细用途见图鉴。' : '数值资料尚未收录。'));
+      if (numeric) lines.push(numeric);
       if (typeof e.buyPrice === 'number')
         lines.push(
-          '资料买价：' +
+          '买价：' +
             e.buyPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) +
             ' 文' +
             (e.giftable ? ' · 可赠礼' : ''),
@@ -112,8 +193,7 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       const inventory = context.reference?.metadata?.inventory;
       if (Array.isArray(inventory))
         lines.push(
-          (context.reference.name || '已保存参照') +
-            ' · 库存 ' +
+          '保存持有 ' +
             inventory.reduce(
               (sum, row) =>
                 sum +
@@ -121,7 +201,22 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
               0,
             ),
         );
-      note = '模板基础资料；随机词条、角色加成和当前库存以游戏内为准。';
+      else lines.push('持有量未核对');
+      const sellers = [
+        ...new Set(
+          (index().merchants || [])
+            .filter((seller) => seller.items.includes(e.gameId))
+            .map((seller) => seller.name),
+        ),
+      ];
+      if (sellers.length)
+        lines.push('售卖线索：' + sellers.slice(0, 2).join('、') + (sellers.length > 2 ? '等' : ''));
+      else {
+        const recipe = index().entries.find(
+          (entry) => entry.kind === '配方' && entry.results?.some((result) => result.id === e.gameId),
+        );
+        if (recipe) lines.push('制作：' + recipe.name);
+      }
     } else if (e.kind === '配方') {
       lines.push(
         `${e.craft || e.type} ${e.level} 级`,
@@ -131,18 +226,51 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
             .map((m) => `${m.name} ×${m.count}`)
             .join('、'),
       );
-      note = '制作等级、已学状态和库存请在详情对照。';
-    } else note = '资料效果可能取决于修炼等级和游戏状态。';
+    } else if (e.kind === '地点') {
+      const variant = variantSummary(id, context.reference);
+      lines.push(variant || (e.cave ? '洞穴场景' : '游戏场景'));
+      if (!variant && context.reference?.metadata?.map === e.key) lines.push('当前保存地点');
+      const related =
+        index().world?.quests?.filter((quest) =>
+          (quest.placements || []).some((placement) => placement.mapKey === e.key),
+        ) || [];
+      const roots = [
+        ...new Map(
+          related.map((quest) => {
+            const root = catalog().root(catalog().entries.get(quest.id));
+            return [root.id, root];
+          }),
+        ).values(),
+      ];
+      if (roots.length && !variant)
+        lines.push(
+          '相关任务：' +
+            roots
+              .slice(0, 2)
+              .map((quest) => quest.name.replace(/^【[^】]+】/, ''))
+              .join('、'),
+        );
+    }
     const description =
       choices.length === 1 && e.kind !== '任务' ? String(e.description || '').slice(0, 100) : '';
-    return `<div class="entity-preview-heading">${artwork(id, 'card')}<div><small>${esc(choices.length > 1 ? '同名资料' : e.kind)}${choices.length === 1 && e.quality ? ' · ' + esc(e.quality) + '色' : ''}</small><strong>${esc(name)}</strong></div></div>${description ? `<p class="entity-preview-description">${esc(description)}</p>` : ''}${lines
+    const placeKeys = choices
+      .filter((row) => row.kind === '地点')
+      .map((row) => index().world?.mapAtlas?.locations?.[row.key]?.markerKey);
+    const placePositions = placeKeys.map((key) => {
+      const point = index().world?.mapAtlas?.markers.find((row) => row.key === key);
+      return point ? `${point.x}:${point.y}` : null;
+    });
+    const map =
+      e.kind === '地点' &&
+      (choices.length === 1 || (placePositions.every(Boolean) && new Set(placePositions).size === 1))
+        ? placeMaps.render(index(), e.id, { compact: true, interactive: false })
+        : '';
+    return `<div class="entity-preview-heading">${artwork(id, 'card')}<div><small>${esc(choices.length > 1 ? groupLabel : e.kind)}${choices.length === 1 && e.quality ? ' · ' + esc(e.quality) + '色' : ''}</small><strong>${esc(name)}</strong></div></div>${description ? `<p class="entity-preview-description">${esc(description)}</p>` : ''}${lines
       .slice(0, 4)
       .map((line) => `<p>${esc(line)}</p>`)
-      .join(
-        '',
-      )}<p class="entity-preview-note">${esc(note)}</p><small class="entity-preview-hint">点击名称查看完整图鉴 · Esc 收起</small>`;
+      .join('')}${map}<small class="entity-preview-hint">点击查看详情 · Esc 收起</small>`;
   }
-  return { button, text, preview, artwork, choices: rows };
+  return { button, text, preview, artwork, choices: rows, choiceSummary, variantSummary };
 }
 
 // Event delegation survives renderer refreshes. The preview contains no controls.
@@ -160,7 +288,7 @@ export function installEntityPreviews({ document, window, references, context })
     dismissed = null;
   const eligible = (node) =>
     node?.closest?.(
-      '[data-entity-id], [data-action="database-detail"][data-id], [data-action="world-quest"][data-id], [data-action="flow-quest"][data-id]',
+      '[data-entity-id], [data-action="database-detail"][data-id], [data-action="world-quest"][data-id], [data-action="flow-quest"][data-id], [data-action="world-place"][data-id]',
     );
   const close = (dismissCurrent = false) => {
     if (dismissCurrent === true) dismissed = trigger || pending || eligible(document.activeElement);

@@ -253,11 +253,11 @@ async function launch(machine) {
   const env = {
     ...process.env,
     YIJIAN_TEST_DATA: machine.dataRoot,
-    YIJIAN_TEST_HIDDEN: '1',
     YIJIAN_TEST_AUTO_FAST: '1',
     pnpm_config_verify_deps_before_run: 'warn',
   };
   delete env.ELECTRON_RUN_AS_NODE;
+  delete env.YIJIAN_TEST_HIDDEN;
   const app = await _electron.launch({
     executablePath,
     args: process.env.YIJIAN_EXECUTABLE ? [] : [base],
@@ -386,8 +386,8 @@ async function pendingStatus(machine) {
   assert.equal(await active.page.locator('.save-health.ready').count(), 0);
   assert((await active.page.locator('header .save-health').innerText()).includes('副本清理待处理'));
   await nav('home');
-  assert((await active.page.locator('.home-protection .save-health').innerText()).includes('副本清理待处理'));
-  assert.equal(await active.page.locator('.home-protection .save-health.ready').count(), 0);
+  assert((await active.page.locator('header .save-health').innerText()).includes('副本清理待处理'));
+  assert.equal(await active.page.locator('.home-protection').count(), 0);
   await nav('saves');
   await active.page.locator('[aria-label="副本清理待处理"]').waitFor();
   assert.deepEqual(
@@ -416,14 +416,14 @@ async function realReady(machine) {
   const environment = await bootstrap();
   assert(environment.backups.some((b) => b.id === h.lastBackup.id));
   await active.page.locator('[data-action="refresh"]').click();
-  await until('header ready matches verified physical backup', async () => {
-    observe(machine, await health());
-    return (await active.page.locator('header .save-health.ready').count()) === 1;
+  await until('healthy header stays quiet after verifying its physical backup', async () => {
+    const current = observe(machine, await health());
+    return current.protection.ready && (await active.page.locator('header .save-health').count()) === 0;
   });
   await nav('home');
-  await until('overview ready matches verified physical backup', async () => {
-    observe(machine, await health());
-    return (await active.page.locator('.home-protection .save-health.ready').count()) === 1;
+  await until('healthy overview stays quiet after verifying its physical backup', async () => {
+    const current = observe(machine, await health());
+    return current.protection.ready && (await active.page.locator('.save-health').count()) === 0;
   });
   invariant(machine);
   await nav('saves');

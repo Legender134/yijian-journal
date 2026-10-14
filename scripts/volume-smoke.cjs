@@ -118,10 +118,10 @@ async function launch(machine, volumeComponents) {
   const env = {
     ...process.env,
     YIJIAN_TEST_DATA: machine.dataRoot,
-    YIJIAN_TEST_HIDDEN: '1',
     pnpm_config_verify_deps_before_run: 'warn',
   };
   delete env.ELECTRON_RUN_AS_NODE;
+  delete env.YIJIAN_TEST_HIDDEN;
   const app = await _electron.launch({ executablePath, args, cwd: base, env, timeout: 30000 });
   const processHandle = app.process();
   const processRecord = {

@@ -92,8 +92,7 @@ function freeze(value) {
   return value;
 }
 const views = import(
-  'data:text/javascript;base64,' +
-    fs.readFileSync(path.join(__dirname, '../src/renderer/event-journal-views.js')).toString('base64')
+  require('node:url').pathToFileURL(path.join(__dirname, '../src/renderer/event-journal-views.js')).href
 );
 
 test('valid ISO dates include leap days and offsets; impossible dates and ambiguous times are rejected', () => {
@@ -791,17 +790,18 @@ test('same-name real scenes retain distinct choices, persisted IDs and readable 
   assert.equal(choices.length, 4);
   assert.equal(new Set(choices.map((row) => row.label)).size, 4);
   assert.deepEqual(
-    journalReferenceChoices(ctx.profile, { world: ctx.world }, '梧桐村 #63').map((row) => row.id),
+    journalReferenceChoices(ctx.profile, { world: ctx.world }, '梧桐村 场景 3').map((row) => row.id),
     ['place-63'],
   );
   const rows = applyEntryCommand([], put({ links: [{ type: 'place', id: 'place-63' }] }), ctx, options());
-  assert.deepEqual(rows[0].links, [{ type: 'place', id: 'place-63', label: '梧桐村 · 场景 #63' }]);
+  assert.deepEqual(rows[0].links, [{ type: 'place', id: 'place-63', label: '梧桐村 · 场景 3' }]);
   validateEntries(JSON.parse(JSON.stringify(rows)), ctx);
   const profile = { ...ctx.profile, journalEntries: rows };
-  assert.deepEqual(queryJournalEntries(profile, { query: '梧桐村 #63' }, { world: ctx.world }).matchedIds, [
-    'new-entry',
-  ]);
-  assert.equal(queryJournalEntries(profile, { query: '梧桐村 #9' }, { world: ctx.world }).total, 0);
+  assert.deepEqual(
+    queryJournalEntries(profile, { query: '梧桐村 场景 3' }, { world: ctx.world }).matchedIds,
+    ['new-entry'],
+  );
+  assert.equal(queryJournalEntries(profile, { query: '梧桐村 场景 1' }, { world: ctx.world }).total, 0);
   const helper = {
     esc: (value) =>
       String(value ?? '').replace(
@@ -819,18 +819,19 @@ test('same-name real scenes retain distinct choices, persisted IDs and readable 
   const factory = createEventJournalViews(helper);
   assert.match(
     factory.selectedReferences(profile, { world: ctx.world }, ['place:place-63'], rows[0]),
-    /梧桐村 · 场景 #63/,
+    /梧桐村 · 场景 3/,
   );
   const legacy = entry({ links: [{ type: 'place', id: 'place-63', label: '梧桐村', detached: true }] });
   const historical = { ...profile, journalEntries: [legacy] };
   const html = factory.detail(historical, legacy.id, { readOnly: true });
-  assert.match(html, /梧桐村 · 场景 #63/);
+  assert.match(html, /梧桐村 · 原关联已移除/);
+  assert.doesNotMatch(html, /场景 3/);
   assert.match(html, /原关联已移除/);
   assert.ok(!html.includes('data-action="journal-entry-edit"'));
   const misleadingLegacy = { ...legacy, links: [{ ...legacy.links[0], label: '旧名 · 场景 #9' }] };
   assert.match(
     factory.detail({ ...profile, journalEntries: [misleadingLegacy] }, legacy.id, { readOnly: true }),
-    /旧名 · 场景 #9 · 场景 #63/,
+    /旧名 · 场景 #9 · 原关联已移除/,
   );
 });
 

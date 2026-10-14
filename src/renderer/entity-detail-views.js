@@ -2,7 +2,12 @@ import { entityCatalog, questStatus } from './entity-catalog.js';
 
 export function createEntityDetailViews({ esc, act, pill, guide = () => [], richText = esc }) {
   const link = (e) =>
-    act(e.kind === '任务' ? 'world-quest' : 'database-detail', esc(e.name), 'text-btn', e.id);
+    act(
+      e.kind === '任务' ? 'world-quest' : e.kind === '地点' ? 'world-place' : 'database-detail',
+      esc(e.name),
+      'text-btn',
+      e.id,
+    );
   const folded = (rows, render, limit = 8) =>
     rows.slice(0, limit).map(render).join('') +
     (rows.length > limit
@@ -13,11 +18,11 @@ export function createEntityDetailViews({ esc, act, pill, guide = () => [], rich
     const catalog = entityCatalog(index);
     const locations = rows.filter((row) => row.pickup?.personId && row.pickup.place);
     if (!locations.length) return '';
-    return `<div class="detail-block" data-community-pickup><h3>社区接取地点</h3><p class="save-note">这是任务接取的静态线索，不代表人物当前在场、任务可接或本步骤的目的地。</p>${locations
+    return `<div class="detail-block" data-community-pickup><h3>接取地点</h3>${locations
       .map((row) => {
         const quest = catalog.entries.get('quest-' + String(row.questId).replace(/^quest-/, ''));
         const person = catalog.entries.get(row.pickup.personId);
-        return `<div class="entity-relation-row">${quest ? link(quest) : ''}<p><strong>地点：</strong>${richText(row.pickup.place)}${person ? ` · ${link(person)}` : ''}</p>${row.pickup.action ? `<p>${richText(row.pickup.action)}</p>` : ''}${row.uncertainty ? `<p class="small save-note">${richText(row.uncertainty)}</p>` : ''}${row.sources?.length ? `<details><summary>来源与参考版本</summary>${row.sources.map((source) => `<p>${act('source', esc(source.title), 'text-btn', source.id)}<span class="small muted"> · ${[source.date, source.version].filter(Boolean).map(esc).join(' · ')}</span></p>`).join('')}</details>` : ''}</div>`;
+        return `<div class="entity-relation-row">${quest ? link(quest) : ''}<p><strong>地点：</strong>${richText(row.pickup.place)}${person ? ` · ${link(person)}` : ''}</p>${row.pickup.action ? `<p>${richText(row.pickup.action)}</p>` : ''}${row.uncertainty ? `<details><summary>资料说明</summary><p class="small">${richText(row.uncertainty)}</p></details>` : ''}${row.sources?.length ? `<details><summary>来源与参考版本</summary>${row.sources.map((source) => `<p>${act('source', esc(source.title), 'text-btn', source.id)}<span class="small muted"> · ${[source.date, source.version].filter(Boolean).map(esc).join(' · ')}</span></p>`).join('')}</details>` : ''}</div>`;
       })
       .join('')}</div>`;
   }
@@ -33,12 +38,12 @@ export function createEntityDetailViews({ esc, act, pill, guide = () => [], rich
         Number(questStatus(a.entity.gameId, reference) === '进行中'),
     );
     const taskRow = (row) =>
-      `<div class="entity-relation-row"><div>${link(row.entity)} ${pill(questStatus(row.entity.gameId, reference))}</div><p class="small muted">${esc(row.roles.join(' / '))}</p><details><summary>对应步骤 · ${row.via.length}</summary><div class="related-items">${steps(row.via)}</div></details></div>`;
+      `<div class="entity-relation-row"><div>${link(row.entity)} ${pill(questStatus(row.entity.gameId, reference))}</div><details><summary>对应步骤 · ${row.via.length}</summary><p class="small muted">${esc(row.roles.join(' / '))}</p><div class="related-items">${steps(row.via)}</div></details></div>`;
     const peopleRow = (row) =>
       `<div class="entity-relation-row">${link(row.entity)}<p class="small muted">在关联任务中：${esc(row.roles.join(' / '))}</p><details><summary>在哪些步骤出现</summary>${steps(row.via)}</details></div>`;
     const itemsRow = (row) =>
       `<div class="entity-relation-row">${link(row.entity)}${row.via.map(({ quest, count }) => `<p class="small">${link(quest)} · 该步骤需 ${esc(count)} 件</p>`).join('')}</div>`;
-    return `<section class="detail-block entity-relations" data-person-relations>${locations}<h3>相关任务 · ${quests.length}</h3><p class="save-note">${reference ? `对照 ${esc(reference.name)} 的已保存记录。` : '仅查资料，尚未核对存档。'}按接取、完成、条件和文字提及区分；提名或场景配置不等于当前能接任务。</p>${folded(quests, taskRow) || '<p class="small muted">当前索引没有列出具名任务关联。</p>'}${related.people.length ? `<details class="detail-block"><summary>关联任务中的其他人物 · ${related.people.length} · 可能涉及剧情</summary><p class="save-note">这是同一任务步骤中的人物线索，不推断亲属、阵营或剧情关系。</p>${folded(related.people, peopleRow)}</details>` : ''}${related.items.length ? `<details class="detail-block"><summary>关联步骤需要的物品 · ${related.items.length}</summary><p class="save-note">逐步骤列用量；不同分支可能互斥，不把所有材料相加为必需量。</p>${folded(related.items, itemsRow)}</details>` : ''}</section>`;
+    return `<section class="detail-block entity-relations" data-person-relations>${locations}<h3>相关任务 · ${quests.length}</h3>${folded(quests, taskRow) || '<p class="small muted">当前索引没有列出具名任务关联。</p>'}${related.people.length ? `<details class="detail-block"><summary>关联任务中的其他人物 · ${related.people.length} · 可能涉及剧情</summary>${folded(related.people, peopleRow)}</details>` : ''}${related.items.length ? `<details class="detail-block"><summary>关联步骤需要的物品 · ${related.items.length}</summary>${folded(related.items, itemsRow)}</details>` : ''}</section>`;
   }
   function task(index, q, reference) {
     const related = entityCatalog(index).taskRelations(q);
@@ -47,7 +52,7 @@ export function createEntityDetailViews({ esc, act, pill, guide = () => [], rich
     const itemRow = (row) =>
       `<div class="entity-relation-row">${link(row.entity)}${row.via.map(({ quest, count }) => `<p class="small">${link(quest)} · 需 ${esc(count)} 件 ${pill(questStatus(quest.gameId, reference))}</p>`).join('')}</div>`;
     const requirementRow = (row) =>
-      `<div class="entity-relation-row">${link(row.entity)}<p class="small">${row.type === 'NoQuest' ? '资料中的排除条件 · 判定待游戏内核对' : '资料中的前置状态：' + esc(['未开始', '进行中', '已失败', '未接取', '已完成'][row.value] || row.value)} · ${pill(questStatus(row.entity.gameId, reference))}</p><details><summary>哪些步骤有此条件</summary>${steps(row.via)}</details></div>`;
+      `<div class="entity-relation-row">${link(row.entity)}<p class="small">${row.type === 'NoQuest' ? '排除条件' : '所需状态：' + esc(['未开始', '进行中', '已失败', '未接取', '已完成'][row.value] || row.value)} · ${pill(questStatus(row.entity.gameId, reference))}</p><details><summary>哪些步骤有此条件</summary>${steps(row.via)}</details></div>`;
     const ids = new Set(related.group.map((step) => step.gameId));
     const curated = guide().filter(
       (row) =>
@@ -70,10 +75,10 @@ export function createEntityDetailViews({ esc, act, pill, guide = () => [], rich
     const advice = curated
       .map(
         (row) =>
-          `<details class="entity-related-advice"><summary>${esc(row.name || row.title)}</summary>${row.recommendation?.action ? `<p><strong>推荐做法：</strong>${richText(row.recommendation.action)}</p><p><strong>为什么：</strong>${richText(row.recommendation.reason)}</p>` : ''}${row.recommendation?.goal ? `<p>适合：${richText(row.recommendation.goal)}</p>` : ''}${row.recommendation?.tradeoff ? `<p>取舍：${richText(row.recommendation.tradeoff)}</p>` : ''}${row.warning ? `<p>${richText(row.warning)}</p>` : ''}${(row.affectedTasks || []).map((affected) => `<p><strong>${affectedName(affected)}：</strong>${richText(affected.effect)}</p>`).join('')}${row.uncertainty ? `<p class="save-note">${richText(row.uncertainty)}</p>` : ''}${(row.sources || []).map((source) => act('source', esc(source.title), 'text-btn', source.id)).join(' · ')}</details>`,
+          `<details class="entity-related-advice"><summary>${richText(row.name || row.title)}</summary>${row.recommendation?.action ? `<p><strong>推荐做法：</strong>${richText(row.recommendation.action)}</p><p><strong>为什么：</strong>${richText(row.recommendation.reason)}</p>` : ''}${row.recommendation?.goal ? `<p>适合：${richText(row.recommendation.goal)}</p>` : ''}${row.recommendation?.tradeoff ? `<p>取舍：${richText(row.recommendation.tradeoff)}</p>` : ''}${row.warning ? `<p>${richText(row.warning)}</p>` : ''}${(row.affectedTasks || []).map((affected) => `<p><strong>${affectedName(affected)}：</strong>${richText(affected.effect)}</p>`).join('')}${row.uncertainty ? `<p class="save-note">${richText(row.uncertainty)}</p>` : ''}${(row.sources || []).map((source) => act('source', esc(source.title), 'text-btn', source.id)).join(' · ')}</details>`,
       )
       .join('');
-    return `<section class="detail-block entity-relations" data-task-relations><h3>${q.parentId ? '本步骤与子步骤关联' : '整条任务关联汇总'}</h3><p class="save-note">汇总 ${related.group.length} 个资料步骤。分支不保证全部执行，任务提名与事件场景不是当前人物位置。</p>${locations}<details open><summary>涉及人物 · ${related.people.length}</summary>${folded(related.people, personRow) || '<p class="small muted">资料未列出可识别的人物关系。</p>'}</details>${related.items.length ? `<details open><summary>步骤需要的物品 · ${related.items.length}</summary>${folded(related.items, itemRow)}<p class="save-note">按各步骤分别列用量，不合并互斥分支，也不推断任务奖励。</p></details>` : ''}${related.requirements.length ? `<details><summary>前置与排除任务 · ${related.requirements.length}</summary>${folded(related.requirements, requirementRow)}</details>` : ''}${advice ? `<details><summary>已整理的选择、收益与推进影响 · ${curated.length}</summary><p class="save-note">攻略供查询，不表示此提醒当前仍开放。及时提醒请以随行的已保存参照为准。</p>${advice}</details>` : ''}</section>`;
+    return `<section class="detail-block entity-relations" data-task-relations><h3>${q.parentId ? '本步骤与子步骤关联' : '整条任务关联汇总'}</h3>${locations}<details open><summary>涉及人物 · ${related.people.length}</summary>${folded(related.people, personRow) || '<p class="small muted">资料未列出可识别的人物关系。</p>'}</details>${related.items.length ? `<details open><summary>步骤需要的物品 · ${related.items.length}</summary>${folded(related.items, itemRow)}</details>` : ''}${related.requirements.length ? `<details><summary>前置与排除任务 · ${related.requirements.length}</summary>${folded(related.requirements, requirementRow)}</details>` : ''}${advice ? `<details><summary>已整理的选择、收益与推进影响 · ${curated.length}</summary>${advice}</details>` : ''}</section>`;
   }
   return { person, task };
 }

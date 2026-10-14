@@ -162,21 +162,22 @@ function resourceBudget(
     });
   const priorityOwners = [
     ...plans.map((plan) => ({ id: plan.id, name: plan.name, kind: 'craft' })),
-    ...giftPlans.map((gift) => ({
-      id: '@gift:' + gift.id,
-      kind: 'gift',
-      description:
-        `第${profile.journey.gifts.indexOf(gift) + 1}份赠礼 · ${gift.quantity}件` +
-        (gift.note ? ' · ' + gift.note : ''),
-      name:
-        '赠予' +
-        giftPersonLabel(
+    ...giftPlans.map((gift) => {
+      const npcName = giftPersonLabel(
           gameEntries.find((e) => e.id === gift.npcId),
           gameEntries,
-        ) +
-        ' · ' +
-        giftItemLabel(gameEntries.find((e) => e.id === gift.itemId)),
-    })),
+        ),
+        itemName = giftItemLabel(gameEntries.find((e) => e.id === gift.itemId));
+      return {
+        id: '@gift:' + gift.id,
+        kind: 'gift',
+        gift: { npcId: gift.npcId, npcName, itemId: gift.itemId, itemName },
+        description:
+          `第${profile.journey.gifts.indexOf(gift) + 1}份赠礼 · ${gift.quantity}件` +
+          (gift.note ? ' · ' + gift.note : ''),
+        name: '赠予' + npcName + ' · ' + itemName,
+      };
+    }),
   ];
   const ownerOrder = orderedOwnerIds(
     profile.resourcePriority || [],

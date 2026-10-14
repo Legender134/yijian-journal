@@ -11,6 +11,79 @@ const { ProtectionArchives } = require('../src/core/protection-archives.cjs');
 const catalog = require('../src/data/catalog.cjs');
 const world = require('../src/data/world-index.json');
 const current = (store) => store.get().profiles[0];
+test('deleted structured arrangements offer static exact references without changing restored text', async () => {
+  const { createJourneyTrashViews } = await import(
+    require('node:url').pathToFileURL(path.join(__dirname, '../src/renderer/journey-trash-views.js')).href
+  );
+  const esc = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+    );
+  const view = createJourneyTrashViews({
+    esc,
+    when: esc,
+    act: (action, label, cls, id) => `<button data-action="${action}" data-id="${esc(id)}">${label}</button>`,
+  });
+  const index = {
+    entries: [
+      { id: 'npc-1', name: '人物' },
+      { id: 'item-2', name: '物品' },
+      { id: 'fusion-3', name: '配方' },
+    ],
+    world: {
+      quests: [{ id: 'quest-4', name: '任务' }],
+      maps: [
+        { id: 'place-1', name: '地点' },
+        { id: 'place-8', name: '重复甲' },
+        { id: 'place-8', name: '重复乙' },
+      ],
+    },
+  };
+  const row = (kind, record) => ({ id: kind, kind, deletedAt: '2026-10-09T08:00:00.000Z', record });
+  const rows = [
+    row('gift', { npcId: 'npc-1', itemId: 'item-2', placeId: 'place-1', quantity: 2, note: '<人物物品>' }),
+    row('goal', { title: '人物物品', detail: '<人物物品>', source: { type: 'quest', id: 'quest-4' } }),
+    row('craft-plan', {
+      name: '人物物品',
+      list: [{ id: 'fusion-3', quantity: 3 }],
+      choices: { 2: 'fusion-3' },
+    }),
+    row('itinerary', {
+      name: '人物物品',
+      status: 'draft',
+      steps: [
+        {
+          title: '<人物物品>',
+          actionId: 'original',
+          placeId: 'place-1',
+          sources: [
+            { type: 'quest', id: 'quest-4', field: '<原字段>' },
+            { type: 'database', id: 'item-2', field: '目标' },
+            { type: 'user', id: 'item-2', field: 'journey' },
+          ],
+        },
+      ],
+    }),
+  ];
+  const before = structuredClone({ rows, index });
+  const html = rows.map((item) => view.detail(item, index)).join('');
+  for (const id of ['npc-1', 'item-2', 'fusion-3', 'quest-4', 'place-1'])
+    assert.match(html, new RegExp(`data-action="archive-entity" data-id="${id}"`));
+  assert.match(html, /<h3>人物物品<\/h3>/);
+  assert.match(html, /class="preserve-text">&lt;人物物品&gt;<\/p>/);
+  assert.match(html, /个人安排：item-2 · journey/);
+  assert.match(html, /&lt;原字段&gt;/);
+  const panel = view.panel({ id: 'history', journeyTrash: [rows[0]] }, index, {}, true);
+  assert.match(panel, /data-action="archive-entity" data-id="npc-1"/);
+  assert.doesNotMatch(panel, /data-action="journey-trash-(restore|purge)/);
+  const craftPanel = view.panel({ id: 'history', journeyTrash: [rows[2]] }, index, {}, true);
+  assert.match(craftPanel, /data-action="archive-entity" data-id="fusion-3"/);
+  assert.doesNotMatch(craftPanel.replace(/<[^>]*>/g, ''), /fusion-3|item-2/);
+  for (const id of ['place-8', 'place-999'])
+    assert.doesNotMatch(view.detail(row('place', { placeId: id, note: '地点' }), index), /archive-entity/);
+  assert.deepEqual({ rows, index }, before);
+});
 test('removal and recovery previews preserve item counts and recipe repetitions, including legacy defaults and missing references', async () => {
   const { createJourneyTrashViews } = await import(
     'data:text/javascript;base64,' +

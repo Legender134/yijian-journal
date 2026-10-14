@@ -2792,7 +2792,7 @@ test('native hidden story gates survive enrichment and close a guide pickup wind
 
 test('a root-only family record does not masquerade as a known current step', () => {
   const flow = flowSnapshot(profile(), ref([{ id: 11077, step: 1 }]));
-  assert.match(flow.active[0].steps[0].nextAction, /具体步骤.*核对游戏任务栏/);
+  assert.match(flow.active[0].steps[0].nextAction, /下一步未识别.*查看游戏任务栏/);
   assert.notEqual(flow.active[0].steps[0].nextAction, flow.active[0].name);
 });
 

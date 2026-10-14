@@ -275,6 +275,11 @@ test('current and read-only itinerary previews show full order, precise scene, s
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;');
   const views = createJourneyTrashViews({
+    placeLabel: (
+      await import(
+        require('node:url').pathToFileURL(path.join(__dirname, '../src/renderer/place-picker.js')).href
+      )
+    ).placeChoiceLabel,
     esc,
     when: (t) => t,
     act: (action, label) => `<button data-action="${action}">${label}</button>`,
@@ -292,9 +297,9 @@ test('current and read-only itinerary previews show full order, precise scene, s
   const html = views.detail(row(), index);
   assert(html.indexOf('1. 第二项先去') < html.indexOf('2. 第一项后去'));
   for (const text of [
-    '场景 #22',
+    '场景 1',
     'place-22',
-    '场景 #9',
+    '场景 2',
     'place-9',
     '仅本次跳过',
     '本次未跳过',

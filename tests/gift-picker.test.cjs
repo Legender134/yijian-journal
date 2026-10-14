@@ -58,6 +58,10 @@ test('changing search and quality never drops an existing selected exact ID', as
   assert.equal(result.pinned.id, 'item-1002');
   const people = ['npc-5011', 'npc-5030'].map((id) => game.entries.find((entry) => entry.id === id));
   assert.notEqual(giftChoiceLabel(people[0], game.entries), giftChoiceLabel(people[1], game.entries));
+  assert.doesNotMatch(
+    people.map((person) => giftChoiceLabel(person, game.entries)).join(''),
+    /资料编号|5011|5030/,
+  );
   assert.equal(giftChoices(game, 'item', { selectedId: 'npc-5011' }).selected, undefined);
 });
 test('stock shortcuts use the same finite budget and reclaim only the gift currently being edited', async () => {

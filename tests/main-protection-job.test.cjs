@@ -282,6 +282,9 @@ function backupPreviewSetup() {
   let markup = '';
   const overlay = {
     firstChild: null,
+    get firstElementChild() {
+      return this.firstChild;
+    },
     contains: () => false,
     querySelector: (selector) =>
       selector === '.drawer-body' ? body : selector === 'input,textarea,select,button' ? focusable : null,
@@ -306,6 +309,9 @@ function backupPreviewSetup() {
     window: { journal: { timelineRelease: async () => {} } },
     CSS: { escape: (value) => value },
     currentDrawer: null,
+    defaultFollow: () => true,
+    worldView: {},
+    worldRequest: 0,
     drawerHistory: [],
     backupPreviewRequest: 0,
     backupRestorePending: false,

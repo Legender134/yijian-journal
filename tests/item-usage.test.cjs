@@ -59,15 +59,38 @@ const esc = (value) =>
         "'": '&#39;',
       })[char],
   );
-const html = async (result) => {
+const html = async (result, richText = esc) => {
   const { createItemUsageViews } = await rendering;
   return createItemUsageViews({
     esc,
     act: (action, label, className, id) =>
       `<button class="${className}" data-action="${esc(action)}" data-id="${esc(id)}">${label}</button>`,
     when: () => '合成时间',
+    richText,
   }).detail(result);
 };
+
+test('usage preserves private names and notes while gift recipients use the selected identity', async () => {
+  const privateText = '私人代号是江小彤，文件夹叫武当山 <原文>';
+  const p = profile({
+    craftPlans: [plan('private', { name: privateText })],
+    journey: {
+      gifts: [
+        { id: 'private-gift', npcId: 'npc-5011', itemId: 'item-10216', quantity: 1, note: privateText },
+      ],
+      handledActionIds: [],
+    },
+  });
+  const ref = budgetReference(p, reference([{ id: 10216, count: 20 }]));
+  const result = await project('item-10216', p, ref);
+  const output = await html(result, () => {
+    throw Error('Private usage text must not be guessed as public entities');
+  });
+  assert.match(output, /data-action="database-detail" data-id="npc-5011">道通/);
+  assert.ok(output.includes(esc(privateText)));
+  assert.equal(result.usages.find((row) => row.kind === 'gift').titleEntity.id, 'npc-5011');
+  assert.equal(p.craftPlans[0].name, privateText);
+});
 
 test('exact item reverse lookup presents each existing owner and the authoritative physical total', async () => {
   const p = profile({
@@ -145,7 +168,10 @@ test('same named quality variants keep stock and existing gifts isolated by exac
   );
   assert.equal(blue.usages[0].source.action, 'journey-gift-edit');
   assert.equal(blue.usages[0].source.id, 'blue-gift');
-  assert.match(await html(blue), /蓝色品质.*item-1005/);
+  const output = await html(blue);
+  assert.match(output, /持有<\/small><strong>6/);
+  assert.match(output, /data-action="journey-gift-edit" data-id="blue-gift"/);
+  assert.doesNotMatch(output, /green-gift|item-1005/);
 });
 
 test('processing distinguishes physical input, preceding projected supply and core endpoint shortage', async () => {
@@ -204,10 +230,10 @@ test('processing distinguishes physical input, preceding projected supply and co
   assert.equal(iron.usages[0].missing, 3);
   assert(ref.planning.crafts[0].processing.plannedOutputs.some((output) => output.itemId === 10216));
   const output = await html(intermediate);
-  assert.match(output, /尚未分配真实库存 5/);
-  assert.match(output, /预计前序加工供给 5/);
-  assert.match(output, /原料端点缺口 0/);
-  assert.match(output, /不是当前持有/);
+  assert.match(output, /待补材料 5/);
+  assert.match(output, /前序加工预计产出 5/);
+  assert.match(output, /原料缺口 0/);
+  assert.match(output, /持有<\/small><strong>1/);
 });
 
 test('an eligible alternative appears even if another exact item satisfies its entire group', async () => {
@@ -234,7 +260,7 @@ test('an eligible alternative appears even if another exact item satisfies its e
   assert.match(output, /材料组共需/);
   assert.match(output, /本物品分配 0/);
   assert.match(output, /该组缺口 0/);
-  assert.match(output, /不表示每种品质各需/);
+  assert.match(output, /组内物品可替代/);
 });
 
 test('completed task records remain discoverable without current occupancy; inactive plans and gifts are excluded', async () => {
@@ -257,7 +283,7 @@ test('completed task records remain discoverable without current occupancy; inac
   assert.equal(result.usages[0].required, 3);
   assert.equal(result.usages[0].allocated, 0);
   assert.equal(result.usages[0].missing, 0);
-  assert.match(await html(result), /已完成 · 当前不占用/);
+  assert.match(await html(result), /记录预留 3 · 已完成 · 不占用/);
 });
 
 test('physical total is clamped by core when manual claims exceed actual stock', async () => {
@@ -289,9 +315,10 @@ test('missing inventory preserves known intention demand and unknown physical qu
   assert.match(task.status, /待核对/);
   assert.ok(result.usages.every((row) => row.allocated === null && row.missing === null));
   const output = await html(result);
-  assert.match(output, /真实持有<\/small><strong>待核对/);
-  assert.match(output, /真实库存分配 待核对/);
-  assert.doesNotMatch(output, /真实库存分配 0/);
+  assert.match(output, /库存未读取/);
+  assert.match(output, /持有<\/small><strong>—/);
+  assert.match(output, /已分配 —/);
+  assert.doesNotMatch(output, /已分配 0|<strong>0/);
 });
 
 test('profile or reference mismatches never expose another context allocation as current fact', async () => {
@@ -308,7 +335,10 @@ test('profile or reference mismatches never expose another context allocation as
     assert.equal(result.status, 'reference-mismatch');
     assert.deepEqual(result.stock, { owned: null, allocated: null, remaining: null });
     assert.deepEqual(result.usages, []);
-    assert.match(await html(result), /用途尚未核对/);
+    const output = await html(result);
+    assert.match(output, /进度已变化，请重新打开物品详情/);
+    assert.match(output, /持有<\/small><strong>—/);
+    assert.doesNotMatch(output, /data-item-usage=|<strong>5/);
   }
   assert.deepEqual(another.usages, []);
 });
@@ -319,7 +349,8 @@ test('unreadable, absent and incomplete references remain explicit; item names c
   const unreadable = await project('item-10216', p, null, '合成参照读取失败');
   assert.equal(unreadable.status, 'unreadable');
   assert.deepEqual(unreadable.stock, { owned: null, allocated: null, remaining: null });
-  assert.match(await html(unreadable), /合成参照读取失败/);
+  assert.equal(unreadable.reason, '合成参照读取失败');
+  assert.match(await html(unreadable), /读取失败，请重新打开物品详情/);
   assert.equal((await project('item-10216', p, reference())).status, 'budget-unavailable');
   assert.equal((await project('铁锭', p, reference())).status, 'invalid-item');
   assert.equal((await project('item-010216', p, reference())).status, 'invalid-item');
@@ -350,9 +381,8 @@ test('no recorded uses and spare stock do not imply permission to sell; views es
   const unused = await project('item-1005', p, ref);
   assert.equal(unused.usages.length, 0);
   const output = await html(unused);
-  assert.match(output, /尚无这件物品的已记录用途/);
-  assert.match(output, /没有已记录用途不代表可以出售/);
-  assert.match(output, /余量也不代表可以安全出售/);
+  assert.match(output, /暂无预留用途/);
+  assert.doesNotMatch(output, /可以出售|安全出售/);
 });
 
 test('editing draft and recipe goal sources navigate to their existing management pages', async () => {

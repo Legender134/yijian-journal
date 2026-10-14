@@ -91,11 +91,18 @@ function compareRecords(left, right) {
       name: file.name,
       modifiedAt: file.modifiedAt,
       mapName: m.mapName,
+      mapKey: typeof m.map === 'string' ? m.map : '',
       playSeconds: m.playSeconds,
       money: m.money ?? null,
       difficultyName: m.difficultyName || '',
       mainQuest: m.mainQuest?.name || '',
       sideQuest: m.quest?.name || '',
+      mainQuestId:
+        Number.isSafeInteger(m.trackingMainQuest) && m.trackingMainQuest > 0
+          ? `quest-${m.trackingMainQuest}`
+          : '',
+      sideQuestId:
+        Number.isSafeInteger(m.trackingQuest) && m.trackingQuest > 0 ? `quest-${m.trackingQuest}` : '',
     };
   };
   return {

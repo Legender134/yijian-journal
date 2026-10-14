@@ -79,6 +79,34 @@ async function openDialog() {
   await page.locator('[data-action="resource-priority-open"]').click();
   await page.locator('[data-action="resource-priority-save"]').waitFor();
 }
+async function inspectPreviewMaterial(savedOrder) {
+  const material = page
+    .locator('.resource-priority-editor [data-action="database-detail"][data-id="item-10205"]')
+    .first();
+  assert.equal(await material.locator('.game-picture').count(), 1);
+  assert(
+    await material.evaluate((element) =>
+      getComputedStyle(element.querySelector('.entity-link-label')).textDecorationLine.includes('underline'),
+    ),
+  );
+  await material.focus();
+  await material.hover();
+  await page.locator('#entity-preview').waitFor({ state: 'visible' });
+  assert.match(await page.locator('#entity-preview').innerText(), /煤炭/);
+  assert.match(await page.locator('#entity-preview').innerText(), /保存持有 1/);
+  await material.click();
+  await page.locator('.game-detail-title h1').filter({ hasText: '煤炭' }).waitFor();
+  await page.locator('[data-action="drawer-back"]').click();
+  await page.locator('[data-action="resource-priority-save"]').waitFor();
+  assert.deepEqual(
+    await page
+      .locator('.resource-priority-order [data-direction="up"]')
+      .evaluateAll((buttons) => buttons.map((button) => button.dataset.id)),
+    ['b', 'a'],
+  );
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.id), 'item-10205');
+  assert.deepEqual((await current()).resourcePriority, savedOrder);
+}
 async function quit() {
   await Promise.all([page.waitForEvent('close'), page.evaluate(() => window.journal.window('quit'))]);
   await app.close().catch(() => {});
@@ -102,6 +130,8 @@ const grant = (data, id) =>
     assert.match(impact, /铁锭/);
     assert.match(impact, /3 → 0/);
     assert.match(impact, /0 → 3/);
+    await inspectPreviewMaterial(undefined);
+    checks.push('材料图标、下划线与悬浮持有量共用实体链接，查看详情后返回仍保留未确认的b、a顺序');
     await page
       .locator('.resource-priority-modal')
       .evaluate(async (el) => Promise.all(el.getAnimations().map((a) => a.finished)));
@@ -123,6 +153,7 @@ const grant = (data, id) =>
       document.querySelector('.resource-priority-order .spacer')?.textContent.includes('稍后做的剑'),
     );
     await page.locator('[data-action="resource-priority-save"]').waitFor();
+    await inspectPreviewMaterial(['a', 'b']);
     writeSynthetic(12000);
     await page.locator('[data-action="resource-priority-save"]').click();
     await page.waitForFunction(() =>

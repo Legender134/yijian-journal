@@ -110,6 +110,72 @@ test('same-name items keep their distinct IDs and quality labels in the comparis
   assert.equal(diff.inventory.changes.find((i) => i.id === 129).quality, '蓝');
   assert.equal(diff.inventory.changes.find((i) => i.id === 171).quality, '金');
 });
+test('comparison task names open exact known task records and leave unknown names unlinked', async () => {
+  const { pathToFileURL } = require('node:url'),
+    [{ createComparisonViews }, { createEntityReferences }] = await Promise.all([
+      import(pathToFileURL(path.join(__dirname, '../src/renderer/comparison-views.js')).href),
+      import(pathToFileURL(path.join(__dirname, '../src/renderer/entity-references.js')).href),
+    ]);
+  const esc = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+    );
+  let index = {
+    entries: [],
+    world: {
+      maps: [],
+      quests: [
+        { id: 'quest-5200', gameId: 5200, name: '父任务', parentId: 0 },
+        { id: 'quest-5201', gameId: 5201, name: '同名步骤', parentId: 5200 },
+        { id: 'quest-5202', gameId: 5202, name: '同名步骤', parentId: 5200 },
+      ],
+    },
+  };
+  const references = createEntityReferences({
+      index: () => index,
+      esc,
+      picture: (id) => `<span data-picture="${esc(id)}"></span>`,
+      icon: esc,
+      qualityText: { html: (_, label) => label },
+    }),
+    options = {
+      esc,
+      act: references.button,
+      icon: esc,
+      pill: (value) => `<span>${esc(value)}</span>`,
+      notice: esc,
+    },
+    views = createComparisonViews({ ...options, getIndex: () => index }),
+    diff = {
+      quests: {
+        available: true,
+        changes: [
+          { id: 5201, name: '同名步骤', parentId: 5200, left: '未开始', right: '进行中', rightStep: 1 },
+          { id: 5202, name: '同名步骤', parentId: 5200, left: '进行中', right: '已完成', rightStep: 4 },
+          { id: 5203, name: '同名步骤', parentId: 5200, left: '未出现在记录', right: '已失败', rightStep: 2 },
+          { id: 999, name: '<未知任务>', left: '未开始', right: '进行中', rightStep: 1 },
+        ],
+      },
+    },
+    before = JSON.stringify(diff),
+    html = views.quests(diff);
+  for (const id of ['quest-5201', 'quest-5202']) {
+    assert.match(html, new RegExp(`data-action="world-quest" data-id="${id}" data-entity-id="${id}"`));
+    assert.match(html, new RegExp(`data-picture="${id}"`));
+  }
+  assert.equal((html.match(/pictured-link entity-link/g) || []).length, 2);
+  assert.doesNotMatch(html, /data-id="quest-(5200|5203|999)"|data-action="entity-choice"|name:/);
+  assert.match(html, /<h3>同名步骤<\/h3>.*未出现在记录.*已失败/s);
+  assert.match(html, /任务步骤/);
+  assert.match(html, /未开始.*进行中.*已完成/s);
+  assert.match(html, /&lt;未知任务&gt;/);
+  assert.doesNotMatch(views.quests(diff, '未知'), /data-action="world-quest"/);
+  assert.equal(JSON.stringify(diff), before);
+  assert.doesNotMatch(createComparisonViews(options).quests(diff), /data-action="world-quest"/);
+  index = { entries: [], world: { maps: [], quests: [] } };
+  assert.doesNotMatch(views.quests(diff), /data-action="world-quest"/);
+});
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-comparison-'));
   const source = path.join(root, 'SaveGames');
@@ -166,4 +232,44 @@ test('comparison refuses a file changed while the pair is being read', () => {
     fs.readFileSync = original;
   }
   assert.equal(saves.compare(source, '1.sav', '2.sav').inventory.changes[0].delta, 8);
+});
+
+test('comparison recaps retain exact map and tracked quest identities without guessing from names', async () => {
+  const { pathToFileURL } = require('node:url');
+  const { createComparisonViews } = await import(
+    pathToFileURL(path.join(__dirname, '../src/renderer/comparison-views.js')).href
+  );
+  const world = require('../src/data/world-index.json');
+  const index = { entries: [], world };
+  const map = world.maps.find((p) => p.id === 'place-22');
+  const a = record('1.sav', {
+    map: map.key,
+    trackingMainQuest: 5200,
+    trackingQuest: 5201,
+    inventory: [],
+    quests: [],
+  });
+  const b = record('2.sav', { map: 'missing-map', inventory: [], quests: [] });
+  b.metadata.mapName = a.metadata.mapName;
+  b.metadata.mainQuest = { name: a.metadata.mainQuest.name };
+  const before = JSON.stringify([a, b]);
+  const diff = compareRecords(a, b);
+  const view = createComparisonViews({
+    esc: String,
+    getIndex: () => index,
+    when: String,
+    hours: String,
+    icon: () => '',
+    pill: String,
+    act: (action, label, cls, id) => `<button data-action="${action}" data-id="${id}">${label}</button>`,
+  });
+  const html = view.result(diff, {});
+  assert.equal(diff.left.mapKey, map.key);
+  assert.equal(diff.left.mainQuestId, 'quest-5200');
+  assert.equal(diff.left.sideQuestId, 'quest-5201');
+  assert.match(html, /data-action="world-place" data-id="place-22"/);
+  for (const id of ['quest-5200', 'quest-5201'])
+    assert.equal((html.match(new RegExp('data-id="' + id + '"', 'g')) || []).length, 1);
+  assert.equal((html.match(/data-action="world-place"/g) || []).length, 1);
+  assert.equal(JSON.stringify([a, b]), before);
 });

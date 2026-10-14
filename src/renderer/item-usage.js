@@ -182,6 +182,7 @@ export function projectItemUsage(itemId, { profile, reference, gameIndex, error 
         kind: 'gift',
         ownerId: '@gift:' + gift.id,
         title: '赠予' + (person?.name || gift.npcId),
+        titleEntity: person ? { id: person.id, name: person.name } : null,
         active: true,
         status: '已记录赠礼',
         note: gift.note || '',

@@ -118,6 +118,8 @@ async function compact() {
   await page.locator('.topbar [data-action="compact"]').click();
   companion = await made;
   companion.on('pageerror', (e) => errors.push(e.message));
+  await companion.locator('.compact-shell').waitFor();
+  await companion.locator('[data-compact-detail="flow-personal"] > summary').click();
   await companion.locator('[data-companion-itinerary]').waitFor();
   await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()
@@ -156,7 +158,7 @@ async function completedTracking(label) {
   assert.match(text, /计划 B · <img>两份铁锭/);
   assert.match(text, /用料已释放/);
   assert.match(text, /下方仅供若重新制作时核对/);
-  assert.match(text, /若重新制作：原料端点/);
+  assert.match(text, /若重新制作：原料还缺/);
   for (const row of await card.locator('.companion-material > span:last-child').allTextContents())
     assert.match(row, /^若重做：/);
   assert.equal(await card.locator('h3 img').count(), 0, 'plan title must remain escaped');

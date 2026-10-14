@@ -121,8 +121,26 @@ function labelFor(type, row, context) {
     return prefix + name.slice(0, 160 - prefix.length - suffix.length) + suffix;
   }
   if (type === 'place') {
-    const suffix = ` · 场景 #${row.gameId ?? String(row.id).slice(6)}`;
-    return String(row.name || row.title || row.id).slice(0, 160 - suffix.length) + suffix;
+    if ((context.world.maps || []).filter((place) => place.id === row.id).length > 1)
+      return '原地点（场景待核对）';
+    const variants = (context.world.maps || []).filter((place) => place.name === row.name);
+    const suffix =
+      variants.length > 1
+        ? ` · 场景 ${variants.findIndex((place) => place.id === row.id && place.key === row.key) + 1}`
+        : '';
+    return String(row.name || row.title || '未命名地点').slice(0, 160 - suffix.length) + suffix;
+  }
+  if (type === 'quest') {
+    const name = row.title || row.name || '未命名任务';
+    const quests = context.world.quests || [];
+    const variants = quests.filter((quest) => (quest.title || quest.name) === name);
+    if (variants.length < 2) return name.slice(0, 160);
+    const parent = row.parentId
+      ? quests.find((quest) => quest.gameId === row.parentId || quest.id === row.parentId)
+      : null;
+    const parentName = parent && (parent.title || parent.name);
+    const suffix = `${parentName && parentName !== name ? ' · ' + parentName : ''} · 资料 ${variants.findIndex((quest) => quest.id === row.id) + 1}/${variants.length}`;
+    return name.slice(0, 160 - suffix.length) + suffix;
   }
   if (type === 'gift') {
     const person =
@@ -248,7 +266,7 @@ function inputLinks(links, context, previous) {
       (old) =>
         old.type === link.type &&
         old.id === link.id &&
-        (old.detached || ['database', 'gift'].includes(link.type)),
+        (old.detached || ['database', 'gift', 'place', 'quest'].includes(link.type)),
     );
     if (historical) return clone(historical);
     const row = context.tables[link.type].get(link.id);

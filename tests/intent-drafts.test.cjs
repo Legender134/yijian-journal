@@ -19,6 +19,80 @@ const ITEM = game.entries.find((entry) => entry.kind === '物品' && entry.gifta
 const RECIPE = game.entries.find((entry) => entry.kind === '配方').id;
 const OWNER = 'journey:todo:' + 'a'.repeat(32);
 const ACTION = 'journey:quest:' + 'b'.repeat(32);
+test('structured draft references use exact static details and leave personal wording literal', async () => {
+  const { createIntentDraftViews } = await import(
+    require('node:url').pathToFileURL(
+      require('node:path').join(__dirname, '../src/renderer/intent-draft-views.js'),
+    ).href
+  );
+  const esc = (value) =>
+    String(value ?? '').replace(
+      /[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+    );
+  const view = createIntentDraftViews({
+    esc,
+    when: esc,
+    act: (action, label, cls, id) => `<button data-action="${action}" data-id="${esc(id)}">${label}</button>`,
+  });
+  const index = {
+    entries: [
+      { id: 'npc-1', name: '同名人物', kind: '人物' },
+      { id: 'item-2', name: '同名物品', kind: '物品', quality: '绿' },
+      { id: 'fusion-3', name: '配方', kind: '配方' },
+    ],
+    world: {
+      maps: [
+        { id: 'place-1', name: '确切地点' },
+        { id: 'place-8', name: '旧地点甲' },
+        { id: 'place-8', name: '旧地点乙' },
+      ],
+      quests: [{ id: 'quest-4', name: '原任务' }],
+    },
+  };
+  const draft = (kind, values, extra = {}) => ({
+    id: kind,
+    kind,
+    values,
+    context: {},
+    createdAt: T0,
+    updatedAt: T0,
+    ...extra,
+  });
+  const rows = [
+    draft('journey-place', { note: '<同名人物>', favorite: true }, { targetId: 'place-1' }),
+    draft('journey-gift', { npcId: 'npc-1', itemId: 'item-2', placeId: 'place-1', note: '<同名物品>' }),
+    draft('journey-todo', { title: '同名人物和同名物品', detail: '<同名人物>', placeId: 'place-1' }),
+    draft('goal', { title: '同名物品', quantity: '4', detail: '<同名物品>' }, { targetId: 'goal-1' }),
+    draft(
+      'craft-plan',
+      { name: '同名物品' },
+      { context: { list: [{ id: 'fusion-3', quantity: 2 }], choices: { 2: 'fusion-3' } } },
+    ),
+  ];
+  const original = { id: 'goal-1', source: { type: 'database', id: 'item-2' } };
+  const before = structuredClone({ rows, original, index });
+  const html =
+    rows.map((row) => view.detail(row, index, original)).join('') +
+    view.panel(rows, index, true, 'history', { goals: [original] });
+  for (const id of ['npc-1', 'item-2', 'place-1', 'fusion-3'])
+    assert.match(html, new RegExp(`data-action="archive-entity" data-id="${id}"`));
+  assert.match(html, /<h3>同名人物和同名物品<\/h3>/);
+  assert.match(html, /<h3>同名物品<\/h3>/);
+  assert.match(html, /class="preserve-text">&lt;同名人物&gt;<\/p>/);
+  assert.match(html, /当前目标资料：<button data-action="archive-entity" data-id="item-2"/);
+  assert.match(html, /档案中的目标资料：<button data-action="archive-entity" data-id="item-2"/);
+  assert.match(
+    view.detail(rows[3], index, { source: { type: 'quest', id: 'quest-4' } }),
+    /data-id="quest-4"/,
+  );
+  for (const id of ['place-8', 'place-999']) {
+    const unresolved = view.detail(draft('journey-place', { note: '确切地点' }, { targetId: id }), index);
+    assert.doesNotMatch(unresolved, /data-action="archive-entity"/);
+    assert.match(unresolved, id === 'place-8' ? /原地点（场景待核对）/ : /原选择需重新核对/);
+  }
+  assert.deepEqual({ rows, original, index }, before);
+});
 const clone = (value) => structuredClone(value);
 function freeze(value) {
   if (value && typeof value === 'object') {
