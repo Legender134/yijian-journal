@@ -1270,7 +1270,7 @@ async function recipeOutputUnits() {
       );
       assert.equal(await candidate.locator('[data-id="item-' + id + '"]').count(), 1);
     }
-    assert.match(await totals.innerText(), /不会同时得到全部最大数量/);
+    assert.match(await totals.innerText(), /各候选不会全部同时获得/);
     assert.doesNotMatch(await totals.innerText(), /NaN|Infinity|概率|%/);
     await zoom(150);
     for (const selector of [
