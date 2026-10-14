@@ -44,7 +44,8 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
         ? `<p>战力参考：你 ${Math.round(row.ownPower.value)}，对方 ${Math.round(row.power.value)} · ${text(row.power.title)}${row.power.value > row.ownPower.value ? '。建议先检查主修武学与配装。' : ''}</p>`
         : '';
     const giftQuality = row.gift.checks.find((check) => check.text.startsWith('礼物至少'))?.text;
-    return `<p>好感 ${friend.value === null ? '待确认' : text(friend.value)}${friend.cap !== null && friend.cap < 100 ? ` · 暂时上限 ${text(friend.cap)}` : ''}</p>${power}${friend.checks?.length ? `<p>${reason(friend.checks)}</p>` : ''}${row.gift.status !== 'met' ? `<p>赠礼：${reason(row.gift.checks)}</p>` : ''}${giftQuality ? `<p>${text(giftQuality)}</p>` : ''}${row.compare.status !== 'met' ? `<p>比武：${reason(row.compare.checks)}</p>` : ''}${row.consult.status !== 'met' ? `<p>请教：${reason(row.consult.checks)}</p>` : ''}`;
+    const giftReason = reason(row.gift.checks).replace(/^赠礼[：:]?/, '');
+    return `<p>好感 ${friend.value === null ? '待确认' : text(friend.value)}${friend.cap !== null && friend.cap < 100 ? ` · 暂时上限 ${text(friend.cap)}` : ''}</p>${power}${friend.checks?.length ? `<p>${reason(friend.checks)}</p>` : ''}${row.gift.status !== 'met' ? `<p>赠礼：${giftReason}</p>` : ''}${giftQuality ? `<p>${text(giftQuality)}</p>` : ''}${row.compare.status !== 'met' ? `<p>比武：${reason(row.compare.checks)}</p>` : ''}${row.consult.status !== 'met' ? `<p>请教：${reason(row.consult.checks)}</p>` : ''}`;
   }
   function person(row, embedded = false, origin = 'saved') {
     if (!row)

@@ -236,7 +236,8 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
     } else if (e.kind === '地点') {
       const variant = variantSummary(id, context.reference);
       lines.push(variant || (e.cave ? '洞穴场景' : '游戏场景'));
-      if (!variant && context.reference?.metadata?.map === e.key) lines.push('当前保存地点');
+      if (!variant && context.reference?.metadata?.map === e.key)
+        lines.push(context.reference?.origin === 'live' ? '当前地点' : '当前保存地点');
       const related =
         index().world?.quests?.filter((quest) =>
           (quest.placements || []).some((placement) => placement.mapKey === e.key),

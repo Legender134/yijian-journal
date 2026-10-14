@@ -1450,6 +1450,7 @@ test('legacy journal place links open scene choices without rewriting the stored
       id: `place:${id}`,
       profile: () => ({ journalEntries: [record] }),
       currentDrawer: null,
+      route: 'journal',
       gameIndex: {
         world: {
           maps: [

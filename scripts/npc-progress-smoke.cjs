@@ -200,6 +200,17 @@ const pulse = () => {
     await small.waitForFunction(() =>
       document.querySelector('[data-npc-progress-page]')?.textContent.includes('现场更新'),
     );
+    // An ordinary codex list must use the same current NPC state before a
+    // detail has ever been opened; the saved fixture says this bag is empty.
+    await main.locator('.sidebar-nav [data-id="database"]').click();
+    await main.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await main.locator('#list-search').fill('江吟风');
+    const initialPerson = main.locator('[data-action="database-detail"][data-id="npc-10016"]').first();
+    await initialPerson.focus();
+    await main.locator('#entity-preview').waitFor({ state: 'visible' });
+    assert.match(await main.locator('#entity-preview').innerText(), /私物还剩 1 种/);
+    assert.doesNotMatch(await main.locator('#entity-preview').innerText(), /固定私物|私物已清空/);
+    await main.keyboard.press('Escape');
     await small
       .locator('[data-npc-progress-card="10016"] [data-action="database-detail"][data-id="npc-10016"]')
       .first()
@@ -230,6 +241,27 @@ const pulse = () => {
       .click();
     assert.match(await small.locator('#overlay').innerText(), /现场：已完成/);
     assert.doesNotMatch(await small.locator('#overlay').innerText(), /存档：进行中/);
+    await small.locator('#overlay [data-action="world-person"][data-id="npc-10047"]').click();
+    const relatedTask = small.locator('[data-action="world-quest"][data-id="quest-5062"]').first();
+    await relatedTask.focus();
+    await small.locator('#entity-preview').waitFor({ state: 'visible' });
+    assert.match(await small.locator('#entity-preview').innerText(), /已完成/);
+    await small.keyboard.press('Escape');
+    await relatedTask.click();
+    await small.locator('#overlay .world-drawer').waitFor();
+    assert.match(await small.locator('#overlay .world-drawer .tag-row').first().innerText(), /已完成/);
+    await small.locator('#overlay [data-action="main"]').click();
+    await main.locator('#overlay .world-drawer').waitFor();
+    assert.match(await main.locator('#overlay .world-drawer .tag-row').first().innerText(), /已完成/);
+    await main.keyboard.press('Escape');
+    await main.locator('[data-action="compact"]').first().click();
+    await small.keyboard.press('Escape');
+    await small.locator('.companion-tabs [data-id="duels"]').click();
+    await small
+      .locator('[data-npc-progress-card="10047"] [data-action="database-detail"][data-id="npc-10047"]')
+      .first()
+      .click();
+    await small.locator('#overlay [data-npc-progress="10047"]').waitFor();
     await small.locator('#overlay [data-persist-detail="npc-private-10047"] > summary').click();
     await small.locator('#overlay [data-action="database-detail"][data-id="item-100073"]').first().click();
     await small.waitForFunction(() =>

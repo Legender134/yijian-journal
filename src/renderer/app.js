@@ -993,7 +993,13 @@ const entityPreviews = installEntityPreviews({
       currentDrawer?.liveNpcContext ||
       currentDrawer?.liveContext ||
       currentDrawer?.flowReference?.origin === 'live' ||
-      (currentDrawer?.type?.startsWith('world-') && worldView.liveContext)
+      (worldView.liveContext && (route === 'world' || currentDrawer?.type?.startsWith('world-'))) ||
+      (String(target.dataset?.entityId || target.dataset?.id || '').startsWith('npc-') &&
+        defaultFollow() &&
+        (!currentDrawer ||
+          (['guide', 'search'].includes(currentDrawer.type) &&
+            (currentDrawer.follow ?? referenceFollow ?? defaultFollow()) === true &&
+            !currentDrawer.flowReference)))
     ) {
       const flow = currentFlow();
       if (flow?.liveReference) return { reference: flow.liveReference, npcProgress: flow.duels?.progress };
@@ -1516,7 +1522,10 @@ function handbookReadingContext(view = currentDrawer, includeHistory = true) {
     view?.referenceHash || (identity?.name === result.reference.name ? identity.hash || '' : '');
   if (
     defaultFollow() &&
-    (view?.liveNpcContext || view?.liveContext || view?.flowReference?.origin === 'live')
+    (view?.liveNpcContext ||
+      view?.liveContext ||
+      view?.flowReference?.origin === 'live' ||
+      (worldList && worldView.liveContext))
   )
     result.reference = { name: '', hash: '', follow: true, live: true };
   result.presentation =
@@ -1571,7 +1580,10 @@ async function receiveHandbookContext(context) {
   worldView.status = context.worldStatus || 'all';
   worldView.roots = context.worldRoots !== false;
   worldView.page = context.worldPage || 0;
-  const reference = context.reference;
+  const reference =
+    context.reference?.live && !defaultFollow()
+      ? { name: defaultReference(), hash: '', follow: false }
+      : context.reference;
   if (reference) {
     referenceSaveName = reference.name;
     referenceFollow = reference.follow;
@@ -1583,6 +1595,10 @@ async function receiveHandbookContext(context) {
   }
   await refresh();
   if (!stillReading()) return;
+  if (route === 'world' && reference?.live) {
+    await loadWorldReference();
+    if (!stillReading()) return;
+  }
   render();
   const current = () => request === handbookRequest && context.profileId === profile().id;
   const opened = await openHandbookDetail(context, current);
@@ -2069,6 +2085,8 @@ async function showFlowWorldDetail(id, type, opener, referenceOverride = null) {
   await showWorldDetail(id, type, false, view, opener);
 }
 async function showWorldDetail(id, type = 'quest', replace = false, flowReference = null, opener = null) {
+  if (!flowReference && !currentDrawer && route === 'world' && worldView.liveContext)
+    return showFlowWorldDetail(id, type, opener, { origin: 'live' });
   if (flowReference)
     Object.assign(worldView, flowReference, { liveContext: flowReference.liveContext === true });
   if (type === 'place' && (gameIndex.world?.maps || []).filter((place) => place.id === id).length > 1) {
@@ -5999,7 +6017,9 @@ async function handle(action, id, target, navigationFocused = false) {
           id,
           target.closest('[data-flow], .duel-page')
             ? currentFlow()?.reference
-            : currentDrawer?.liveNpcContext || currentDrawer?.liveContext
+            : currentDrawer?.liveNpcContext ||
+                currentDrawer?.liveContext ||
+                (!currentDrawer && route === 'world' && worldView.liveContext)
               ? { origin: 'live' }
               : null,
           target,
@@ -6335,7 +6355,11 @@ async function handle(action, id, target, navigationFocused = false) {
     case 'entity-choice':
       await showEntityChoice(
         id,
-        target.closest('[data-flow], .duel-page') ? currentFlow()?.reference : currentDrawer?.flowReference,
+        target.closest('[data-flow], .duel-page')
+          ? currentFlow()?.reference
+          : !currentDrawer && route === 'world' && worldView.liveContext
+            ? { origin: 'live' }
+            : currentDrawer?.flowReference,
         target,
       );
       break;
@@ -6379,11 +6403,13 @@ async function handle(action, id, target, navigationFocused = false) {
       let quantity = 1;
       const flowReference = target.closest('[data-flow], .duel-page')
         ? currentFlow()?.reference
-        : currentDrawer?.type === 'save'
-          ? currentDrawer.data
-          : currentDrawer?.type === 'entity-choice'
-            ? currentDrawer.reference
-            : currentDrawer?.flowReference;
+        : !currentDrawer && route === 'world' && worldView.liveContext
+          ? { origin: 'live' }
+          : currentDrawer?.type === 'save'
+            ? currentDrawer.data
+            : currentDrawer?.type === 'entity-choice'
+              ? currentDrawer.reference
+              : currentDrawer?.flowReference;
       if (flowReference) {
         referenceSaveName = flowReference.name;
         referenceFollow =
