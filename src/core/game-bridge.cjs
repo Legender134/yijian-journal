@@ -7,6 +7,7 @@ const { realDirectory, sha } = require('./saves.cjs');
 const { readStable, writeBytes, safeId, SLOT } = require('./timeline.cjs');
 const provenance = require('../game-bridge/provenance.json');
 const { PROTOCOL, assertNativePath, grantFrame, commandFrame } = require('./native-io.cjs');
+const { readDialogue } = require('./live-guidance.cjs');
 const resources = path.join(__dirname, '..', 'game-bridge');
 const NATIVE_MOD = 'YijianJournalUnicode';
 const slash = (p) => p.replaceAll('\\', '/');
@@ -170,6 +171,59 @@ class GameBridge {
       typeof s.source === 'string' &&
       same(s.source, this.timeline.data.source)
     );
+  }
+  liveGuidance(source) {
+    const withdraw = () => {
+      const current = this.dialogueContext;
+      if (
+        !current ||
+        typeof source !== 'string' ||
+        !same(source, current.source) ||
+        !same(source, this.timeline.data.source)
+      )
+        return null;
+      if (current.lastQuestId) current.suppressed.add(current.lastQuestId);
+      current.lastQuestId = 0;
+      while (current.suppressed.size > 64)
+        current.suppressed.delete(current.suppressed.values().next().value);
+      return { dialogue: null, suppressedQuestIds: [...current.suppressed] };
+    };
+    if (
+      this.disposed ||
+      this.busy ||
+      this.loadQueued ||
+      this.quiescing ||
+      this.timeline.data.pending ||
+      this.blocked() ||
+      (!this.test && !this.installation().installed)
+    ) {
+      return withdraw();
+    }
+    const state = this.heartbeat();
+    if (
+      !this.connected(state) ||
+      typeof source !== 'string' ||
+      !same(source, state.source) ||
+      (!state.ready && state.reason !== '菜单或对话中暂停保存')
+    ) {
+      return withdraw();
+    }
+    if (this.dialogueContext?.session !== state.session || !same(this.dialogueContext.source, source)) {
+      this.dialogueContext = { session: state.session, source, lastQuestId: 0, suppressed: new Set() };
+    }
+    const current = this.dialogueContext;
+    const dialogue = readDialogue(state.dialogue);
+    if (dialogue) {
+      if (current.lastQuestId && current.lastQuestId !== dialogue.questId)
+        current.suppressed.add(current.lastQuestId);
+      current.lastQuestId = dialogue.questId;
+      current.suppressed.delete(dialogue.questId);
+    } else if (current.lastQuestId) {
+      current.suppressed.add(current.lastQuestId);
+      current.lastQuestId = 0;
+    }
+    while (current.suppressed.size > 64) current.suppressed.delete(current.suppressed.values().next().value);
+    return { dialogue, suppressedQuestIds: [...current.suppressed] };
   }
   hintQuiet() {
     if (this.busy || this.loadQueued || this.timeline.data.pending || this.quiescing) return true;

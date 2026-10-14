@@ -280,16 +280,19 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       'step-' + row.id,
     );
   }
-  function decision(row) {
+  function decision(row, { compact = false } = {}) {
+    const value = row.recommendation;
+    const action = value?.summary || value?.hint || value?.compact?.action || value?.action || row.warning;
+    const caution = value?.caution || row.compactWarning;
     return persist(
-      `<aside class="flow-decision" data-flow-decision="${text(row.id)}"><h4>当前步骤有关键选择 · ${questButton(row.questId, row.name) || prose(row.name)}</h4>${recommendation(row)}<p>${prose(row.warning || row.name)}</p><dl class="flow-choices">${list(
+      `<aside class="flow-decision" data-flow-decision="${text(row.id)}"><p class="flow-recommended-action">${prose(action)}</p>${caution && caution !== action ? `<p class="flow-caution">${prose(caution)}</p>` : ''}${compactMaterials(value?.materials, [], { details: false, sources: value?.materialSources })}<details class="flow-choice-details" data-persist-detail="flow-choice-${text(row.id)}"><summary>为什么这样选 · 各选项影响</summary><h3>${questButton(row.questId, row.name) || prose(row.name)}</h3>${recommendation(row)}${row.pickup?.place || row.pickup?.person ? `<p class="flow-choice-location">${target(row.pickup.place, 'world-place', 'place')}${row.pickup.person ? ` · ${target(row.pickup.person, 'database-detail', 'npc')}` : ''}</p>` : ''}<p>${prose(row.warning)}</p>${conditions(row.conditions)}<dl class="flow-choices">${list(
         row.choices,
       )
         .map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响待核对')}</dd>`)
         .join(
           '',
-        )}</dl><details><summary>参考版本、来源与待核对之处</summary>${row.uncertainty ? `<p class="small save-note">${text(row.uncertainty)}</p>` : ''}${sources(row.sources)}</details></aside>`,
-      'decision-' + row.id,
+        )}</dl>${row.uncertainty ? `<details><summary>资料说明</summary><p class="small save-note">${text(row.uncertainty)}</p></details>` : ''}${sources(row.sources)}</details></aside>`,
+      (compact ? 'compact-choice-' : 'decision-') + row.id,
     );
   }
   function activeTask(task, { summaryInLead = false, sharedMaterials = [] } = {}) {
@@ -348,19 +351,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const opportunities = list(flow.opportunities).filter((row) => !warningIds.has(row.id));
     const reference = flow.reference;
     const visibleSections = new Set(sections);
-    const compactDecision = (row) => {
-      const value = row.recommendation;
-      return persist(
-        `<aside class="flow-decision" data-flow-decision="${text(row.id)}"><p class="flow-recommended-action">${prose(value?.summary || value?.hint || value?.compact?.action || value?.action || row.warning)}</p>${value?.caution ? `<p class="flow-caution">${prose(value.caution)}</p>` : ''}${compactMaterials(value?.materials, [], { details: false, sources: value?.materialSources })}<details class="flow-choice-details" data-persist-detail="flow-choice-${text(row.id)}"><summary>为什么这样选 · 各选项影响</summary><h3>${text(row.name)}</h3>${recommendation(row)}${row.pickup?.place || row.pickup?.person ? `<p class="flow-choice-location">${target(row.pickup.place, 'world-place', 'place')}${row.pickup.person ? ` · ${target(row.pickup.person, 'database-detail', 'npc')}` : ''}</p>` : ''}<p>${prose(row.warning)}</p>${conditions(row.conditions)}<dl class="flow-choices">${list(
-          row.choices,
-        )
-          .map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响待核对')}</dd>`)
-          .join(
-            '',
-          )}</dl>${row.uncertainty ? `<p class="small save-note">${text(row.uncertainty)}</p>` : ''}${sources(row.sources)}</details></aside>`,
-        `compact-choice-${row.id}`,
-      );
-    };
+    const compactDecision = (row) => decision(row, { compact: true });
     const first = active[0];
     const firstStep = first?.steps?.[0];
     const lead = first
@@ -410,7 +401,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   function panel(flow, { compact = false, summary = false, sections } = {}) {
     if (!flow) flow = { available: false, reason: '正在核对流程资料。' };
     if (compact) return compactPanel(flow, sections);
-    if (flow.available === false) {
+    if (flow.available === false && !list(flow.decisions).some((row) => row.live)) {
       const updating = /^(正在核对|存档正在更新)/.test(flow.reason || '');
       const offline = flow.referenceMode === 'none';
       return persist(
@@ -484,5 +475,5 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       'panel',
     );
   }
-  return { panel, taskMaterials };
+  return { panel, taskMaterials, choice: decision };
 }

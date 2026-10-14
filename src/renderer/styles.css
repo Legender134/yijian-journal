@@ -148,6 +148,19 @@
 .flow-current-decisions .flow-decision {
   margin-top: 0;
 }
+.live-choice-dock {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 48%;
+  overflow: auto;
+  padding: 10px 34px 0;
+}
+.live-choice-dock .flow-decision {
+  margin-top: 0;
+}
+.companion .live-choice-dock {
+  padding: 8px 12px 0;
+}
 .flow-recommendation {
   margin: 8px 0;
   padding: 0;

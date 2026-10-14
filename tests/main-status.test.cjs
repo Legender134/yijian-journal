@@ -78,6 +78,7 @@ test('overview shares one current timeline snapshot and retains fields and prote
     resourceBudget,
     journeyPlan,
     flowSnapshot,
+    readGuidance: () => null,
   };
   vm.createContext(context);
   vm.runInContext(code + '\nthis.overviewResult = overview();', context);

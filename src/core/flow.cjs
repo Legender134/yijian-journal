@@ -4,6 +4,7 @@ const game = require('../data/game-index.json');
 const guide = require('../data/flow-guide.cjs');
 const materialGuide = require('../data/material-guide.cjs');
 const { selectedReference } = require('./goal-progress.cjs');
+const { withLiveDialogue } = require('./live-guidance.cjs');
 const { createDuelProjector } = require('./duels.cjs');
 const duelGuide = require('../data/duel-guide.cjs');
 
@@ -99,6 +100,20 @@ function createFlowProjector({
           .filter((id) => materialContent.sources[id])
           .map((id) => ({ ...materialContent.sources[id], id: 'material:' + id })),
       }));
+    for (const route of content.itemRoutes?.[material.id] || []) {
+      if (!route.placeId || !w.maps.some((place) => place.id === route.placeId)) continue;
+      routes.push({
+        kind: 'reference',
+        label: route.title,
+        detail: route.detail,
+        placeId: route.placeId,
+        place: w.maps.find((place) => place.id === route.placeId).name,
+        efficiency: route.efficiency || route.uncertainty || '',
+        sources: (route.sourceIds || [])
+          .filter((id) => content.sources[id])
+          .map((id) => ({ ...content.sources[id], id: 'flow:' + id })),
+      });
+    }
     for (const shop of g.merchants || []) {
       if (!shop.items.includes(material.id)) continue;
       if (routes.some((route) => route.personId === `npc-${shop.id}`)) continue;
@@ -158,7 +173,7 @@ function createFlowProjector({
       .map((route) => ({ ...route, alternative: rank(route) === 4 }))
       .sort((a, b) => rank(a) - rank(b));
   }
-  function snapshot(profile, reference, error = '') {
+  function snapshot(profile, reference, error = '', dialogue = null) {
     const selected = selectedReference(profile, reference, error);
     const referenceMode = profile.referenceMode || (profile.saveSlot ? 'slot' : 'latest');
     const metadata = selected?.metadata || {};
@@ -419,8 +434,13 @@ function createFlowProjector({
           const task = quests.get(id);
           return task && step(id) === 1 && !blocked(task);
         });
+      const locationMatch = (rule.locationIds || []).some((id) => {
+        const place = w.maps.find((entry) => entry.id === id);
+        return place && [place.key, place.name].includes(metadata.mapName);
+      });
       const relevant =
         activeRule ||
+        locationMatch ||
         (rule.requireStageMatch ? stageMatch && (!anchors.length || anchorsMet) : stageMatch || anchorsMet);
       const deadlineReached =
         (rule.untilAnyStarted || []).some((id) => [1, 2, 4].includes(step(id))) ||
@@ -447,7 +467,9 @@ function createFlowProjector({
         status === 1 &&
         ((decisionAnchors.length > 0 && decisionAnchors.every(completedDecisionAnchor)) ||
           decisionAnyAnchors.some(completedDecisionAnchor));
-      const decisionActive = !deadlineReached && (decisionStepActive || decisionWindowActive);
+      const decisionActive =
+        !deadlineReached &&
+        (decisionStepActive || decisionWindowActive || (rule.decisionOnArrival === true && locationMatch));
       const decisionResolved =
         !decisionActive && (rule.decisionSteps || []).some((id) => [2, 4].includes(step(id)));
       const affectedTasks = (rule.advanceEffects || [])
@@ -646,7 +668,7 @@ function createFlowProjector({
         ...r,
         message: `已出现窗口边界的剧情记录；请核对「${r.title}」是否仍可接取。没有任务记录不等于错过。`,
       }));
-    return {
+    const result = {
       profileId: profile.id,
       available,
       reason: available
@@ -679,6 +701,7 @@ function createFlowProjector({
         available,
         states: available ? states : [],
         mainQuestId: main?.gameId,
+        mapName: metadata.mapName || '',
         difficultyName: metadata.difficultyName || '',
         combat: metadata.combat || null,
       }),
@@ -703,6 +726,7 @@ function createFlowProjector({
       })),
       guide: projectedRules,
     };
+    return withLiveDialogue(result, dialogue, quests);
   }
   return { flowSnapshot: snapshot };
 }

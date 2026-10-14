@@ -551,3 +551,279 @@ test('static archive buttons retain canonical artwork, identity and item quality
   assert.match(html, /data-quality-id="item-100"/);
   assert.match(html, /entity-link-label/);
 });
+
+function previewEvents(context = async () => ({})) {
+  const vm = require('node:vm');
+  const listeners = new Map(),
+    timers = new Map(),
+    nodes = [];
+  let now = 0,
+    nextTimer = 0,
+    observe;
+  const element = (parent = null) => {
+    const node = {
+      parent,
+      dataset: {},
+      style: {},
+      attributes: new Map(),
+      isConnected: true,
+      hovered: false,
+      inert: false,
+      hidden: true,
+      setAttribute(name, value) {
+        this.attributes.set(name, value);
+      },
+      getAttribute(name) {
+        return this.attributes.get(name) ?? null;
+      },
+      removeAttribute(name) {
+        this.attributes.delete(name);
+      },
+      contains(node) {
+        for (; node; node = node.parent) if (node === this) return true;
+        return false;
+      },
+      closest(selector) {
+        for (let node = this; node; node = node.parent) {
+          if (selector === '[inert]' ? node.inert : node.dataset.entityId) return node;
+        }
+        return null;
+      },
+      matches() {
+        return this.hovered;
+      },
+      getBoundingClientRect() {
+        return { left: 20, top: 20, bottom: 40, width: 100, height: 80 };
+      },
+    };
+    nodes.push(node);
+    return node;
+  };
+  const body = element(),
+    root = element(body),
+    overlay = element(body),
+    panel = element(body);
+  body.append = () => {};
+  root.querySelector = () => null;
+  root.querySelectorAll = () => [];
+  Object.defineProperty(root, 'innerHTML', {
+    set() {
+      for (const node of nodes) if (node !== root && root.contains(node)) node.isConnected = false;
+    },
+  });
+  const eventTarget = (surface) => ({
+    addEventListener(type, listener) {
+      const key = surface + ':' + type;
+      listeners.set(key, [...(listeners.get(key) || []), listener]);
+    },
+  });
+  const document = {
+    ...eventTarget('document'),
+    body,
+    activeElement: body,
+    documentElement: { clientWidth: 500 },
+    createElement: () => panel,
+  };
+  const window = { ...eventTarget('window'), innerHeight: 500 };
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/entity-references.js'), 'utf8');
+  const install = vm.runInNewContext(
+    '(' + source.slice(source.indexOf('export function installEntityPreviews')).replace('export ', '') + ')',
+    {
+      setTimeout(callback, delay) {
+        const id = ++nextTimer;
+        timers.set(id, { callback, at: now + delay });
+        return id;
+      },
+      clearTimeout: (id) => timers.delete(id),
+      MutationObserver: class {
+        constructor(callback) {
+          observe = callback;
+        }
+        observe() {}
+      },
+    },
+  );
+  const previews = install({ document, window, references: { preview: (id) => id }, context });
+  const appSource = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const renderStart = appSource.indexOf('function render(');
+  const render = vm.runInNewContext(
+    '(' + appSource.slice(renderStart, appSource.indexOf('\nfunction intentDraftBanner', renderStart)) + ')',
+    {
+      catalog: {},
+      state: {},
+      composing: false,
+      compact: true,
+      handbookSuspended: false,
+      companionMode: 'expanded',
+      document,
+      root,
+      entityPreviews: previews,
+      currentFlow: () => ({ decisions: [] }),
+      dockLiveChoice: () => {},
+      captureIntentDrafts() {},
+      profile: () => ({ id: 'synthetic' }),
+      captureDetailFolds: () => new Map(),
+      companionMaterialFolds: { profileId: null, values: new Map() },
+      compactPage: () => '',
+      availableIntentDrafts: () => [],
+      route: 'home',
+      syncItineraryIntentEditors() {},
+    },
+  );
+  return {
+    document,
+    window,
+    root,
+    overlay,
+    panel,
+    previews,
+    redraw() {
+      render(true);
+      observe();
+    },
+    entry(parent = overlay) {
+      const node = element(parent);
+      node.dataset.entityId = 'npc-1';
+      return node;
+    },
+    emit(type, target, extra = {}, surface = 'document') {
+      const event = {
+        target,
+        relatedTarget: null,
+        preventDefault() {},
+        stopImmediatePropagation() {},
+        ...extra,
+      };
+      for (const listener of listeners.get(surface + ':' + type) || []) listener(event);
+    },
+    async tick(duration) {
+      const end = now + duration;
+      while (true) {
+        const ready = [...timers].filter(([, timer]) => timer.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+        if (!ready) break;
+        const [id, timer] = ready;
+        timers.delete(id);
+        now = timer.at;
+        timer.callback();
+        await Promise.resolve();
+      }
+      now = end;
+      await Promise.resolve();
+    },
+    changed: () => observe(),
+  };
+}
+
+for (const intent of ['focus', 'hover']) {
+  test(`background redraw preserves a ${intent} preview outside the replaced surface`, async () => {
+    const ui = previewEvents(),
+      entry = ui.entry();
+    if (intent === 'focus') ui.document.activeElement = entry;
+    else entry.hovered = true;
+    ui.emit(intent === 'focus' ? 'focusin' : 'pointerover', entry);
+    await ui.tick(240);
+    assert.equal(ui.panel.hidden, false);
+    assert.equal(entry.getAttribute('aria-describedby'), 'entity-preview');
+    ui.redraw();
+    assert.equal(ui.panel.hidden, false);
+    assert.equal(entry.getAttribute('aria-describedby'), 'entity-preview');
+    assert.equal(entry.isConnected, true);
+  });
+
+  test(`background redraw dismisses a ${intent} preview whose entry is replaced`, async () => {
+    const ui = previewEvents(),
+      entry = ui.entry(ui.root);
+    if (intent === 'focus') ui.document.activeElement = entry;
+    else entry.hovered = true;
+    ui.emit(intent === 'focus' ? 'focusin' : 'pointerover', entry);
+    await ui.tick(240);
+    assert.equal(ui.panel.hidden, false);
+    ui.redraw();
+    assert.equal(entry.isConnected, false);
+    assert.equal(ui.panel.hidden, true);
+    assert.equal(entry.getAttribute('aria-describedby'), null);
+  });
+}
+
+test('pointer exit keeps an asynchronous preview owned by keyboard focus', async () => {
+  let complete;
+  const ui = previewEvents(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    ),
+    entry = ui.entry();
+  ui.document.activeElement = entry;
+  ui.emit('focusin', entry);
+  await ui.tick(0);
+  ui.emit('pointerout', entry);
+  await ui.tick(500);
+  complete({});
+  await ui.tick(0);
+  assert.equal(ui.panel.hidden, false);
+  assert.equal(entry.getAttribute('aria-describedby'), 'entity-preview');
+  ui.document.activeElement = ui.document.body;
+  ui.emit('focusout', entry);
+  await ui.tick(160);
+  assert.equal(ui.panel.hidden, true);
+});
+
+test('pointer exit cancels an asynchronous hover preview without keyboard focus', async () => {
+  let complete;
+  const ui = previewEvents(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    ),
+    entry = ui.entry();
+  ui.emit('pointerover', entry);
+  await ui.tick(240);
+  ui.emit('pointerout', entry);
+  complete({});
+  await ui.tick(500);
+  assert.equal(ui.panel.hidden, true);
+  assert.equal(entry.getAttribute('aria-describedby'), null);
+});
+
+test('replacing a surface cancels its pending preview before context resolves', async () => {
+  let complete;
+  const ui = previewEvents(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    ),
+    entry = ui.entry(ui.root);
+  ui.document.activeElement = entry;
+  ui.emit('focusin', entry);
+  await ui.tick(0);
+  ui.redraw();
+  complete({});
+  await ui.tick(0);
+  assert.equal(ui.panel.hidden, true);
+  assert.equal(entry.getAttribute('aria-describedby'), null);
+});
+
+for (const dismissal of ['removed', 'inert', 'Escape', 'blur']) {
+  test(`${dismissal} dismisses an active focused preview`, async () => {
+    const ui = previewEvents(),
+      entry = ui.entry();
+    ui.document.activeElement = entry;
+    ui.emit('focusin', entry);
+    await ui.tick(0);
+    assert.equal(ui.panel.hidden, false);
+    if (dismissal === 'removed') {
+      entry.isConnected = false;
+      ui.changed();
+    } else if (dismissal === 'inert') {
+      ui.overlay.inert = true;
+      ui.changed();
+    } else if (dismissal === 'Escape') ui.emit('keydown', entry, { key: 'Escape' });
+    else ui.emit('blur', ui.window, {}, 'window');
+    await ui.tick(500);
+    assert.equal(ui.panel.hidden, true);
+    assert.equal(entry.getAttribute('aria-describedby'), null);
+  });
+}

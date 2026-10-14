@@ -58,6 +58,19 @@ const tianshanTravelWindow = {
 // Community flow clues; unknown task records never prove availability.
 module.exports = {
   itemRoutes: {
+    10055: [
+      {
+        title: '津鲤村 · 小蝶屋后宝箱与古钱交付',
+        questId: 11129,
+        placeId: 'place-21',
+        efficiency: '先查村内宝箱，已有古钱可直接交付；这是一次性宝箱线索，不是可反复刷取的来源。',
+        detail:
+          '到津鲤村小蝶右上方屋后查找宝箱。精美的古钱用于小蝶或司马相的委托，两条任务只能选择一条；偏重武学收益可先找小蝶。',
+        uncertainty:
+          '宝箱位置和推荐来自社区流程，不能据背包没有古钱认定宝箱尚未开启。不同版本的小蝶奖励记载有差异。',
+        sourceIds: ['jinliCoinSagume', 'jinliCoinStory'],
+      },
+    ],
     13701: [wudangNightChest],
     140: [wudangNightChest],
     10393: [xiaotongWoodenSword],
@@ -66,6 +79,14 @@ module.exports = {
     10498: [{ ...goldenScorpionRoute, title: goldenScorpionRoute.label, questId: 16000 }],
   },
   sources: {
+    jinliCoinStory: {
+      title: '详尽图文剧情攻略06：小蝶与司马相之心',
+      author: '爱生活（整理发布）',
+      url: 'https://jis520.com/article-1276-1.html',
+      date: '2024-11-27 14:24',
+      version: '全支线剧情整理，具体构建未标',
+      confidence: '正文分别列出两人、屋后宝箱和互斥交付，奖励保留版本差异。',
+    },
     ...duelGuide.sources,
     ...Object.fromEntries(goldenScorpionRoute.sourceIds.map((id) => [id, materialGuide.sources[id]])),
     flow065PoisonXu: {
@@ -715,6 +736,50 @@ module.exports = {
     24000: { next: 24020, sourceIds: ['biliLateFlow', 'gs52'] },
   },
   rules: [
+    {
+      id: 'jinli-coin-before-accepting',
+      title: '津鲤村古钱：先决定帮小蝶还是司马相',
+      kind: 'stage',
+      questId: 11129,
+      locationIds: ['place-21'],
+      decisionOnArrival: true,
+      untilAnyStarted: [11127, 11128, 11129, 11130],
+      deadlineLabel: '答应任一方寻找古钱之前',
+      compactWarning: '小蝶之心与司马相之心只能选一条',
+      warning: '先决定帮助哪一方，再答应寻找古钱；两条委托互斥，多备一枚古钱也不能同次兼做。',
+      recommendation: {
+        summary: '津鲤村古钱：推荐先帮小蝶',
+        hint: '津鲤村：偏重武学收益，先接小蝶之心',
+        action:
+          '尚未答应任何一方时，偏重武学收益可先接小蝶之心，再把精美的古钱交给小蝶；想看司马相剧情或收集陶瓷塑像时，改接司马相之心。',
+        reason: '两位社区作者都记载两条任务互斥；小蝶路线有武学收益，司马相路线换得陶瓷塑像。',
+        goal: '优先武学成长，或按本周目缺少的剧情与物品调整',
+        caution: '接取一方后，另一条委托就不能接。',
+        tradeoff:
+          '推荐小蝶会放弃本次司马相之心的接取机会。旧版攻略另记纹龙佩，小蝶的具体奖励以当前游戏为准。',
+      },
+      pickup: {
+        place: '津鲤村上方屋旁；古钱在小蝶右上方屋后宝箱',
+        person: '小蝶；司马相',
+        action: '接取前先另存，再找本周目决定帮助的人。',
+      },
+      steps: [
+        '先选择要帮助小蝶还是司马相，只答应其中一人的委托。',
+        '查找小蝶右上方屋后宝箱里的精美的古钱，已有可直接交付。',
+        '把古钱交给已答应的一方，完成相应任务。',
+      ],
+      choices: [
+        { label: '小蝶之心', effect: '偏重武学收益；排除本次司马相之心的接取。' },
+        { label: '司马相之心', effect: '换得陶瓷塑像并看司马相的结算；排除本次小蝶之心的接取。' },
+      ],
+      advanceEffects: [
+        { questId: 11127, scope: 'accept', effect: '若先答应小蝶，这条委托不再能接取。' },
+        { questId: 11129, scope: 'accept', effect: '若先答应司马相，这条委托不再能接取。' },
+      ],
+      sourceIds: ['jinliCoinSagume', 'jinliCoinStory'],
+      uncertainty:
+        '到达提示依据已保存的津鲤村位置，不代表此刻正在对话。当前构建的任务接取表也列两条寻找古钱步骤互相排除；社区奖励记载有版本差异。',
+    },
     {
       ...tianshanTravelWindow,
       id: 'tianshan-secret-pass-route',

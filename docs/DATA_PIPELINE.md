@@ -33,6 +33,22 @@ node scripts/reduce-large-table.cjs NPCResources
 
 生成时间会变化。核对生成结果时应比较实际条目与关联内容，而不是仅比较 JSON 文件时间或条目总数。通过 `pnpm test` 核对索引与逻辑；规则变更后相应修订数据断言。
 
+## 当前任务选项的只读观察
+
+游戏接入的可选 `state.json.dialogue` 字段仅包含 `schema`、窗口 `sequence`、`questId`、`npcId` 与当前选项的 `{index,text}`；不传送完整对白、动作、原始UObject或内存地址。`index` 是显示次序，不是游戏OptionID。与原协议2共存，未识别或退出窗口时为null，保存与读档权限不变。
+
+此读取只适用于已pin的Build21798996及程序SHA-256 `946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c`。该构建的DialogModuleVM实例大小为0x260，任务编号是0x184的int32，紧邻0x188的反射CurrentNPCId。Lua以唯一私有别名只读该字段；注册依赖UE4SS精确commit的[IntProperty别名API](https://github.com/UE4SS-RE/RE-UE4SS/blob/e3ba1016562d6c0868c410d0a71e88bfcdbf691b/docs/lua-api/global-functions/registercustomproperty.md)。这不是可跨构建猜用的偏移，pcall不能替代布局及程序哈希核对。
+
+只采集类身份正确且当前可见的DialogModuleVM与DialogModuleListVE。每次私有读取前，反射CurrentNPCId必须仍是0x188处的有效IntProperty，且类型大小为4；此布局见证确保读取范围位于已知字段之前，不能替代QuestId语义所需的程序哈希。Options已由原生实现过滤前置条件。先核对数组长度再访问1..Num，最多16项、每项512 UTF-8字节、总量4096字节；越界读取在已pin UE4SS中可能扩展数组，所以不能以读取到nil的方式遍历。战斗、过场、存读档、窗口关闭或身份异常均撤回上下文。
+
+原生组件初始化先从Windows取得当前进程EXE路径，以只读、有界流式SHA-256匹配固定程序pin；不接受Lua传入路径、摘要或绕过开关。不匹配时初始化失败，Lua不会查询游戏对象、注册私有别名或写心跳。应用接收前再核对组件、程序和脚本哈希、会话、token、当前存档目录及三秒内心跳。只有最新进度模式参与；任务编号必须绑定现有攻略的具体选择步骤，已知人物须一致，完整选项组须逐项精确对应，格式差异可规范化，不能用子串或模糊匹配。推荐不会把旧存档材料升级为实时持有；已结束的现场窗口在同会话失联、战斗或切场时保留退场记忆，恢复后不会被旧保存记录重新提示。未知分支保留离线查询，不自动选择、推进或保存。
+
+已识别的现场选择在主窗和展开随行中只显示一张，位于页面阅读滚动区域之外；保留原页面滚动位置，关键推荐仍可见，理由与完整分支按需展开。此功能只覆盖任务编号、人物及完整原生选项组均匹配的已整理窗口，规则数量不能当作实际现场覆盖率。
+
+补充开发验收：显式设置 `YIJIAN_LUA_BIN` 为Lua5.4开发解释器后运行 `node scripts/live-dialogue-lua-smoke.cjs`。该脚本使用真实Lua与合成UE对象、内存通道，不启动游戏、不接触个人存档；游戏程序与反汇编研究材料不分发。静态核对和合成验收不能替代新构建的真实兼容性验证。
+
+原生前置校验验收：在Windows显式配置provenance所pin的MSVC/SDK环境与 `YIJIAN_CL`、`YIJIAN_TOOLCHAIN_ID`，运行 `node scripts/native-executable-gate-smoke.cjs --out-dir <仓库.test-data内全新的绝对目录>`。只编译和运行合成EXE，核对当前进程摘要与Node/PowerShell一致、有效旧授权仍被固定游戏pin拒绝、拒绝后零Lua参数和Channel绑定、重定向路径拒绝及合成文件不变。无工具链时直接报错，不以跳过冒充通过。
+
 ## 物品数值索引
 
 `scripts/build-item-stats.cjs` 另外生成 `src/data/item-stats.json`，按 `game-index.json` 的物品 ID 选择同版本静态数据。它不读取玩家存档，也不启动游戏；只输出展示所需的基础动作、使用条件、装备原始 Rank 值、共享随机候选池、引用到的增益文本及数值参数。原始全表、程序和工具不随产品分发。

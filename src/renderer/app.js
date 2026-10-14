@@ -3160,6 +3160,26 @@ function captureDetailFolds(preserve) {
   }
   return detailFolds.values;
 }
+function dockLiveChoice(compact = false) {
+  const row = currentFlow()?.decisions?.find((entry) => entry.live);
+  const body = root.querySelector(compact ? '.compact-body' : '.content');
+  if (!row || !body) return;
+  const cards = [...root.querySelectorAll('[data-flow-decision]')].filter(
+    (card) => card.dataset.flowDecision === row.id,
+  );
+  const dock = document.createElement('section');
+  dock.className = 'live-choice-dock';
+  dock.dataset.flow = '';
+  dock.setAttribute('aria-label', '当前关键选择');
+  // Keep one canonical card outside the reading scroller, including on flow pages.
+  if (cards.length) {
+    dock.appendChild(cards[0]);
+    for (const duplicate of cards.slice(1)) duplicate.remove();
+  } else dock.innerHTML = flowViews.choice(row, { compact });
+  for (const section of root.querySelectorAll('.flow-current-decisions'))
+    if (!section.querySelector('[data-flow-decision]')) section.remove();
+  body.before(dock);
+}
 function render(preserve = false, navigationId = null) {
   if (!catalog || !state || composing) return;
   // Keep the current page, folds and drafts intact while only its edge tab is shown.
@@ -3180,7 +3200,8 @@ function render(preserve = false, navigationId = null) {
     }
     return;
   }
-  entityPreviews.close();
+  // The search/detail overlay remains connected when only the page is redrawn.
+  entityPreviews.closeWithin(root);
   captureIntentDrafts();
   const replaceRoot = (html) => {
     const note = preserve ? root.querySelector('#note') : null;
@@ -3310,6 +3331,7 @@ function render(preserve = false, navigationId = null) {
     }
     if (companionMode === 'expanded' && availableIntentDrafts().length && route !== 'journey')
       root.querySelector('.compact-body')?.insertAdjacentHTML('afterbegin', intentDraftBanner());
+    if (companionMode === 'expanded') dockLiveChoice(true);
     syncItineraryIntentEditors();
     for (const el of root.querySelectorAll('[data-compact-detail]'))
       el.open = el.closest('.companion-material')
@@ -3342,6 +3364,7 @@ function render(preserve = false, navigationId = null) {
   root.querySelector('.sidebar-nav').scrollTop = sidebarScroll;
   if (availableIntentDrafts().length && !['home', 'journey'].includes(route))
     root.querySelector('.content')?.insertAdjacentHTML('afterbegin', intentDraftBanner());
+  dockLiveChoice();
   syncItineraryIntentEditors();
   root.querySelector('.sidebar-nav .nav-btn.active')?.scrollIntoView({ block: 'nearest' });
   if (preserve) {
@@ -7966,6 +7989,11 @@ try {
     companionMode = companionData.mode;
   }
   render();
+  api.onGuidance?.((value) => {
+    if (value.profileId !== state.activeProfileId) return;
+    if (compact) refreshCompanion().catch(() => {});
+    else refresh(true).catch(() => {});
+  });
   if (environment.warning) toast(environment.warning, true);
   api.onState((next) => {
     const currentId = state.activeProfileId;

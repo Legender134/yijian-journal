@@ -107,7 +107,8 @@ function renderFoldHarness(compact) {
     companionMaterialFolds: { profileId: null, values: new Map() },
     detailFolds: { scope: '', values: new Map() },
     document: { activeElement: null },
-    entityPreviews: { close() {} },
+    entityPreviews: { close() {}, closeWithin() {} },
+    currentFlow: () => ({ decisions: [] }),
     captureIntentDrafts() {},
     syncItineraryIntentEditors() {},
     availableIntentDrafts: () => [],
@@ -563,6 +564,14 @@ test('compact choice keeps the action and caution visible while folding its comp
       view.panel(flow),
       /和同伴协作.*保留测试奖励目标.*收集路线.*其他路线收益不同.*同伴参加测试战斗/s,
     );
+    const main = view.panel(flow);
+    const mainStart = main.indexOf('data-flow-decision');
+    const mainVisible = main.slice(mainStart, main.indexOf('<details', mainStart));
+    assert.match(mainVisible, new RegExp(expected));
+    assert.doesNotMatch(mainVisible, /保留测试奖励目标|其他路线收益不同|同伴参加测试战斗|合成来源/);
+    const mainDetails = detailsWithClass(main, 'flow-choice-details');
+    assert.equal(mainDetails.length, 1);
+    assert.doesNotMatch(mainDetails[0].opening, /\bopen(?:\s|=|>)/);
   }
 });
 
@@ -915,6 +924,8 @@ test('critical branch losses and prerequisites remain outside the collapsed choi
     ['changsheng-rescue-choice', /剧情.*好感.*不保证全员存活/],
     ['mowen-thankyou-gift-choice', /3000.*六博.*战斗/],
     ['chenlinxi-critical-choice', /60且低于70.*其他好感组合未确认/],
+    ['yanfu-investigation-choice', /放弃调查.*关闭查明真相/],
+    ['chengyu-stay-choice', /送走程钰.*失去.*对话.*切磋/],
   ]) {
     const row = rules.find((entry) => entry.id === id);
     assert(row, id);
@@ -922,7 +933,8 @@ test('critical branch losses and prerequisites remain outside the collapsed choi
     const visible = html.slice(0, html.indexOf('<details'));
     assert.match(visible, expected, id);
     const detail = detailsWithClass(html, 'flow-choice-details')[0];
-    assert(detail.body.includes(row.recommendation.reason), id + ' retains the full reason');
+    if (row.recommendation.reason)
+      assert(detail.body.includes(row.recommendation.reason), id + ' retains the full reason');
   }
 });
 

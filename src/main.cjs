@@ -175,6 +175,7 @@ let recoveryWindow = null,
 let tray,
   shortcuts,
   trayTimer,
+  guidanceTimer,
   quitRequested = false,
   quitGranted = false,
   quitPromise;
@@ -274,10 +275,11 @@ function updateTray() {
   const state = protection.warning ? 'warning' : protection.ready ? 'ready' : 'pending';
   if (!trayImages.has(state)) {
     const image = nativeImage.createFromPath(path.join(__dirname, 'assets', `tray-${state}-16.png`));
-    for (const size of [20, 24, 32]) image.addRepresentation({
-      scaleFactor: size / 16,
-      buffer: fs.readFileSync(path.join(__dirname, 'assets', `tray-${state}-${size}.png`)),
-    });
+    for (const size of [20, 24, 32])
+      image.addRepresentation({
+        scaleFactor: size / 16,
+        buffer: fs.readFileSync(path.join(__dirname, 'assets', `tray-${state}-${size}.png`)),
+      });
     trayImages.set(state, image);
   }
   tray.setImage(trayImages.get(state));
@@ -502,6 +504,11 @@ function makeWindow(compact = false) {
 function toggleCompact() {
   return companion.expand();
 }
+function readGuidance(state = store.get()) {
+  const profile = state.profiles.find((row) => row.id === state.activeProfileId);
+  const mode = profile.referenceMode || (profile.saveSlot ? 'slot' : 'latest');
+  return mode === 'latest' ? bridge?.liveGuidance(state.settings.savePath) || null : null;
+}
 function readCompanion() {
   const state = store.get(),
     profile = state.profiles.find((p) => p.id === state.activeProfileId);
@@ -525,7 +532,10 @@ function readCompanion() {
         }
     }
   }
-  return { ...companionSnapshot(state, catalog, reference, error), ...companion.status() };
+  return {
+    ...companionSnapshot(state, catalog, reference, error, readGuidance(state)),
+    ...companion.status(),
+  };
 }
 function showMain() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -659,7 +669,7 @@ function overview() {
     goalProgress: goalProgress(profile, goalReference, goalError),
     allocations,
     journey,
-    flow: flowSnapshot(profile, goalReference, goalError),
+    flow: flowSnapshot(profile, goalReference, goalError, readGuidance(state)),
     preferredSave: preferred,
     preferredSaveMissing: !!preferred && !latest,
     backups: saves.list(),
@@ -1886,7 +1896,8 @@ app.whenReady().then(async () => {
       else if (action === 'close') w.close();
       else if (action === 'main') {
         const reading = context === undefined ? null : handbookContext(context);
-        if (reading && reading.profileId !== store.get().activeProfileId) throw Error('手札周目已变化，请重新打开');
+        if (reading && reading.profileId !== store.get().activeProfileId)
+          throw Error('手札周目已变化，请重新打开');
         if (w === companion.window) await companion.collapse(false);
         const main = showMain();
         if (reading) {
@@ -1975,6 +1986,17 @@ app.whenReady().then(async () => {
     });
     autoBackup.start();
     bridge.start();
+    let lastGuidance = '';
+    guidanceTimer = setInterval(() => {
+      if (quitRequested) return;
+      const state = store.get();
+      const key = JSON.stringify([state.activeProfileId, readGuidance(state)]);
+      if (key !== lastGuidance) {
+        lastGuidance = key;
+        broadcast('guidance', { profileId: state.activeProfileId });
+      }
+    }, 750);
+    guidanceTimer.unref();
     if (!isTest && process.argv.includes('--guard-game'))
       launchGame().catch((e) => resultFeedback('error', e.message, true));
   } catch (e) {
@@ -1994,6 +2016,7 @@ app.on('before-quit', (event) => {
 });
 app.on('will-quit', () => {
   clearInterval(trayTimer);
+  clearInterval(guidanceTimer);
   tray?.destroy();
   autoBackup?.dispose();
   bridge?.dispose();

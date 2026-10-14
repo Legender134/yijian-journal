@@ -1,7 +1,16 @@
 'use strict';
+const npcFacts = require('./npc-facts.json');
 // Community challenge and dialogue facts, with versioned sources.
 module.exports = {
   sources: {
+    jinliCoinSagume: {
+      title: '烟尘回响 part5：津鲤村宝箱、切磋与古钱二选一',
+      author: '猫耳稀神サグメ',
+      url: 'https://www.bilibili.com/opus/997079569772052501',
+      date: '2024-11-07 22:17',
+      version: '作者标注 v1.23.23，极难+8',
+      confidence: '正文列两人的切磋图纸与古钱互斥委托；图纸编号和初始等级另核对本程序同构建静态表。',
+    },
     npc060ShaolinWindow: {
       title: '全DLC流程攻略 V7：丐帮求援至少林剑决',
       author: 'Ventulus；注明整理自满满REX与语文大师路线',
@@ -256,6 +265,41 @@ module.exports = {
     },
   },
   duels: [
+    ...[
+      { npcId: 10352, name: '小蝶', itemId: 100073, reward: '碧玉扳指精良图纸' },
+      { npcId: 10353, name: '司马相', itemId: 100052, reward: '赤金盔精良图纸' },
+    ].map(({ npcId, name, itemId, reward }) => ({
+      id: `npc069-jinli-${npcId}`,
+      npcId,
+      name,
+      locationIds: ['place-21'],
+      place: '津鲤村上方屋旁',
+      level: npcFacts.people[npcId].level,
+      levelBasis: '与图鉴共用Build21798996的初始人物模板，非当前实战等级',
+      rewards: [
+        {
+          name: reward,
+          itemId,
+          method: '切磋私物',
+          condition: '同构建初始固定私物1份；先观察当前背包',
+          probability: '胜后随机取得私物，不保证首胜获得；单件概率未知。',
+        },
+      ],
+      preparation: '先回满气血与内力、穿齐兵器防具，再观察人物的当前面板与切磋按钮。',
+      preparationPlan: {
+        interaction: '到屋旁确认人物在场及切磋按钮；一般有效好感需20，仍须核对剧情限制。',
+        unknown: '还没有可用的角色准备记录，先观察双方当前面板，不能仅凭模板等级判断能赢。',
+        growth: '先补齐装备空位、回复气血内力并修炼现有武学，再决定是否为这张图纸挑战。',
+      },
+      recommendation: {
+        action: `在津鲤村顺路观察${name}的私物，需要${reward}时再考虑切磋。`,
+        reason: '社区路线列出该图纸，当前构建的人物初始固定私物也有同一编号，能减少到处找图纸的时间。',
+        tradeoff: '赠礼和战斗都有成本，胜利后也可能先取得其他私物；已有图纸可跳过。',
+      },
+      uncertainty:
+        '位置是社区线索，未确认当前在场、好感限制或图纸是否已被取走；接取古钱任务的互斥选择另看流程页。',
+      sourceIds: ['jinliCoinSagume'],
+    })),
     {
       id: 'npc060-yuanjue',
       npcId: 5500,

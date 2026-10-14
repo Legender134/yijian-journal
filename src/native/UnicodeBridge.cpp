@@ -6,6 +6,16 @@ namespace {
 using RC::LuaMadeSimple::Lua;
 std::mutex gate;
 yijian::Channel channel;
+// Must match provenance.gameExeSha256. No caller can select a path or pin.
+constexpr std::string_view SupportedGameExeSha256="946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c";
+void require_supported_process() {
+  // A failure is sticky as well: neither an old grant nor a retry can bypass it.
+  static const bool supported=[]() noexcept {
+    try {return yijian::secure_equal(yijian::current_process_executable_sha256(),SupportedGameExeSha256);}
+    catch(...) {return false;}
+  }();
+  if(!supported)throw std::runtime_error("unsupported_game_executable");
+}
 std::string string_arg(const Lua& lua,int index) {
   if(!lua.is_string(index))throw std::runtime_error("string required");
   return std::string(lua.get_string(index));
@@ -13,6 +23,7 @@ std::string string_arg(const Lua& lua,int index) {
 int initialize(const Lua& lua) {
   std::scoped_lock lock(gate);
   try {
+    require_supported_process();
     if(lua.get_stack_size()!=2)throw std::runtime_error("initialize arity");
     channel.initialize(string_arg(lua,1),string_arg(lua,2));
     lua.set_string("unicode-v2");return 1;

@@ -3,7 +3,7 @@ const { goalProgress, selectedReference } = require('./goal-progress.cjs');
 const { resourceBudget, recipeGoalList, materialReport } = require('./resource-budget.cjs');
 const { journeyPlan } = require('./journey-plan.cjs');
 const { flowSnapshot } = require('./flow.cjs');
-function companionSnapshot(state, catalog, reference, error = '') {
+function companionSnapshot(state, catalog, reference, error = '', dialogue = null) {
   const profile = state.profiles.find((p) => p.id === state.activeProfileId);
   reference = selectedReference(profile, reference, error);
   const progress = goalProgress(profile, reference, error);
@@ -58,7 +58,7 @@ function companionSnapshot(state, catalog, reference, error = '') {
   } catch (e) {
     error = e.message;
   }
-  const flow = flowSnapshot(profile, reference, error);
+  const flow = flowSnapshot(profile, reference, error, dialogue);
   const hints = [];
   if (flow.decisions[0]) {
     const decision = flow.decisions[0];

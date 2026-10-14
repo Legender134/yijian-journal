@@ -1,5 +1,7 @@
 'use strict';
 module.exports = Object.freeze([
+  'scripts/flow-arrival-smoke.cjs',
+  'scripts/live-guidance-smoke.cjs',
   'scripts/timeline-smoke.cjs',
   'scripts/timeline-upgrade-smoke.cjs',
   'scripts/usability-smoke.cjs',

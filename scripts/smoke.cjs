@@ -752,6 +752,11 @@ async function companionHomeInventorySync(page) {
     assert.equal(await win.locator('[data-action="save-slot"]').count(), 0);
     const currentChoice = win.locator('[data-flow-decision="early-woodcutter-axe-choice"]');
     assert.equal(await currentChoice.isVisible(), true);
+    const mainChoiceDetails = currentChoice.locator('.flow-choice-details');
+    assert.equal(await mainChoiceDetails.evaluate((el) => el.open), false);
+    assert.match(await currentChoice.innerText(), /樵夫.*重锻/);
+    assert.doesNotMatch(await currentChoice.innerText(), /700.*2000|为什么：|取舍：/s);
+    await mainChoiceDetails.locator(':scope > summary').click();
     assert.match(await currentChoice.innerText(), /700.*2000/s);
     assert.match(
       await currentChoice.locator('.flow-recommendation').innerText(),
@@ -759,11 +764,11 @@ async function companionHomeInventorySync(page) {
     );
     assert.equal(
       await currentChoice.locator('.flow-recommendation').evaluate((el) => !!el.closest('details')),
-      false,
+      true,
     );
     assert.equal(
       await currentChoice.locator('.flow-choices').evaluate((el) => !!el.closest('details')),
-      false,
+      true,
     );
     const armorChoice = currentChoice.locator('.flow-recommendation [data-id="name:亮银甲"]').first();
     await entityPreview(win, armorChoice, /同名资料.*条同名资料/s, '01-same-name-preview');

@@ -346,7 +346,8 @@ export function installEntityPreviews({ document, window, references, context })
   const leave = () => {
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => {
-      if (panel.matches(':hover') || trigger?.matches(':hover') || document.activeElement === trigger) return;
+      const node = trigger || pending;
+      if (panel.matches(':hover') || node?.matches(':hover') || document.activeElement === node) return;
       close();
     }, 160);
   };
@@ -362,7 +363,7 @@ export function installEntityPreviews({ document, window, references, context })
     const node = eligible(event.target);
     if (node && !node.contains(event.relatedTarget)) {
       if (dismissed === node) dismissed = null;
-      if (pending === node) close();
+      if (pending === node && document.activeElement !== node) close();
       leave();
     }
     if (panel.contains(event.target) && !panel.contains(event.relatedTarget)) leave();
@@ -416,5 +417,10 @@ export function installEntityPreviews({ document, window, references, context })
     attributes: true,
     attributeFilter: ['inert'],
   });
-  return { close };
+  return {
+    close,
+    closeWithin(scope) {
+      if (scope.contains(trigger || pending)) close();
+    },
+  };
 }

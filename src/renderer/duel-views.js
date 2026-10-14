@@ -13,7 +13,9 @@ export function createDuelViews({ esc, act, pill, richText = esc }) {
       checks.find((entry) => entry.status === 'unmet') ||
       checks.find((entry) => entry.status === 'unknown');
     const priority = check
-      ? `${check.label ? `${text(check.label)}：` : ''}${check.detail ? text(check.detail) : richText(check.next || (check.status === 'unmet' ? '需准备' : '待核对'))}`
+      ? check.status === 'unknown'
+        ? `${text(check.label || '准备情况')}待核对`
+        : `${check.label ? `${text(check.label)}：` : ''}${check.detail ? text(check.detail) : richText(check.next || '需准备')}`
       : richText(ready?.action || '到场观察切磋条件与当前私物。');
     return `<span class="duel-readiness-preview">${text(ready?.label || '准备待核对')}${check?.label ? ' · ' : '：'}${priority}</span>`;
   }
