@@ -748,9 +748,12 @@ function rememberDrawer(view, replace = false) {
       const field = document.querySelector('#recipe-quantity');
       currentDrawer.quantity = field && Number(field.value) > 0 ? Number(field.value) : 1;
       currentDrawer.reservationDraft = document.querySelector('#reserve-count')?.value;
-      currentDrawer.referenceName = referenceSaveName;
-      currentDrawer.follow = referenceFollow;
-      currentDrawer.referenceHash = referenceSave?.name === referenceSaveName ? referenceSave.hash || '' : '';
+      if (!currentDrawer.liveContext && !currentDrawer.liveNpcContext) {
+        currentDrawer.referenceName = referenceSaveName;
+        currentDrawer.follow = referenceFollow;
+        currentDrawer.referenceHash =
+          referenceSave?.name === referenceSaveName ? referenceSave.hash || '' : '';
+      }
     }
     if (currentDrawer.type === 'search') {
       currentDrawer.query = document.querySelector('#global-search')?.value || '';
@@ -988,11 +991,13 @@ const entityPreviews = installEntityPreviews({
     if (
       (target.closest('[data-flow], .duel-page') && currentFlow()?.liveReference) ||
       currentDrawer?.liveNpcContext ||
+      currentDrawer?.liveContext ||
       currentDrawer?.flowReference?.origin === 'live' ||
       (currentDrawer?.type?.startsWith('world-') && worldView.liveContext)
     ) {
       const flow = currentFlow();
       if (flow?.liveReference) return { reference: flow.liveReference, npcProgress: flow.duels?.progress };
+      if (currentDrawer?.type === 'entity-choice') return { reference: currentDrawer.reference };
     }
     if (
       target.closest('[data-flow], .duel-page') ||
@@ -1224,6 +1229,19 @@ const defaultReference = () =>
   profile().referenceMode === 'none' ? '' : profile().saveSlot || latestReference();
 function resetPlanningViews() {
   detailRequest++;
+  for (const view of [currentDrawer, ...drawerHistory]) {
+    if (view?.liveContext || view?.liveNpcContext || view?.flowReference?.origin === 'live')
+      Object.assign(view, {
+        liveContext: false,
+        liveNpcContext: false,
+        npcLiveKey: '',
+        flowReference: null,
+        referenceName: undefined,
+        referenceHash: '',
+        reference: null,
+        follow: defaultFollow(),
+      });
+  }
   if (currentDrawer?.type === 'entity-choice') {
     Object.assign(currentDrawer, {
       reference: null,
@@ -1496,7 +1514,10 @@ function handbookReadingContext(view = currentDrawer, includeHistory = true) {
   }
   result.reference.hash =
     view?.referenceHash || (identity?.name === result.reference.name ? identity.hash || '' : '');
-  if (view?.liveNpcContext || view?.liveContext || view?.flowReference?.origin === 'live')
+  if (
+    defaultFollow() &&
+    (view?.liveNpcContext || view?.liveContext || view?.flowReference?.origin === 'live')
+  )
     result.reference = { name: '', hash: '', follow: true, live: true };
   result.presentation =
     view === currentDrawer
@@ -1594,7 +1615,10 @@ async function openHandbookDetail(context, isCurrent = () => true) {
   const profileId = profile().id;
   const stillReading = () =>
     isCurrent() && request === handbookRequest && profile().id === profileId && token === detailRequest;
-  const reference = context.reference;
+  const reference =
+    context.reference?.live && !defaultFollow()
+      ? { name: defaultReference(), hash: '', follow: false }
+      : context.reference;
   const detail = context.detail;
   let openedView;
   if (detail?.type === 'database') {
@@ -1606,11 +1630,11 @@ async function openHandbookDetail(context, isCurrent = () => true) {
       detail.id,
       detail.quantity,
       detail.giftPage,
-      reference?.hash ? reference : null,
+      reference?.live ? { origin: 'live' } : reference?.hash ? reference : null,
     );
   } else if (detail?.type === 'world-quest' || detail?.type === 'world-place') {
     const live = reference?.live && reference.follow ? currentFlow()?.liveReference : null;
-    const name = reference?.live ? latestReference() : reference?.name;
+    const name = reference?.live ? currentFlow()?.reference?.name || latestReference() : reference?.name;
     let saved = live || null;
     if (!live && name) saved = await call('saveDetails', name);
     if (!stillReading()) return;
@@ -1631,7 +1655,7 @@ async function openHandbookDetail(context, isCurrent = () => true) {
     });
   } else if (detail?.type === 'entity-choice') {
     const live = reference?.live && reference.follow ? currentFlow()?.liveReference : null;
-    const name = reference?.live ? latestReference() : reference?.name;
+    const name = reference?.live ? currentFlow()?.reference?.name || latestReference() : reference?.name;
     const saved = live || (name ? await call('saveDetails', name) : null);
     if (!stillReading()) return;
     if (reference?.hash && saved?.hash !== reference.hash) throw Error('参照存档已更新，请在随行重新核对');
@@ -1960,7 +1984,7 @@ async function loadWorldReference(name) {
   if (name !== undefined) view.follow = name === '@latest';
   view.follow ??= defaultFollow();
   view.referenceName = view.follow
-    ? latestReference()
+    ? (view.liveContext && currentFlow()?.reference?.name) || latestReference()
     : name === undefined
       ? (view.referenceName ?? defaultReference())
       : name;
@@ -2007,16 +2031,19 @@ async function showFlowWorldDetail(id, type, opener, referenceOverride = null) {
   const request = handbookRequest;
   const worldToken = ++worldRequest;
   const profileId = profile().id;
-  const flow = referenceOverride ? { reference: referenceOverride } : currentFlow();
+  const flow =
+    referenceOverride && referenceOverride.origin !== 'live'
+      ? { reference: referenceOverride }
+      : currentFlow();
   const name = flow?.reference?.name || '';
-  const live =
-    !referenceOverride || referenceOverride.origin === 'live' ? currentFlow()?.liveReference : null;
+  const liveContext = defaultFollow() && (!referenceOverride || referenceOverride.origin === 'live');
+  const live = liveContext ? currentFlow()?.liveReference : null;
   const view = {
     referenceName: live ? undefined : name,
-    follow: !!live,
+    follow: liveContext,
     reference: live || null,
     error: '',
-    liveContext: !!live,
+    liveContext,
   };
   if (name && !live) {
     try {
@@ -2262,21 +2289,27 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
     request = handbookRequest,
     profileId = profile().id,
     planningSignature = planningIntentSignature();
-  const liveNpcContext =
-    e?.kind === '人物' &&
+  const liveContext =
+    defaultFollow() &&
     (expectedReference?.origin === 'live' ||
-      (sameDrawer && currentDrawer.liveNpcContext) ||
-      (referenceFollow ?? defaultFollow()) === true);
+      (!expectedReference &&
+        (referenceFollow ?? defaultFollow()) === true &&
+        ((sameDrawer && (currentDrawer.liveContext || currentDrawer.liveNpcContext)) || e?.kind === '人物')));
+  const liveNpcContext = liveContext && e?.kind === '人物';
   let referenceError = '';
   let loadedReference = referenceSave;
   if (!e) return;
   if (['配方', '人物', '物品', '武学'].includes(e.kind)) {
     referenceFollow ??= defaultFollow();
+    if (liveContext) referenceFollow = true;
     if (expectedReference?.name) referenceSaveName = expectedReference.name;
-    else if (referenceFollow) referenceSaveName = latestReference();
+    else if (referenceFollow)
+      referenceSaveName = liveContext
+        ? currentFlow()?.reference?.name || latestReference()
+        : latestReference();
     if (referenceSaveName === undefined) referenceSaveName = defaultReference();
-    loadedReference = null;
-    if (referenceSaveName)
+    loadedReference = liveContext ? currentFlow()?.liveReference || null : null;
+    if (referenceSaveName && !loadedReference)
       try {
         loadedReference = await call('saveDetails', referenceSaveName, e.kind === '配方' ? id : undefined);
       } catch (error) {
@@ -2295,8 +2328,11 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
   }
   if (['物品', '人物', '配方'].includes(e.kind) && planningSignature !== planningIntentSignature())
     return showDatabaseDetail(id, quantity, giftPage, expectedReference, opener);
+  if (liveContext && currentFlow()?.liveReference) {
+    loadedReference = currentFlow().liveReference;
+    referenceSaveName = undefined;
+  }
   referenceSave = loadedReference;
-  if (liveNpcContext && currentFlow()?.liveReference) referenceFollow = true;
   const quantityField = sameDrawer && e.kind === '配方' ? document.querySelector('#recipe-quantity') : null;
   const reservationDraft =
     sameDrawer && e.kind === '物品' ? document.querySelector('#reserve-count')?.value : undefined;
@@ -2339,8 +2375,9 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
         giftPage: giftPage ?? (currentDrawer?.id === id ? currentDrawer.giftPage || 0 : 0),
         planningSignature,
         liveNpcContext,
-        npcLiveKey: liveNpcContext ? currentFlow()?.npcStateKey || '' : '',
-        flowReference: liveNpcContext && currentFlow()?.liveReference ? currentFlow().reference : null,
+        liveContext,
+        npcLiveKey: liveContext ? currentFlow()?.npcStateKey || '' : '',
+        flowReference: liveContext ? { origin: 'live' } : null,
       },
       currentDrawer?.type === 'database' && currentDrawer.id === id,
     );
@@ -3143,6 +3180,31 @@ async function showEntityChoice(id, flowReference = null, opener = null, restore
   // A saved-detail entry is a snapshot; Settings fixes a slot, not its bytes.
   if (!flowReference && currentDrawer?.type === 'save') flowReference = currentDrawer.data;
   const sameDrawer = currentDrawer?.type === 'entity-choice' && currentDrawer.id === id;
+  const liveContext = (flowReference?.origin === 'live' || restored?.liveContext === true) && defaultFollow();
+  if (liveContext) {
+    const request = handbookRequest,
+      token = ++detailRequest,
+      profileId = profile().id;
+    const name = currentFlow()?.reference?.name || latestReference();
+    let reference = currentFlow()?.liveReference || null;
+    if (!reference && name) {
+      try {
+        reference = await call('saveDetails', name);
+      } catch {
+        /* Static lookup remains available. */
+      }
+    }
+    if (token !== detailRequest || request !== handbookRequest || profileId !== profile().id) return;
+    reference = currentFlow()?.liveReference || reference;
+    restored = {
+      ...restored,
+      reference,
+      referenceName: reference?.origin === 'live' ? undefined : name,
+      follow: true,
+      liveContext: true,
+    };
+    flowReference = { origin: 'live' };
+  }
   const unboundLookup =
     ['guide', 'search'].includes(currentDrawer?.type) && referenceSaveName === undefined && !referenceSave;
   if (
@@ -3171,13 +3233,12 @@ async function showEntityChoice(id, flowReference = null, opener = null, restore
     referenceFollow = restored.follow;
   }
   const reference =
-    flowReference ||
+    (liveContext ? restored?.reference : flowReference) ||
     (currentDrawer?.type === 'save'
       ? currentDrawer.data
       : currentDrawer?.type?.startsWith('world-')
         ? worldView.reference
         : referenceSave);
-  const liveContext = flowReference?.origin === 'live' || restored?.liveContext === true;
   const currentReference = liveContext ? currentFlow()?.liveReference || reference : reference;
   if (currentDrawer?.type === 'save') {
     referenceSave = reference;
@@ -3194,6 +3255,7 @@ async function showEntityChoice(id, flowReference = null, opener = null, restore
       referenceHash: liveContext ? '' : reference?.hash || '',
       follow: liveContext || (flowReference ? false : referenceFollow),
       liveContext,
+      npcLiveKey: liveContext ? currentFlow()?.npcStateKey || '' : '',
     },
     sameDrawer,
   );
@@ -4243,12 +4305,23 @@ function searchHistory() {
 async function refreshLiveNpcDetail() {
   if (
     currentDrawer?.type === 'database' &&
-    currentDrawer.liveNpcContext &&
-    gameViews.byId(gameIndex, currentDrawer.id)?.kind === '人物' &&
+    (currentDrawer.liveContext || currentDrawer.liveNpcContext) &&
     currentDrawer.npcLiveKey !== (currentFlow()?.npcStateKey || '')
   )
-    await showDatabaseDetail(currentDrawer.id, currentDrawer.quantity || 1, currentDrawer.giftPage);
-  if (worldView.liveContext && worldView.reference?.key !== currentFlow()?.liveReference?.key)
+    await showDatabaseDetail(currentDrawer.id, currentDrawer.quantity || 1, currentDrawer.giftPage, {
+      origin: 'live',
+    });
+  if (
+    currentDrawer?.type === 'entity-choice' &&
+    currentDrawer.liveContext &&
+    currentDrawer.npcLiveKey !== (currentFlow()?.npcStateKey || '')
+  )
+    await showEntityChoice(currentDrawer.id, currentDrawer.flowReference, null, currentDrawer);
+  if (
+    (route === 'world' || currentDrawer?.type?.startsWith('world-')) &&
+    worldView.liveContext &&
+    worldView.reference?.key !== currentFlow()?.liveReference?.key
+  )
     await loadWorldReference();
 }
 async function refresh(background = false) {
@@ -5398,7 +5471,12 @@ async function handle(action, id, target, navigationFocused = false) {
       } else if (view.type === 'database') {
         referenceSaveName = view.referenceName;
         referenceFollow = view.follow;
-        await showDatabaseDetail(view.id, view.quantity || 1, view.giftPage);
+        await showDatabaseDetail(
+          view.id,
+          view.quantity || 1,
+          view.giftPage,
+          view.liveContext || view.liveNpcContext ? { origin: 'live' } : null,
+        );
         const reservation = overlay.querySelector('#reserve-count');
         if (
           currentDrawer?.type === 'database' &&
@@ -5922,7 +6000,7 @@ async function handle(action, id, target, navigationFocused = false) {
           target.closest('[data-flow], .duel-page')
             ? currentFlow()?.reference
             : currentDrawer?.liveNpcContext || currentDrawer?.liveContext
-              ? currentFlow()?.liveReference || null
+              ? { origin: 'live' }
               : null,
           target,
         );

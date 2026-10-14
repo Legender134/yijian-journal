@@ -103,6 +103,7 @@ test('guide and other read-only drawer histories retain reading position before 
 
 test('live NPC and task handoff select a fresh observed cohort, with saved fallback after withdrawal', async () => {
   const { context } = readingHistoryHarness();
+  context.defaultFollow = () => true;
   const old = { name: '1.sav', hash: 'a'.repeat(64) };
   const latest = { name: '2.sav', hash: 'b'.repeat(64) };
   const live = { origin: 'live', key: 'cohort-new', metadata: { quests: [{ id: 12001, step: 1 }] } };
@@ -480,6 +481,7 @@ test('a flow place uses its own saved task state and rejects changed bytes inste
       handbookRequest: 0,
       profile: () => ({ id: 'p' }),
       currentFlow: () => ({ reference: current }),
+      defaultFollow: () => false,
       call: async (_action, name) => {
         assert.equal(name, '1.sav');
         return { ...current, hash: changed ? 'b'.repeat(64) : current.hash };
@@ -607,6 +609,7 @@ test('a pending flow place cannot replace a newer search, closed drawer, world s
       worldView: { referenceName: '2.sav' },
       profile: () => ({ id: 'p' }),
       currentFlow: () => flow,
+      defaultFollow: () => false,
       call: () => new Promise((r) => (resolve = r)),
       showWorldDetail: async () => {
         opened = true;
@@ -1171,6 +1174,7 @@ test('item refresh preserves the latest unsubmitted reservation input only in th
         handbookRequest: 0,
         detailRequest: 0,
         profile: () => saved,
+        defaultFollow: () => false,
         planningIntentSignature: () => 'updated plans',
         gameIndex: {},
         catalog: { entries: [] },
@@ -1220,6 +1224,7 @@ test('late database reads cannot replace the newer preview reference or surface 
       handbookRequest: 0,
       detailRequest: 0,
       profile: () => ({ id: profileId, reservations: {} }),
+      defaultFollow: () => false,
       planningIntentSignature: () => '',
       gameIndex: {},
       catalog: { entries: [] },
@@ -1768,6 +1773,7 @@ test('Settings updates from another window reload an open item or chooser and in
       handbookRequest: 0,
       detailRequest: 40,
       root: {},
+      drawerHistory: [],
       entityPreviews: { close() {}, refreshOutside() {} },
       journeyDraft: null,
       composing: false,

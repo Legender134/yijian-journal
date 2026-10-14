@@ -30,6 +30,7 @@ const writeSave = (rows) => {
   const bytes = syntheticSave({
     full: true,
     npcs: rows,
+    inventory: [{ id: 100073, count: 987654 }],
     quests: [],
     map: 'LV_25_P',
     trackingQuest: 0,
@@ -229,6 +230,25 @@ const pulse = () => {
       .click();
     assert.match(await small.locator('#overlay').innerText(), /现场：已完成/);
     assert.doesNotMatch(await small.locator('#overlay').innerText(), /存档：进行中/);
+    await small.locator('#overlay [data-persist-detail="npc-private-10047"] > summary').click();
+    await small.locator('#overlay [data-action="database-detail"][data-id="item-100073"]').first().click();
+    await small.waitForFunction(() =>
+      document.querySelector('#overlay .drawer h1')?.textContent.includes('碧玉扳指精良图纸'),
+    );
+    assert.doesNotMatch(await small.locator('#overlay').innerText(), /987,?654/);
+    await small.locator('#overlay [data-action="main"]').click();
+    await main.waitForFunction(() =>
+      document.querySelector('#overlay .drawer h1')?.textContent.includes('碧玉扳指精良图纸'),
+    );
+    assert.doesNotMatch(await main.locator('#overlay').innerText(), /987,?654/);
+    await main.locator('#overlay [data-action="drawer-back"]').click();
+    await main.locator('#overlay [data-npc-progress="10047"]').waitFor();
+    assert.match(await main.locator('#overlay [data-npc-progress="10047"]').innerText(), /私物还剩 1 种/);
+    await main.keyboard.press('Escape');
+    await main.locator('[data-action="compact"]').first().click();
+    await small.locator('#overlay [data-action="drawer-back"]').click();
+    await small.locator('#overlay [data-npc-progress="10047"]').waitFor();
+    assert.match(await small.locator('#overlay [data-npc-progress="10047"]').innerText(), /私物还剩 1 种/);
     await small.locator('#overlay [data-action="world-quest"][data-id="quest-5062"]').first().click();
     await small.locator('#overlay .world-drawer').waitFor();
     assert.match(await small.locator('#overlay .world-drawer .tag-row').first().innerText(), /已完成/);
@@ -269,6 +289,33 @@ const pulse = () => {
     if (!(await learningDetail.evaluate((node) => node.open)))
       await learningDetail.locator('> summary').click();
     assert.match(await fallback.innerText(), /1 → 3/);
+    const latestFile = path.join(source, '2.sav');
+    const latestBytes = syntheticSave({ full: true, npcs, quests: [], map: 'LV_25_P' });
+    fs.writeFileSync(latestFile, latestBytes);
+    publish([{ id: 100034, count: 1 }]);
+    pulse();
+    await small.waitForFunction(() =>
+      document.querySelector('[data-npc-progress-page]')?.textContent.includes('现场更新'),
+    );
+    await small
+      .locator('[data-npc-progress-card="10016"] [data-action="database-detail"][data-id="npc-10016"]')
+      .first()
+      .click();
+    await small.locator('#overlay [data-npc-progress="10016"]').waitFor();
+    assert.match(await small.locator('#overlay [data-npc-progress="10016"]').innerText(), /私物还剩 1 种/);
+    await main.evaluate(async () => {
+      const result = await window.journal.mutate({ type: 'save-slot', value: '1.sav', mode: 'slot' });
+      if (!result.ok) throw Error(result.error);
+    });
+    await small.waitForFunction(() =>
+      document.querySelector('#overlay [data-npc-progress="10016"]')?.textContent.includes('私物已清空'),
+    );
+    await small.locator('#overlay [data-action="main"]').click();
+    await main.waitForFunction(() =>
+      document.querySelector('#overlay [data-npc-progress="10016"]')?.textContent.includes('私物已清空'),
+    );
+    assert.match(await main.locator('#overlay').innerText(), /保存后更新/);
+    assert.deepEqual(fs.readFileSync(latestFile), latestBytes);
     assert.deepEqual(fs.readFileSync(file), expected, 'only the fixture writer changes the synthetic save');
     assert.deepEqual(errors, []);
     console.log(
