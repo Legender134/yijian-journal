@@ -83,6 +83,7 @@ test('initial NPC previews and the related-task list retain the live cohort thro
     referenceSave: null,
     referenceSaveName: undefined,
     referenceFollow: true,
+    npcProgressView: { tab: 'remaining', query: '', page: 0 },
     worldView: {},
     materialView: {},
     route: 'database',

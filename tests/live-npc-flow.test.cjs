@@ -216,6 +216,7 @@ test('a live flow without any readable save preserves its cohort through actual 
     rememberDrawer(view) {
       ctx.currentDrawer = view;
     },
+    npcProgressView: { tab: 'remaining', query: '', page: 0 },
     worldView: {},
     placeMapScopes: new Map(),
     call: async () => assert.fail('there is no save to read'),

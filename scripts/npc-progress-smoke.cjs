@@ -183,6 +183,72 @@ const pulse = () => {
     await search.fill('江吟风');
     await small.locator('[data-npc-progress-card="10016"] > summary').click();
     await small.screenshot({ path: path.join(output, 'companion-expanded.png') });
+    await small.locator('[data-action="npc-progress-tab"][data-id="learning"]').click();
+    await small.locator('[data-action="main"]').first().click();
+    await main.waitForFunction(() => document.querySelector('#npc-progress-search')?.value === '江吟风');
+    assert.equal(
+      await main.locator('[data-action="npc-progress-tab"][data-id="learning"]').getAttribute('aria-pressed'),
+      'true',
+    );
+    assert.equal(await main.locator('[data-npc-progress-card="10016"]').isVisible(), true);
+    await main.locator('[data-action="compact"]').first().click();
+
+    // A larger synthetic cohort exercises pagination as well as the page hidden
+    // beneath a detail drawer. The two windows intentionally start with different filters.
+    const extraPeople = require('../src/data/game-index.json')
+      .entries.filter((entry) => entry.kind === '人物' && !npcs.some((npc) => entry.id === `npc-${npc.id}`))
+      .slice(0, 60)
+      .map((entry) =>
+        savedNpc(Number(entry.id.slice(4)), {
+          inventory: [],
+          attributes: { ...attributes, 65: 3 },
+        }),
+      );
+    expected = writeSave([...npcs, ...extraPeople]);
+    await search.fill('炼丹');
+    const nextPage = small.locator('[data-action="npc-progress-page"]').filter({ hasText: '下一页' });
+    await nextPage.waitFor();
+    await nextPage.click();
+    const pageLabel = await small.locator('[data-npc-progress-page] .pagination span').innerText();
+    assert.match(pageLabel, /^2 \/ /);
+    const visiblePeople = await small
+      .locator('[data-npc-progress-card]')
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-npc-progress-card')));
+    const assertTransferredList = async () => {
+      await main.waitForFunction(() => document.querySelector('#npc-progress-search')?.value === '炼丹');
+      assert.equal(
+        await main
+          .locator('[data-action="npc-progress-tab"][data-id="learning"]')
+          .getAttribute('aria-pressed'),
+        'true',
+      );
+      assert.equal(await main.locator('[data-npc-progress-page] .pagination span').innerText(), pageLabel);
+      assert.deepEqual(
+        await main
+          .locator('[data-npc-progress-card]')
+          .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-npc-progress-card'))),
+        visiblePeople,
+      );
+    };
+    await small.locator('[data-action="main"]').first().click();
+    await assertTransferredList();
+    await main.locator('[data-action="npc-progress-tab"][data-id="cleared"]').click();
+    await main.locator('#npc-progress-search').fill('卫霍');
+    await main.locator('[data-action="compact"]').first().click();
+    await small
+      .locator(`[data-npc-progress-card="${visiblePeople[0]}"] [data-action="database-detail"]`)
+      .first()
+      .click();
+    await small.locator(`#overlay [data-npc-progress="${visiblePeople[0]}"]`).waitFor();
+    await small.locator('#overlay [data-action="main"]').click();
+    await main.locator(`#overlay [data-npc-progress="${visiblePeople[0]}"]`).waitFor();
+    await main.keyboard.press('Escape');
+    await assertTransferredList();
+    await main.screenshot({ path: path.join(output, 'handoff-npc-filter-page.png') });
+    await main.locator('[data-action="compact"]').first().click();
+    await small.keyboard.press('Escape');
+    await search.fill('江吟风');
+    await small.locator('[data-action="npc-progress-tab"][data-id="remaining"]').click();
     // Clearing the NPC bag after saving removes only the collection entry;
     // its unlearned arts and higher craft level remain available to consult.
     expected = writeSave([player, { ...npcs[1], inventory: [] }, npcs[2], npcs[3]]);

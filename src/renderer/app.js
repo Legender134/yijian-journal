@@ -1463,6 +1463,7 @@ function handbookReadingContext(view = currentDrawer, includeHistory = true) {
     databaseKind,
     databaseType,
     databasePage,
+    npcProgress: { ...npcProgressView },
     worldKind: worldView.kind,
     worldQuery: worldView.query,
     worldStatus: worldView.status,
@@ -1581,6 +1582,7 @@ async function receiveHandbookContext(context) {
   databaseKind = context.databaseKind || '全部';
   databaseType = context.databaseType || '全部';
   databasePage = context.databasePage || 0;
+  Object.assign(npcProgressView, context.npcProgress || { tab: 'remaining', query: '', page: 0 });
   worldView.kind = context.worldKind === 'places' ? 'places' : 'quests';
   worldView.query = context.worldQuery || '';
   worldView.status = context.worldStatus || 'all';

@@ -54,6 +54,7 @@ function readingHistoryHarness() {
     databaseKind: '全部',
     databaseType: '全部',
     databasePage: 0,
+    npcProgressView: { tab: 'remaining', query: '', page: 0 },
     worldView: {},
     worldRequest: 0,
     recipeQuantity: () => 1,
@@ -214,6 +215,34 @@ test('handoff refuses paths, invalid identities and arbitrary detail types', () 
   assert.equal(handbookContext({ profileId: 'p', route: 'remove-all' }).route, 'home');
 });
 
+test('NPC handoff accepts only bounded list filters and resets missing or invalid values', () => {
+  for (const tab of ['remaining', 'learning', 'locked', 'cleared']) {
+    const npcProgress = { tab, query: '炼丹', page: 2 };
+    assert.deepEqual(handbookContext({ profileId: 'p', npcProgress }).npcProgress, npcProgress);
+  }
+  for (const npcProgress of [undefined, null, [], { tab: 'delete', query: 'x'.repeat(101), page: -1 }])
+    assert.deepEqual(handbookContext({ profileId: 'p', npcProgress }).npcProgress, {
+      tab: 'remaining',
+      query: '',
+      page: 0,
+    });
+  for (const page of [1.5, Infinity, 100001, '1'])
+    assert.equal(handbookContext({ profileId: 'p', npcProgress: { page } }).npcProgress.page, 0);
+  assert.deepEqual(
+    handbookContext({
+      profileId: 'p',
+      npcProgress: {
+        tab: 'learning',
+        query: '江吟风',
+        page: 1,
+        command: 'remove',
+        path: 'private',
+      },
+    }).npcProgress,
+    { tab: 'learning', query: '江吟风', page: 1 },
+  );
+});
+
 test('legacy scene chooser transfers directly and remains valid in exact-scene history', () => {
   for (const id of ['place-96', 'place-97']) {
     const detail = { type: 'entity-choice', id };
@@ -251,6 +280,7 @@ test('handoff retains pages, filters, body reading and same-name history across 
     databaseKind: '人物',
     databaseType: '全部',
     databasePage: 3,
+    npcProgressView: { tab: 'learning', query: '炼丹', page: 1 },
     worldView: {
       kind: 'quests',
       query: '药',
@@ -304,14 +334,18 @@ test('handoff retains pages, filters, body reading and same-name history across 
   assert.equal(wire.detail.giftPage, 2);
   assert.equal(wire.history[0].detail.id, 'name:莫弃');
   assert.equal(wire.history[0].detail.flowBound, true);
+  assert.deepEqual(wire.npcProgress, { tab: 'learning', query: '炼丹', page: 1 });
+  Object.assign(context.npcProgressView, { tab: 'remaining', query: '', page: 0 });
   await context.receive(wire);
   assert.equal(context.currentDrawer.giftPage, 2);
   assert.equal(context.databasePage, 3);
+  assert.deepEqual(context.npcProgressView, { tab: 'learning', query: '炼丹', page: 1 });
   assert.equal(restored.at(-1).page, true);
   assert.equal(restored.at(-1).value.scroll, 840);
   await context.open(wire.history[0]);
   assert.equal(context.currentDrawer.id, 'name:莫弃');
   assert.equal(context.currentDrawer.flowReference.name, '2.sav');
+  assert.deepEqual(context.npcProgressView, { tab: 'learning', query: '炼丹', page: 1 });
   context.route = 'world';
   context.currentDrawer = null;
   const world = handbookContext(context.capture());
@@ -321,6 +355,11 @@ test('handoff retains pages, filters, body reading and same-name history across 
   assert.equal(context.worldView.status, 'active');
   assert.equal(context.worldView.page, 2);
   assert.equal(context.worldView.roots, false);
+  context.route = 'duels';
+  const npcList = handbookContext(context.capture());
+  Object.assign(context.npcProgressView, { tab: 'locked', query: '卫霍', page: 0 });
+  await context.receive(npcList);
+  assert.deepEqual(context.npcProgressView, { tab: 'learning', query: '炼丹', page: 1 });
 });
 
 test('body presentation restores semantic cards and folds despite a different main-window layout', () => {
@@ -564,6 +603,7 @@ test('handbook captures history, save, backup and comparison details instead of 
       databaseKind: '全部',
       databaseType: '全部',
       databasePage: 0,
+      npcProgressView: { tab: 'remaining', query: '', page: 0 },
       worldView: {},
       defaultFollow: () => false,
       handbookPresentation: () => null,
@@ -652,6 +692,7 @@ test('history handoff reloads the same detail through existing inspect APIs and 
       flushJournalDrafts: asyncNoop,
       flushIntentDrafts: asyncNoop,
       closeOverlay: () => context.detailRequest++,
+      npcProgressView: { tab: 'remaining', query: '', page: 0 },
       worldView: {},
       materialView: {},
       refresh: asyncNoop,
@@ -892,6 +933,7 @@ test('actual navigation cancels a handoff waiting for refresh before opening its
     closeOverlay: () => context.detailRequest++,
     overlay: { firstElementChild: null },
     defaultFollow: () => true,
+    npcProgressView: { tab: 'remaining', query: '', page: 0 },
     worldView: {},
     materialView: {},
     refresh: () => new Promise((r) => (resolve = r)),

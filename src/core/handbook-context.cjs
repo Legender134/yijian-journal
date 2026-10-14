@@ -90,6 +90,12 @@ function handbookContext(value) {
   for (const key of ['databaseKind', 'databaseType', 'worldKind', 'worldQuery'])
     if (typeof value[key] === 'string') result[key] = text(value[key]);
   result.databasePage = page(value.databasePage);
+  const npc = value.npcProgress;
+  result.npcProgress = {
+    tab: ['remaining', 'learning', 'locked', 'cleared'].includes(npc?.tab) ? npc.tab : 'remaining',
+    query: text(npc?.query, 100),
+    page: page(npc?.page),
+  };
   result.worldPage = page(value.worldPage);
   result.worldStatus = ['all', 'active', 'completed', 'recorded', 'unrecorded'].includes(value.worldStatus)
     ? value.worldStatus

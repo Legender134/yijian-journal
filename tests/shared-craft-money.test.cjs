@@ -58,6 +58,23 @@ const views = Promise.all(
   ),
 );
 
+test('empty material lists keep the merge action only for unfinished recipe goals', async () => {
+  const [materials] = await views;
+  const act = (action, label) => `<button data-action="${action}">${label}</button>`;
+  const p = defaults().profiles[0];
+  for (const [source, done, expected] of [
+    [{ type: 'database', id: recipe.id }, false, true],
+    [{ type: 'database', id: recipe.id }, true, false],
+    [{ type: 'database', id: 'item-10300' }, false, false],
+    [{ type: 'guide', id: 'wei-training' }, false, false],
+  ]) {
+    p.goals = [{ source, done }];
+    const html = materials.createMaterialViews({ ...helpers, act }).page(index, p, { query: '' }, []);
+    assert.equal(html.includes('data-action="craft-goals-merge"'), expected);
+    assert.doesNotMatch(html, /craft-result-card|先选一份配方/);
+  }
+});
+
 test('an unresolved fish alternative stays missing even when no fixed raw material is missing', async () => {
   const p = defaults().profiles[0];
   p.craftList = [{ id: 'cooking-102', quantity: 1 }];

@@ -75,6 +75,7 @@ function harness() {
     showOverlay() {},
     handbookPresentation: () => ({ scroll: 0, details: [] }),
     restoreHandbookPresentation() {},
+    npcProgressView: { tab: 'remaining', query: '', page: 0 },
     worldView: {},
     route: 'duels',
     query: '',
