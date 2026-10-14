@@ -216,7 +216,17 @@ async function shot(name) {
     await close();
     await win.locator('[data-action="craft-calculate"]').click();
     await win.waitForFunction(() => document.querySelector('.craft-totals')?.textContent.includes('3 件'));
-    assert.match(await win.locator('.craft-layout').innerText(), /保留 8 件/);
+    const keptMaterials = win
+      .locator('.craft-layout details.card')
+      .filter({ hasText: '手动留用物品' });
+    assert.equal(await keptMaterials.count(), 1);
+    assert.equal(await keptMaterials.evaluate((node) => node.open), false);
+    await keptMaterials.locator('summary').click();
+    const keptCloth = keptMaterials
+      .locator('.world-rule')
+      .filter({ has: win.locator('[data-id="item-10300"]') });
+    assert.equal(await keptCloth.isVisible(), true);
+    assert.match(await keptCloth.innerText(), /保留 8 件/);
     await shot('reserved-materials');
     const person = index.entries
       .filter((e) => e.kind === '人物')
