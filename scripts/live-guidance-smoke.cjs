@@ -106,17 +106,23 @@ const pulse = () =>
       'live guidance never saves or chooses for the player',
     );
     await win.locator('.sidebar-nav [data-id="settings"]').click();
-    const unkeyedSummary = win.locator('summary').filter({ hasText: '读取方式与资料说明' });
-    await unkeyedSummary.evaluate((el) => {
+    const readingSummary = win.locator('summary').filter({ hasText: '读取方式与资料说明' });
+    await readingSummary.click();
+    await readingSummary.evaluate((el) => {
       el.focus({ preventScroll: true });
       window.__syntheticSummary = el;
     });
     await win.evaluate(() => window.journal.mutate({ type: 'settings', value: { autoBackup: false } }));
     await win.waitForFunction(() => !window.__syntheticSummary.isConnected);
     assert.equal(
-      await unkeyedSummary.evaluate((el) => document.activeElement === el),
+      await readingSummary.evaluate((el) => document.activeElement === el),
       true,
-      'an unkeyed settings disclosure also retains focus',
+      'the settings reading disclosure retains focus',
+    );
+    assert.equal(
+      await readingSummary.evaluate((el) => el.parentElement.open),
+      true,
+      'background refresh keeps the settings explanation expanded',
     );
     const spoiler = win.locator('button[data-action="spoiler"]');
     const spoilerState = await spoiler.getAttribute('aria-checked');
@@ -136,6 +142,11 @@ const pulse = () =>
       await spoiler.getAttribute('aria-checked'),
       spoilerState,
       'restoring focus does not activate the switch',
+    );
+    assert.equal(
+      await readingSummary.evaluate((el) => el.parentElement.open),
+      true,
+      'a real guidance event also keeps the reading disclosure expanded',
     );
     const opened = app.waitForEvent('window');
     await win.locator('[data-action="compact"]').first().click();
