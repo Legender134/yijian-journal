@@ -199,7 +199,14 @@ class GameBridge {
     );
   }
   restoreDialogueContext(session, source) {
-    const fresh = { session, source, lastQuestId: 0, suppressed: new Set() };
+    const fresh = {
+      session,
+      source,
+      lastQuestId: 0,
+      suppressed: new Set(),
+      observationEpoch: 0,
+      liveSuppressed: new Set(),
+    };
     if (!this.guidanceFile) return fresh;
     for (const file of [this.guidanceFile, this.guidanceFile + '.previous']) {
       try {
@@ -215,7 +222,13 @@ class GameBridge {
           !(saved.lastQuestId === 0 || isKnownChoiceStep(saved.lastQuestId)) ||
           !Array.isArray(saved.suppressed) ||
           saved.suppressed.length > 256 ||
-          saved.suppressed.some((id) => !isKnownChoiceStep(id))
+          saved.suppressed.some((id) => !isKnownChoiceStep(id)) ||
+          (saved.observationEpoch !== undefined &&
+            (!Number.isSafeInteger(saved.observationEpoch) || saved.observationEpoch < 0)) ||
+          (saved.liveSuppressed !== undefined &&
+            (!Array.isArray(saved.liveSuppressed) ||
+              saved.liveSuppressed.length > 256 ||
+              saved.liveSuppressed.some((id) => !saved.suppressed.includes(id))))
         )
           throw Error('Invalid guidance record');
         // A valid record for a different game session/source must never fall
@@ -228,6 +241,8 @@ class GameBridge {
         ) {
           fresh.lastQuestId = saved.lastQuestId;
           fresh.suppressed = new Set(saved.suppressed);
+          fresh.observationEpoch = saved.observationEpoch || 0;
+          fresh.liveSuppressed = new Set(saved.liveSuppressed || saved.suppressed);
         }
         break;
       } catch {
@@ -247,6 +262,8 @@ class GameBridge {
       tokenHash: sha(Buffer.from(this.token)),
       lastQuestId: isKnownChoiceStep(current.lastQuestId) ? current.lastQuestId : 0,
       suppressed: [...current.suppressed],
+      observationEpoch: current.observationEpoch,
+      liveSuppressed: [...current.liveSuppressed],
     };
     const signature = JSON.stringify(saved);
     if (signature === this.guidanceStoredSignature) return;
@@ -269,7 +286,10 @@ class GameBridge {
         !same(source, this.guidanceSource || (this.test ? this.timeline.data.source : ''))
       )
         return null;
-      if (isKnownChoiceStep(current.lastQuestId)) current.suppressed.add(current.lastQuestId);
+      if (isKnownChoiceStep(current.lastQuestId)) {
+        current.suppressed.add(current.lastQuestId);
+        current.liveSuppressed.add(current.lastQuestId);
+      }
       current.lastQuestId = 0;
       this.persistDialogueContext();
       return { dialogue: null, suppressedQuestIds: [...current.suppressed] };
@@ -300,17 +320,34 @@ class GameBridge {
     const current = this.dialogueContext;
     const dialogue = readDialogue(state.dialogue);
     if (dialogue) {
-      if (isKnownChoiceStep(current.lastQuestId) && current.lastQuestId !== dialogue.questId)
+      if (isKnownChoiceStep(current.lastQuestId) && current.lastQuestId !== dialogue.questId) {
         current.suppressed.add(current.lastQuestId);
+        current.liveSuppressed.add(current.lastQuestId);
+      }
       current.lastQuestId = dialogue.questId;
       current.suppressed.delete(dialogue.questId);
+      current.liveSuppressed.delete(dialogue.questId);
     } else if (current.lastQuestId) {
-      if (isKnownChoiceStep(current.lastQuestId)) current.suppressed.add(current.lastQuestId);
+      if (isKnownChoiceStep(current.lastQuestId)) {
+        current.suppressed.add(current.lastQuestId);
+        current.liveSuppressed.add(current.lastQuestId);
+      }
       current.lastQuestId = 0;
     }
-    this.persistDialogueContext();
     const npcState = this.npcReader.sample(state);
-    return { dialogue, suppressedQuestIds: [...current.suppressed], ...(npcState ? { npcState } : {}) };
+    // A verified full observation after loading/travel replaces the previous
+    // world's choice retirement. Keep saved-reference retirement separately:
+    // a later disconnect must not revive advice from an older saved file.
+    if (npcState && npcState.epoch > current.observationEpoch) {
+      current.observationEpoch = npcState.epoch;
+      current.liveSuppressed.clear();
+    }
+    this.persistDialogueContext();
+    return {
+      dialogue,
+      suppressedQuestIds: [...(npcState ? current.liveSuppressed : current.suppressed)],
+      ...(npcState ? { npcState } : {}),
+    };
   }
   hintQuiet() {
     if (this.busy || this.loadQueued || this.timeline.data.pending || this.quiescing) return true;

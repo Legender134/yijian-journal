@@ -542,6 +542,176 @@ test('restarting the assistant retains closed choices only for the same verified
   );
 });
 
+test('a verified new observation restores loaded choices without reviving stale saved advice', (t) => {
+  const crypto = require('node:crypto');
+  const { NpcObservationReader } = require('../src/core/live-npc-state.cjs');
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-guidance-epoch-'));
+  t.after(() => fs.rmSync(data, { recursive: true, force: true }));
+  const source = path.join(data, 'synthetic', 'SaveGames');
+  const token = 'a'.repeat(64),
+    revision = 'b'.repeat(64),
+    session = '1800000000-123456';
+  const now = 1800000000000,
+    world = 'World /Synthetic.LV_25_P';
+  const mac = (value) => crypto.createHmac('sha256', Buffer.from(token, 'hex')).update(value).digest('hex');
+  const attributes = Object.fromEntries(
+    [5, 27, 48, 61, 63, 65, 67, 44, 9, 10, 14, 11, 12, 2, 4].map((id) => [id, 1]),
+  );
+  let pulse,
+    bytes,
+    sequence = 0;
+  const sample = (epoch, step = 1, choice = null) => {
+    const pawn = 'Pawn Synthetic' + epoch;
+    sequence++;
+    const body = {
+      schema: 1,
+      source,
+      session,
+      revision,
+      world,
+      pawn,
+      epoch,
+      version: sequence,
+      identity: ['gi' + epoch, 'sm' + epoch, 'nm' + epoch, 'qm' + epoch, 'player' + epoch],
+      quests: [
+        { id: 11002, step },
+        { id: 11005, step },
+      ],
+      npcs: [
+        {
+          id: 0,
+          rawFriendliness: 0,
+          visible: true,
+          mapKey: 'LV_25_P',
+          attributes,
+          skills: [],
+          inventory: [],
+          guildId: 0,
+          skillPoints: 0,
+        },
+      ],
+    };
+    bytes = Buffer.from(JSON.stringify(body));
+    const at = now / 1000,
+      blobMac = mac(bytes);
+    pulse = {
+      protocol: 2,
+      token,
+      revision,
+      source,
+      session,
+      ready: true,
+      reason: '',
+      world,
+      pawn,
+      at,
+      dialogue: choice,
+      npcObservation: {
+        epoch,
+        version: sequence,
+        sequence,
+        at,
+        mac: blobMac,
+        sampleMac: mac(
+          [
+            'npc-sample-v1',
+            source,
+            session,
+            revision,
+            world,
+            pawn,
+            epoch,
+            sequence,
+            sequence,
+            at,
+            blobMac,
+          ].join('\n'),
+        ),
+      },
+    };
+  };
+  const restart = () =>
+    Object.assign(Object.create(GameBridge.prototype), {
+      test: true,
+      token,
+      revision,
+      guidanceSource: source,
+      guidanceFile: path.join(data, 'live-guidance.json'),
+      timeline: { data: { source } },
+      blocked: () => false,
+      heartbeat: () => pulse,
+      now: () => now,
+      npcReader: new NpcObservationReader({ read: () => bytes, token, revision, now: () => now }),
+    });
+  let bridge = restart();
+  sample(1, 1, dialogue());
+  assert.equal(bridge.liveGuidance(source).dialogue.questId, 11005);
+  sample(1);
+  assert.deepEqual(
+    bridge.liveGuidance(source).suppressedQuestIds,
+    [11005],
+    'close retires even before the quest record advances',
+  );
+  bridge = restart();
+  assert.deepEqual(
+    bridge.liveGuidance(source).suppressedQuestIds,
+    [11005],
+    'same epoch retirement survives assistant restart',
+  );
+  sample(1, 4);
+  assert.deepEqual(flowSnapshot(profile, reference(), '', bridge.liveGuidance(source)).active, []);
+  pulse = { ...pulse, ready: false, reason: '正在读档', dialogue: null };
+  assert.deepEqual(bridge.liveGuidance(source), context(null, [11005]));
+  sample(2);
+  pulse.npcObservation.sampleMac = '0'.repeat(64);
+  assert.deepEqual(
+    bridge.liveGuidance(source),
+    context(null, [11005]),
+    'unverified epoch cannot clear retirement',
+  );
+  bridge = restart();
+  sample(2);
+  const loaded = bridge.liveGuidance(source);
+  assert.equal(loaded.npcState.epoch, 2);
+  assert.deepEqual(loaded.suppressedQuestIds, []);
+  const flow = flowSnapshot(profile, reference(), '', loaded);
+  assert.equal(flow.stateOrigin, 'live');
+  assert(
+    flow.active.some((row) => row.gameId === 11002),
+    'loaded active task returns',
+  );
+  assert(
+    flow.decisions.some((row) => row.id === choiceId),
+    'loaded choice advice returns',
+  );
+  bridge = restart();
+  sample(2);
+  assert.deepEqual(
+    bridge.liveGuidance(source).suppressedQuestIds,
+    [],
+    'restored cohort stays available after assistant restart',
+  );
+  pulse = { ...pulse, ready: false, reason: '战斗、过场或切换场景中暂停保存' };
+  const withdrawn = bridge.liveGuidance(source);
+  assert.deepEqual(withdrawn, context(null, [11005]), 'old saved-file retirement is retained independently');
+  assert.deepEqual(flowSnapshot(profile, reference(), '', withdrawn).decisions, []);
+  sample(3, 4);
+  assert.deepEqual(
+    flowSnapshot(profile, reference(), '', bridge.liveGuidance(source)).decisions,
+    [],
+    'completed quest does not revive after travel',
+  );
+  sample(4, 1, dialogue({ sequence: 2 }));
+  bridge.liveGuidance(source);
+  sample(4);
+  assert.deepEqual(
+    bridge.liveGuidance(source).suppressedQuestIds,
+    [11005],
+    'a newly closed choice retires in its own cohort',
+  );
+  assert.equal(fs.existsSync(source), false, 'no game save directory is touched');
+});
+
 test('default choice hints retain permanent consequences before ordinary task hints', async () => {
   const { pathToFileURL } = require('node:url');
   const { createCompanionViews } = await import(

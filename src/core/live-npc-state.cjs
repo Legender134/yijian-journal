@@ -223,7 +223,12 @@ class NpcObservationReader {
         version: ref.version,
         mac: ref.mac,
       };
-      return { ...this.cache.value, sampledAt: ref.at, key: binding + '\n' + ref.version + '\n' + ref.mac };
+      return {
+        ...this.cache.value,
+        epoch: ref.epoch,
+        sampledAt: ref.at,
+        key: binding + '\n' + ref.version + '\n' + ref.mac,
+      };
     } catch {
       this.withdraw();
       return null;
