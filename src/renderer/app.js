@@ -988,8 +988,9 @@ const entityPreviews = installEntityPreviews({
       (currentDrawer?.type === 'entity-choice' && currentDrawer.flowReference)
     ) {
       const flow = currentFlow();
-      const identity =
-        currentDrawer?.type === 'entity-choice' ? currentDrawer.flowReference : flow?.reference;
+      const identity = target.closest('[data-flow], .duel-page')
+        ? flow?.reference
+        : currentDrawer.flowReference;
       let reference = null;
       // Companion snapshots can advance before the main environment's save list.
       // Read the flow's exact identity and still reject a changed hash below.
@@ -3160,16 +3161,45 @@ function captureDetailFolds(preserve) {
   }
   return detailFolds.values;
 }
+function carryLiveChoice() {
+  const dock = overlay.querySelector('.live-choice-dock');
+  if (dock) root.querySelector(compact ? '.compact-body' : '.content')?.before(dock);
+}
 function dockLiveChoice(compact = false) {
   const row = currentFlow()?.decisions?.find((entry) => entry.live);
   const body = root.querySelector(compact ? '.compact-body' : '.content');
-  if (!row || !body) return;
+  const previous = overlay.querySelector('.live-choice-dock');
+  const surface = overlay.querySelector('.drawer, .modal');
+  if (!row || !body) {
+    if (previous) {
+      entityPreviews.closeWithin(previous);
+      previous.remove();
+    }
+    const obsolete = root.querySelector('.live-choice-dock');
+    if (obsolete) {
+      entityPreviews.closeWithin(obsolete);
+      obsolete.remove();
+    }
+    return;
+  }
+  const key = JSON.stringify([profile().id, row.id, row.liveSequence]);
+  const retained = previous?.dataset.choiceKey === key;
+  const focus = retained ? entityPreviews.captureFocusWithin(previous) : null;
+  const preview = retained ? entityPreviews.captureWithin(previous) : null;
+  const folds = retained
+    ? new Map(
+        [...previous.querySelectorAll('details[data-persist-detail]')].map((el) => [
+          el.dataset.persistDetail,
+          el.open,
+        ]),
+      )
+    : null;
   const cards = [...root.querySelectorAll('[data-flow-decision]')].filter(
     (card) => card.dataset.flowDecision === row.id,
   );
-  const dock = document.createElement('section');
+  const dock = root.querySelector('.live-choice-dock') || document.createElement('section');
   dock.className = 'live-choice-dock';
-  dock.dataset.choiceKey = JSON.stringify([profile().id, row.id, row.liveSequence]);
+  dock.dataset.choiceKey = key;
   dock.dataset.flow = '';
   dock.setAttribute('aria-label', '当前关键选择');
   // Keep one canonical card outside the reading scroller, including on flow pages.
@@ -3180,6 +3210,20 @@ function dockLiveChoice(compact = false) {
   for (const section of root.querySelectorAll('.flow-current-decisions'))
     if (!section.querySelector('[data-flow-decision]')) section.remove();
   body.before(dock);
+  if (surface) {
+    if (previous) {
+      entityPreviews.closeWithin(previous);
+      previous.remove();
+    }
+    surface.prepend(dock);
+    if (folds) {
+      for (const el of dock.querySelectorAll('details[data-persist-detail]'))
+        if (folds.has(el.dataset.persistDetail)) el.open = folds.get(el.dataset.persistDetail);
+      dock.scrollTop = previous.scrollTop;
+      entityPreviews.restoreFocusWithin(dock, focus);
+      entityPreviews.restoreWithin(dock, preview);
+    }
+  }
 }
 function render(preserve = false, navigationId = null) {
   if (!catalog || !state || composing) return;
@@ -3422,7 +3466,9 @@ function showOverlay(html, drawer = false, preserve = false, opener = null, reta
     drawerHistory.length = 0;
   }
   root.inert = true;
+  carryLiveChoice();
   overlay.innerHTML = `<div class="overlay-backdrop ${drawer ? 'drawer-backdrop' : ''}" data-backdrop="true">${html}</div>`;
+  dockLiveChoice(compact);
   if (
     compact &&
     ((drawer &&
@@ -3458,7 +3504,9 @@ function showOverlay(html, drawer = false, preserve = false, opener = null, reta
           'drawer-back',
         ),
       );
-  const focusable = overlay.querySelector('input,textarea,select,button');
+  const focusable = [
+    ...(overlay.querySelector('.drawer, .modal') || overlay).querySelectorAll('input,textarea,select,button'),
+  ].find((el) => !el.closest('.live-choice-dock'));
   ((focusedId && overlay.querySelector('#' + CSS.escape(focusedId))) || focusable)?.focus();
   if (preserve)
     for (const e of overlay.querySelectorAll('details'))
@@ -3568,6 +3616,7 @@ function closeOverlay() {
   comparisonState = null;
   currentDrawer = null;
   drawerHistory.length = 0;
+  carryLiveChoice();
   overlay.innerHTML = '';
   root.inert = false;
   drawerId = null;

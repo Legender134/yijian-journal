@@ -97,6 +97,7 @@ function renderFoldHarness(compact) {
   const context = {
     compact,
     root,
+    overlay: { querySelector: () => null },
     catalog: {},
     state: { settings: { savePath: 'synthetic-saves' } },
     profile: () => p,

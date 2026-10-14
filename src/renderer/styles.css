@@ -2176,6 +2176,35 @@ kbd {
   justify-content: flex-end;
   align-items: stretch;
 }
+.drawer > .live-choice-dock,
+.search-modal > .live-choice-dock {
+  flex: 0 0 auto;
+  width: 100%;
+  max-height: 46vh;
+  padding: 8px 12px 0;
+  background: var(--paper);
+}
+.modal:not(.search-modal) > .live-choice-dock {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  max-height: 46vh;
+  margin: 0 0 16px;
+  padding: 0;
+  background: var(--paper);
+}
+.modal .live-choice-dock .flow-recommended-action {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.6;
+  margin: 0;
+}
+.modal .live-choice-dock .flow-caution {
+  color: var(--orange);
+  font-size: 12px;
+  margin: 5px 0;
+}
 .drawer {
   width: min(500px, 88vw);
   background: var(--paper);

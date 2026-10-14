@@ -313,6 +313,8 @@ function backupPreviewSetup() {
       refreshOutside: noop,
     },
     root: { inert: false, querySelector: () => null },
+    carryLiveChoice: noop,
+    dockLiveChoice: noop,
     document: { activeElement: null, querySelector: () => null },
     window: { journal: { timelineRelease: async () => {} } },
     CSS: { escape: (value) => value },

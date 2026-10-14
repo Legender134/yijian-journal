@@ -398,6 +398,80 @@ const pulse = () =>
       'database overlay refresh preserves its reference focus',
     );
     assert.deepEqual(fs.readFileSync(saveFile), lastStock);
+    for (const [index, surface] of [win, small].entries()) {
+      if (await surface.locator('#overlay [data-action="close-overlay"]').count())
+        await surface.locator('#overlay [data-action="close-overlay"]').first().click();
+      current = null;
+      pulse();
+      await surface.locator('.live-choice-dock').waitFor({ state: 'detached' });
+      await surface.locator('[data-action="search"]').first().click();
+      const input = surface.locator('#global-search');
+      await input.fill('铁');
+      await input.pressSequentially('矿石');
+      await input.press('Control+z');
+      const undoValue = await input.inputValue();
+      await input.press('Control+y');
+      assert.equal(await input.inputValue(), '铁矿石');
+      const keptInput = await input.elementHandle();
+      current = packet({ sequence: 100 + index * 4 });
+      pulse();
+      const visibleDock = surface.locator('#overlay .live-choice-dock');
+      await visibleDock.waitFor({ state: 'visible' });
+      assert.equal(await keptInput.evaluate((el) => el.isConnected && document.activeElement === el), true);
+      assert.equal(await surface.locator('.live-choice-dock').count(), 1);
+      await input.press('Control+z');
+      assert.equal(await input.inputValue(), undoValue, 'live arrival retains the native search undo stack');
+      await input.press('Control+y');
+      const assertExposed = async () => {
+        assert.equal(
+          await visibleDock.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            return (
+              box.height > 40 &&
+              box.top >= 0 &&
+              box.bottom <= innerHeight + 1 &&
+              el.contains(document.elementFromPoint(box.left + box.width / 2, box.top + 20))
+            );
+          }),
+          true,
+          'the current choice is painted above the active reader',
+        );
+      };
+      await assertExposed();
+      await surface.locator('.search-result[data-id="item-10201"]').first().click();
+      await surface.locator('.drawer-body h1').waitFor();
+      await assertExposed();
+      assert.equal(await surface.locator('.live-choice-dock').count(), 1);
+      await surface.locator('#overlay [data-action="close-overlay"]').first().click();
+      await surface
+        .locator(index ? '.companion-tabs [data-id="world"]' : '.sidebar-nav [data-id="world"]')
+        .click();
+      if (await surface.locator('[data-action="world-kind"][data-id="places"]').count())
+        await surface.locator('[data-action="world-kind"][data-id="places"]').click();
+      await surface.locator('.place-map-pin[aria-label="查看梧桐村"]').click();
+      await surface.locator('.drawer .place-map-frame').waitFor();
+      current = null;
+      pulse();
+      await visibleDock.waitFor({ state: 'detached' });
+      const mapControl = surface.locator('.drawer [data-action="place-map-scope"]').first();
+      await mapControl.focus();
+      const keptMap = await mapControl.elementHandle();
+      current = packet({ sequence: 101 + index * 4 });
+      pulse();
+      await visibleDock.waitFor({ state: 'visible' });
+      assert.equal(await keptMap.evaluate((el) => el.isConnected && document.activeElement === el), true);
+      await assertExposed();
+      await surface.screenshot({
+        path: path.join(output, `live-choice-reader-${index}.png`),
+        animations: 'disabled',
+      });
+      current = null;
+      pulse();
+      await visibleDock.waitFor({ state: 'detached' });
+      await surface.locator('.drawer .place-map-frame').waitFor({ state: 'visible' });
+      await surface.locator('#overlay [data-action="close-overlay"]').first().click();
+    }
+    assert.deepEqual(fs.readFileSync(saveFile), lastStock);
     assert.deepEqual(errors, []);
     console.log(
       'Live guidance PASS: pre-save advice, both windows, other tab, close retirement, reopen and unmatched-dialogue isolation;',

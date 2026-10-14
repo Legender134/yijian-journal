@@ -303,6 +303,23 @@ for (const fresh of [true, false])
     );
     assert.equal(waiting.grantBinding, '');
     assert.equal(s.timeline.data.nativeProtocol, 0);
+    const next = path.join(s.root, '76561190000000001', 'SaveGames');
+    fs.mkdirSync(next, { recursive: true });
+    fs.writeFileSync(path.join(next, '1.sav'), 'Synthetic next-account progress');
+    s.timeline.configure(next, false, 10);
+    waiting.account = () => {
+      throw Error('Steam temporarily unavailable');
+    };
+    assert.throws(() => waiting.connect(next), /temporarily unavailable/);
+    assert.equal(waiting.guidanceSource, source);
+    waiting.account = () => '76561190000000001';
+    waiting.reconcileEnvironment();
+    assert.equal(waiting.guidanceSource, next, 'a failed source change retries the selected account');
+    assert.equal(waiting.grantBinding, '');
+    assert.equal(s.timeline.data.nativeProtocol, 0);
+    assert.equal(s.timeline.data.enabled, false);
+    assert.equal(fs.readFileSync(path.join(next, '1.sav'), 'utf8'), 'Synthetic next-account progress');
+    assert.equal(fs.existsSync(path.join(next, '29.sav')), false);
   });
 
 test('recognized old native components upgrade only after preserving verified original bytes in app data', (t) => {

@@ -777,8 +777,8 @@ class GameBridge {
       // Steam may become available after the journal starts. Retry only the
       // installed component's read-only grant; never create timeline consent.
       if (
-        !this.guidanceSource &&
         this.timeline.data.source &&
+        (!this.guidanceSource || !same(this.guidanceSource, this.timeline.data.source)) &&
         this.timeline.data.nativeProtocol !== PROTOCOL
       ) {
         try {
