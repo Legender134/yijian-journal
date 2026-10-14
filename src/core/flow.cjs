@@ -202,7 +202,9 @@ function createFlowProjector({
           mapName: metadata.mapName || '',
           ...(live ? { origin: 'live' } : {}),
         }
-      : null;
+      : live
+        ? { origin: 'live', mapName: metadata.mapName || '' }
+        : null;
     const step = (id) => records.get(id)?.step;
     function blocked(q, closedStates = [2, 3, 4]) {
       const seen = new Set();

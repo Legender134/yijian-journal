@@ -103,3 +103,94 @@ test('historical lookup suppresses live NPC and route projection; withdrawal ret
   assert.equal(withdrawn.stateOrigin, 'saved');
   assert(withdrawn.active.some((r) => r.gameId === 5020));
 });
+
+test('a live flow without any readable save preserves its cohort through actual namesake navigation', async () => {
+  const fs = require('node:fs'),
+    path = require('node:path'),
+    vm = require('node:vm');
+  const { encyclopedia } = require('../src/core/game-data.cjs');
+  const { createEntityReferences } = await import('../src/renderer/entity-references.js');
+  const { handbookContext } = require('../src/core/handbook-context.cjs');
+  const index = encyclopedia();
+  const references = createEntityReferences({
+    index: () => index,
+    esc: String,
+    picture: () => '',
+    icon: () => '',
+    qualityText: { html: (_e, value) => value },
+  });
+  const choices = references.choices('name:武当');
+  assert(choices.length > 1);
+  const place = index.world.maps.find((row) => row.id === choices[0].id);
+  const observed = {
+    ...observation(),
+    key: 'no-save-cohort',
+    world: 'World /Synthetic.' + place.key,
+    player: { ...observation().player, mapKey: place.key },
+  };
+  const flow = flowSnapshot(profile, null, '', { npcState: observed });
+  assert.equal(flow.available, true);
+  assert.equal(flow.reference.origin, 'live');
+  assert.equal(flow.reference.name, undefined);
+  const app = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const part = (start, end) => app.slice(app.indexOf(start), app.indexOf(end, app.indexOf(start)));
+  const ctx = {
+    currentDrawer: null,
+    drawerHistory: [],
+    referenceSave: null,
+    referenceSaveName: undefined,
+    referenceFollow: true,
+    detailRequest: 0,
+    handbookRequest: 0,
+    entityReferences: references,
+    defaultFollow: () => true,
+    defaultReference: () => '',
+    latestReference: () => '',
+    currentFlow: () => flow,
+    profile: () => profile,
+    act: () => '',
+    esc: String,
+    iconButton: () => '',
+    showOverlay() {},
+    rememberDrawer(view) {
+      ctx.currentDrawer = view;
+    },
+    worldView: {},
+    placeMapScopes: new Map(),
+    call: async () => assert.fail('there is no save to read'),
+    route: 'duels',
+    query: '',
+    databaseKind: '全部',
+    databaseType: '全部',
+    databasePage: 0,
+    recipeQuantity: () => 1,
+    handbookPresentation: () => null,
+    overlay: { querySelector: () => null },
+    restoreHandbookPresentation() {},
+    showWorldDetail: async (_id, _type, _replace, view) =>
+      (ctx.currentDrawer = { type: 'world-place', ...view }),
+  };
+  vm.createContext(ctx);
+  vm.runInContext(
+    [
+      part('async function showEntityChoice(', 'function captureDetailFolds('),
+      part('function handbookReadingContext(', 'async function receiveHandbookContext('),
+      part('async function openHandbookDetail(', 'function recipeDiscoveryPage('),
+      "this.choose=async(id,target)=>{switch('entity-choice'){" +
+        part("    case 'entity-choice':", "    case 'archive-entity': {") +
+        '}};',
+    ].join('\n'),
+    ctx,
+  );
+  await ctx.choose('name:武当', { closest: () => ({}) });
+  assert.equal(ctx.currentDrawer.liveContext, true);
+  assert.equal(ctx.currentDrawer.reference, flow.liveReference);
+  assert.match(references.choiceSummary(choices[0], choices, ctx.currentDrawer.reference), /当前地点/);
+  const wire = handbookContext(ctx.handbookReadingContext());
+  assert.equal(wire.reference.live, true);
+  await ctx.openHandbookDetail(wire);
+  assert.equal(ctx.currentDrawer.reference, flow.liveReference);
+  await ctx.openHandbookDetail({ ...wire, detail: { type: 'world-place', id: choices[0].id, quantity: 1 } });
+  assert.equal(ctx.currentDrawer.reference, flow.liveReference);
+  assert.equal(ctx.currentDrawer.liveContext, true);
+});
