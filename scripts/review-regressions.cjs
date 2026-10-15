@@ -906,7 +906,7 @@ async function referenceAndPolling() {
       await win.locator('.person-gifts > summary').click();
     await win.locator('.person-gifts').scrollIntoViewIfNeeded();
     const beforeGifts = await win.locator('.person-gifts').innerText();
-    assert.match(beforeGifts, /背包中暂无合适礼物/);
+    assert.match(beforeGifts, /背包中暂无符合条件的物品/);
     fs.writeFileSync(path.join(source, '1.sav'), save(6, 1, 3663));
     await win.waitForFunction(
       () => document.querySelector('.person-gifts')?.textContent.includes('麻布'),
