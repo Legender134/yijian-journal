@@ -6,7 +6,7 @@
 
 《逸剑风云决》的 Windows 随行助手。查任务下一步、看关键选择的影响、找值得比武和请教的人，把图鉴与存档放在伸手可及的小窗口里。
 
-[**下载 Windows 版**](https://github.com/Legender134/yijian-journal/releases/latest) · [**备用下载**](https://data.riftbuddy.dpdns.org/yijian-journal/YijianJournal-1.19.0-windows-x64.zip) · [一分钟认识手札](https://github.com/Legender134/yijian-journal/releases/download/v1.19.0/YijianJournal-1.19.0-introduction.mp4) · [使用说明](使用说明.txt)
+[**下载 Windows 版**](https://github.com/Legender134/yijian-journal/releases/latest) · [**备用下载**](https://data.riftbuddy.dpdns.org/yijian-journal/YijianJournal-1.19.0-windows-x64.zip) · [观看功能演示](https://github.com/Legender134/yijian-journal/releases/download/v1.19.0/YijianJournal-1.19.0-introduction.mp4) · [使用说明](使用说明.txt)
 
 ![逸剑手札：在游戏旁查看流程、比武请教、图鉴与存档](docs/screenshots/hero.webp)
 

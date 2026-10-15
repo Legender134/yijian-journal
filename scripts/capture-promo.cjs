@@ -170,11 +170,60 @@ async function openCapture(output) {
     },
     async point(selector, seconds = 0.65) {
       const element = page.locator(selector).first();
+      await session.reveal(selector);
       const box = await element.boundingBox();
       if (!box || box.y < 0 || box.y + box.height > 940)
         throw Error('Target outside recorded view: ' + selector);
-      await session.move(box.x + box.width / 2, box.y + box.height / 2, seconds);
+      const point = await element.evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        const y = rect.y + rect.height / 2;
+        if (el.tagName === 'SUMMARY') {
+          for (const offset of [rect.width - 12, 5, rect.width / 2]) {
+            const x = rect.x + offset;
+            const hit = document.elementFromPoint(x, y);
+            if (hit && el.contains(hit) && !hit.closest('button,a,input')) return { x, y };
+          }
+          throw Error('No unobstructed summary target');
+        }
+        return { x: rect.x + rect.width / 2, y };
+      });
+      await session.move(point.x, point.y, seconds);
       return box;
+    },
+    async reveal(selector) {
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const box = await page.locator(selector).first().boundingBox();
+        if (!box) throw Error('Recording target is not visible: ' + selector);
+        const reachable = await page
+          .locator(selector)
+          .first()
+          .evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            return [r.width - 12, 5, r.width / 2].some((offset) =>
+              el.contains(document.elementFromPoint(r.x + offset, r.y + r.height / 2)),
+            );
+          });
+        if (reachable && box.y >= 0 && box.y + box.height <= viewport.height) return;
+        await session.move(580, 650, 0.2);
+        await session.scroll(box.y < 95 ? box.y - 180 : box.y + box.height - 720, 0.7);
+      }
+      throw Error('Could not reveal recording target: ' + selector);
+    },
+    async read(selector, seconds = 2.5) {
+      const box = await page.locator(selector).first().boundingBox();
+      if (!box) throw Error('Missing reading target: ' + selector);
+      if (box.y > 220) {
+        await session.move(570, 650, 0.25);
+        await session.scroll(box.y - 180, 0.9);
+      }
+      const visible = await page.locator(selector).first().boundingBox();
+      events.push({
+        time: now(),
+        kind: 'read',
+        y: Math.min(650, visible.y + Math.min(visible.height, 350) / 2),
+      });
+      await session.move(600, 900, 0.3);
+      await session.hold(seconds);
     },
     async click(selector, pause = 0.25) {
       const box = await session.point(selector);
@@ -231,13 +280,42 @@ async function openCapture(output) {
 async function recordPart(session, part) {
   const { page } = session;
   session.mark(part + '-in');
-  if (part === 'flow') {
+  if (part === 'now') {
+    await session.hold(1.4);
+    await session.point('.flow-now h3 [data-action="flow-quest"]');
+    await session.hold(1);
+    await session.move(600, 700, 0.35);
+    await session.click('.flow-now-details > summary');
+    await session.hold(2.2);
+    await session.click('.flow-now-details > summary');
+  } else if (part === 'flow') {
     await session.hold(0.8);
     await session.click('.flow-risk-window > summary');
     await session.hold(3.2);
     await session.move(600, 900, 0.5);
-  } else if (part === 'material') {
+  } else if (part === 'advice') {
     await session.click('.flow-risk-window > summary');
+    await session.expand('[data-persist-detail="compact-stage"]');
+    await session.read('[data-persist-detail="compact-stage"]', 2.6);
+    await session.click('[data-persist-detail="compact-stage"] > summary');
+    await session.expand('[data-persist-detail="compact-opportunities"]');
+    await session.read('[data-persist-detail="compact-opportunities"]', 2.4);
+    await session.click('[data-persist-detail="compact-opportunities"] > summary');
+    await session.expand('[data-persist-detail="flow-compact-advice-early-wei-pig-return-0"]');
+    await session.read('[data-persist-detail="flow-compact-advice-early-wei-pig-return-0"]', 3);
+    await session.click('[data-persist-detail="flow-compact-advice-early-wei-pig-return-0"] > summary');
+  } else if (part === 'quest') {
+    await session.click('.flow-now h3 [data-action="flow-quest"]');
+    await page.locator('#overlay .drawer').waitFor();
+    await session.hold(1);
+    await session.expand('[data-persist-detail="quest-outcomes-11077"]');
+    session.mark('quest-rewards');
+    await session.move(600, 900, 0.5);
+    await session.hold(3.5);
+    await session.expand('[data-persist-detail="quest-steps-quest-11077"]');
+    await session.read('[data-persist-detail="quest-steps-quest-11077"]', 1.5);
+  } else if (part === 'material') {
+    await session.click('#overlay [data-action="close-overlay"]');
     await session.point('[data-entity-id="item-10262"]', 0.65);
     await page.locator('#entity-preview').waitFor({ state: 'visible' });
     await session.hold(1.5);
@@ -260,6 +338,34 @@ async function recordPart(session, part) {
     await session.click('.drawer [data-action="place-map-scope"]');
     await session.move(600, 900, 0.4);
     await session.hold(1.8);
+  } else if (part === 'catalog') {
+    await session.click('#overlay [data-action="close-overlay"]');
+    await session.click('.companion-tabs [data-id="database"]');
+    await session.type('#list-search', '寒铁指套');
+    await page.locator('[data-action="database-detail"][data-id="item-4014"]').waitFor();
+    await session.hold(1);
+    await session.click('[data-action="database-detail"][data-id="item-4014"]');
+    await page.locator('[data-item-statistics]').waitFor();
+    session.mark('catalog-values');
+    await session.move(600, 800, 0.4);
+    await session.hold(3.5);
+    await session.click('#overlay [data-action="database-detail"][data-id="fusion-4004"]');
+    await session.hold(3);
+  } else if (part === 'choice') {
+    await session.click('#overlay [data-action="close-overlay"]');
+    await session.click('.compact-title [data-action="search"]');
+    await session.type('#global-search', '同情心');
+    await page.locator('[data-action="world-quest"][data-id="quest-11297"]').waitFor();
+    await session.click('[data-action="world-quest"][data-id="quest-11297"]');
+    await session.click('[data-task-relations] > details:has(.entity-related-advice) > summary');
+    await session.expand('.entity-related-advice');
+    session.mark('choice-recommendation');
+    await session.read('.entity-related-advice', 4);
+    await session.click('.entity-related-advice > summary');
+    await session.expand('[data-persist-detail="quest-outcomes-11297"]');
+    await session.expand('#overlay .codex-outcomes details:has(> summary:text-is("选择「哄哄她」"))');
+    await session.expand('#overlay .codex-outcomes details:has(> summary:text-is("选择「吓唬她」"))');
+    await session.read('#overlay .codex-outcomes', 2.5);
   } else if (part === 'duels') {
     await session.click('#overlay [data-action="close-overlay"]');
     await session.click('.companion-tabs [data-id="duels"]');
@@ -304,6 +410,16 @@ async function recordPart(session, part) {
       await page.locator('[data-persist-detail="compact-backups"]').innerText(),
       /拜师前 · 留一份退路/,
     );
+  } else if (part === 'extras') {
+    await session.click('.companion-tabs [data-id="home"]');
+    await session.expand('[data-compact-detail="flow-personal"]');
+    await session.click('[data-compact-detail="flow-personal"] [data-id="materials"]');
+    await session.hold(2.5);
+    await session.expand('[data-persist-detail="compact-own-crafting"]');
+    await session.hold(2.2);
+    await session.click('[data-action="companion-layout"]');
+    await session.hold(2.5);
+    await session.click('#overlay [data-action="close-overlay"]');
   } else if (part === 'tuck') {
     await session.click('[data-action="companion-tuck"]');
     await page.locator('[data-action="companion-untuck"]').waitFor({ state: 'visible' });
@@ -312,7 +428,21 @@ async function recordPart(session, part) {
   session.mark(part + '-out');
 }
 
-const PARTS = ['flow', 'material', 'map', 'duels', 'learning', 'saves', 'tuck'];
+const PARTS = [
+  'now',
+  'flow',
+  'advice',
+  'quest',
+  'material',
+  'map',
+  'catalog',
+  'choice',
+  'duels',
+  'learning',
+  'saves',
+  'extras',
+  'tuck',
+];
 async function recordStory(output) {
   const session = await openCapture(output);
   try {
