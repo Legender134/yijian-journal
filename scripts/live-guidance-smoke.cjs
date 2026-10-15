@@ -99,8 +99,9 @@ const pulse = () =>
         }
         await surface.locator('#entity-preview').waitFor({ state: 'visible' });
         await surface.waitForFunction(
-          (node) => node.getAttribute('aria-describedby') === 'entity-preview',
-          await reference.elementHandle(),
+          () =>
+            document.querySelector('.duel-card [data-entity-id]')?.getAttribute('aria-describedby') ===
+            'entity-preview',
         );
         const name = await surface.locator('#entity-preview strong').first().innerText();
         const oldEntry = await reference.elementHandle();
@@ -108,8 +109,9 @@ const pulse = () =>
         pulse();
         await surface.waitForFunction((node) => !node.isConnected, oldEntry);
         await surface.waitForFunction(
-          (node) => node.getAttribute('aria-describedby') === 'entity-preview',
-          await reference.elementHandle(),
+          () =>
+            document.querySelector('.duel-card [data-entity-id]')?.getAttribute('aria-describedby') ===
+            'entity-preview',
         );
         await surface.locator('#entity-preview').waitFor({ state: 'visible' });
         assert.equal(
