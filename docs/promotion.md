@@ -1,6 +1,23 @@
 # 宣传素材制作
 
-宣传片从“下一步该做什么、推进后会错过什么”切入，以流程任务与关联图鉴为重点，再展示比武请教、存档和随行工具。约三分钟，1920 × 1080，30 fps；中文合成旁白、同步字幕与原创背景音乐配合实际软件操作。墨绿与纸色延续应用风格。
+目前保留两种影片：约三分钟的功能演示用于仔细了解操作；94 秒的宣传短片《江湖，由你走》用粒子、路线与关联线索介绍流程、图鉴、比武请教和存档。两者均为 1920 × 1080、30 fps，穿插真实软件录制；详细演示有中文合成旁白，宣传短片以字幕和音乐叙事。
+
+## 宣传短片：江湖，由你走
+
+分镜与字幕见 [trailer-script.json](trailer-script.json)。原创 Canvas 动画让剑、路线、图鉴和时间线发生变化，再接入实际随行界面。概念动画与示例进度用于介绍功能，不表示游戏已经触发某个任务，也不承诺覆盖所有剧情。
+
+先按下文采集一份完整操作记录，再使用已有的 Playwright 开发依赖、Windows Edge 和 FFmpeg 渲染。过程仅访问本机临时素材服务，既不启动游戏，也不读取个人存档。输出目录必须是新目录。
+
+```powershell
+node scripts/render-trailer.cjs --capture .test-data/promo-take --game <已获许可的游戏片段.mp4> --out .test-data/trailer-frames --preview
+node scripts/render-trailer.cjs --capture .test-data/promo-take --game <已获许可的游戏片段.mp4> --out .test-data/trailer-final --music <用于本片的本地音频.mp3>
+```
+
+第一条命令生成关键帧，第二条同时生成无配乐画面母版 `picture.mp4` 和成片 `trailer.mp4`。`--music-offset <起始秒数>` 可选择音频起点；省略 `--music` 则仅输出画面。程序按录制分段标记定位实录，并记录讲稿、画面源码、录制及音源哈希，避免混用不同版本的素材。字体使用系统微软雅黑与楷体，不随项目分发。
+
+风格研究参考[汤姆 CC 的 GitHub 成片](https://www.bilibili.com/video/BV1NxpR6WEZx/)与其[制作教程](https://www.bilibili.com/video/BV1uBpg6qEYM/)，并研究了 [vibe-knowledge-film](https://github.com/HeyChengC/vibe-knowledge-film) 的画面组织方法。实际镜头、文案和渲染代码独立制作，未复用参考片画面或参考项目代码。
+
+本片配乐为 **和乐府《千年之后（氛围版）》**，使用制作者提供的本地音频，正式曲目见 [QQ 音乐](https://y.qq.com/n/ryqq/songDetail/001GdVX40CBpdy)。没有从参考视频提取配乐。原始音源不加入代码仓库、安装包或更新服务器，音乐权利归原权利人，不属于本项目的 MIT 授权。
 
 ## 重建界面截图
 
@@ -20,7 +37,7 @@ node scripts/capture-promo.cjs .test-data/promo-take
 
 记录通过后才标记完成；中途错误会保留已采集的本地记录。视频渲染器不接受未完成的录制。既不替换界面文字，也不使用截图切换伪造操作结果。
 
-## 用代码生成视频
+## 用代码生成详细演示
 
 需要 Python 3.12+、Pillow、NumPy 和 FFmpeg。旁白制作另用 `edge-tts==7.3.1` 调用 Microsoft Edge 在线语音服务；该工具仅用于宣传素材制作，不进入应用依赖或安装包。公开讲稿见 [promo-script.json](promo-script.json)，每段音频附带句子时间戳。字体默认使用 Windows 自带的微软雅黑与楷体，也可用参数指定其他有权使用的字体文件。
 
@@ -40,4 +57,4 @@ python scripts/create-promo.py --capture .test-data/promo-take --narration .test
 
 README 只提交精选 WebP 截图。成片与封面随 GitHub Release 提供，不放入应用安装包；原始录像、测试状态、工作文件和制作记录保留在本机。共享更新服务器只保存最新版安装包与必要更新清单，不上传宣传素材。
 
-游戏画面、地图、角色和物品素材权利归原权利人，不属于项目 MIT 授权；字体仅用于渲染，不分发字体文件。影片中的程序配乐由本项目代码生成。
+游戏画面、地图、角色和物品素材权利归原权利人，不属于项目 MIT 授权；字体仅用于渲染，不分发字体文件。详细功能演示中的程序配乐由本项目代码生成，宣传短片的配乐署名见上文。
