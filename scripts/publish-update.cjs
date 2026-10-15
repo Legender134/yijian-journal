@@ -135,6 +135,19 @@ function signedFeed({ version, zip, notes, keyFile, verifiedArchive, config = ch
   return envelope;
 }
 
+function prepareUploadScript(uploadId) {
+  if (!/^[a-f0-9-]{36}$/.test(uploadId)) throw Error('Invalid upload identity');
+  return String.raw`import pathlib,fcntl
+root=pathlib.Path('/srv/yijian-journal')
+assert root.resolve()==root and root.is_dir(), 'Unexpected update directory'
+with (root/'.publish.lock').open('a') as lock:
+ fcntl.flock(lock,fcntl.LOCK_EX)
+ pending=sorted(p.name for p in root.iterdir() if p.name.startswith('.incoming-'))
+ assert not pending, 'Unfinished upload(s): '+', '.join(pending)+'. Complete active uploads or verify abandoned staging before removing it and retrying.'
+ (root/'.incoming-${uploadId}').mkdir(mode=0o700)
+`;
+}
+
 function activateScript(uploadId) {
   if (!/^[a-f0-9-]{36}$/.test(uploadId)) throw Error('Invalid upload identity');
   return String.raw`import pathlib,os,json,base64,hashlib,re,fcntl
@@ -149,6 +162,8 @@ incoming=root/'.incoming-${uploadId}'
 assert incoming.is_dir() and incoming.resolve()==incoming, 'Unexpected staging directory'
 with (root/'.publish.lock').open('a') as lock:
  fcntl.flock(lock,fcntl.LOCK_EX)
+ pending=sorted(p.name for p in root.iterdir() if p.name.startswith('.incoming-') and p.name!=incoming.name)
+ assert not pending, 'Unfinished upload(s): '+', '.join(pending)+'. Latest-only retention is incomplete; complete active uploads or verify abandoned staging before removing it and retrying.'
  envelope=json.loads((incoming/'latest.json').read_text())
  data=json.loads(base64.b64decode(envelope['payload'],validate=True))
  version=data['version']; assert re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)',version)
@@ -182,7 +197,7 @@ with (root/'.publish.lock').open('a') as lock:
  for old in obsolete:
   old.unlink();removed.append(old.name)
  incoming.rmdir()
- print(json.dumps({'version':version,'sha256':digest,'size':data['size'],'removed':removed,'retained':[filename,'latest.json','.publish.lock']}))
+ print(json.dumps({'version':version,'sha256':digest,'size':data['size'],'removed':removed,'retained':sorted(p.name for p in root.iterdir())}))
 `;
 }
 
@@ -242,7 +257,10 @@ function main(args) {
       throw Error(result.error?.message || result.stderr || `${command} failed`);
     return result.stdout;
   }
-  run('ssh', [...ssh, `mkdir -m 700 ${incoming}`]);
+  // Claim the project upload under the publication lock before sending bytes.
+  // Interrupted or concurrent uploads must be resolved, never silently ignored
+  // or removed merely because their names or timestamps resemble old staging.
+  run('ssh', [...ssh, 'python3 -'], prepareUploadScript(uploadId));
   try {
     run('scp', ['-F', ssh[1], zip, `${options['--host']}:${incoming}/package.zip`]);
     run('scp', ['-F', ssh[1], manifest, `${options['--host']}:${incoming}/latest.json`]);
@@ -266,4 +284,4 @@ if (require.main === module) {
     process.exitCode = 1;
   }
 }
-module.exports = { verifyReleaseZip, signedFeed, activateScript };
+module.exports = { verifyReleaseZip, signedFeed, prepareUploadScript, activateScript };

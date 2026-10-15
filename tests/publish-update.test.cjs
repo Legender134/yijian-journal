@@ -6,7 +6,12 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
-const { verifyReleaseZip, signedFeed, activateScript } = require('../scripts/publish-update.cjs');
+const {
+  verifyReleaseZip,
+  signedFeed,
+  prepareUploadScript,
+  activateScript,
+} = require('../scripts/publish-update.cjs');
 const { verifyManifest } = require('../src/core/app-updates.cjs');
 const channel = require('../src/data/update-channel.json');
 
@@ -50,15 +55,20 @@ function fixture(t) {
     fs.writeFileSync(path.join(root, 'latest.json'), manifest);
     return manifest;
   }
-  function activate(upload, prefix = '') {
-    const script = activateScript(upload.uploadId);
+  function runScript(script, prefix = '') {
     assert.equal(script.split("'/srv/yijian-journal'").length, 2);
     return spawnSync('python3', ['-'], {
       input: prefix + script.replace("'/srv/yijian-journal'", JSON.stringify(root)),
       encoding: 'utf8',
     });
   }
-  return { dir, root, keyFile, feed, stage, current, activate };
+  function activate(upload, prefix = '') {
+    return runScript(activateScript(upload.uploadId), prefix);
+  }
+  function prepare(uploadId) {
+    return runScript(prepareUploadScript(uploadId));
+  }
+  return { dir, root, keyFile, feed, stage, current, activate, prepare };
 }
 function packageName(version) {
   return `YijianJournal-${version}-windows-x64.zip`;
@@ -259,19 +269,78 @@ test('release signing rejects a foreign signer, unsupported key and invalid rele
 });
 
 test('activation script accepts only a bounded upload identity and Python 3.9 syntax', posixOnly, () => {
-  for (const uploadId of ['../outside', "a'.replace()", 'a'.repeat(37)])
+  for (const uploadId of ['../outside', "a'.replace()", 'a'.repeat(37)]) {
     assert.throws(() => activateScript(uploadId), /upload identity/);
+    assert.throws(() => prepareUploadScript(uploadId), /upload identity/);
+  }
   const result = spawnSync(
     'python3',
     ['-c', 'import ast,sys;ast.parse(sys.stdin.read(),feature_version=(3,9))'],
     {
-      input: activateScript(crypto.randomUUID()),
+      input: prepareUploadScript(crypto.randomUUID()) + '\n' + activateScript(crypto.randomUUID()),
       encoding: 'utf8',
     },
   );
   assert.ifError(result.error);
   assert.equal(result.status, 0, result.stderr);
 });
+
+test('publication claims only one upload and stops before sending another archive', posixOnly, (t) => {
+  const { root, current, prepare } = fixture(t);
+  const previous = current('1.19.0');
+  const firstId = crypto.randomUUID();
+  const first = path.join(root, '.incoming-' + firstId);
+  const started = prepare(firstId);
+  assert.equal(started.status, 0, started.stderr);
+  assert.deepEqual(fs.readdirSync(first), []);
+  assert.equal(fs.statSync(first).mode & 0o777, 0o700);
+  const secondId = crypto.randomUUID();
+  failure(prepare(secondId), /Unfinished upload\(s\)/);
+  assert.equal(fs.existsSync(path.join(root, '.incoming-' + secondId)), false);
+  assert.equal(fs.readFileSync(path.join(root, 'latest.json'), 'utf8'), previous);
+  assert.deepEqual(fs.readdirSync(first), []);
+});
+
+test(
+  'interrupted or active staging blocks activation without changing releases or deleting uploads',
+  posixOnly,
+  (t) => {
+    for (const kind of ['abandoned', 'active', 'linked']) {
+      const { dir, root, current, stage, activate, prepare } = fixture(t);
+      const previous = current('1.19.0');
+      const oldIncoming = path.join(root, '.incoming-' + crypto.randomUUID());
+      const preserved = kind === 'linked' ? path.join(dir, 'unrelated') : oldIncoming;
+      fs.mkdirSync(preserved);
+      fs.writeFileSync(path.join(preserved, 'package.zip'), 'preserve pending or unrelated bytes');
+      if (kind === 'linked') fs.symlinkSync(preserved, oldIncoming, 'dir');
+      if (kind === 'abandoned') fs.utimesSync(oldIncoming, 1, 1);
+      failure(prepare(crypto.randomUUID()), /Unfinished upload\(s\)/);
+      const upload = stage('1.20.0');
+      const blocked = activate(upload);
+      failure(blocked, /Latest-only retention is incomplete/);
+      assert.equal(blocked.stdout, '', 'an incomplete publication does not claim a retained set');
+      assert.equal(fs.readFileSync(path.join(root, 'latest.json'), 'utf8'), previous);
+      assert.deepEqual(fs.readFileSync(path.join(root, packageName('1.19.0'))), archive);
+      assert.equal(fs.existsSync(path.join(root, packageName('1.20.0'))), false);
+      assert.equal(
+        fs.readFileSync(path.join(preserved, 'package.zip'), 'utf8'),
+        'preserve pending or unrelated bytes',
+      );
+      assert.deepEqual(fs.readFileSync(path.join(upload.incoming, 'package.zip')), archive);
+      // Simulate the operator resolving this exact, known synthetic upload.
+      if (kind === 'linked') fs.unlinkSync(oldIncoming);
+      else fs.rmSync(oldIncoming, { recursive: true });
+      const published = success(activate(upload));
+      assert.deepEqual(published.retained, fs.readdirSync(root).sort());
+      assert.deepEqual(published.retained, ['.publish.lock', packageName('1.20.0'), 'latest.json'].sort());
+      if (kind === 'linked')
+        assert.equal(
+          fs.readFileSync(path.join(preserved, 'package.zip'), 'utf8'),
+          'preserve pending or unrelated bytes',
+        );
+    }
+  },
+);
 
 test(
   'a first release publishes a complete manifest and archive with public read permissions',
@@ -311,9 +380,6 @@ test(
       'YijianJournal-1.18.0-linux-x64.zip',
     ];
     for (const name of preserved) fs.writeFileSync(path.join(root, name), 'preserve this file');
-    const otherUpload = path.join(root, `.incoming-${crypto.randomUUID()}`);
-    fs.mkdirSync(otherUpload);
-    fs.writeFileSync(path.join(otherUpload, 'package.zip'), 'another publisher');
     const upload = stage('1.20.0');
     const result = success(activate(upload));
     assert.deepEqual(result.removed.sort(), [packageName('1.9.0'), packageName('1.18.0')].sort());
@@ -322,7 +388,11 @@ test(
     assert.equal(fs.existsSync(upload.incoming), false);
     for (const name of preserved)
       assert.equal(fs.readFileSync(path.join(root, name), 'utf8'), 'preserve this file');
-    assert.equal(fs.readFileSync(path.join(otherUpload, 'package.zip'), 'utf8'), 'another publisher');
+    assert.deepEqual(
+      result.retained,
+      fs.readdirSync(root).sort(),
+      'receipt includes preserved unrelated entries',
+    );
   },
 );
 
