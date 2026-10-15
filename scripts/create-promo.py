@@ -149,14 +149,30 @@ def main():
         cursor += duration
     DURATION = quantize(cursor + OUTRO)
     speech = [dict(**voices['intro'], start=.25), *speech, dict(**voices['outro'], start=cursor + .25)]
+
+    def mapped(scene, source_time):
+        return scene['start'] + (source_time - scene['source_start']) / (scene['source_end'] - scene['source_start']) * (scene['end'] - scene['start'])
+
     captions = []
     for voice in speech:
+        voice['segments'] = [dict(offset=0, end=voice['duration'], start=voice['start'])]
+        if voice['id'] == 'advice':
+            scene = next(row for row in scenes if row['kind'] == 'advice')
+            opening = next(event for event in capture['events'] if event['kind'] == 'click' and event['selector'] == '[data-persist-detail="flow-compact-advice-early-wei-pig-return-0"] > summary' and scene['source_start'] <= event['time'] <= scene['source_end'])
+            cut = voice['boundaries'][1]['offset'] / 10_000_000
+            start = mapped(scene, opening['time']) + .08
+            if start + voice['duration'] - cut > scene['end'] - .08:
+                raise RuntimeError('The route explanation needs more reading time')
+            voice['segments'] = [dict(offset=0, end=cut, start=voice['start']), dict(offset=cut, end=voice['duration'], start=start)]
         boundaries = voice['boundaries']
         for i, boundary in enumerate(boundaries):
-            start = voice['start'] + boundary['offset'] / 10_000_000
-            end = voice['start'] + (boundary['offset'] + boundary['duration']) / 10_000_000
+            offset = boundary['offset'] / 10_000_000
+            segment = next(row for row in voice['segments'] if row['offset'] <= offset < row['end'])
+            end_offset = min(segment['end'], (boundary['offset'] + boundary['duration']) / 10_000_000)
             if i + 1 < len(boundaries):
-                end = min(end, voice['start'] + boundaries[i + 1]['offset'] / 10_000_000)
+                end_offset = min(end_offset, boundaries[i + 1]['offset'] / 10_000_000)
+            start = segment['start'] + offset - segment['offset']
+            end = segment['start'] + end_offset - segment['offset']
             captions.append(dict(start=start, end=end, text=boundary['text']))
     args.out.mkdir(parents=True)
     frames, events = capture["frames"], capture["events"]
@@ -165,9 +181,6 @@ def main():
     move_times = [row["time"] for row in movements]
     clicks = [row for row in events if row["kind"] == "click"]
     mapped_clicks, click_rows, complete_at = [], [], DURATION - OUTRO - 4
-    def mapped(scene, source_time):
-        return scene['start'] + (source_time - scene['source_start']) / (scene['source_end'] - scene['source_start']) * (scene['end'] - scene['start'])
-
     camera_rows = [(0, WIDE), (INTRO, WIDE)]
     for scene in scenes:
         base = WIDE if scene['kind'] == 'tuck' else READING
@@ -305,16 +318,20 @@ def main():
     @lru_cache(64)
     def caption_image(value):
         f = font(34)
-        lines, line = [], ''
-        for character in value:
-            if f.getlength(line + character) > 1350:
-                lines.append(line)
-                line = ''
-            line += character
-        if line:
-            lines.append(line)
-        if len(lines) > 2:
-            raise RuntimeError('Subtitle sentence is too long')
+        lines = [value]
+        if f.getlength(value) > 1350:
+            candidates = []
+            for i in range(1, len(value)):
+                left, right = value[:i], value[i:]
+                if right[0] in '，。；：！？、）》」』' or left[-1] in '（《「『':
+                    continue
+                a, b = f.getlength(left), f.getlength(right)
+                if max(a, b) <= 1350:
+                    score = abs(a - b) + (0 if left[-1] in '，；。！？' else 200)
+                    candidates.append((score, left, right))
+            if not candidates:
+                raise RuntimeError('Subtitle sentence is too long')
+            _, *lines = min(candidates)
         width = math.ceil(max(f.getlength(line) for line in lines)) + 64
         height = len(lines) * 43 + 24
         layer = Image.new("RGBA", (width, height))
@@ -405,12 +422,18 @@ def main():
     for voice in speech:
         raw = subprocess.check_output([ffmpeg, '-v', 'error', '-i', str(args.narration / voice['audio']), '-af', 'loudnorm=I=-18:TP=-2:LRA=7', '-ar', str(rate), '-ac', '1', '-f', 'f32le', 'pipe:1'], creationflags=0x08000000 if os.name == 'nt' else 0)
         samples = np.frombuffer(raw, dtype='<f4')
-        start = round(voice['start'] * rate)
-        if start + len(samples) > len(narration_samples):
-            raise RuntimeError('Narration exceeds the scene timeline')
-        narration_samples[start:start + len(samples)] += samples[:, None] * .85
-        envelope = np.minimum(np.clip((timeline - voice['start'] + .18) / .18, 0, 1), np.clip((voice['start'] + len(samples) / rate + .55 - timeline) / .55, 0, 1))
-        duck = np.minimum(duck, .8 - .55 * envelope)
+        for segment in voice['segments']:
+            part = samples[round(segment['offset'] * rate):round(segment['end'] * rate)].copy()
+            if len(voice['segments']) > 1:
+                fade = min(round(.005 * rate), len(part) // 2)
+                part[:fade] *= np.linspace(0, 1, fade)
+                part[-fade:] *= np.linspace(1, 0, fade)
+            start = round(segment['start'] * rate)
+            if start + len(part) > len(narration_samples):
+                raise RuntimeError('Narration exceeds the scene timeline')
+            narration_samples[start:start + len(part)] += part[:, None] * .85
+            envelope = np.minimum(np.clip((timeline - segment['start'] + .18) / .18, 0, 1), np.clip((segment['start'] + len(part) / rate + .55 - timeline) / .55, 0, 1))
+            duck = np.minimum(duck, .8 - .55 * envelope)
     mix = narration_samples + music_samples * duck[:, None]
     mixed = args.out / 'mix.wav'
     with wave.open(str(mixed), 'wb') as wav:
