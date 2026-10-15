@@ -106,6 +106,7 @@ const shot = async (name) => {
     await nav('world');
     await selectProgress(win, '1.sav');
     await win.locator('#world-search').fill('武当求助');
+    assert.match(await win.locator('.world-quest-card[data-id="quest-5200"]').innerText(), /进行中的步骤/);
     await win.locator('[data-action="world-quest"][data-id="quest-5200"]').click();
     assert.ok((await win.locator('.world-drawer .tag-row').innerText()).includes('进行中'));
     assert.equal(
@@ -123,11 +124,16 @@ const shot = async (name) => {
     await close();
     await selectProgress(win, '2.sav');
     await win.locator('#world-status').selectOption('active');
-    await win.locator('.world-quest-card').filter({ hasText: '已完成' }).waitFor();
-    assert.ok((await win.locator('.world-quest-card').innerText()).includes('进行中的步骤'));
+    await win.locator('.world-quest-card[data-id="quest-5200"]').waitFor({ state: 'detached' });
+    assert.equal(await win.locator('.world-quest-card').count(), 0);
+    await win.locator('#world-status').selectOption('completed');
+    const completedRoot = win.locator('.world-quest-card[data-id="quest-5200"]');
+    await completedRoot.waitFor();
+    assert.match(await completedRoot.innerText(), /已完成/);
+    assert.doesNotMatch(await completedRoot.innerText(), /进行中的步骤/);
     await shot('13-world');
     report.checks.push(
-      'root/child status, spoiler disclosure, link-back, goal reference, active child under completed parent',
+      'root/child status, spoiler disclosure, link-back, goal reference; completed parent retires stale child guidance while remaining in completed history',
     );
     await win.locator('#world-status').selectOption('all');
     await win.locator('#world-scope').selectOption('all');
