@@ -28,6 +28,7 @@ async function selectProgress(page, value, { reopen = true } = {}) {
         return field ? [{ id, value: field.value, select: field.tagName === 'SELECT' }] : [];
       }),
       id,
+      giftsOpen: document.querySelector('.person-gifts')?.open === true,
       quantity: recipe?.value,
       giftPage: Math.max(0, Number(pagination?.match(/第\s*(\d+)\s*\//)?.[1] || 1) - 1),
     };
@@ -66,6 +67,10 @@ async function selectProgress(page, value, { reopen = true } = {}) {
     await page.locator(`.search-result[data-id="${reading.id}"]`).click();
     await page.locator('.drawer h1').waitFor();
     if (reading.quantity !== undefined) await page.locator('#recipe-quantity').fill(reading.quantity);
+    if (reading.giftsOpen || reading.giftPage > 0) {
+      if (await page.locator('.person-gifts:not([open])').count())
+        await page.locator('.person-gifts > summary').click();
+    }
     for (let index = 1; index <= reading.giftPage; index++) {
       const next = page.locator(`.person-gifts [data-action="gift-page"][data-id="${index}"]`);
       if (await next.count()) await next.click();

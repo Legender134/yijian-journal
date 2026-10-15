@@ -32,6 +32,96 @@ const factory = (createEntityReferences, index) =>
     icon: esc,
     qualityText: { html: (_, text) => text },
   });
+
+test('NPC previews use their exact saved or live cohort across catalogue, flow and detail contexts', async () => {
+  const [, { createEntityReferences }] = await loaded;
+  const { enrich } = require('../src/core/game-data.cjs');
+  const { readMetadata } = require('../src/core/save-reader.cjs');
+  const { syntheticSave } = require('./fixtures.cjs');
+  const index = encyclopedia(),
+    references = factory(createEntityReferences, index);
+  const makeReference = (name, hash, inventory) => ({
+    name,
+    hash,
+    metadata: enrich(
+      readMetadata(
+        syntheticSave({
+          full: true,
+          quests: [],
+          map: 'LV_25_P',
+          npcs: [
+            { id: 0, attributes: { 44: 100 } },
+            { id: 10038, attributes: { 5: 15 }, inventory, friendliness: [[0, 70]], map: 'LV_25_P' },
+          ],
+        }),
+        { details: true },
+      ),
+    ),
+  });
+  const empty = makeReference('1.sav', 'a'.repeat(64), []);
+  const remaining = makeReference('2.sav', 'b'.repeat(64), [{ id: 100034, count: 2 }]);
+  const before = JSON.stringify({ empty, remaining });
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const at = source.indexOf('  context: async (target) => {', source.indexOf('const entityPreviews'));
+  const end = source.indexOf('\n  },\n});', at);
+  const state = {
+    currentDrawer: null,
+    referenceSave: empty,
+    referenceSaveName: empty.name,
+    referenceFollow: false,
+    worldView: { reference: empty },
+    route: 'database',
+    defaultFollow: () => false,
+    defaultReference: () => empty.name,
+    currentFlow: () => ({ reference: empty, active: [] }),
+    entityPreviewReference: null,
+    environment: { saves: { files: [empty, remaining] } },
+    call: async (_method, name) => (name === empty.name ? empty : remaining),
+  };
+  const context = require('node:vm').runInNewContext(
+    source.slice(
+      source.indexOf('function followsLiveWorld()'),
+      source.indexOf('async function showWorldDetail('),
+    ) +
+      '\n(' +
+      source.slice(at + '  context: '.length, end + 4) +
+      ')',
+    state,
+  );
+  const target = { dataset: { action: 'database-detail', id: 'npc-10038' }, closest: () => null };
+  const preview = async () => references.preview('npc-10038', await context(target));
+  for (const drawer of [
+    null,
+    { type: 'save', data: empty },
+    { type: 'entity-choice', reference: empty },
+    { type: 'database' },
+    { type: 'world-quest' },
+  ]) {
+    state.currentDrawer = drawer;
+    assert.match(await preview(), /私物已清空/);
+    assert.doesNotMatch(await preview(), /固定私物/);
+  }
+  state.currentDrawer = null;
+  target.closest = () => true;
+  assert.match(await preview(), /私物已清空/, 'flow previews use the exact verified saved hash');
+  target.closest = () => null;
+  state.defaultFollow = () => true;
+  state.referenceFollow = true;
+  state.defaultReference = () => remaining.name;
+  state.currentFlow = () => ({ reference: remaining, liveReference: null });
+  assert.match(await preview(), /私物还剩 1 种/, 'after live withdrawal the latest saved bag is used');
+  state.currentFlow = () => ({
+    liveReference: { origin: 'live', metadata: {} },
+    duels: { progress: empty.metadata.npcProgress },
+  });
+  assert.match(await preview(), /私物已清空/, 'an explicit live cohort takes priority over saved state');
+  state.defaultFollow = () => false;
+  state.referenceFollow = false;
+  state.defaultReference = () => '';
+  assert.doesNotMatch(await preview(), /私物已清空|私物还剩/, 'lookup-only mode cannot borrow either cohort');
+  assert.match(await preview(), /固定私物/);
+  assert.equal(JSON.stringify({ empty, remaining }), before);
+});
 const fixture = () => ({
   entries: [
     { id: 'npc-1', gameId: 1, name: '郎中-孙老', kind: '人物', hobbies: ['茶具'] },
@@ -551,3 +641,440 @@ test('static archive buttons retain canonical artwork, identity and item quality
   assert.match(html, /data-quality-id="item-100"/);
   assert.match(html, /entity-link-label/);
 });
+
+function previewEvents(context = async () => ({})) {
+  const vm = require('node:vm');
+  const listeners = new Map(),
+    timers = new Map(),
+    nodes = [];
+  let now = 0,
+    nextTimer = 0,
+    observe,
+    afterReplace,
+    nextScope;
+  const folds = { scope: 'synthetic' };
+  const element = (parent = null) => {
+    const node = {
+      parent,
+      get parentElement() {
+        return this.parent;
+      },
+      dataset: {},
+      style: {},
+      attributes: new Map(),
+      isConnected: true,
+      hovered: false,
+      inert: false,
+      hidden: true,
+      setAttribute(name, value) {
+        this.attributes.set(name, value);
+      },
+      getAttribute(name) {
+        return this.attributes.get(name) ?? null;
+      },
+      removeAttribute(name) {
+        this.attributes.delete(name);
+      },
+      focus() {
+        document.activeElement = this;
+      },
+      contains(node) {
+        for (; node; node = node.parent) if (node === this) return true;
+        return false;
+      },
+      closest(selector) {
+        for (let node = this; node; node = node.parent) {
+          if (selector === '[inert]' ? node.inert : node.dataset.entityId) return node;
+        }
+        return null;
+      },
+      matches() {
+        return this.hovered;
+      },
+      getBoundingClientRect() {
+        return { left: 20, top: 20, bottom: 40, width: 100, height: 80 };
+      },
+    };
+    nodes.push(node);
+    return node;
+  };
+  const body = element(),
+    root = element(body),
+    overlay = element(body),
+    panel = element(body);
+  body.append = () => {};
+  root.querySelector = () => null;
+  root.querySelectorAll = (selector) =>
+    selector.includes('data-entity-id')
+      ? nodes.filter(
+          (node) => node.isConnected && node !== root && root.contains(node) && node.dataset.entityId,
+        )
+      : [];
+  Object.defineProperty(root, 'innerHTML', {
+    set() {
+      for (const node of nodes) if (node !== root && root.contains(node)) node.isConnected = false;
+      if (root.contains(document.activeElement)) document.activeElement = body;
+      afterReplace?.();
+    },
+  });
+  const eventTarget = (surface) => ({
+    addEventListener(type, listener) {
+      const key = surface + ':' + type;
+      listeners.set(key, [...(listeners.get(key) || []), listener]);
+    },
+  });
+  const document = {
+    ...eventTarget('document'),
+    body,
+    activeElement: body,
+    documentElement: { clientWidth: 500 },
+    createElement: () => panel,
+  };
+  const window = { ...eventTarget('window'), innerHeight: 500 };
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/entity-references.js'), 'utf8');
+  const install = vm.runInNewContext(
+    '(' + source.slice(source.indexOf('export function installEntityPreviews')).replace('export ', '') + ')',
+    {
+      setTimeout(callback, delay) {
+        const id = ++nextTimer;
+        timers.set(id, { callback, at: now + delay });
+        return id;
+      },
+      clearTimeout: (id) => timers.delete(id),
+      MutationObserver: class {
+        constructor(callback) {
+          observe = callback;
+        }
+        observe() {}
+      },
+    },
+  );
+  const previews = install({
+    document,
+    window,
+    references: { preview: (id, details) => id + (details?.label ? ' ' + details.label : '') },
+    context,
+  });
+  const appSource = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const renderStart = appSource.indexOf('function render(');
+  const render = vm.runInNewContext(
+    '(' + appSource.slice(renderStart, appSource.indexOf('\nfunction intentDraftBanner', renderStart)) + ')',
+    {
+      catalog: {},
+      state: {},
+      composing: false,
+      compact: true,
+      handbookSuspended: false,
+      companionMode: 'expanded',
+      document,
+      root,
+      entityPreviews: previews,
+      currentFlow: () => ({ decisions: [] }),
+      dockLiveChoice: () => {},
+      captureIntentDrafts() {},
+      profile: () => ({ id: 'synthetic' }),
+      captureDetailFolds: () => {
+        if (nextScope) folds.scope = nextScope;
+        return new Map();
+      },
+      detailFolds: folds,
+      companionMaterialFolds: { profileId: null, values: new Map() },
+      compactPage: () => '',
+      availableIntentDrafts: () => [],
+      route: 'home',
+      syncItineraryIntentEditors() {},
+    },
+  );
+  return {
+    document,
+    window,
+    root,
+    overlay,
+    panel,
+    previews,
+    redraw(replace = null, scope = null) {
+      afterReplace = replace;
+      nextScope = scope;
+      render(true);
+      afterReplace = nextScope = null;
+      observe();
+    },
+    entry(parent = overlay) {
+      const node = element(parent);
+      node.dataset.entityId = 'npc-1';
+      return node;
+    },
+    container(parent, attributes) {
+      const node = element(parent);
+      for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+      return node;
+    },
+    emit(type, target, extra = {}, surface = 'document') {
+      const event = {
+        target,
+        relatedTarget: null,
+        preventDefault() {},
+        stopImmediatePropagation() {},
+        ...extra,
+      };
+      for (const listener of listeners.get(surface + ':' + type) || []) listener(event);
+    },
+    async tick(duration) {
+      const end = now + duration;
+      while (true) {
+        const ready = [...timers].filter(([, timer]) => timer.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+        if (!ready) break;
+        const [id, timer] = ready;
+        timers.delete(id);
+        now = timer.at;
+        timer.callback();
+        await Promise.resolve();
+      }
+      now = end;
+      await Promise.resolve();
+    },
+    changed: () => observe(),
+  };
+}
+
+for (const intent of ['focus', 'hover']) {
+  test(`background redraw preserves a ${intent} preview outside the replaced surface`, async () => {
+    const ui = previewEvents(),
+      entry = ui.entry();
+    if (intent === 'focus') ui.document.activeElement = entry;
+    else entry.hovered = true;
+    ui.emit(intent === 'focus' ? 'focusin' : 'pointerover', entry);
+    await ui.tick(240);
+    assert.equal(ui.panel.hidden, false);
+    assert.equal(entry.getAttribute('aria-describedby'), 'entity-preview');
+    ui.redraw();
+    assert.equal(ui.panel.hidden, false);
+    assert.equal(entry.getAttribute('aria-describedby'), 'entity-preview');
+    assert.equal(entry.isConnected, true);
+  });
+
+  test(`background redraw dismisses a ${intent} preview whose entry is no longer present`, async () => {
+    const ui = previewEvents(),
+      entry = ui.entry(ui.root);
+    if (intent === 'focus') ui.document.activeElement = entry;
+    else entry.hovered = true;
+    ui.emit(intent === 'focus' ? 'focusin' : 'pointerover', entry);
+    await ui.tick(240);
+    assert.equal(ui.panel.hidden, false);
+    ui.redraw();
+    assert.equal(entry.isConnected, false);
+    assert.equal(ui.panel.hidden, true);
+    assert.equal(entry.getAttribute('aria-describedby'), null);
+  });
+
+  test(`background redraw rebinds a ${intent} body preview and resolves fresh context`, async () => {
+    let label = 'old',
+      calls = 0;
+    const ui = previewEvents(async () => {
+        calls++;
+        return { label };
+      }),
+      entry = ui.entry(ui.root);
+    if (intent === 'focus') ui.document.activeElement = entry;
+    else entry.hovered = true;
+    ui.emit(intent === 'focus' ? 'focusin' : 'pointerover', entry);
+    await ui.tick(240);
+    assert.equal(ui.panel.innerHTML, 'npc-1 old');
+    label = 'fresh';
+    let replacement;
+    ui.redraw(() => {
+      replacement = ui.entry(ui.root);
+      replacement.hovered = intent === 'hover';
+    });
+    await ui.tick(0);
+    assert.equal(entry.isConnected, false);
+    assert.equal(ui.panel.hidden, false);
+    assert.equal(ui.panel.innerHTML, 'npc-1 fresh');
+    assert.equal(replacement.getAttribute('aria-describedby'), 'entity-preview');
+    assert.equal(entry.getAttribute('aria-describedby'), null);
+    assert.equal(calls, 2);
+    if (intent === 'focus') assert.equal(ui.document.activeElement, replacement);
+  });
+}
+
+for (const invalidation of ['pointer moved', 'different entity', 'different quality', 'different context']) {
+  test(`body preview stays closed after ${invalidation}`, async () => {
+    const ui = previewEvents(),
+      entry = ui.entry(ui.root);
+    entry.hovered = true;
+    ui.emit('pointerover', entry);
+    await ui.tick(240);
+    ui.redraw(
+      () => {
+        const replacement = ui.entry(ui.root);
+        replacement.hovered = invalidation !== 'pointer moved';
+        if (invalidation === 'different entity') replacement.dataset.entityId = 'npc-2';
+        if (invalidation === 'different quality') replacement.dataset.qualityId = 'item-2';
+      },
+      invalidation === 'different context' ? 'another-profile' : null,
+    );
+    await ui.tick(0);
+    assert.equal(ui.panel.hidden, true);
+  });
+}
+
+test('a pending body preview discards its old context after rebinding', async () => {
+  const replies = [];
+  const ui = previewEvents(() => new Promise((resolve) => replies.push(resolve)));
+  const entry = ui.entry(ui.root);
+  entry.hovered = true;
+  ui.emit('pointerover', entry);
+  await ui.tick(240);
+  ui.redraw(() => {
+    ui.entry(ui.root).hovered = true;
+  });
+  await ui.tick(0);
+  assert.equal(replies.length, 2);
+  replies[0]({ label: 'stale' });
+  await ui.tick(0);
+  assert.equal(ui.panel.hidden, true);
+  replies[1]({ label: 'current' });
+  await ui.tick(0);
+  assert.equal(ui.panel.hidden, false);
+  assert.equal(ui.panel.innerHTML, 'npc-1 current');
+});
+
+test('a new dock copy cannot take the focus or preview of an offline guide reference', async () => {
+  const ui = previewEvents();
+  const entry = ui.entry(ui.container(ui.root, { 'data-flow-rule': 'woodcutter' }));
+  ui.document.activeElement = entry;
+  ui.emit('focusin', entry);
+  await ui.tick(0);
+  let dock, body;
+  ui.redraw(() => {
+    dock = ui.entry(ui.container(ui.root, { 'data-flow-decision': 'woodcutter' }));
+    body = ui.entry(ui.container(ui.root, { 'data-flow-rule': 'woodcutter' }));
+  });
+  await ui.tick(0);
+  assert.equal(ui.document.activeElement, body);
+  assert.equal(body.getAttribute('aria-describedby'), 'entity-preview');
+  assert.equal(dock.getAttribute('aria-describedby'), null);
+});
+
+for (const fixed of [false, true]) {
+  test(`${fixed ? 'fixed' : 'following'} connected overlay preview rechecks its effective reference in place`, async () => {
+    let latest = '5',
+      calls = 0;
+    const ui = previewEvents(async () => {
+      calls++;
+      return { label: fixed ? 'snapshot-5' : latest };
+    });
+    const entry = ui.entry();
+    ui.document.activeElement = entry;
+    ui.emit('focusin', entry);
+    await ui.tick(0);
+    latest = '9';
+    ui.redraw();
+    ui.previews.refreshOutside(ui.root);
+    assert.equal(ui.panel.hidden, false, 'refresh does not hide the connected popup while reading');
+    await ui.tick(0);
+    assert.equal(ui.panel.innerHTML, fixed ? 'npc-1 snapshot-5' : 'npc-1 9');
+    assert.equal(ui.document.activeElement, entry);
+    assert.equal(entry.isConnected, true);
+    assert.equal(calls, 2);
+  });
+}
+
+test('late old overlay context cannot overwrite a more recent refresh', async () => {
+  const replies = [];
+  const ui = previewEvents(() => new Promise((resolve) => replies.push(resolve)));
+  const entry = ui.entry();
+  entry.hovered = true;
+  ui.emit('pointerover', entry);
+  await ui.tick(240);
+  ui.previews.refreshOutside(ui.root);
+  await ui.tick(0);
+  replies[1]({ label: 'new' });
+  await ui.tick(0);
+  replies[0]({ label: 'old' });
+  await ui.tick(0);
+  assert.equal(ui.panel.innerHTML, 'npc-1 new');
+});
+
+test('pointer exit keeps an asynchronous preview owned by keyboard focus', async () => {
+  let complete;
+  const ui = previewEvents(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    ),
+    entry = ui.entry();
+  ui.document.activeElement = entry;
+  ui.emit('focusin', entry);
+  await ui.tick(0);
+  ui.emit('pointerout', entry);
+  await ui.tick(500);
+  complete({});
+  await ui.tick(0);
+  assert.equal(ui.panel.hidden, false);
+  assert.equal(entry.getAttribute('aria-describedby'), 'entity-preview');
+  ui.document.activeElement = ui.document.body;
+  ui.emit('focusout', entry);
+  await ui.tick(160);
+  assert.equal(ui.panel.hidden, true);
+});
+
+test('pointer exit cancels an asynchronous hover preview without keyboard focus', async () => {
+  let complete;
+  const ui = previewEvents(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    ),
+    entry = ui.entry();
+  ui.emit('pointerover', entry);
+  await ui.tick(240);
+  ui.emit('pointerout', entry);
+  complete({});
+  await ui.tick(500);
+  assert.equal(ui.panel.hidden, true);
+  assert.equal(entry.getAttribute('aria-describedby'), null);
+});
+
+test('replacing a surface cancels its pending preview before context resolves', async () => {
+  let complete;
+  const ui = previewEvents(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    ),
+    entry = ui.entry(ui.root);
+  ui.document.activeElement = entry;
+  ui.emit('focusin', entry);
+  await ui.tick(0);
+  ui.redraw();
+  complete({});
+  await ui.tick(0);
+  assert.equal(ui.panel.hidden, true);
+  assert.equal(entry.getAttribute('aria-describedby'), null);
+});
+
+for (const dismissal of ['removed', 'inert', 'Escape', 'blur']) {
+  test(`${dismissal} dismisses an active focused preview`, async () => {
+    const ui = previewEvents(),
+      entry = ui.entry();
+    ui.document.activeElement = entry;
+    ui.emit('focusin', entry);
+    await ui.tick(0);
+    assert.equal(ui.panel.hidden, false);
+    if (dismissal === 'removed') {
+      entry.isConnected = false;
+      ui.changed();
+    } else if (dismissal === 'inert') {
+      ui.overlay.inert = true;
+      ui.changed();
+    } else if (dismissal === 'Escape') ui.emit('keydown', entry, { key: 'Escape' });
+    else ui.emit('blur', ui.window, {}, 'window');
+    await ui.tick(500);
+    assert.equal(ui.panel.hidden, true);
+    assert.equal(entry.getAttribute('aria-describedby'), null);
+  });
+}

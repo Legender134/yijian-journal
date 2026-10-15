@@ -5,7 +5,31 @@ const mapAtlas = require('../data/world-map.json');
 const images = require('../data/game-images.json');
 const itemStats = require('../data/item-stats.json');
 const npcFacts = require('../data/npc-facts.json');
+const codex = require('../data/codex-details.json');
+const skillConsultation = require('../data/npc-interactions.json').skills;
+if (String(codex.build) !== String(data.build)) throw Error('图鉴详情版本不一致');
 const flowGuide = require('../data/flow-guide.cjs');
+const materialGuide = require('../data/material-guide.cjs');
+const gatheringRoutes = Object.fromEntries(
+  Object.entries(materialGuide.items)
+    .map(([id, item]) => [
+      id,
+      item.routes
+        .filter((route) => ['gather', 'drop'].includes(route.kind))
+        .map((route) => ({
+          ...route,
+          sources: route.sourceIds.map((id) => ({ ...materialGuide.sources[id], id: 'material:' + id })),
+        })),
+    ])
+    .filter(([, routes]) => routes.length),
+);
+const { createNpcProgressProjector } = require('./npc-progress.cjs');
+const projectNpcProgress = createNpcProgressProjector({
+  world,
+  game: data,
+  contracts: require('../data/npc-interactions.json'),
+  guide: require('../data/duel-guide.cjs'),
+});
 if (String(itemStats.build) !== String(data.build)) throw Error('物品数值与图鉴版本不一致');
 if (String(npcFacts.build) !== String(data.build)) throw Error('人物私物与图鉴版本不一致');
 if (String(mapAtlas.build) !== String(data.build)) throw Error('地图与图鉴版本不一致');
@@ -81,6 +105,7 @@ function enrich(metadata) {
     );
   }
   result.dataBuild = data.build;
+  if (metadata.combat?.npcStates) result.npcProgress = projectNpcProgress(result);
   return result;
 }
 function encyclopedia() {
@@ -98,6 +123,7 @@ function encyclopedia() {
               ? {
                   ...e,
                   stats: itemStats.items[e.gameId] || null,
+                  ...(gatheringRoutes[e.gameId] ? { gatheringRoutes: gatheringRoutes[e.gameId] } : {}),
                   ...(flowGuide.itemRoutes[e.gameId]
                     ? {
                         acquisitionRoutes: flowGuide.itemRoutes[e.gameId].map((route) => ({
@@ -116,6 +142,8 @@ function encyclopedia() {
         ]),
       ).values(),
     ],
+    codex,
+    skillConsultation,
     images: images.entries,
     merchants: data.merchants || [],
     itemStats: {

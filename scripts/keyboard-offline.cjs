@@ -668,7 +668,9 @@ async function allPersonal(win) {
     report.checks.push('IME composition does not trigger search shortcut');
     await win.locator('.nav-btn[data-id="settings"]').click();
     await win.locator('[data-action="help"]').click();
-    assert.ok((await win.locator('.help-copy').innerText()).includes('32 MB'));
+    const helpCopy = await win.locator('.help-copy').innerText();
+    assert.ok(helpCopy.includes('Ctrl + K'));
+    assert.ok(helpCopy.includes('离线时可以继续使用本地功能'));
     await win.keyboard.press('Escape');
     assert.deepEqual(report.externalRequests, []);
     assert.deepEqual(report.errors, []);

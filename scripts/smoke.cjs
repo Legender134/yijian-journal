@@ -261,7 +261,7 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
   }
   await page.screenshot({ animations: 'disabled', path: path.join(results, name + '.png') });
   // Capture can yield to native window events; send Esc only to a visible preview.
-  await trigger.hover();
+  await hoverEntry();
   await preview.waitFor({ state: 'visible' });
   await page.keyboard.press('Escape');
   await preview.waitFor({ state: 'hidden' });
@@ -269,6 +269,10 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
   await page.mouse.move(2, 2);
   await page.keyboard.press('Tab');
   await trigger.focus();
+  await page.waitForFunction(
+    (node) => document.activeElement === node && node.getAttribute('aria-describedby') === 'entity-preview',
+    await trigger.elementHandle(),
+  );
   await preview.waitFor({ state: 'visible' });
   assert.match(await preview.innerText(), expected);
   await page.keyboard.press('Escape');
@@ -281,7 +285,13 @@ async function taskMaterialReturn(page, title, screenshot) {
   await page.mouse.move(440, 10);
   await page.locator('[data-action="close-overlay"]').focus();
   await page.locator('.drawer-body').evaluate((el) => (el.scrollTop = 0));
-  for (let step = 0; step < 3; step++) await page.keyboard.press('Tab');
+  const peopleSummary = page
+    .locator('[data-task-relations] > details > summary')
+    .filter({ hasText: /^涉及人物/ });
+  assert.equal(await peopleSummary.locator('..').evaluate((element) => element.open), false);
+  await peopleSummary.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
   const person = page.locator('[data-task-relations] [data-id="npc-10038"]').first();
   assert.equal(await person.evaluate((el) => document.activeElement === el), true);
   const focusedBounds = await person.evaluate((el) => {
@@ -298,9 +308,18 @@ async function taskMaterialReturn(page, title, screenshot) {
   await page.locator('.drawer-body').evaluate((el) => (el.scrollTop += 10));
   await page.waitForTimeout(300);
   assert.equal(await page.locator('#entity-preview').isVisible(), false);
+  await page
+    .locator('[data-task-relations] > details > summary')
+    .filter({ hasText: /^步骤需要的物品/ })
+    .click();
   const material = page.locator('[data-task-relations] [data-id="item-10201"]').first();
-  await material.focus();
+  await page.mouse.move(440, 10);
   await material.scrollIntoViewIfNeeded();
+  await material.focus();
+  await page.waitForFunction(
+    (node) => node.getAttribute('aria-describedby') === 'entity-preview',
+    await material.elementHandle(),
+  );
   await page.locator('#entity-preview').waitFor({ state: 'visible' });
   assert.equal(await material.getAttribute('aria-describedby'), 'entity-preview');
   const before = await page.locator('.drawer-body').evaluate((el) => ({
@@ -439,6 +458,10 @@ async function companionReferenceSync(page) {
     await page.locator('[data-task-relations]').waitFor();
   };
   const preview = async (count) => {
+    const materialSummary = page
+      .locator('[data-task-relations] > details:not([open]) > summary')
+      .filter({ hasText: /^步骤需要的物品/ });
+    if (await materialSummary.count()) await materialSummary.click();
     const item = page.locator('[data-task-relations] [data-id="item-10201"]').first();
     await item.scrollIntoViewIfNeeded();
     // Returning keeps focus and dismisses the preview; request a fresh focus event.
@@ -487,7 +510,7 @@ async function guideAndSearchHandoff(main, compact) {
     window.setBounds({ ...bounds, width: 900, height: 600 });
     return bounds;
   });
-  await compact.locator('.companion-tabs [data-action="search"]').click();
+  await compact.locator('.compact-title [data-action="search"]').click();
   await compact.locator('#global-search').fill('卫霍');
   await compact.locator('.search-result[data-action="detail"][data-id="wei-training"]').click();
   if (await compact.locator('[data-action="reveal"]').count())
@@ -535,7 +558,7 @@ async function guideAndSearchHandoff(main, compact) {
       .goals.filter((row) => row.title.startsWith('接续合成目标'));
   });
   assert.equal(created.length, 9);
-  await compact.locator('.companion-tabs [data-action="search"]').click();
+  await compact.locator('.compact-title [data-action="search"]').click();
   await compact.locator('#global-search').fill('接续合成目标');
   assert.equal(await compact.locator('.search-result[data-action="search-goal"]').count(), 8);
   await compact.locator('[data-action="search-personal-all"]').click();
@@ -596,7 +619,7 @@ async function companionHomeInventorySync(page) {
         .first();
       assert.match(
         await material.innerText(),
-        new RegExp(`需 4 · 持有 ${count} · ${count < 4 ? '缺 ' + (4 - count) : '持有量已足'}`),
+        new RegExp(`需 4 · 持有 ${count}${count < 4 ? ' · 缺 ' + (4 - count) : ''}`),
       );
       assert.match(await material.innerText(), /后山山洞.*铁匠/);
       assert.match(await page.locator('.flow-choice-location').first().textContent(), /梧桐村.*樵夫.*铁匠/);
@@ -724,7 +747,7 @@ async function companionHomeInventorySync(page) {
     await entityPreview(
       win,
       win.locator('[data-flow] [data-id="npc-5003"]').first(),
-      /人物.*清虚道长.*相关任务/s,
+      /人物.*清虚道长.*初始等级 80.*固定私物/s,
       '01-main-person-preview',
     );
     await entityPreview(
@@ -736,12 +759,16 @@ async function companionHomeInventorySync(page) {
     await entityPreview(
       win,
       flowMaterials.locator('[data-action="database-detail"]').first(),
-      /物品.*买价/s,
+      /物品.*(?:保存持有|持有量未核对)/s,
       '01-main-item-preview',
       true,
     );
     await win.locator('[data-flow] [data-id="npc-5003"]').first().click();
     assert.equal(await win.locator('[data-person-relations]').isVisible(), true);
+    await win
+      .locator('[data-person-relations] > details > summary')
+      .filter({ hasText: /^相关任务/ })
+      .click();
     await win.locator('[data-person-relations] [data-id="quest-5200"]').first().click();
     assert.equal(await win.locator('[data-task-relations]').isVisible(), true);
     await win.locator('[data-action="drawer-back"]').click();
@@ -752,6 +779,11 @@ async function companionHomeInventorySync(page) {
     assert.equal(await win.locator('[data-action="save-slot"]').count(), 0);
     const currentChoice = win.locator('[data-flow-decision="early-woodcutter-axe-choice"]');
     assert.equal(await currentChoice.isVisible(), true);
+    const mainChoiceDetails = currentChoice.locator('.flow-choice-details');
+    assert.equal(await mainChoiceDetails.evaluate((el) => el.open), false);
+    assert.match(await currentChoice.innerText(), /樵夫.*重锻/);
+    assert.doesNotMatch(await currentChoice.innerText(), /700.*2000|为什么：|取舍：/s);
+    await mainChoiceDetails.locator(':scope > summary').click();
     assert.match(await currentChoice.innerText(), /700.*2000/s);
     assert.match(
       await currentChoice.locator('.flow-recommendation').innerText(),
@@ -759,11 +791,11 @@ async function companionHomeInventorySync(page) {
     );
     assert.equal(
       await currentChoice.locator('.flow-recommendation').evaluate((el) => !!el.closest('details')),
-      false,
+      true,
     );
     assert.equal(
       await currentChoice.locator('.flow-choices').evaluate((el) => !!el.closest('details')),
-      false,
+      true,
     );
     const armorChoice = currentChoice.locator('.flow-recommendation [data-id="name:亮银甲"]').first();
     await entityPreview(win, armorChoice, /同名资料.*条同名资料/s, '01-same-name-preview');
@@ -794,19 +826,18 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="compact"]').first().click();
     const choiceCompact = await choiceWindowReady;
     await choiceCompact.waitForSelector('.compact-shell');
-    await choiceCompact.locator('.companion-tabs [data-id="materials"]').click();
+    await choiceCompact.locator('[data-action="companion-layout"]').click();
+    await choiceCompact.locator('[data-companion-layout] [data-id="materials"]').click();
     const taskMaterialText = (
-      await choiceCompact
-        .locator('[data-flow-task-materials] .flow-materials > .flow-material')
-        .first()
-        .textContent()
+      await choiceCompact.locator('[data-flow-task-materials] .flow-material').first().textContent()
     ).replace(/\s+/g, '');
     await choiceCompact.locator('[data-action="main"]').first().click();
     await win.locator('[data-flow-task-materials]').waitFor();
     assert.equal(
-      (
-        await win.locator('[data-flow-task-materials] .flow-materials > .flow-material').first().textContent()
-      ).replace(/\s+/g, ''),
+      (await win.locator('[data-flow-task-materials] .flow-material').first().textContent()).replace(
+        /\s+/g,
+        '',
+      ),
       taskMaterialText,
     );
     await win.screenshot({
@@ -879,10 +910,12 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="compact"]').first().click();
     await choiceCompact.locator('[data-action="close-overlay"]').first().click();
     await selectProgressReference(choiceCompact, '@none');
-    await choiceCompact.locator('.companion-tabs [data-action="search"]').click();
+    await choiceCompact.locator('.compact-title [data-action="search"]').click();
     await choiceCompact.locator('#global-search').fill('清虚道长');
     await choiceCompact.locator('.search-result[data-id="npc-5003"]').click();
     await assertSharedProgressUi(choiceCompact);
+    if (await choiceCompact.locator('.person-gifts:not([open])').count())
+      await choiceCompact.locator('.person-gifts > summary').click();
     await choiceCompact.locator('[data-action="gift-page"][data-id="1"]').click();
     await choiceCompact.locator('[data-action="gift-page"][data-id="2"]').click();
     await choiceCompact
@@ -896,7 +929,7 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="compact"]').first().click();
     await choiceCompact.locator('[data-action="close-overlay"]').first().click();
     await guideAndSearchHandoff(win, choiceCompact);
-    await choiceCompact.locator('.companion-tabs [data-action="search"]').click();
+    await choiceCompact.locator('.compact-title [data-action="search"]').click();
     await choiceCompact.locator('#global-search').fill('金疮药');
     await choiceCompact.locator('.search-modal [data-action="main"]').click();
     await win.locator('#global-search').waitFor();
@@ -943,7 +976,7 @@ async function companionHomeInventorySync(page) {
     await choiceCompact.locator('[data-action="close-overlay"]').click();
     for (const sourceReference of ['1.sav', '@none']) {
       await selectProgressReference(choiceCompact, sourceReference);
-      await choiceCompact.locator('.companion-tabs [data-action="search"]').click();
+      await choiceCompact.locator('.compact-title [data-action="search"]').click();
       await choiceCompact.locator('#global-search').fill('水煮鱼');
       await choiceCompact.locator('[data-action="database-detail"][data-id="cooking-102"]').first().click();
       await assertSharedProgressUi(choiceCompact);
@@ -997,7 +1030,7 @@ async function companionHomeInventorySync(page) {
       choiceCompact
         .locator('[data-task-relations] [data-action="database-detail"][data-id="npc-10005"]')
         .first(),
-      /人物.*相关任务/s,
+      /人物.*铁匠/s,
       '01-companion-person-preview',
     );
     await choiceCompact.locator('[data-action="close-overlay"]').click();
@@ -1094,6 +1127,11 @@ async function companionHomeInventorySync(page) {
     assert.equal(await choiceCompact.locator('.flow-current-brief').count(), 0);
     await choiceCompact.locator('.flow-task-peek').evaluate((el) => {
       el.open = false;
+    });
+    // Earlier reading checks deliberately open disclosures. Measure the default
+    // first screen with the individual risk explanations folded again.
+    await compactRisk.locator('.flow-risk-window').evaluateAll((windows) => {
+      for (const window of windows) window.open = false;
     });
     assert.equal(
       await choiceCompact.locator('[data-flow-now] > .flow-next-action').isVisible(),
@@ -1837,7 +1875,9 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="close-overlay"]').click();
     await win.locator('.nav-btn[data-id="settings"]').click();
     await win.locator('[data-action="help"]').click();
-    assert.ok((await win.locator('.help-copy').innerText()).includes('读取范围'));
+    const helpCopy = await win.locator('.help-copy').innerText();
+    assert.ok(helpCopy.includes('流程任务'));
+    assert.ok(helpCopy.includes('恢复完整备份前必须退出游戏'));
     await win.locator('[data-action="close-overlay"]').click();
     await win.screenshot({ animations: 'disabled', path: path.join(results, '04-settings.png') });
     await win.locator('[data-action="compact"]').first().click();
@@ -1857,6 +1897,11 @@ async function companionHomeInventorySync(page) {
     await quick.keyboard.press('Escape');
     assert.equal(await quick.locator('.drawer').count(), 0);
     await quick.locator('.companion-tabs [data-action="navigate"][data-id="saves"]').click();
+    await quick.locator('[data-persist-detail="compact-backups"]').waitFor();
+    assert.equal(await quick.locator('[data-action="backup"]').isVisible(), true);
+    const unusedTimeline = quick.locator('[data-persist-detail="unused-timeline"]');
+    assert.equal(await unusedTimeline.evaluate((el) => el.open), false);
+    await unusedTimeline.locator(':scope > summary').click();
     await quick.locator('.timeline-card').first().waitFor();
     await quick.screenshot({ animations: 'disabled', path: path.join(results, '05-compact-history.png') });
     await quick.locator('[data-action="navigate"][data-id="home"]').click();
@@ -1901,8 +1946,10 @@ async function companionHomeInventorySync(page) {
     await quick.locator('.compact-shell').waitFor();
     await quick.waitForFunction(() => innerWidth >= 450 && innerHeight >= 640);
     await quick.keyboard.press('Escape');
+    // The companion is hidden now; inspect its shared controller state from the
+    // visible window so background renderer scheduling cannot stall the check.
     assert.equal(
-      await quick.evaluate(async () => (await window.journal.companionSnapshot()).data.mode),
+      await win.evaluate(async () => (await window.journal.companionSnapshot()).data.mode),
       'hint',
     );
     assert.equal(

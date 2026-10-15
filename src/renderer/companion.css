@@ -136,6 +136,27 @@
   white-space: nowrap;
   font-size: 12px;
 }
+.hint-choice .hint-line {
+  align-items: flex-start;
+  margin-top: 3px;
+}
+.hint-choice .hint-line > span {
+  white-space: normal;
+  overflow: visible;
+  line-height: 16px;
+}
+.hint-caution {
+  color: #ffd7ab;
+}
+@media (max-width: 280px) {
+  .hint-choice .hint-head {
+    display: none;
+  }
+  .hint-choice .hint-line > span {
+    font-size: 11px;
+    line-height: 14px;
+  }
+}
 .companion .compact-title {
   height: 42px;
   flex-shrink: 0;
@@ -259,10 +280,9 @@
   gap: 5px 10px;
 }
 .companion-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  justify-content: space-around;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
   border-bottom: 1px solid var(--line);
   padding: 7px 5px;
   flex-shrink: 0;
@@ -270,8 +290,26 @@
 .companion-tabs .text-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 12px;
+  justify-content: center;
+  padding: 8px 0;
+}
+.companion .codex-browser .page-header h1 {
+  font-size: 20px;
+}
+.companion .codex-browser .database-tab {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.companion .codex-browser .toolbar {
+  gap: 7px;
+}
+.companion .codex-browser .database-search {
+  flex-basis: 100%;
+}
+.companion .codex-results {
+  grid-template-columns: minmax(0, 1fr);
 }
 .companion-tabs [aria-current='page'] {
   text-decoration: underline;
@@ -363,6 +401,17 @@
 }
 .companion .drawer-body h1 {
   font-size: 25px;
+}
+.companion .game-detail-title {
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+.companion .game-detail-title > .game-picture {
+  width: 56px;
+  height: 56px;
+}
+.companion .drawer-body > .detail-block {
+  margin: 16px 0;
 }
 .companion .modal {
   overflow-y: auto;
@@ -458,6 +507,11 @@
   background: #bd86440b;
   border-radius: 0 6px 6px 0;
 }
+.companion .flow-risk-deadline {
+  display: block;
+  color: var(--ink);
+  margin-bottom: 3px;
+}
 .companion .flow-risk-preview {
   color: var(--text);
   font-size: 12px;
@@ -537,7 +591,7 @@
 .companion .compact-foot {
   padding: 4px 10px;
 }
-.companion .compact-foot:not(:has(.save-health)) {
+.companion .compact-foot:not(:has(.save-health, [data-update-badge] button)) {
   display: none;
 }
 .companion .flow-rule-details .flow-risk,
@@ -545,10 +599,7 @@
   border: 0;
   margin: 4px 0;
 }
-.companion .flow-risk-window .flow-rule > .row,
-.companion .flow-risk-window .flow-rule > .flow-warning-message {
-  margin-bottom: 5px;
-}
+
 .companion .entity-inline .game-picture {
   width: 18px;
   height: 18px;

@@ -21,6 +21,8 @@ function setup(prepare) {
     quitRequested: false,
     quitGranted: false,
     protectionJobPromise: null,
+    pendingAppUpdate: null,
+    launchUpdateInstall: async () => calls.push(['update-launch']),
     BrowserWindow: { getAllWindows: () => [window] },
     rendererReady: new Set([1]),
     quitHandoff: {
@@ -96,4 +98,38 @@ test('native drain failure revokes the prepared exit instead of leaving quit lat
   assert.equal(s.context.quitGranted, false);
   assert.equal(s.context.quitRequested, false);
   assert.equal(s.context.quitPromise, null);
+});
+
+test('an update launches only after saved drafts and native operations are settled', async () => {
+  const ready = deferred(),
+    s = setup(() => ready.promise);
+  s.context.pendingAppUpdate = { plan: 'synthetic' };
+  const quit = s.context.request();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(s.calls, [['prepare', 1]]);
+  ready.resolve(true);
+  await quit;
+  assert.deepEqual(s.calls, [['prepare', 1], ['quiesce'], ['update-launch'], ['quit']]);
+  assert.equal(s.context.pendingAppUpdate, null);
+});
+
+test('cancelled draft handoff and failed updater launch keep the current app usable', async () => {
+  const cancelled = setup(() => false);
+  cancelled.context.pendingAppUpdate = { plan: 'synthetic' };
+  await cancelled.context.request();
+  assert.equal(
+    cancelled.calls.some(([action]) => action === 'update-launch'),
+    false,
+  );
+  assert.equal(cancelled.context.pendingAppUpdate, null);
+  const failed = setup(() => true);
+  failed.context.pendingAppUpdate = { plan: 'synthetic' };
+  failed.context.launchUpdateInstall = async () => {
+    throw Error('synthetic updater launch failure');
+  };
+  await failed.context.request();
+  assert.equal(failed.context.quitGranted, false);
+  assert.equal(failed.context.quitRequested, false);
+  assert.equal(failed.context.pendingAppUpdate, null);
+  assert.deepEqual(failed.calls, [['prepare', 1], ['quiesce'], ['cancel'], ['show']]);
 });

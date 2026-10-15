@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld('journal', {
   refresh: () => call('refresh'),
   health: () => call('health'),
   ready: () => call('ready'),
+  checkUpdates: () => call('update-check'),
+  downloadUpdate: () => call('update-download'),
+  cancelUpdate: () => call('update-cancel'),
+  installUpdate: () => call('update-install'),
   configureShortcuts: (value) => call('shortcuts-configure', value),
   startAssistance: () => call('start-assistance'),
   bridgeInstall: () => call('bridge-install'),
@@ -61,6 +65,11 @@ contextBridge.exposeInMainWorld('journal', {
     const listener = (_event, value) => callback(value);
     ipcRenderer.on('journal:companion', listener);
     return () => ipcRenderer.removeListener('journal:companion', listener);
+  },
+  onGuidance: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on('journal:guidance', listener);
+    return () => ipcRenderer.removeListener('journal:guidance', listener);
   },
   window: (action, context) => call('window', action, context),
   onState: (callback) => {

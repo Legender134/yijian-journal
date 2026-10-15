@@ -265,7 +265,11 @@ async function editGift() {
       { bad },
     );
     await page.locator('.nav-btn[data-id="settings"]').click();
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-open"]').first().click();
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-import"]').first().click();
     const error = page.locator('[aria-label="保护资料导入未完成"]');
     await error.waitFor();

@@ -1,0 +1,222 @@
+{
+  "schema": 1,
+  "build": "21798996",
+  "weights": [
+    {
+      "id": 9,
+      "value": 0.5400000214576721
+    },
+    {
+      "id": 10,
+      "value": 0.27000001072883606
+    },
+    {
+      "id": 14,
+      "value": 0.41999998688697815
+    },
+    {
+      "id": 11,
+      "value": 0.38999998569488525
+    },
+    {
+      "id": 12,
+      "value": 0.20000000298023224
+    },
+    {
+      "id": 2,
+      "value": 0.699999988079071
+    },
+    {
+      "id": 4,
+      "value": 0.550000011920929
+    }
+  ],
+  "titles": [
+    {
+      "minimum": 0,
+      "name": "初学乍练"
+    },
+    {
+      "minimum": 487,
+      "name": "初窥门径"
+    },
+    {
+      "minimum": 921,
+      "name": "粗通皮毛"
+    },
+    {
+      "minimum": 1607,
+      "name": "驾轻就熟"
+    },
+    {
+      "minimum": 1921,
+      "name": "略有小成"
+    },
+    {
+      "minimum": 2374,
+      "name": "融会贯通"
+    },
+    {
+      "minimum": 3265,
+      "name": "炉火纯青"
+    },
+    {
+      "minimum": 4192,
+      "name": "出类拔萃"
+    },
+    {
+      "minimum": 8416,
+      "name": "所向披靡"
+    },
+    {
+      "minimum": 10829,
+      "name": "傲视群雄"
+    },
+    {
+      "minimum": 13540,
+      "name": "一代宗师"
+    }
+  ],
+  "source": {
+    "buildId": 21798996,
+    "exeSha256": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c",
+    "assets": [
+      {
+        "member": "Wandering_Sword/Config/DefaultGame.ini",
+        "bytes": 33732,
+        "sha256": "fc3899f14691368233ebcad376067489ca55aa06e5409e736a4a0a150cc828c9"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/BP_JHGameConfig.uasset",
+        "bytes": 8300,
+        "sha256": "5ce736d52f85a7b919dee515c406a1f43d049b41ba1fc25108eca0f53663d965"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/BP_JHGameConfig.uexp",
+        "bytes": 12590,
+        "sha256": "3f31726ffcfa8286b6926100b49aefb27de450612b4405e207fcd9fd6fcd535a"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/GameSystem/BP_Gift_Base.uasset",
+        "bytes": 8533,
+        "sha256": "3edf1bb1fd8af4472921d8662cf8bde4e1251489bbcd6bfc2f7417f745f72f86"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/GameSystem/BP_Gift_Base.uexp",
+        "bytes": 13613,
+        "sha256": "84030b4746ecbcd7a1faaedf6f752b53f9b4b7c248b11377d313cb26532f41d5"
+      }
+    ],
+    "nativeSpans": [
+      {
+        "purpose": "capacity-prologue-and-cache-reset",
+        "startVA": "0x14120cc1e",
+        "endVAExclusive": "0x14120cd13",
+        "sha256": "8eebb49902f3f55a6d2e9335bcbc9f404882f0331259715b65f273e73040e2c4"
+      },
+      {
+        "purpose": "capacity-current-values-loop",
+        "startVA": "0x14120d6f5",
+        "endVAExclusive": "0x14120d904",
+        "sha256": "45d6edd2ef9cbc6ceeb00be240c235182ac5d1c64fa904d5a4b5f0320bd60695"
+      },
+      {
+        "purpose": "current-value-read",
+        "startVA": "0x1408da170",
+        "endVAExclusive": "0x1408da176",
+        "sha256": "3d0bed09db865d3f03d0b69f2849f8731c92db84dfe42b53340260a10103158f"
+      },
+      {
+        "purpose": "title-threshold-algorithm",
+        "startVA": "0x140fdeda0",
+        "endVAExclusive": "0x140fdee2f",
+        "sha256": "62f5fb23417fe5fe6ebabb8171f18c1c4318abeee70064cd344aad1bb3b87f0a"
+      },
+      {
+        "purpose": "attribute-reflection-cache-writes",
+        "startVA": "0x1408da810",
+        "endVAExclusive": "0x1408daa81",
+        "sha256": "c6ea0743ad3e7e61edad7fd36b5951067c8596fe823071e0fe5fed6cea18ff1b"
+      },
+      {
+        "purpose": "capacity-reflected-arguments",
+        "startVA": "0x1444c6938",
+        "endVAExclusive": "0x1444c69e0",
+        "sha256": "ddf2c4e54a1899ffbc3a5ebf742b5e4fda6b7bac274f2e04f9ca9846daafc855"
+      },
+      {
+        "purpose": "sparse-index-iterator",
+        "startVA": "0x140827800",
+        "endVAExclusive": "0x140827894",
+        "sha256": "199f48b16bcdaae18367e1ac5c9ce73d79e831eb80d109bc0771ed7ec22b8cdf"
+      },
+      {
+        "purpose": "ASC-attribute-array-read",
+        "startVA": "0x1408951b0",
+        "endVAExclusive": "0x1408951b8",
+        "sha256": "40efbbc0012c6de5b415993dd8ec0d52f8c864ea1e10dfa163ac4ea1e4e8dea4"
+      }
+    ],
+    "fieldProofs": [
+      {
+        "fieldName": "AttackPower",
+        "offset": "0xe0",
+        "currentValueOffset": "0xec",
+        "enumId": 9,
+        "fieldDescriptor": "0x1442e2a28",
+        "enumDescriptor": "0x1442e6440"
+      },
+      {
+        "fieldName": "Crit",
+        "offset": "0xf0",
+        "currentValueOffset": "0xfc",
+        "enumId": 10,
+        "fieldDescriptor": "0x1442e2a58",
+        "enumDescriptor": "0x1442e6450"
+      },
+      {
+        "fieldName": "TurnRate",
+        "offset": "0x150",
+        "currentValueOffset": "0x15c",
+        "enumId": 14,
+        "fieldDescriptor": "0x1442e2b78",
+        "enumDescriptor": "0x1442e6490"
+      },
+      {
+        "fieldName": "Defense",
+        "offset": "0x110",
+        "currentValueOffset": "0x11c",
+        "enumId": 11,
+        "fieldDescriptor": "0x1442e2ab8",
+        "enumDescriptor": "0x1442e6460"
+      },
+      {
+        "fieldName": "Dodge",
+        "offset": "0x120",
+        "currentValueOffset": "0x12c",
+        "enumId": 12,
+        "fieldDescriptor": "0x1442e2ae8",
+        "enumDescriptor": "0x1442e6470"
+      },
+      {
+        "fieldName": "MaxHealth",
+        "offset": "0x40",
+        "currentValueOffset": "0x4c",
+        "enumId": 2,
+        "fieldDescriptor": "0x1442e2848",
+        "enumDescriptor": "0x1442e63d0"
+      },
+      {
+        "fieldName": "MaxMana",
+        "offset": "0x60",
+        "currentValueOffset": "0x6c",
+        "enumId": 4,
+        "fieldDescriptor": "0x1442e28a8",
+        "enumDescriptor": "0x1442e63f0"
+      }
+    ],
+    "copyright": "Game configuration, names and native code remain third-party Wandering Sword source material; minimal factual projection for compatibility."
+  },
+  "scope": "Build 21798996 original configuration; TeamInfo CurrentValue, ASC=null, bBeforeCreate=false. Gift target minus player title >=2 blocks this BP_Gift_Base gate.",
+  "copyright": "Game configuration, names and native code remain third-party Wandering Sword source material; minimal factual projection for compatibility."
+}

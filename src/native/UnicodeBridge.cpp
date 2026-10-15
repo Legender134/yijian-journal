@@ -6,6 +6,16 @@ namespace {
 using RC::LuaMadeSimple::Lua;
 std::mutex gate;
 yijian::Channel channel;
+// Must match provenance.gameExeSha256. No caller can select a path or pin.
+constexpr std::string_view SupportedGameExeSha256="946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c";
+void require_supported_process() {
+  // A failure is sticky as well: neither an old grant nor a retry can bypass it.
+  static const bool supported=[]() noexcept {
+    try {return yijian::secure_equal(yijian::current_process_executable_sha256(),SupportedGameExeSha256);}
+    catch(...) {return false;}
+  }();
+  if(!supported)throw std::runtime_error("unsupported_game_executable");
+}
 std::string string_arg(const Lua& lua,int index) {
   if(!lua.is_string(index))throw std::runtime_error("string required");
   return std::string(lua.get_string(index));
@@ -13,6 +23,7 @@ std::string string_arg(const Lua& lua,int index) {
 int initialize(const Lua& lua) {
   std::scoped_lock lock(gate);
   try {
+    require_supported_process();
     if(lua.get_stack_size()!=2)throw std::runtime_error("initialize arity");
     channel.initialize(string_arg(lua,1),string_arg(lua,2));
     lua.set_string("unicode-v2");return 1;
@@ -37,6 +48,13 @@ int write(const Lua& lua) {
     lua.set_string("ok");return 1;
   }catch(const std::exception& e){lua.set_nil();lua.set_string(e.what());return 2;}
 }
+int observation_mac(const Lua& lua) {
+  std::scoped_lock lock(gate);
+  try {
+    if(lua.get_stack_size()!=1||!lua.is_string(1))throw std::runtime_error("observation arity");
+    lua.set_string(channel.observation_mac(lua.get_string(1)));return 1;
+  }catch(const std::exception& e){lua.set_nil();lua.set_string(e.what());return 2;}
+}
 class UnicodeBridge final:public RC::CppUserModBase {
 public:
   void on_lua_start(RC::StringViewType name,Lua& lua,Lua&,Lua&,Lua*) override {
@@ -44,6 +62,7 @@ public:
     lua.register_function("YijianNativeInitialize",initialize);
     lua.register_function("YijianNativeRead",read);
     lua.register_function("YijianNativeWrite",write);
+    lua.register_function("YijianNativeObservationMac",observation_mac);
   }
 };
 }

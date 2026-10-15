@@ -3,10 +3,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
-const { realDirectory, sha } = require('./saves.cjs');
+const { realDirectory, sha, isWithin } = require('./saves.cjs');
 const { readStable, writeBytes, safeId, SLOT } = require('./timeline.cjs');
 const provenance = require('../game-bridge/provenance.json');
 const { PROTOCOL, assertNativePath, grantFrame, commandFrame } = require('./native-io.cjs');
+const { readDialogue, isKnownChoiceStep } = require('./live-guidance.cjs');
+const { atomicWrite } = require('./store.cjs');
+const { NpcObservationReader } = require('./live-npc-state.cjs');
 const resources = path.join(__dirname, '..', 'game-bridge');
 const NATIVE_MOD = 'YijianJournalUnicode';
 const slash = (p) => p.replaceAll('\\', '/');
@@ -52,6 +55,7 @@ class GameBridge {
       account = activeSteamId,
       now = Date.now,
       test = false,
+      guidanceFile,
     } = {},
   ) {
     fs.mkdirSync(root, { recursive: true });
@@ -74,6 +78,8 @@ class GameBridge {
     this.disposed = false;
     this.quiescing = false;
     this.grantBinding = '';
+    this.guidanceSource = '';
+    this.guidanceFile = guidanceFile;
     if (timeline.data.enabled && timeline.data.nativeProtocol !== PROTOCOL) {
       timeline.stop();
       this.error = '接入协议已升级，请保护存档并重新明确开启时间线；原历史副本已保留';
@@ -94,6 +100,12 @@ class GameBridge {
       writeBytes(keyFile, Buffer.from(this.token));
     }
     if (!/^[a-f0-9]{64}$/.test(this.token)) throw Error('游戏接入密钥损坏，原文件已保留');
+    this.npcReader = new NpcObservationReader({
+      read: () => readStable(path.join(this.root, 'npc-observation.json')),
+      token: this.token,
+      revision: this.revision,
+      now: this.now,
+    });
     if (timeline.data.source && !test) {
       try {
         this.connect(timeline.data.source);
@@ -168,8 +180,181 @@ class GameBridge {
       s.token === this.token &&
       s.revision === this.revision &&
       typeof s.source === 'string' &&
-      same(s.source, this.timeline.data.source)
+      same(s.source, this.guidanceSource || (this.test ? this.timeline.data.source : ''))
     );
+  }
+  guidanceAccountIssue(source) {
+    if (!this.statusAccount || this.now() - this.statusAccount.at >= 5000) {
+      try {
+        this.statusAccount = { at: this.now(), account: this.account() };
+      } catch (e) {
+        this.statusAccount = { at: this.now(), error: e.message };
+      }
+    }
+    return (
+      this.statusAccount.error ||
+      (path.basename(path.dirname(source || '')) !== this.statusAccount.account
+        ? '存档目录与当前 Steam 账户不一致，已停止游戏接入'
+        : '')
+    );
+  }
+  restoreDialogueContext(session, source) {
+    const fresh = {
+      session,
+      source,
+      lastQuestId: 0,
+      suppressed: new Set(),
+      observationEpoch: 0,
+      liveSuppressed: new Set(),
+    };
+    if (!this.guidanceFile) return fresh;
+    for (const file of [this.guidanceFile, this.guidanceFile + '.previous']) {
+      try {
+        if (fs.lstatSync(file).size > 65536) throw Error('Invalid guidance record');
+        const saved = json(file);
+        if (
+          saved?.schema !== 1 ||
+          typeof saved.source !== 'string' ||
+          saved.source.length > 4096 ||
+          !/^\d+-\d+$/.test(saved.session) ||
+          !/^[a-f0-9]{64}$/.test(saved.revision) ||
+          !/^[a-f0-9]{64}$/.test(saved.tokenHash) ||
+          !(saved.lastQuestId === 0 || isKnownChoiceStep(saved.lastQuestId)) ||
+          !Array.isArray(saved.suppressed) ||
+          saved.suppressed.length > 256 ||
+          saved.suppressed.some((id) => !isKnownChoiceStep(id)) ||
+          (saved.observationEpoch !== undefined &&
+            (!Number.isSafeInteger(saved.observationEpoch) || saved.observationEpoch < 0)) ||
+          (saved.liveSuppressed !== undefined &&
+            (!Array.isArray(saved.liveSuppressed) ||
+              saved.liveSuppressed.length > 256 ||
+              saved.liveSuppressed.some((id) => !saved.suppressed.includes(id))))
+        )
+          throw Error('Invalid guidance record');
+        // A valid record for a different game session/source must never fall
+        // back to an older, coincidentally matching previous copy.
+        if (
+          saved.session === session &&
+          same(saved.source, source) &&
+          saved.revision === this.revision &&
+          saved.tokenHash === sha(Buffer.from(this.token))
+        ) {
+          fresh.lastQuestId = saved.lastQuestId;
+          fresh.suppressed = new Set(saved.suppressed);
+          fresh.observationEpoch = saved.observationEpoch || 0;
+          fresh.liveSuppressed = new Set(saved.liveSuppressed || saved.suppressed);
+        }
+        break;
+      } catch {
+        if (file === this.guidanceFile && fs.existsSync(file)) this.guidanceRecovering = true;
+      }
+    }
+    return fresh;
+  }
+  persistDialogueContext() {
+    if (!this.guidanceFile || !this.dialogueContext) return;
+    const current = this.dialogueContext;
+    const saved = {
+      schema: 1,
+      session: current.session,
+      source: current.source,
+      revision: this.revision,
+      tokenHash: sha(Buffer.from(this.token)),
+      lastQuestId: isKnownChoiceStep(current.lastQuestId) ? current.lastQuestId : 0,
+      suppressed: [...current.suppressed],
+      observationEpoch: current.observationEpoch,
+      liveSuppressed: [...current.liveSuppressed],
+    };
+    const signature = JSON.stringify(saved);
+    if (signature === this.guidanceStoredSignature) return;
+    try {
+      atomicWrite(this.guidanceFile, saved, !!this.guidanceRecovering);
+      this.guidanceRecovering = false;
+      this.guidanceStoredSignature = signature;
+    } catch {
+      this.error = '现场提醒记录未能保存，重启手札后可能重复提示；请检查手札数据目录是否可写。';
+    }
+  }
+  liveGuidance(source) {
+    const priorObservation = () => {
+      const last = this.npcReader.last;
+      return last && typeof last.source === 'string' && same(source, last.source)
+        ? { lastLiveAt: last.at * 1000 }
+        : {};
+    };
+    const withdraw = () => {
+      this.npcReader.withdraw();
+      const current = this.dialogueContext;
+      if (
+        !current ||
+        typeof source !== 'string' ||
+        !same(source, current.source) ||
+        !same(source, this.guidanceSource || (this.test ? this.timeline.data.source : ''))
+      )
+        return null;
+      if (isKnownChoiceStep(current.lastQuestId)) {
+        current.suppressed.add(current.lastQuestId);
+        current.liveSuppressed.add(current.lastQuestId);
+      }
+      current.lastQuestId = 0;
+      this.persistDialogueContext();
+      return { dialogue: null, suppressedQuestIds: [...current.suppressed], ...priorObservation() };
+    };
+    if (
+      this.disposed ||
+      this.busy ||
+      this.loadQueued ||
+      this.quiescing ||
+      this.timeline.data.pending ||
+      this.blocked() ||
+      (!this.test && (!this.installation().installed || this.guidanceAccountIssue(source)))
+    ) {
+      return withdraw();
+    }
+    const state = this.heartbeat();
+    if (
+      !this.connected(state) ||
+      typeof source !== 'string' ||
+      !same(source, state.source) ||
+      (!state.ready && state.reason !== '菜单或对话中暂停保存')
+    ) {
+      return withdraw();
+    }
+    if (this.dialogueContext?.session !== state.session || !same(this.dialogueContext.source, source)) {
+      this.dialogueContext = this.restoreDialogueContext(state.session, source);
+    }
+    const current = this.dialogueContext;
+    const dialogue = readDialogue(state.dialogue);
+    if (dialogue) {
+      if (isKnownChoiceStep(current.lastQuestId) && current.lastQuestId !== dialogue.questId) {
+        current.suppressed.add(current.lastQuestId);
+        current.liveSuppressed.add(current.lastQuestId);
+      }
+      current.lastQuestId = dialogue.questId;
+      current.suppressed.delete(dialogue.questId);
+      current.liveSuppressed.delete(dialogue.questId);
+    } else if (current.lastQuestId) {
+      if (isKnownChoiceStep(current.lastQuestId)) {
+        current.suppressed.add(current.lastQuestId);
+        current.liveSuppressed.add(current.lastQuestId);
+      }
+      current.lastQuestId = 0;
+    }
+    const npcState = this.npcReader.sample(state);
+    // A verified full observation after loading/travel replaces the previous
+    // world's choice retirement. Keep saved-reference retirement separately:
+    // a later disconnect must not revive advice from an older saved file.
+    if (npcState && npcState.epoch > current.observationEpoch) {
+      current.observationEpoch = npcState.epoch;
+      current.liveSuppressed.clear();
+    }
+    this.persistDialogueContext();
+    return {
+      dialogue,
+      suppressedQuestIds: [...(npcState ? current.liveSuppressed : current.suppressed)],
+      ...(!npcState ? priorObservation() : {}),
+      ...(npcState ? { npcState } : {}),
+    };
   }
   hintQuiet() {
     if (this.busy || this.loadQueued || this.timeline.data.pending || this.quiescing) return true;
@@ -256,7 +441,7 @@ class GameBridge {
       );
   }
   install() {
-    if (this.busy || !this.canStop()) throw Error('请先退出游戏，再安装或更新接入组件');
+    if (this.busy || this.loadQueued || !this.canStop()) throw Error('请先退出游戏，再安装或更新接入组件');
     const native = provenance.nativeIO;
     if (native?.protocol !== PROTOCOL || native.mod !== NATIVE_MOD || !/^[a-f0-9]{64}$/.test(native.sha256))
       throw Error('Unicode 原生组件缺少已固定的构建来源，已停止安装');
@@ -264,9 +449,12 @@ class GameBridge {
     if (sha(nativeBytes) !== native.sha256) throw Error('Unicode 内置组件校验失败，已停止安装');
     const bin = this.location(),
       marker = path.join(bin, '.yijian-component.json');
-    let mod = 'YijianJournalBridge';
+    let mod = 'YijianJournalBridge',
+      existing,
+      markerBytes;
     if (fs.existsSync(marker)) {
-      const existing = json(marker);
+      markerBytes = readStable(marker);
+      existing = JSON.parse(markerBytes.toString('utf8'));
       if (
         existing.schema !== 1 ||
         !same(existing.root, this.root) ||
@@ -281,12 +469,80 @@ class GameBridge {
     )
       throw Error('已有其他游戏接入文件，已保留原组件；不能自动覆盖');
     const nativeTarget = path.join(bin, 'ue4ss', 'Mods', NATIVE_MOD, 'dlls', 'main.dll');
-    if (fs.existsSync(nativeTarget) && this.checkedHash(nativeTarget) !== native.sha256)
-      throw Error('已有 Unicode 接入文件不匹配，已保留原组件');
+    let previousNative;
+    if (fs.existsSync(nativeTarget) && this.checkedHash(nativeTarget) !== native.sha256) {
+      if (
+        existing?.protocol !== PROTOCOL ||
+        existing.nativeMod !== NATIVE_MOD ||
+        !/^[a-f0-9]{64}$/.test(existing.unicodeSha256) ||
+        !native.upgradeFromSha256?.includes(existing.unicodeSha256)
+      )
+        throw Error('已有 Unicode 接入文件不匹配，已保留原组件');
+      for (const relative of [
+        'ue4ss',
+        'ue4ss/Mods',
+        'ue4ss/Mods/' + NATIVE_MOD,
+        'ue4ss/Mods/' + NATIVE_MOD + '/dlls',
+      ])
+        realDirectory(path.join(bin, relative));
+      previousNative = readStable(nativeTarget);
+      if (sha(previousNative) !== existing.unicodeSha256)
+        throw Error('已有 Unicode 接入文件与安装记录不符，已保留原组件');
+    }
+    // Verify every existing runtime pin before creating a protection copy or changing the game.
+    const runtimeFiles = [];
     for (const [name, hash] of Object.entries(provenance.files)) {
       const bytes = fs.readFileSync(path.join(resources, 'runtime', name));
       if (sha(bytes) !== hash) throw Error('内置组件校验失败');
       const target = path.join(bin, name);
+      if (fs.existsSync(target) && this.checkedHash(target) !== hash)
+        throw Error('已有组件发生了变化，已停止安装');
+      runtimeFiles.push({ target, bytes, hash });
+    }
+    if (previousNative) {
+      // The runtime may be legacy game-local state; component protection always lives in app data.
+      let dataRoot;
+      try {
+        dataRoot = realDirectory(path.dirname(this.timeline.root));
+      } catch (e) {
+        throw Error('无法确认手札数据目录，原组件已保留；请检查数据目录后重试', { cause: e });
+      }
+      const gameRoot = realDirectory(path.resolve(bin, '..', '..', '..'));
+      if (isWithin(dataRoot, gameRoot) || isWithin(gameRoot, dataRoot))
+        throw Error('组件保护目录不能与游戏安装目录重叠，已保留原组件');
+      const backupsRoot = path.join(dataRoot, 'component-backups');
+      const backups = path.join(backupsRoot, NATIVE_MOD);
+      const backup = path.join(backups, existing.unicodeSha256 + '.dll');
+      let protectedBytes;
+      try {
+        fs.mkdirSync(backupsRoot, { recursive: true });
+        realDirectory(backupsRoot);
+        fs.mkdirSync(backups, { recursive: true });
+        realDirectory(backups);
+        if (!fs.existsSync(backup)) {
+          const staged = path.join(backups, '.' + crypto.randomUUID() + '.tmp');
+          writeBytes(staged, previousNative);
+          try {
+            // Publish complete, flushed bytes atomically without replacing a racing protection copy.
+            fs.linkSync(staged, backup);
+          } catch (e) {
+            if (e.code !== 'EEXIST') throw e;
+          } finally {
+            fs.unlinkSync(staged);
+          }
+        }
+        protectedBytes = readStable(backup);
+      } catch (e) {
+        throw Error('无法保护旧接入组件，原组件已保留；请检查手札数据目录权限后重试', { cause: e });
+      }
+      if (sha(protectedBytes) !== existing.unicodeSha256)
+        throw Error('已有组件保护副本不匹配，已保留原组件和副本');
+      if (this.busy || this.loadQueued || !this.canStop()) throw Error('请先退出游戏，再安装或更新接入组件');
+      if (!readStable(marker).equals(markerBytes) || !readStable(nativeTarget).equals(previousNative))
+        throw Error('已有接入组件正在变化，已保留原组件');
+      writeBytes(nativeTarget, nativeBytes);
+    }
+    for (const { target, bytes, hash } of runtimeFiles) {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       realDirectory(path.dirname(target));
       if (!fs.existsSync(target)) writeBytes(target, bytes);
@@ -381,11 +637,16 @@ class GameBridge {
       throw Error('请选择 Steam 账户下的 SaveGames 目录');
     const pathIssue = this.nativePathIssue(directory);
     if (pathIssue) throw Error(pathIssue);
-    if (this.timeline.data.nativeProtocol !== PROTOCOL) {
+    const writable =
+      this.timeline.data.nativeProtocol === PROTOCOL && same(directory, this.timeline.data.source);
+    if (!writable && !this.installation().installed) {
       writeBytes(path.join(this.root, 'config.txt'), Buffer.from('disabled\n'));
       this.grantBinding = '';
+      this.guidanceSource = '';
       return;
     }
+    if (!writable && path.basename(path.dirname(directory)) !== this.account())
+      throw Error('存档目录与当前 Steam 账户不一致，已停止现场提醒');
     const grant = grantFrame({
       token: this.token,
       source: directory,
@@ -393,9 +654,11 @@ class GameBridge {
       revision: this.revision,
       build: provenance.gameBuild,
       epoch: crypto.randomUUID(),
+      access: writable ? 'timeline' : 'observe',
     });
     writeBytes(path.join(this.root, 'config.txt'), grant.bytes);
-    this.grantBinding = grant.binding;
+    this.grantBinding = writable ? grant.binding : '';
+    this.guidanceSource = directory;
   }
   assertReady() {
     if (this.disposed || this.blocked()) throw Error('请先完成未处理的完整存档恢复');
@@ -624,11 +887,24 @@ class GameBridge {
       this.loadQueued ||
       this.disposed ||
       this.quiescing ||
-      !this.timeline.data.enabled ||
       this.timeline.data.pending ||
       this.blocked()
     )
       return false;
+    if (!this.timeline.data.enabled) {
+      // Steam may become available after the journal starts. Retry only the
+      // installed component's read-only grant; never create timeline consent.
+      if (
+        this.timeline.data.source &&
+        (!this.guidanceSource || !same(this.guidanceSource, this.timeline.data.source)) &&
+        this.timeline.data.nativeProtocol !== PROTOCOL
+      ) {
+        try {
+          if (this.installation().installed) this.connect(this.timeline.data.source);
+        } catch {}
+      }
+      return false;
+    }
     const installed = this.installation();
     if (installed.installed) return false;
     this.fail(Error(installed.reason || '游戏接入组件暂不可用'));
@@ -664,18 +940,7 @@ class GameBridge {
       s = this.heartbeat();
     let unavailable = this.disposed || this.blocked() ? '请先完成未处理的完整存档恢复' : '';
     if (installed.installed && !unavailable) {
-      if (!this.statusAccount || this.now() - this.statusAccount.at >= 5000) {
-        try {
-          this.statusAccount = { at: this.now(), account: this.account() };
-        } catch (e) {
-          this.statusAccount = { at: this.now(), error: e.message };
-        }
-      }
-      unavailable =
-        this.statusAccount.error ||
-        (path.basename(path.dirname(this.timeline.data.source)) !== this.statusAccount.account
-          ? '存档目录与当前 Steam 账户不一致，已停止存读档'
-          : '');
+      unavailable = this.guidanceAccountIssue(this.guidanceSource || this.timeline.data.source);
     }
     // Only presentation uses this short-lived availability snapshot. Every
     // native save, load, installation and launch keeps its own fresh guards.
@@ -688,7 +953,7 @@ class GameBridge {
       ...this.timeline.summary(),
       installed: installed.installed,
       connected,
-      ready: installed.installed && !unavailable && connected && !!s.ready,
+      ready: installed.installed && !unavailable && connected && !!s.ready && !!this.grantBinding,
       busy: this.busy || this.loadQueued,
       quiescing: this.quiescing,
       reason:
@@ -698,7 +963,7 @@ class GameBridge {
           : unavailable
             ? unavailable
             : connected
-              ? s.reason || '游戏已连接，可保存进度'
+              ? s.reason || (this.grantBinding ? '游戏已连接，可保存进度' : '游戏已连接，现场提醒已开启')
               : '等待游戏连接，请重启游戏并进入存档'),
       error: this.error || this.timeline.error,
       pathIssue: this.nativePathIssue(),

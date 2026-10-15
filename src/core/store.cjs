@@ -71,6 +71,7 @@ function defaults() {
     settings: {
       spoiler: 'hints',
       autoBackup: true,
+      checkUpdatesOnStart: true,
       savePath: '',
       steamPath: '',
       companionEnabled: true,
@@ -221,6 +222,8 @@ function validateState(s, ids) {
   if (s.settings.shortcuts !== undefined) require('./shortcuts.cjs').validate(s.settings.shortcuts);
   if (s.settings.saveFeedback !== undefined && typeof s.settings.saveFeedback !== 'boolean')
     throw Error('保存反馈设置无效');
+  if (s.settings.checkUpdatesOnStart !== undefined && typeof s.settings.checkUpdatesOnStart !== 'boolean')
+    throw Error('更新检查设置无效');
   if (s.settings.offerAutoSaveOnStart !== undefined && typeof s.settings.offerAutoSaveOnStart !== 'boolean')
     throw Error('开始游戏偏好无效');
   if (s.settings.companionEnabled !== undefined && typeof s.settings.companionEnabled !== 'boolean')
@@ -889,6 +892,7 @@ class Store {
             ![
               'spoiler',
               'autoBackup',
+              'checkUpdatesOnStart',
               'saveFeedback',
               'offerAutoSaveOnStart',
               'companionEnabled',

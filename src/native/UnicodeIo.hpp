@@ -100,6 +100,54 @@ inline Bytes read_file(const std::wstring& p,size_t limit) {
      before.ftLastWriteTime.dwHighDateTime!=after.ftLastWriteTime.dwHighDateTime)throw std::runtime_error("unstable file");
   return {std::move(bytes),false};
 }
+// The executable is the current process image, never a Lua-supplied pathname.
+// Keep a fixed memory budget even for the much larger game executable.
+inline std::string current_process_executable_sha256() {
+  std::wstring path(32768,L'\0');
+  const DWORD length=GetModuleFileNameW(nullptr,path.data(),static_cast<DWORD>(path.size()));
+  if(!length || length>=path.size())throw std::runtime_error("process image unavailable");
+  path.resize(length); path=checked_path(std::move(path));
+  no_reparse(path);
+  Handle file(CreateFileW(wide(path).c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,
+    FILE_FLAG_OPEN_REPARSE_POINT|FILE_FLAG_SEQUENTIAL_SCAN,nullptr));
+  if(file.h==INVALID_HANDLE_VALUE || GetFileType(file.h)!=FILE_TYPE_DISK)throw std::runtime_error("process image unreadable");
+  same_handle_path(file.h,path); no_reparse(path);
+  BY_HANDLE_FILE_INFORMATION before{},after{};
+  constexpr ULONGLONG MaxExecutable=1024ULL*1024*1024;
+  if(!GetFileInformationByHandle(file.h,&before) ||
+     (before.dwFileAttributes&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT)))throw std::runtime_error("invalid process image");
+  const ULONGLONG size=(static_cast<ULONGLONG>(before.nFileSizeHigh)<<32)|before.nFileSizeLow;
+  if(!size || size>MaxExecutable)throw std::runtime_error("process image size");
+  struct Hash {
+    BCRYPT_ALG_HANDLE alg=nullptr; BCRYPT_HASH_HANDLE hash=nullptr;
+    ~Hash(){if(hash)BCryptDestroyHash(hash);if(alg)BCryptCloseAlgorithmProvider(alg,0);}
+  } hash;
+  if(BCryptOpenAlgorithmProvider(&hash.alg,BCRYPT_SHA256_ALGORITHM,nullptr,0)<0 ||
+     BCryptCreateHash(hash.alg,&hash.hash,nullptr,0,nullptr,0,0)<0)throw std::runtime_error("SHA256 unavailable");
+  std::array<unsigned char,65536> buffer{};
+  ULONGLONG remaining=size;
+  while(remaining) {
+    const auto wanted=static_cast<DWORD>(std::min<ULONGLONG>(remaining,buffer.size()));
+    DWORD got=0;
+    if(!ReadFile(file.h,buffer.data(),wanted,&got,nullptr) || !got || got>wanted ||
+       BCryptHashData(hash.hash,buffer.data(),got,0)<0)throw std::runtime_error("process image hash failed");
+    remaining-=got;
+  }
+  DWORD extra=0;
+  if(!ReadFile(file.h,buffer.data(),1,&extra,nullptr) || extra ||
+     !GetFileInformationByHandle(file.h,&after) || before.dwFileAttributes!=after.dwFileAttributes ||
+     before.nFileSizeHigh!=after.nFileSizeHigh || before.nFileSizeLow!=after.nFileSizeLow ||
+     before.dwVolumeSerialNumber!=after.dwVolumeSerialNumber || before.nFileIndexHigh!=after.nFileIndexHigh ||
+     before.nFileIndexLow!=after.nFileIndexLow || before.ftLastWriteTime.dwLowDateTime!=after.ftLastWriteTime.dwLowDateTime ||
+     before.ftLastWriteTime.dwHighDateTime!=after.ftLastWriteTime.dwHighDateTime)throw std::runtime_error("unstable process image");
+  same_handle_path(file.h,path); no_reparse(path);
+  std::array<unsigned char,32> digest{};
+  if(BCryptFinishHash(hash.hash,digest.data(),static_cast<ULONG>(digest.size()),0)<0)throw std::runtime_error("SHA256 failed");
+  constexpr char hex[]="0123456789abcdef";
+  std::string result; result.reserve(64);
+  for(const auto value:digest){result+=hex[value>>4];result+=hex[value&15];}
+  return result;
+}
 inline void write_file(const std::wstring& p,std::string_view bytes) {
   if(bytes.size()>MaxSave)throw std::runtime_error("write limit");
   no_reparse(p,true);

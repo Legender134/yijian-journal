@@ -1,7 +1,7 @@
 #pragma once
 #include "UnicodeIo.hpp"
 namespace yijian {
-struct Grant { std::string key,sourceBytes,binding; std::wstring source; };
+struct Grant { std::string key,sourceBytes,binding; std::wstring source; bool writable; };
 class Channel {
   std::string rootBytes,revision;
   std::wstring root;
@@ -14,7 +14,7 @@ class Channel {
     return name==L"config.txt"||name==L"command.txt"||name==L"expected.sav"||name==L"last-command.txt";
   }
   static bool root_write(std::wstring_view name) {
-    return name==L"state.json"||name==L"response.json"||name==L"last-command.txt"||name==L"started.txt"||name==L"schedule-error.txt"||
+    return name==L"state.json"||name==L"npc-observation.json"||name==L"response.json"||name==L"last-command.txt"||name==L"started.txt"||name==L"schedule-error.txt"||
       std::regex_match(std::wstring(name),std::wregex(L"receipts\\\\[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.sav"));
   }
 public:
@@ -33,7 +33,7 @@ public:
     const auto p=lines(config.value);
     if(p.size()!=9 || p[0]!="2" || p[1]!=token.value ||
        !std::regex_match(p[3],std::regex("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}")) ||
-       !std::regex_match(p[4],std::regex("[0-9]{17}")) || p[5]!="21798996" || p[6]!="29" || p[7]!=revision ||
+       !std::regex_match(p[4],std::regex("[0-9]{17}")) || p[5]!="21798996" || (p[6]!="29" && p[6]!="observe") || p[7]!=revision ||
        !std::regex_match(p[8],std::regex("[a-f0-9]{64}")))throw std::runtime_error("invalid grant identity");
     const auto split=config.value.rfind(p[8]+"\n");
     const auto binding=config.value.substr(0,split)+rootBytes+"\n";
@@ -46,18 +46,19 @@ public:
       return child.size()>parent.size() && child[parent.size()]==L'\\' && equal_path(child.substr(0,parent.size()),parent);
     };
     if(equal_path(root,source) || within(source,root) || within(root,source))throw std::runtime_error("source overlaps root");
-    return {token.value,p[2],binding,source};
+    return {token.value,p[2],binding,source,p[6]=="29"};
   }
   Bytes read(std::string_view input,size_t limit) const {
     const auto file=checked_path(utf16(input));
     Grant g=grant();
     const bool own=file.starts_with(root+L"\\");
     const auto name=own?file.substr(root.size()+1):L"";
+    if(!g.writable && name!=L"config.txt")throw std::runtime_error("observation read scope");
     if(!(own&&root_read(name)) && !equal_path(file,g.source+L"\\29.sav") &&
        !equal_path(file,g.source+L"\\JHSaveConfig.sav"))throw std::runtime_error("read scope");
     auto result=read_file(file,limit);
     if(result.missing)return result;
-    if(name==L"config.txt")result.value=g.key+"\n"+g.sourceBytes+"\n";
+    if(name==L"config.txt")result.value=g.key+"\n"+g.sourceBytes+"\n"+(g.writable?"":"observe\n");
     if(name==L"command.txt") {
       const auto split=result.value.rfind('\t');
       if(split==result.value.npos || result.value.back()!='\n')throw std::runtime_error("command frame");
@@ -71,7 +72,14 @@ public:
     if(root.empty())throw std::runtime_error("uninitialized");
     const auto file=checked_path(utf16(input));
     if(!file.starts_with(root+L"\\")||!root_write(file.substr(root.size()+1)))throw std::runtime_error("write scope");
+    const auto name=file.substr(root.size()+1);
+    if(name!=L"state.json" && name!=L"npc-observation.json" && name!=L"started.txt" && name!=L"schedule-error.txt" && !grant().writable)
+      throw std::runtime_error("observation write scope");
     write_file(file,bytes);
+  }
+  std::string observation_mac(std::string_view bytes) const {
+    if(bytes.size()>4*1024*1024)throw std::runtime_error("observation limit");
+    return hmac(grant().key,bytes);
   }
 };
 }

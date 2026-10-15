@@ -3,7 +3,7 @@ const { goalProgress, selectedReference } = require('./goal-progress.cjs');
 const { resourceBudget, recipeGoalList, materialReport } = require('./resource-budget.cjs');
 const { journeyPlan } = require('./journey-plan.cjs');
 const { flowSnapshot } = require('./flow.cjs');
-function companionSnapshot(state, catalog, reference, error = '') {
+function companionSnapshot(state, catalog, reference, error = '', dialogue = null) {
   const profile = state.profiles.find((p) => p.id === state.activeProfileId);
   reference = selectedReference(profile, reference, error);
   const progress = goalProgress(profile, reference, error);
@@ -58,7 +58,7 @@ function companionSnapshot(state, catalog, reference, error = '') {
   } catch (e) {
     error = e.message;
   }
-  const flow = flowSnapshot(profile, reference, error);
+  const flow = flowSnapshot(profile, reference, error, dialogue);
   const hints = [];
   if (flow.decisions[0]) {
     const decision = flow.decisions[0];
@@ -68,9 +68,11 @@ function companionSnapshot(state, catalog, reference, error = '') {
       title: decision.recommendation?.hint || decision.recommendation?.action || decision.warning,
       label: '选择前的建议 · ' + decision.name,
     });
+    const caution = decision.recommendation?.caution || decision.compactWarning;
+    if (caution) hints.push({ type: 'flow-caution', title: caution, label: '选择后果' });
   }
   const warning = flow.warnings.find((row) => !flow.decisions.some((decision) => decision.id === row.id));
-  if (warning) {
+  if (warning && hints.length < 2) {
     hints.push({
       type: 'flow-warning',
       id: warning.questId ? `quest-${warning.questId}` : null,
@@ -185,6 +187,13 @@ function companionSnapshot(state, catalog, reference, error = '') {
       label: '存档中的进行中任务',
     });
   }
+  // A withdrawn observation must not promote older saved advice as a new live alert.
+  if (flow.stateNotice && !flow.decisions.some((row) => row.live))
+    hints.splice(0, hints.length, {
+      type: 'help',
+      title: '现场更新暂停 · 展开查看最近保存的进度',
+      label: '等待更新',
+    });
   if (!hints.length)
     hints.push({ type: 'help', title: '按 Ctrl＋Alt＋J 查人物、物品与任务', label: '随行查询' });
   return {

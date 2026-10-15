@@ -131,32 +131,41 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       ];
     } else if (e.kind === '人物') {
       const variant = variantSummary(id, context.reference);
-      if (variant) lines.push(variant);
-      else if (e.npcFacts)
-        lines.push(
-          `初始等级 ${e.npcFacts.level} · ${new Set((e.npcFacts.fixedItems || []).map((item) => item.id)).size} 种固定私物`,
-        );
-      if (e.hobbies?.length) lines.push('赠礼偏好：' + e.hobbies.join('、'));
-      const place = index().world?.maps?.find((m) => m.key === e.walkMap);
-      if (place) lines.push('行走场景：' + place.name);
-      const related = catalog().personRelations(e);
-      if (!variant)
-        lines.push(
-          '相关任务：' +
-            (related.quests
-              .slice(0, 2)
-              .map((row) => row.entity.name.replace(/^【[^】]+】/, ''))
-              .join('、') || '暂无具名关联'),
-        );
-    } else if (e.kind === '任务') {
-      const state = context.statuses?.get(e.id) || questStatus(e.gameId, context.reference);
-      lines.push(state);
-      const relation = catalog().taskRelations(e);
-      const active = relation.group.find(
-        (step) =>
-          step.id !== e.id &&
-          (context.statuses?.get(step.id) || questStatus(step.gameId, context.reference)) === '进行中',
+      const current = (context.npcProgress || context.reference?.metadata?.npcProgress)?.people.find(
+        (row) => row.npcId === e.gameId,
       );
+      if (current) {
+        lines.push(
+          [
+            current.remainingItems.length ? `私物还剩 ${current.remainingItems.length} 种` : '私物已清空',
+            current.learning.length ? `${current.learning.length} 项技艺与功法可提升` : '',
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        );
+        if (current.place) lines.push(current.place.name);
+        const blocked = [
+          ['比武', current.compare],
+          ['赠礼', current.gift],
+          ['请教', current.consult],
+        ].find(([, gate]) => gate?.checks?.some((check) => check.status !== 'met'));
+        if (blocked)
+          lines.push(blocked[0] + '：' + blocked[1].checks.find((check) => check.status !== 'met').text);
+      } else {
+        if (variant) lines.push(variant);
+        else if (e.npcFacts)
+          lines.push(
+            `初始等级 ${e.npcFacts.level} · ${new Set((e.npcFacts.fixedItems || []).map((item) => item.id)).size} 种固定私物`,
+          );
+        if (e.hobbies?.length) lines.push('赠礼偏好：' + e.hobbies.join('、'));
+        const place = index().world?.maps?.find((m) => m.key === e.walkMap);
+        if (place && !variant) lines.push('行走场景：' + place.name);
+      }
+    } else if (e.kind === '任务') {
+      const status = (task) => context.statuses?.get(task.id) || questStatus(task.gameId, context.reference);
+      lines.push(status(e));
+      const relation = catalog().taskRelations(e);
+      const active = relation.group.find((step) => step.id !== e.id && catalog().isActiveQuest(step, status));
       if (context.nextStep || active) lines.push('下一步：' + (context.nextStep || active.name));
       else if (e.parentId && e.description) lines.push(String(e.description).slice(0, 100));
       const people = relation.people.filter((row) =>
@@ -170,26 +179,11 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
               .map((row) => row.entity.name)
               .join('、'),
         );
-      if (relation.items.length)
-        lines.push(
-          '涉及材料：' +
-            relation.items
-              .slice(0, 3)
-              .map((row) => row.entity.name)
-              .join('、'),
-        );
       const conditions = (e.requirements || []).filter((condition) => condition.name).slice(0, 2);
       if (conditions.length) lines.push('条件：' + conditions.map((condition) => condition.name).join('、'));
     } else if (e.kind === '物品') {
       const numeric = itemNumericSummary(e, index());
       if (numeric) lines.push(numeric);
-      if (typeof e.buyPrice === 'number')
-        lines.push(
-          '买价：' +
-            e.buyPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) +
-            ' 文' +
-            (e.giftable ? ' · 可赠礼' : ''),
-        );
       const inventory = context.reference?.metadata?.inventory;
       if (Array.isArray(inventory))
         lines.push(
@@ -216,6 +210,8 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
           (entry) => entry.kind === '配方' && entry.results?.some((result) => result.id === e.gameId),
         );
         if (recipe) lines.push('制作：' + recipe.name);
+        else if (!numeric && typeof e.buyPrice === 'number')
+          lines.push('参考买价：' + e.buyPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + ' 文');
       }
     } else if (e.kind === '配方') {
       lines.push(
@@ -229,7 +225,8 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
     } else if (e.kind === '地点') {
       const variant = variantSummary(id, context.reference);
       lines.push(variant || (e.cave ? '洞穴场景' : '游戏场景'));
-      if (!variant && context.reference?.metadata?.map === e.key) lines.push('当前保存地点');
+      if (!variant && context.reference?.metadata?.map === e.key)
+        lines.push(context.reference?.origin === 'live' ? '当前地点' : '当前保存地点');
       const related =
         index().world?.quests?.filter((quest) =>
           (quest.placements || []).some((placement) => placement.mapKey === e.key),
@@ -252,7 +249,7 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
         );
     }
     const description =
-      choices.length === 1 && e.kind !== '任务' ? String(e.description || '').slice(0, 100) : '';
+      choices.length === 1 && !lines.length ? String(e.description || '').slice(0, 100) : '';
     const placeKeys = choices
       .filter((row) => row.kind === '地点')
       .map((row) => index().world?.mapAtlas?.locations?.[row.key]?.markerKey);
@@ -266,7 +263,6 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
         ? placeMaps.render(index(), e.id, { compact: true, interactive: false })
         : '';
     return `<div class="entity-preview-heading">${artwork(id, 'card')}<div><small>${esc(choices.length > 1 ? groupLabel : e.kind)}${choices.length === 1 && e.quality ? ' · ' + esc(e.quality) + '色' : ''}</small><strong>${esc(name)}</strong></div></div>${description ? `<p class="entity-preview-description">${esc(description)}</p>` : ''}${lines
-      .slice(0, 4)
       .map((line) => `<p>${esc(line)}</p>`)
       .join('')}${map}<small class="entity-preview-hint">点击查看详情 · Esc 收起</small>`;
   }
@@ -285,12 +281,63 @@ export function installEntityPreviews({ document, window, references, context })
     pending = null,
     timer,
     hideTimer,
+    request = 0,
     dismissed = null;
-  const eligible = (node) =>
-    node?.closest?.(
-      '[data-entity-id], [data-action="database-detail"][data-id], [data-action="world-quest"][data-id], [data-action="flow-quest"][data-id], [data-action="world-place"][data-id]',
-    );
+  const selector =
+    '[data-entity-id], [data-action="database-detail"][data-id], [data-action="world-quest"][data-id], [data-action="flow-quest"][data-id], [data-action="world-place"][data-id]';
+  const eligible = (node) => node?.closest?.(selector);
+  const focusSelector = selector + ', button[data-action], summary';
+  const identity = (node) =>
+    JSON.stringify([
+      node.tagName || '',
+      node.dataset.entityId || node.dataset.id,
+      node.dataset.action || '',
+      node.dataset.qualityId || '',
+      !node.dataset.entityId &&
+      !node.dataset.id &&
+      !node.dataset.action &&
+      !['id', 'data-persist-detail', 'data-compact-detail'].some((name) =>
+        node.parentElement?.getAttribute(name),
+      )
+        ? node.textContent
+        : '',
+      !node.dataset.entityId && !node.dataset.id ? node.getAttribute('aria-label') || '' : '',
+      !eligible(node) ? Object.entries(node.dataset).sort(([a], [b]) => a.localeCompare(b)) : null,
+      !eligible(node) ? node.getAttribute('aria-label') || '' : '',
+    ]);
+  const anchors = [
+    'id',
+    'data-persist-detail',
+    'data-compact-detail',
+    'data-flow-decision',
+    'data-flow-rule',
+    'data-flow-now',
+    'data-flow-quest',
+    'data-duel',
+    'data-task-relations',
+    'data-person-relations',
+    'data-flow-suggestion',
+    'data-flow-impact',
+    'data-community-pickup',
+  ];
+  const locationKey = (scope, node) => {
+    const path = [];
+    for (let parent = node.parentElement; parent && parent !== scope; parent = parent.parentElement) {
+      const keys = anchors
+        .map((name) => [name, parent.getAttribute(name)])
+        .filter(([, value]) => value !== null);
+      if (keys.length) path.unshift(keys);
+    }
+    return JSON.stringify([identity(node), path]);
+  };
+  const candidates = (scope, key) =>
+    [...scope.querySelectorAll(focusSelector)].filter((node) => locationKey(scope, node) === key);
+  const locate = (scope, node) => {
+    const key = locationKey(scope, node);
+    return { key, occurrence: candidates(scope, key).indexOf(node) };
+  };
   const close = (dismissCurrent = false) => {
+    ++request;
     if (dismissCurrent === true) dismissed = trigger || pending || eligible(document.activeElement);
     clearTimeout(timer);
     clearTimeout(hideTimer);
@@ -316,37 +363,47 @@ export function installEntityPreviews({ document, window, references, context })
         ),
       ) + 'px';
   };
+  const readContext = (node, delay = 0) => {
+    const current = ++request;
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      if (current !== request) return;
+      if (!node.isConnected || node.disabled) return close();
+      let details;
+      try {
+        details = await context(node);
+      } catch {
+        details = {};
+      }
+      if (
+        current !== request ||
+        (pending !== node && trigger !== node) ||
+        !node.isConnected ||
+        node.closest('[inert]')
+      )
+        return;
+      const html = references.preview(node.dataset.entityId || node.dataset.id, details);
+      if (!html) return close();
+      trigger = node;
+      pending = null;
+      if (panel.innerHTML !== html) panel.innerHTML = html;
+      panel.hidden = false;
+      node.setAttribute('aria-describedby', panel.id);
+      position();
+    }, delay);
+  };
   const show = (node, immediate = false) => {
     clearTimeout(hideTimer);
     if (!node || node === dismissed || node === trigger || node === pending || node.disabled) return;
     close();
     pending = node;
-    timer = setTimeout(
-      async () => {
-        if (!node.isConnected || node.disabled) return close();
-        let details;
-        try {
-          details = await context(node);
-        } catch {
-          details = {};
-        }
-        if (pending !== node || !node.isConnected || node.closest('[inert]')) return;
-        const html = references.preview(node.dataset.entityId || node.dataset.id, details);
-        if (!html) return close();
-        trigger = node;
-        pending = null;
-        panel.innerHTML = html;
-        panel.hidden = false;
-        node.setAttribute('aria-describedby', panel.id);
-        position();
-      },
-      immediate ? 0 : 240,
-    );
+    readContext(node, immediate ? 0 : 240);
   };
   const leave = () => {
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => {
-      if (panel.matches(':hover') || trigger?.matches(':hover') || document.activeElement === trigger) return;
+      const node = trigger || pending;
+      if (panel.matches(':hover') || node?.matches(':hover') || document.activeElement === node) return;
       close();
     }, 160);
   };
@@ -362,7 +419,7 @@ export function installEntityPreviews({ document, window, references, context })
     const node = eligible(event.target);
     if (node && !node.contains(event.relatedTarget)) {
       if (dismissed === node) dismissed = null;
-      if (pending === node) close();
+      if (pending === node && document.activeElement !== node) close();
       leave();
     }
     if (panel.contains(event.target) && !panel.contains(event.relatedTarget)) leave();
@@ -416,5 +473,64 @@ export function installEntityPreviews({ document, window, references, context })
     attributes: true,
     attributeFilter: ['inert'],
   });
-  return { close };
+  return {
+    close,
+    captureFocusWithin(scope) {
+      const active = document.activeElement;
+      const node =
+        eligible(active) ||
+        (active?.matches?.('button[data-action], summary') &&
+        !active.dataset.action?.startsWith('journey-itinerary-')
+          ? active
+          : null);
+      return node && scope.contains(node) ? locate(scope, node) : null;
+    },
+    restoreFocusWithin(scope, saved) {
+      if (!saved || scope.closest('[inert]')) return;
+      const node = candidates(scope, saved.key)[saved.occurrence];
+      if (!node || node.disabled || node.closest('[inert]')) return;
+      node.focus({ preventScroll: true });
+      close(true);
+    },
+    refreshOutside(scope) {
+      const node = trigger || pending;
+      if (!node || scope.contains(node)) return;
+      if (
+        !node.isConnected ||
+        node.disabled ||
+        node.closest('[inert]') ||
+        (!node.matches(':hover') && !panel.matches(':hover') && document.activeElement !== node)
+      )
+        return close();
+      readContext(node);
+    },
+    captureWithin(scope) {
+      const node = trigger || pending;
+      if (!node || !scope.contains(node)) return null;
+      const focused = document.activeElement === node;
+      const panelHovered = panel.matches(':hover');
+      if (!focused && !node.matches(':hover') && !panelHovered) return null;
+      return {
+        ...locate(scope, node),
+        focused,
+        panelHovered,
+      };
+    },
+    restoreWithin(scope, saved) {
+      if (!saved || scope.closest('[inert]')) return;
+      const matches = candidates(scope, saved.key);
+      const node =
+        saved.focused || saved.panelHovered
+          ? matches[saved.occurrence]
+          : matches.find((entry) => entry.matches(':hover'));
+      if (!node || node.disabled || node.closest('[inert]')) return;
+      if (saved.focused && document.activeElement !== node) return;
+      dismissed = null;
+      // Resolve fresh context on the replacement; never reuse old inventory or tooltip HTML.
+      show(node, true);
+    },
+    closeWithin(scope) {
+      if (scope.contains(trigger || pending)) close();
+    },
+  };
 }

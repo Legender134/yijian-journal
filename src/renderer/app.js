@@ -6,7 +6,7 @@ import {
   insertSearchFilter,
 } from './search-query.js';
 import { createSearchHelpViews } from './search-help-views.js';
-import { createGameViews } from './game-views.js';
+import { createGameViews, codexEntries } from './game-views.js';
 import { createComparisonViews } from './comparison-views.js';
 import { createWorldViews } from './world-views.js';
 import { createPlaceMapViews } from './place-map-views.js';
@@ -39,6 +39,7 @@ import { createDuelViews } from './duel-views.js';
 import { createEntityReferences, installEntityPreviews } from './entity-references.js';
 import { createEntityDetailViews } from './entity-detail-views.js';
 import { navigationView } from './navigation-view.js';
+import { createAppUpdateViews } from './app-update-views.js';
 const api = window.journal;
 const compact = new URLSearchParams(location.search).has('compact');
 const root = document.querySelector('#app'),
@@ -57,6 +58,7 @@ let catalog,
   lastFocus = null;
 let searchSuggestions = [],
   searchSuggestionIndex = -1;
+const npcProgressView = { tab: 'remaining', query: '', page: 0 };
 function renderSearchSuggestions() {
   const container = overlay.querySelector('#global-filter-suggestions'),
     input = overlay.querySelector('#global-search');
@@ -747,9 +749,12 @@ function rememberDrawer(view, replace = false) {
       const field = document.querySelector('#recipe-quantity');
       currentDrawer.quantity = field && Number(field.value) > 0 ? Number(field.value) : 1;
       currentDrawer.reservationDraft = document.querySelector('#reserve-count')?.value;
-      currentDrawer.referenceName = referenceSaveName;
-      currentDrawer.follow = referenceFollow;
-      currentDrawer.referenceHash = referenceSave?.name === referenceSaveName ? referenceSave.hash || '' : '';
+      if (!currentDrawer.liveContext && !currentDrawer.liveNpcContext) {
+        currentDrawer.referenceName = referenceSaveName;
+        currentDrawer.follow = referenceFollow;
+        currentDrawer.referenceHash =
+          referenceSave?.name === referenceSaveName ? referenceSave.hash || '' : '';
+      }
     }
     if (currentDrawer.type === 'search') {
       currentDrawer.query = document.querySelector('#global-search')?.value || '';
@@ -856,6 +861,7 @@ const companionViews = createCompanionViews({
   picture,
   qualityText,
   index: () => gameIndex,
+  updateBadge: () => appUpdateViews.badge(environment?.updates),
 });
 async function refreshCompanion() {
   if (!compact) return;
@@ -865,6 +871,7 @@ async function refreshCompanion() {
   const changed = JSON.stringify(companionData) !== JSON.stringify(data);
   companionData = data;
   if (changed) render(true);
+  await refreshLiveNpcDetail();
 }
 document.addEventListener(
   'error',
@@ -878,6 +885,29 @@ document.addEventListener(
 const entityReferences = createEntityReferences({ index: () => gameIndex, esc, picture, icon, qualityText });
 const act = (action, label, cls = 'btn', id = '', glyph = '', accessibleLabel = '') =>
   entityReferences.button(action, label, cls, id, glyph, accessibleLabel);
+const appUpdateViews = createAppUpdateViews({ esc, act, bytes });
+function updatePanel() {
+  return appUpdateViews.panel(environment.updates, version, state.settings.checkUpdatesOnStart !== false);
+}
+function renderUpdateStatus(updates = environment.updates) {
+  environment.updates = updates;
+  for (const badge of document.querySelectorAll('[data-update-badge]'))
+    badge.innerHTML = appUpdateViews.badge(updates);
+  for (const panel of document.querySelectorAll('[data-update-panel]')) {
+    const opened = panel.querySelector('[data-update-notes]')?.open;
+    const focused = panel.contains(document.activeElement) ? document.activeElement.dataset.action : null;
+    const holder = document.createElement('div');
+    holder.innerHTML = updatePanel();
+    const next = holder.firstElementChild;
+    if (opened && next.querySelector('[data-update-notes]'))
+      next.querySelector('[data-update-notes]').open = true;
+    panel.replaceWith(next);
+    if (focused)
+      [...next.querySelectorAll('[data-action]')]
+        .find((button) => button.dataset.action === focused)
+        ?.focus({ preventScroll: true });
+  }
+}
 const iconButton = (action, glyph, title, id = '', cls = '') =>
   `<button class="icon-btn ${cls}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''} aria-label="${esc(title)}" title="${esc(title)}">${icon(glyph)}</button>`;
 const pill = (label, style = '') => `<span class="pill ${style}">${esc(label)}</span>`;
@@ -888,7 +918,7 @@ const notice = (message, info = false) =>
 const headings = {
   home: '当前进度',
   checklist: '流程任务',
-  duels: '比武与收益',
+  duels: '比武与请教',
   library: '精选攻略',
   database: '百物图鉴',
   world: '任务与地点',
@@ -916,6 +946,7 @@ const gameViews = createGameViews({
   qualityText,
   richText: entityReferences.text,
   variantSummary: entityReferences.variantSummary,
+  placeMap: (index, id, options) => placeMapViews.render(index, id, { compact, ...options }),
   personRelations: (index, person, reference) => entityDetailViews.person(index, person, reference),
 });
 const duelViews = createDuelViews({
@@ -925,7 +956,10 @@ const duelViews = createDuelViews({
   richText: (value) => entityReferences.text(value, 'flow-quest'),
 });
 function duelsPage() {
-  return duelViews.page(currentFlow(), { compact, scope: profile().id });
+  return (
+    flowViews.stateNotice(currentFlow()) +
+    duelViews.page(currentFlow(), { compact, scope: profile().id, npcProgress: npcProgressView })
+  );
 }
 const comparisonViews = createComparisonViews({
   getIndex: () => gameIndex,
@@ -984,12 +1018,26 @@ const entityPreviews = installEntityPreviews({
   context: async (target) => {
     if (target.dataset?.action === 'archive-entity') return { reference: null };
     if (
+      (target.closest('[data-flow], .duel-page') && currentFlow()?.liveReference) ||
+      currentDrawer?.liveNpcContext ||
+      currentDrawer?.liveContext ||
+      currentDrawer?.flowReference?.origin === 'live' ||
+      (worldView.liveContext && (route === 'world' || currentDrawer?.type?.startsWith('world-'))) ||
+      (/^(?:npc|skill|quest|place)-/.test(String(target.dataset?.entityId || target.dataset?.id || '')) &&
+        followsLiveWorld())
+    ) {
+      const flow = currentFlow();
+      if (flow?.liveReference) return { reference: flow.liveReference, npcProgress: flow.duels?.progress };
+      if (currentDrawer?.type === 'entity-choice') return { reference: currentDrawer.reference };
+    }
+    if (
       target.closest('[data-flow], .duel-page') ||
       (currentDrawer?.type === 'entity-choice' && currentDrawer.flowReference)
     ) {
       const flow = currentFlow();
-      const identity =
-        currentDrawer?.type === 'entity-choice' ? currentDrawer.flowReference : flow?.reference;
+      const identity = target.closest('[data-flow], .duel-page')
+        ? flow?.reference
+        : currentDrawer.flowReference;
       let reference = null;
       // Companion snapshots can advance before the main environment's save list.
       // Read the flow's exact identity and still reject a changed hash below.
@@ -1212,6 +1260,19 @@ const defaultReference = () =>
   profile().referenceMode === 'none' ? '' : profile().saveSlot || latestReference();
 function resetPlanningViews() {
   detailRequest++;
+  for (const view of [currentDrawer, ...drawerHistory]) {
+    if (view?.liveContext || view?.liveNpcContext || view?.flowReference?.origin === 'live')
+      Object.assign(view, {
+        liveContext: false,
+        liveNpcContext: false,
+        npcLiveKey: '',
+        flowReference: null,
+        referenceName: undefined,
+        referenceHash: '',
+        reference: null,
+        follow: defaultFollow(),
+      });
+  }
   if (currentDrawer?.type === 'entity-choice') {
     Object.assign(currentDrawer, {
       reference: null,
@@ -1315,7 +1376,13 @@ function materialPage() {
     taskMaterialsSection() +
     journeyTrashViews.entry(p) +
     recipeDiscoveryViews.entry() +
-    materialViews.page(gameIndex, p, materialView, readableSaves(), plans) +
+    materialViews.page(
+      gameIndex,
+      p,
+      materialView,
+      readableSaves(),
+      p.craftList?.length || p.craftPlans?.length || p.previousCraftList ? plans : '',
+    ) +
     allocationLedger()
   );
 }
@@ -1324,7 +1391,7 @@ function taskMaterialsSection(compact = false) {
   return `<section class="task-material-page" data-flow>${flowViews.taskMaterials(flow, { compact })}</section>`;
 }
 function compactMaterialsPage() {
-  const own = companionViews.materials(companionData);
+  const own = companionViews.materials(companionData, { managementLink: false });
   return `${taskMaterialsSection(true)}<details class="companion-crafting" data-persist-detail="compact-own-crafting"><summary>我的制作</summary>${own || '<p class="small muted">还没有制作清单。</p>'}${act('main-materials', '打开制作与留用管理', 'btn soft', '', 'external')}</details>`;
 }
 
@@ -1421,6 +1488,7 @@ function handbookReadingContext(view = currentDrawer, includeHistory = true) {
     databaseKind,
     databaseType,
     databasePage,
+    npcProgress: { ...npcProgressView },
     worldKind: worldView.kind,
     worldQuery: worldView.query,
     worldStatus: worldView.status,
@@ -1484,6 +1552,14 @@ function handbookReadingContext(view = currentDrawer, includeHistory = true) {
   }
   result.reference.hash =
     view?.referenceHash || (identity?.name === result.reference.name ? identity.hash || '' : '');
+  if (
+    defaultFollow() &&
+    (view?.liveNpcContext ||
+      view?.liveContext ||
+      view?.flowReference?.origin === 'live' ||
+      (worldList && worldView.liveContext))
+  )
+    result.reference = { name: '', hash: '', follow: true, live: true };
   result.presentation =
     view === currentDrawer
       ? handbookPresentation()
@@ -1531,22 +1607,31 @@ async function receiveHandbookContext(context) {
   databaseKind = context.databaseKind || '全部';
   databaseType = context.databaseType || '全部';
   databasePage = context.databasePage || 0;
+  Object.assign(npcProgressView, context.npcProgress || { tab: 'remaining', query: '', page: 0 });
   worldView.kind = context.worldKind === 'places' ? 'places' : 'quests';
   worldView.query = context.worldQuery || '';
   worldView.status = context.worldStatus || 'all';
   worldView.roots = context.worldRoots !== false;
   worldView.page = context.worldPage || 0;
-  const reference = context.reference;
+  const reference =
+    context.reference?.live && !defaultFollow()
+      ? { name: defaultReference(), hash: '', follow: false }
+      : context.reference;
   if (reference) {
     referenceSaveName = reference.name;
     referenceFollow = reference.follow;
     worldView.referenceName = reference.name;
     worldView.follow = reference.follow;
+    worldView.liveContext = reference.live === true;
     materialView.referenceName = reference.name;
     materialView.follow = reference.follow;
   }
   await refresh();
   if (!stillReading()) return;
+  if (route === 'world' && reference?.live) {
+    await loadWorldReference();
+    if (!stillReading()) return;
+  }
   render();
   const current = () => request === handbookRequest && context.profileId === profile().id;
   const opened = await openHandbookDetail(context, current);
@@ -1579,7 +1664,10 @@ async function openHandbookDetail(context, isCurrent = () => true) {
   const profileId = profile().id;
   const stillReading = () =>
     isCurrent() && request === handbookRequest && profile().id === profileId && token === detailRequest;
-  const reference = context.reference;
+  const reference =
+    context.reference?.live && !defaultFollow()
+      ? { name: defaultReference(), hash: '', follow: false }
+      : context.reference;
   const detail = context.detail;
   let openedView;
   if (detail?.type === 'database') {
@@ -1591,44 +1679,52 @@ async function openHandbookDetail(context, isCurrent = () => true) {
       detail.id,
       detail.quantity,
       detail.giftPage,
-      reference?.hash ? reference : null,
+      reference?.live ? { origin: 'live' } : reference?.hash ? reference : null,
     );
   } else if (detail?.type === 'world-quest' || detail?.type === 'world-place') {
-    let saved = null;
-    if (reference?.name) saved = await call('saveDetails', reference.name);
+    const live = reference?.live && reference.follow ? currentFlow()?.liveReference : null;
+    const name = reference?.live ? currentFlow()?.reference?.name || latestReference() : reference?.name;
+    let saved = live || null;
+    if (!live && name) saved = await call('saveDetails', name);
     if (!stillReading()) return;
     if (reference?.hash && saved?.hash !== reference.hash) throw Error('参照存档已更新，请在随行重新核对');
     Object.assign(worldView, {
-      referenceName: reference?.name || '',
+      referenceName: live ? undefined : name || '',
       follow: reference?.follow === true,
       reference: saved,
       error: '',
+      liveContext: reference?.live === true,
     });
     if (detail.type === 'world-place') placeMapScopes.set(detail.id, detail.mapScope || 'region');
     openedView = await showWorldDetail(detail.id, detail.type === 'world-quest' ? 'quest' : 'place', false, {
-      referenceName: reference?.name || '',
+      referenceName: live ? undefined : name || '',
       follow: reference?.follow === true,
       reference: saved,
+      liveContext: reference?.live === true,
     });
   } else if (detail?.type === 'entity-choice') {
-    const saved = reference?.name ? await call('saveDetails', reference.name) : null;
+    const live = reference?.live && reference.follow ? currentFlow()?.liveReference : null;
+    const name = reference?.live ? currentFlow()?.reference?.name || latestReference() : reference?.name;
+    const saved = live || (name ? await call('saveDetails', name) : null);
     if (!stillReading()) return;
     if (reference?.hash && saved?.hash !== reference.hash) throw Error('参照存档已更新，请在随行重新核对');
     if (reference) {
-      referenceSaveName = reference.name;
+      referenceSaveName = live ? undefined : name || '';
       referenceFollow = reference.follow;
       referenceSave = saved;
       Object.assign(worldView, {
-        referenceName: reference.name,
+        referenceName: live ? undefined : name || '',
         follow: reference.follow,
         reference: saved,
         error: '',
+        liveContext: reference.live === true,
       });
     }
-    await showEntityChoice(detail.id, detail.flowBound ? saved : null, null, {
+    await showEntityChoice(detail.id, live || (detail.flowBound ? saved : null), null, {
       reference: saved,
-      referenceName: reference?.name || '',
+      referenceName: live ? undefined : name || '',
       follow: reference?.follow === true,
+      liveContext: reference?.live === true,
     });
     openedView = currentDrawer;
   } else if (detail?.type === 'guide') {
@@ -1937,7 +2033,7 @@ async function loadWorldReference(name) {
   if (name !== undefined) view.follow = name === '@latest';
   view.follow ??= defaultFollow();
   view.referenceName = view.follow
-    ? latestReference()
+    ? (view.liveContext && currentFlow()?.reference?.name) || latestReference()
     : name === undefined
       ? (view.referenceName ?? defaultReference())
       : name;
@@ -1946,9 +2042,12 @@ async function loadWorldReference(name) {
   view.loading = !!view.referenceName;
   render(true);
   try {
-    const ref = view.referenceName ? await call('saveDetails', view.referenceName) : null;
+    const live = view.liveContext && view.follow ? currentFlow()?.liveReference : null;
+    const ref = live || (view.referenceName ? await call('saveDetails', view.referenceName) : null);
     if (token !== worldRequest || view !== worldView || profileId !== profile().id) return;
     view.reference = ref;
+    view.liveContext = view.liveContext === true && view.follow;
+    if (live) view.referenceName = undefined;
   } catch (e) {
     if (token === worldRequest && view === worldView) view.error = e.message;
   } finally {
@@ -1959,6 +2058,8 @@ async function loadWorldReference(name) {
         currentDrawer.reference = view.reference;
         currentDrawer.referenceName = view.referenceName;
         currentDrawer.follow = view.follow;
+        currentDrawer.liveContext = view.liveContext;
+        currentDrawer.flowReference = view.reference?.origin === 'live' ? currentFlow()?.reference : null;
         const html =
           currentDrawer.type === 'world-quest'
             ? worldViews.questDetail(
@@ -1979,13 +2080,24 @@ async function showFlowWorldDetail(id, type, opener, referenceOverride = null) {
   const request = handbookRequest;
   const worldToken = ++worldRequest;
   const profileId = profile().id;
-  const flow = referenceOverride ? { reference: referenceOverride } : currentFlow();
-  const name = flow?.reference?.name || '';
-  const view = { referenceName: name, follow: false, reference: null, error: '' };
-  if (name) {
+  const flow =
+    referenceOverride && referenceOverride.origin !== 'live'
+      ? { reference: referenceOverride }
+      : currentFlow();
+  const liveContext = defaultFollow() && (!referenceOverride || referenceOverride.origin === 'live');
+  const name = flow?.reference?.name || (liveContext ? latestReference() : '');
+  const live = liveContext ? currentFlow()?.liveReference : null;
+  const view = {
+    referenceName: live ? undefined : name,
+    follow: liveContext,
+    reference: live || null,
+    error: '',
+    liveContext,
+  };
+  if (name && !live) {
     try {
       view.reference = await call('saveDetails', name);
-      if (view.reference?.hash !== flow.reference.hash) {
+      if (flow?.reference?.hash && view.reference?.hash !== flow.reference.hash) {
         view.reference = null;
         view.error = '这份存档已变化，请刷新流程后重新查看。';
       }
@@ -2002,10 +2114,25 @@ async function showFlowWorldDetail(id, type, opener, referenceOverride = null) {
     (!referenceOverride && currentFlow()?.reference?.hash !== flow?.reference?.hash)
   )
     return;
+  const current = liveContext ? currentFlow()?.liveReference : null;
+  if (current) Object.assign(view, { reference: current, referenceName: undefined, error: '' });
   Object.assign(worldView, view, { loading: false });
   await showWorldDetail(id, type, false, view, opener);
 }
+function followsLiveWorld() {
+  if (!defaultFollow()) return false;
+  const view = currentDrawer;
+  if (view?.liveContext || view?.liveNpcContext || view?.flowReference?.origin === 'live') return true;
+  if (view?.flowReference) return false;
+  if (!view) return (route === 'world' ? worldView.follow : referenceFollow) ?? defaultFollow();
+  if (['guide', 'search', 'database'].includes(view.type))
+    return (view.follow ?? referenceFollow ?? defaultFollow()) === true;
+  return view.type?.startsWith('world-') && worldView.follow === true && worldView.liveContext === true;
+}
 async function showWorldDetail(id, type = 'quest', replace = false, flowReference = null, opener = null) {
+  if (!flowReference && followsLiveWorld()) return showFlowWorldDetail(id, type, opener, { origin: 'live' });
+  if (flowReference)
+    Object.assign(worldView, flowReference, { liveContext: flowReference.liveContext === true });
   if (type === 'place' && (gameIndex.world?.maps || []).filter((place) => place.id === id).length > 1) {
     await showEntityChoice(
       id,
@@ -2017,6 +2144,7 @@ async function showWorldDetail(id, type = 'quest', replace = false, flowReferenc
   }
   if (!flowReference && currentDrawer?.type === 'entity-choice') {
     const choice = currentDrawer;
+    if (choice.liveContext) return showFlowWorldDetail(id, type, opener, { origin: 'live' });
     const view = {
       referenceName: choice.follow ? latestReference() : (choice.referenceName ?? defaultReference()),
       follow: choice.follow ?? false,
@@ -2045,6 +2173,7 @@ async function showWorldDetail(id, type = 'quest', replace = false, flowReferenc
     worldView.referenceName = undefined;
     worldView.follow = defaultFollow();
     worldView.reference = null;
+    worldView.liveContext = false;
   }
   const token = ++detailRequest;
   const request = handbookRequest;
@@ -2054,17 +2183,20 @@ async function showWorldDetail(id, type = 'quest', replace = false, flowReferenc
     worldView.follow = false;
     worldView.reference = null;
     worldView.error = '';
+    worldView.liveContext = false;
   }
   if (!flowReference && currentDrawer?.type === 'database' && referenceSaveName !== undefined) {
     worldView.referenceName = referenceSaveName;
     worldView.follow = referenceFollow;
     worldView.reference = referenceSave;
     worldView.error = '';
+    worldView.liveContext = false;
   }
   if (!flowReference && currentDrawer?.type === 'save' && selectedSave) {
     worldView.referenceName = selectedSave.name;
     worldView.follow = false;
     worldView.reference = selectedSave;
+    worldView.liveContext = false;
   }
   const currentWorldName = worldView.follow ? latestReference() : worldView.referenceName;
   if (
@@ -2101,6 +2233,8 @@ async function showWorldDetail(id, type = 'quest', replace = false, flowReferenc
       follow: view.follow,
       reference: view.reference,
       error: view.error,
+      liveContext: view.liveContext,
+      flowReference: view.liveContext ? currentFlow()?.reference : null,
     },
     replace,
   );
@@ -2207,7 +2341,7 @@ async function readComparison() {
   }
 }
 function databaseView() {
-  return gameViews.page(gameIndex, query, databaseKind, databaseType, databasePage);
+  return gameViews.page(gameIndex, query, databaseKind, databaseType, databasePage, searchQuestStatuses());
 }
 async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference = null, opener = null) {
   const sameDrawer = currentDrawer?.type === 'database' && currentDrawer.id === id;
@@ -2217,16 +2351,28 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
     request = handbookRequest,
     profileId = profile().id,
     planningSignature = planningIntentSignature();
+  const liveContext =
+    defaultFollow() &&
+    (expectedReference?.origin === 'live' ||
+      (!expectedReference &&
+        (referenceFollow ?? defaultFollow()) === true &&
+        ((sameDrawer && (currentDrawer.liveContext || currentDrawer.liveNpcContext)) ||
+          ['人物', '武学'].includes(e?.kind))));
+  const liveNpcContext = liveContext && ['人物', '武学'].includes(e?.kind);
   let referenceError = '';
   let loadedReference = referenceSave;
   if (!e) return;
   if (['配方', '人物', '物品', '武学'].includes(e.kind)) {
     referenceFollow ??= defaultFollow();
+    if (liveContext) referenceFollow = true;
     if (expectedReference?.name) referenceSaveName = expectedReference.name;
-    else if (referenceFollow) referenceSaveName = latestReference();
+    else if (referenceFollow)
+      referenceSaveName = liveContext
+        ? currentFlow()?.reference?.name || latestReference()
+        : latestReference();
     if (referenceSaveName === undefined) referenceSaveName = defaultReference();
-    loadedReference = null;
-    if (referenceSaveName)
+    loadedReference = liveContext ? currentFlow()?.liveReference || null : null;
+    if (referenceSaveName && !loadedReference)
       try {
         loadedReference = await call('saveDetails', referenceSaveName, e.kind === '配方' ? id : undefined);
       } catch (error) {
@@ -2235,12 +2381,20 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
   }
   if (token !== detailRequest || request !== handbookRequest || profileId !== profile().id) return;
   if (referenceError) toast(`未能读取对照存档：${referenceError}`, true);
-  if (expectedReference && loadedReference?.hash !== expectedReference.hash) {
+  if (
+    expectedReference &&
+    expectedReference.origin !== 'live' &&
+    loadedReference?.hash !== expectedReference.hash
+  ) {
     toast('这份流程参照已变化，请刷新后重新查看人物或物品。', true);
     return;
   }
   if (['物品', '人物', '配方'].includes(e.kind) && planningSignature !== planningIntentSignature())
     return showDatabaseDetail(id, quantity, giftPage, expectedReference, opener);
+  if (liveContext && currentFlow()?.liveReference) {
+    loadedReference = currentFlow().liveReference;
+    referenceSaveName = undefined;
+  }
   referenceSave = loadedReference;
   const quantityField = sameDrawer && e.kind === '配方' ? document.querySelector('#recipe-quantity') : null;
   const reservationDraft =
@@ -2269,6 +2423,9 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
           }),
         )
       : '',
+    liveNpcContext && currentFlow()?.duels?.progress?.origin === 'live' ? currentFlow().duels.progress : null,
+    liveNpcContext ? currentFlow()?.liveReference || null : null,
+    liveNpcContext ? currentFlow()?.stateNotice || '' : '',
   );
   if (html) {
     rememberDrawer(
@@ -2281,6 +2438,10 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
         follow: referenceFollow,
         giftPage: giftPage ?? (currentDrawer?.id === id ? currentDrawer.giftPage || 0 : 0),
         planningSignature,
+        liveNpcContext,
+        liveContext,
+        npcLiveKey: liveContext ? currentFlow()?.npcStateKey || '' : '',
+        flowReference: liveContext ? { origin: 'live' } : null,
       },
       currentDrawer?.type === 'database' && currentDrawer.id === id,
     );
@@ -2739,7 +2900,7 @@ function goalsPage() {
 function nodeDraftPanel() {
   const entries = Object.entries(environment.activity?.drafts || {});
   return entries.length
-    ? `<section class="card mb"><details><summary>尚未正式保存的节点草稿 · ${entries.length} 份</summary><p class="save-note">草稿文字保存在本机。节点若已轮换，可把文字转存到当前周目的随手记；草稿不会自动留住游戏存档。</p>${entries.map(([id, v]) => `<div class="backup-row"><div class="spacer"><h3>${esc(v.label || '未命名草稿')}</h3><p>${esc(v.note).slice(0, 160)}</p></div>${act('node-draft-review', '继续或找回草稿', 'btn', id, 'edit')}${iconButton('node-draft-remove', 'trash', '放弃这份草稿', id)}</div>`).join('')}</details></section>`
+    ? `<section class="card mb"><details data-persist-detail="save-node-drafts"><summary>尚未正式保存的节点草稿 · ${entries.length} 份</summary><p class="save-note">草稿文字保存在本机。节点若已轮换，可把文字转存到当前周目的随手记；草稿不会自动留住游戏存档。</p>${entries.map(([id, v]) => `<div class="backup-row"><div class="spacer"><h3>${esc(v.label || '未命名草稿')}</h3><p>${esc(v.note).slice(0, 160)}</p></div>${act('node-draft-review', '继续或找回草稿', 'btn', id, 'edit')}${iconButton('node-draft-remove', 'trash', '放弃这份草稿', id)}</div>`).join('')}</details></section>`
     : '';
 }
 function activityPanel() {
@@ -2767,7 +2928,7 @@ function activityPanel() {
           )
           .join('') +
         (log.events.length > 3
-          ? '<details><summary>其余 ' +
+          ? '<details data-persist-detail="save-operation-history"><summary>其余 ' +
             (log.events.length - 3) +
             ' 条</summary>' +
             log.events
@@ -2799,7 +2960,7 @@ function restoreRecoveryBanner() {
   const recovery = environment.recovery;
   if (!recovery) return '';
   const guidance = recovery.error
-    ? `<p class="save-note">请先退出游戏，保留当前存档和全部保护副本。手札无法确认上次覆盖到了哪一步，因此会阻止继续恢复或更换存档目录；资料查询和查看副本仍可使用。</p><p class="save-note">需要核对时，请保留备份目录中的恢复记录及副本，并提供下方诊断文字；无需发送存档文件。不要删除恢复记录来绕过核对。</p><details><summary>查看恢复诊断</summary><p class="small mono preserve-text">${esc(recovery.recordPath || '备份目录中的恢复记录')}${recovery.diagnostic ? '\n' + esc(recovery.diagnostic) : ''}</p></details>`
+    ? `<p class="save-note">请先退出游戏，保留当前存档和全部保护副本。手札无法确认上次覆盖到了哪一步，因此会阻止继续恢复或更换存档目录；资料查询和查看副本仍可使用。</p><p class="save-note">需要核对时，请保留备份目录中的恢复记录及副本，并提供下方诊断文字；无需发送存档文件。不要删除恢复记录来绕过核对。</p><details data-persist-detail="restore-diagnostic"><summary>查看恢复诊断</summary><p class="small mono preserve-text">${esc(recovery.recordPath || '备份目录中的恢复记录')}${recovery.diagnostic ? '\n' + esc(recovery.diagnostic) : ''}</p></details>`
     : '';
   return `<section class="recovery-banner mb" aria-label="存档恢复待核对">${notice(recovery.error || '发现上次未完成的存档恢复。请先退出游戏，再核对并回退到恢复前的安全副本。')}${guidance}<div class="row mt">${recovery.error ? '' : act('recover-restore', '核对并处理恢复中断', 'btn danger', '', 'shield')}${act('folder', '打开备份目录', 'btn', 'backups', 'folder')}${state.settings.savePath ? act('folder', '查看当前存档目录', 'btn', 'saves', 'folder') : ''}</div></section>`;
 }
@@ -2807,7 +2968,7 @@ function backupCareBanner() {
   return (environment.backupCare || [])
     .map(
       (pending) =>
-        `<section class="recovery-banner mb" aria-label="副本清理待处理">${notice(pending.error || (pending.blocking === false ? '上次清理计划尚未提交，原副本仍保留。' : '上次副本清理尚未完成，导出留底仍可用于恢复。'), pending.blocking !== false)}<p class="save-note">${pending.blocking === false ? '临时记录保留在管理目录，无需执行恢复。可以重新选择副本、导出留底并确认清理。' : pending.canRollback ? '尚未开始删除，可以将全部暂存副本放回列表。' : pending.error ? '管理记录无法核对，请保留全部残留内容。' : '已经开始删除，剩余副本暂存保留；选择原保护包重新校验后才能继续。'}</p><details><summary>查看这批副本 · ${pending.ids?.length || 0} 份</summary>${(pending.backups || []).map((b) => '<p>' + esc(b.label) + ' · ' + when(b.createdAt) + '</p>').join('')}</details><div class="row wrap mt">${pending.canRollback ? act('backup-cleanup-rollback', '放回全部暂存副本', 'btn', pending.id, 'refresh') : ''}${!pending.error && pending.blocking !== false && pending.canFinish !== false ? act('backup-cleanup-finish', '选择原保护包并继续…', 'btn danger', pending.id, 'archive') : ''}${act('folder', '查看管理目录', 'text-btn', 'backups', 'folder')}</div></section>`,
+        `<section class="recovery-banner mb" aria-label="副本清理待处理">${notice(pending.error || (pending.blocking === false ? '上次清理计划尚未提交，原副本仍保留。' : '上次副本清理尚未完成，导出留底仍可用于恢复。'), pending.blocking !== false)}<p class="save-note">${pending.blocking === false ? '临时记录保留在管理目录，无需执行恢复。可以重新选择副本、导出留底并确认清理。' : pending.canRollback ? '尚未开始删除，可以将全部暂存副本放回列表。' : pending.error ? '管理记录无法核对，请保留全部残留内容。' : '已经开始删除，剩余副本暂存保留；选择原保护包重新校验后才能继续。'}</p><details data-persist-detail="backup-care-${esc(pending.id)}"><summary>查看这批副本 · ${pending.ids?.length || 0} 份</summary>${(pending.backups || []).map((b) => '<p>' + esc(b.label) + ' · ' + when(b.createdAt) + '</p>').join('')}</details><div class="row wrap mt">${pending.canRollback ? act('backup-cleanup-rollback', '放回全部暂存副本', 'btn', pending.id, 'refresh') : ''}${!pending.error && pending.blocking !== false && pending.canFinish !== false ? act('backup-cleanup-finish', '选择原保护包并继续…', 'btn danger', pending.id, 'archive') : ''}${act('folder', '查看管理目录', 'text-btn', 'backups', 'folder')}</div></section>`,
     )
     .join('');
 }
@@ -2863,10 +3024,10 @@ function companionSettings() {
     )}</select><label for="companion-opacity">提示透明度</label><select id="companion-opacity" class="input">${options.map((n) => `<option value="${n}" ${n === opacity ? 'selected' : ''}>${Number((n * 100).toFixed(2))}%${presets.includes(n) ? '' : '（当前）'}</option>`).join('')}</select></div><p class="small muted">Esc 关闭详情，再按返回轻提示。使用窗口化或无边框模式。</p></section>`;
 }
 function settingsPage() {
-  return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">游戏进度</h2><div class="setting-row"><div><h3>${profile().referenceMode === 'none' ? '仅查资料' : profile().saveSlot ? esc(profile().saveSlot) : '自动使用最新进度'}</h3><p>流程、图鉴和备料共用。游戏保存后自动更新。</p></div>${act('save-slot', '更改', 'btn', '', 'edit')}</div></section><section class="card"><h2 class="mb">阅读与陪伴</h2><div class="setting-row"><div><label for="reading-scale"><strong>界面大小</strong></label><p>快捷键 Ctrl + / −，Ctrl + 0 恢复默认。</p></div><div class="row wrap"><select id="reading-scale" class="input" aria-label="界面大小">${[100, 110, 125, 150].map((size) => `<option value="${size}"${(state.settings.readingScale || 100) === size ? ' selected' : ''}>${size}%${size === 100 ? ' · 默认' : ''}</option>`).join('')}</select>${act('reading-scale-reset', '恢复默认大小', 'text-btn')}</div></div><div class="setting-row"><div><h3>第一次使用这本手札</h3></div>${act('help', '打开使用说明', 'btn', '', 'book')}</div><div class="setting-row"><div><h3>少剧透提示</h3><p>详细剧情折叠显示。</p></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3>随行小窗</h3><p>Ctrl + Alt + J 展开或收起。</p></div>${act('compact', '打开随行小窗', 'btn', '', 'pin')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3></div>${act('profiles', '管理周目', 'btn', '', 'person')}</div></section>
+  return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">游戏进度</h2><div class="setting-row"><div><h3>${profile().referenceMode === 'none' ? '仅查资料' : profile().saveSlot ? esc(profile().saveSlot) : '自动使用最新进度'}</h3><p>流程、图鉴和备料共用此进度。</p></div>${act('save-slot', '更改', 'btn', '', 'edit')}</div></section><section class="card"><h2 class="mb">阅读与陪伴</h2><div class="setting-row"><div><label for="reading-scale"><strong>界面大小</strong></label><p>快捷键 Ctrl + / −，Ctrl + 0 恢复默认。</p></div><div class="row wrap"><select id="reading-scale" class="input" aria-label="界面大小">${[100, 110, 125, 150].map((size) => `<option value="${size}"${(state.settings.readingScale || 100) === size ? ' selected' : ''}>${size}%${size === 100 ? ' · 默认' : ''}</option>`).join('')}</select>${act('reading-scale-reset', '恢复默认大小', 'text-btn')}</div></div><div class="setting-row"><div><h3>第一次使用这本手札</h3></div>${act('help', '打开使用说明', 'btn', '', 'book')}</div><div class="setting-row"><div><h3>少剧透提示</h3><p>详细剧情折叠显示。</p></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3>随行小窗</h3><p>Ctrl + Alt + J 展开或收起。</p></div>${act('compact', '打开随行小窗', 'btn', '', 'pin')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3></div>${act('profiles', '管理周目', 'btn', '', 'person')}</div></section>
  ${windowLayoutSettings()}${companionSettings()}${shortcutSettings()}<section class="card"><h2 class="mb">本机连接</h2><div class="setting-row"><div><h3>逸剑风云决 ${environment.game.installed ? '· 已找到' : '· 由 Steam 启动'}</h3><p>${esc(environment.game.path || '使用 Steam 游戏入口启动')}${environment.game.build ? ` · Build ${esc(environment.game.build)}` : ''}</p></div>${act('launch', '启动游戏', 'btn', '', 'game')}</div><div class="setting-row"><div><h3>游戏存档目录</h3><p class="mono">${esc(state.settings.savePath || '尚未选择')}</p></div>${act('choose-saves', '选择目录', 'btn', '', 'folder')}</div>${environment.detected.length > 1 ? `<div class="setting-row"><div><h3>检测到多个存档目录</h3><p>请选择你本次游玩的账户目录。</p></div><select id="detected-save" class="input">${environment.detected.map((p) => `<option value="${esc(p)}" ${p === state.settings.savePath ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>` : ''}<div class="setting-row"><div><h3>完整自动备份 · ${backupStatus()}</h3><p>保存后自动留存副本；游戏内自动存档在存档匣设置。</p></div><button class="switch ${state.settings.autoBackup ? 'on' : ''}" role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" data-action="auto-backup"></button></div></section>
  ${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${protectionViews.controls(protectionView)}<section class="card"><h2 class="mb">记录与数据</h2><div class="setting-row"><div><h3>手札备份</h3><p>导出全部周目的记录。导入前会保留当前手札副本；此功能不包含游戏存档。</p></div><div class="row">${act('import', '导入', 'btn', '', 'upload')}${act('export', '导出手札', 'btn', '', 'download')}</div></div><div class="setting-row"><div><h3>本地数据目录</h3><p class="mono">${esc(environment.userData)}</p></div>${act('folder', '打开', 'btn', 'data', 'folder')}</div><div class="setting-row"><div><h3>游戏存档备份目录</h3><p class="mono">${esc(environment.backupRoot)}</p></div>${act('folder', '打开', 'btn', 'backups', 'folder')}</div></section>
- <section class="card"><div class="card-header"><h2>资料与版本</h2>${pill(`v${version}`)}</div><p class="small muted mb">${esc(gameIndex.source)} · Build ${esc(gameIndex.build)}。非官方助手。</p><details><summary>读取方式与资料说明</summary><p>进度、背包和任务状态来自游戏存档，保存后自动更新；未保存的对话与选择不会实时读入。</p><p>人物等级、商品和数值为基础资料，可能随剧情、难度和培养变化。</p><p>${esc(catalog.notice)}</p></details><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></section></div>`;
+ <section class="card"><h2 class="mb">软件更新</h2>${updatePanel()}</section><section class="card"><div class="card-header"><h2>资料与版本</h2>${pill(`v${version}`)}</div><p class="small muted mb">${esc(gameIndex.source)} · Build ${esc(gameIndex.build)}。非官方助手。</p><details data-persist-detail="settings-reading-source"><summary>读取方式与资料说明</summary><p>未接入游戏时，保存后更新。接入后，跟随最新进度的任务、人物和已支持对话选择会现场更新。</p><p>背包、铜钱和备料仍按保存记录核对。</p><p>图鉴基础等级与商品资料可能随剧情、难度和培养变化。</p><p>${esc(catalog.notice)}</p></details><details data-persist-detail="settings-sources"><summary>资料来源</summary><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></details></section></div>`;
 }
 function homeJourney() {
   const plan = environment.journey;
@@ -2952,6 +3113,15 @@ async function loadGiftStock(draft) {
   } catch {
     /* A missing or changed reference is shown as unknown, never as empty stock. */
   }
+}
+function revealJourneyEntry(entry) {
+  if (!entry) return;
+  const focus = entry.querySelector('[data-itinerary-continuation] select') || entry;
+  for (let parent = focus.parentElement; parent; parent = parent.parentElement)
+    if (parent.tagName === 'DETAILS') parent.open = true;
+  if (focus === entry) entry.tabIndex = -1;
+  focus.scrollIntoView({ block: 'center' });
+  focus.focus({ preventScroll: true });
 }
 function journeyDialog(kind, id = '', savedDraft = null) {
   const p = profile(),
@@ -3045,6 +3215,12 @@ function healthAlert(h = environment.health) {
     ? timelineViews.chip(h)
     : '';
 }
+function compactSavesPage() {
+  const backups = environment.backups || [];
+  const row = (b) =>
+    `<div class="compact-backup-row"><div><strong>${esc(b.label)}</strong><span class="small muted">${when(b.createdAt)}</span></div>${act('backup-preview', '查看副本', 'btn', b.id, 'eye')}</div>`;
+  return `<div class="row between mb"><h2>存档</h2>${act('backup', '备份当前存档', 'btn', '', 'download')}</div>${restoreRecoveryBanner()}${backupCareBanner()}${environment.saves?.error ? notice(environment.saves.error) : ''}${environment.autoError ? notice(environment.autoError) : ''}${timelinePanel()}${backupViews.anomalies(environment.backupAnomalies || [])}<details data-persist-detail="compact-backups"><summary>完整存档副本 · ${backups.length}</summary>${backups.slice(0, 6).map(row).join('') || '<p>暂无副本，先在游戏中保存，再点击备份。</p>'}${backups.length > 6 ? `<details><summary>更早的 ${backups.length - 6} 份</summary>${backups.slice(6).map(row).join('')}</details>` : ''}<div class="row between mt"><span>存档变化时自动备份</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></details>${!environment.saves?.path ? act('choose-saves', '连接存档目录', 'btn', '', 'folder') : ''}`;
+}
 function compactPage() {
   document.body.classList.add('companion');
   document.body.classList.toggle('passive', companionMode === 'hint');
@@ -3053,9 +3229,10 @@ function compactPage() {
   if (route === 'settings') return companionViews.frame(settingsPage(), healthAlert());
   if (route === 'materials') return companionViews.frame(compactMaterialsPage(), healthAlert());
   if (route === 'duels') return companionViews.frame(duelsPage(), healthAlert());
+  if (route === 'database') return companionViews.frame(databaseView(), healthAlert());
+  if (route === 'library') return companionViews.frame(libraryPage(), healthAlert());
   if (route === 'recipe-discovery') return companionViews.frame(recipeDiscoveryPage(), healthAlert());
-  if (route === 'saves')
-    return companionViews.frame(timelineViews.page(environment.timeline, timelineView), healthAlert());
+  if (route === 'saves') return companionViews.frame(compactSavesPage(), healthAlert());
   if (route === 'journey') return companionViews.frame(journeyPage(), healthAlert());
   if (route === 'checklist') return companionViews.frame(checklistPage(), healthAlert());
   if (route === 'journal') return companionViews.frame(journalPage(), healthAlert());
@@ -3066,7 +3243,7 @@ function compactPage() {
     compactUndo?.profileId === profile().id
       ? `<div class="notice"><span>已完成：${esc(compactUndo.title)}</span>${act('compact-undo', '撤销这次完成', 'text-btn')}</div>`
       : '';
-  const body = `${sourceErrors}${flowViews.panel(currentFlow(), { compact: true, sections: state.settings.companionSections })}<details class="flow-personal" data-compact-detail="flow-personal"><summary>个人目标、行程与备料</summary>${companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${undo}<h3 class="companion-section">我的目标</h3>${
+  const body = `${sourceErrors}${flowViews.panel(currentFlow(), { compact: true, sections: state.settings.companionSections })}<details class="flow-personal" data-compact-detail="flow-personal"><summary>个人目标、行程与备料</summary><div class="row wrap">${act('navigate', '备料清单', 'text-btn', 'materials', 'bag')}${act('navigate', '地图', 'text-btn', 'world', 'map')}</div>${companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${undo}<h3 class="companion-section">我的目标</h3>${
     orderedGoals()
       .filter((g) => !goalDone(g))
       .map(
@@ -3083,6 +3260,31 @@ async function showEntityChoice(id, flowReference = null, opener = null, restore
   // A saved-detail entry is a snapshot; Settings fixes a slot, not its bytes.
   if (!flowReference && currentDrawer?.type === 'save') flowReference = currentDrawer.data;
   const sameDrawer = currentDrawer?.type === 'entity-choice' && currentDrawer.id === id;
+  const liveContext = (flowReference?.origin === 'live' || restored?.liveContext === true) && defaultFollow();
+  if (liveContext) {
+    const request = handbookRequest,
+      token = ++detailRequest,
+      profileId = profile().id;
+    const name = currentFlow()?.reference?.name || latestReference();
+    let reference = currentFlow()?.liveReference || null;
+    if (!reference && name) {
+      try {
+        reference = await call('saveDetails', name);
+      } catch {
+        /* Static lookup remains available. */
+      }
+    }
+    if (token !== detailRequest || request !== handbookRequest || profileId !== profile().id) return;
+    reference = currentFlow()?.liveReference || reference;
+    restored = {
+      ...restored,
+      reference,
+      referenceName: reference?.origin === 'live' ? undefined : name,
+      follow: true,
+      liveContext: true,
+    };
+    flowReference = { origin: 'live' };
+  }
   const unboundLookup =
     ['guide', 'search'].includes(currentDrawer?.type) && referenceSaveName === undefined && !referenceSave;
   if (
@@ -3111,12 +3313,13 @@ async function showEntityChoice(id, flowReference = null, opener = null, restore
     referenceFollow = restored.follow;
   }
   const reference =
-    flowReference ||
+    (liveContext ? restored?.reference : flowReference) ||
     (currentDrawer?.type === 'save'
       ? currentDrawer.data
       : currentDrawer?.type?.startsWith('world-')
         ? worldView.reference
         : referenceSave);
+  const currentReference = liveContext ? currentFlow()?.liveReference || reference : reference;
   if (currentDrawer?.type === 'save') {
     referenceSave = reference;
     referenceSaveName = reference?.name || '';
@@ -3127,15 +3330,17 @@ async function showEntityChoice(id, flowReference = null, opener = null, restore
       type: 'entity-choice',
       id,
       flowReference,
-      reference,
-      referenceName: reference?.name ?? referenceSaveName ?? '',
-      referenceHash: reference?.hash || '',
-      follow: flowReference ? false : referenceFollow,
+      reference: currentReference,
+      referenceName: liveContext ? undefined : (reference?.name ?? referenceSaveName ?? ''),
+      referenceHash: liveContext ? '' : reference?.hash || '',
+      follow: liveContext || (flowReference ? false : referenceFollow),
+      liveContext,
+      npcLiveKey: liveContext ? currentFlow()?.npcStateKey || '' : '',
     },
     sameDrawer,
   );
   showOverlay(
-    `<section class="drawer" role="dialog" aria-modal="true" aria-label="选择同名资料"><div class="drawer-head"><span>选择具体资料</span>${iconButton('close-overlay', 'close', '关闭同名资料')}</div><div class="drawer-body"><h1>${esc(id.startsWith('name:') ? id.slice(5) : '选择地点')}</h1>${rows.map((entry) => `<div class="entity-relation-row">${act(entry.kind === '任务' ? (flowReference ? 'flow-quest' : 'world-quest') : entry.kind === '地点' ? 'world-place' : 'database-detail', esc(entry.name), 'text-btn', entry.id)}<p class="small muted">${esc(entityReferences.choiceSummary(entry, rows, reference) || entry.kind)}</p>${entry.description ? `<p class="small">${esc(entry.description.slice(0, 160))}</p>` : ''}</div>`).join('')}</div></section>`,
+    `<section class="drawer" role="dialog" aria-modal="true" aria-label="选择同名资料"><div class="drawer-head"><span>选择具体资料</span>${iconButton('close-overlay', 'close', '关闭同名资料')}</div><div class="drawer-body"><h1>${esc(id.startsWith('name:') ? id.slice(5) : '选择地点')}</h1>${rows.map((entry) => `<div class="entity-relation-row">${act(entry.kind === '任务' ? (flowReference ? 'flow-quest' : 'world-quest') : entry.kind === '地点' ? 'world-place' : 'database-detail', esc(entry.name), 'text-btn', entry.id)}<p class="small muted">${esc(entityReferences.choiceSummary(entry, rows, currentReference) || entry.kind)}</p>${entry.description ? `<p class="small">${esc(entry.description.slice(0, 160))}</p>` : ''}</div>`).join('')}</div></section>`,
     true,
     sameDrawer,
     opener,
@@ -3160,6 +3365,70 @@ function captureDetailFolds(preserve) {
   }
   return detailFolds.values;
 }
+function carryLiveChoice() {
+  const dock = overlay.querySelector('.live-choice-dock');
+  if (dock) root.querySelector(compact ? '.compact-body' : '.content')?.before(dock);
+}
+function dockLiveChoice(compact = false) {
+  const row = currentFlow()?.decisions?.find((entry) => entry.live);
+  const body = root.querySelector(compact ? '.compact-body' : '.content');
+  const previous = overlay.querySelector('.live-choice-dock');
+  const surface = overlay.querySelector('.drawer, .modal');
+  if (!row || !body) {
+    if (previous) {
+      entityPreviews.closeWithin(previous);
+      previous.remove();
+    }
+    const obsolete = root.querySelector('.live-choice-dock');
+    if (obsolete) {
+      entityPreviews.closeWithin(obsolete);
+      obsolete.remove();
+    }
+    return;
+  }
+  const key = JSON.stringify([profile().id, row.id, row.liveSequence]);
+  const retained = previous?.dataset.choiceKey === key;
+  const focus = retained ? entityPreviews.captureFocusWithin(previous) : null;
+  const preview = retained ? entityPreviews.captureWithin(previous) : null;
+  const folds = retained
+    ? new Map(
+        [...previous.querySelectorAll('details[data-persist-detail]')].map((el) => [
+          el.dataset.persistDetail,
+          el.open,
+        ]),
+      )
+    : null;
+  const cards = [...root.querySelectorAll('[data-flow-decision]')].filter(
+    (card) => card.dataset.flowDecision === row.id,
+  );
+  const dock = root.querySelector('.live-choice-dock') || document.createElement('section');
+  dock.className = 'live-choice-dock';
+  dock.dataset.choiceKey = key;
+  dock.dataset.flow = '';
+  dock.setAttribute('aria-label', '当前关键选择');
+  // Keep one canonical card outside the reading scroller, including on flow pages.
+  if (cards.length) {
+    dock.appendChild(cards[0]);
+    for (const duplicate of cards.slice(1)) duplicate.remove();
+  } else dock.innerHTML = flowViews.choice(row, { compact });
+  for (const section of root.querySelectorAll('.flow-current-decisions'))
+    if (!section.querySelector('[data-flow-decision]')) section.remove();
+  body.before(dock);
+  if (surface) {
+    if (previous) {
+      entityPreviews.closeWithin(previous);
+      previous.remove();
+    }
+    surface.prepend(dock);
+    if (folds) {
+      for (const el of dock.querySelectorAll('details[data-persist-detail]'))
+        if (folds.has(el.dataset.persistDetail)) el.open = folds.get(el.dataset.persistDetail);
+      dock.scrollTop = previous.scrollTop;
+      entityPreviews.restoreFocusWithin(dock, focus);
+      entityPreviews.restoreWithin(dock, preview);
+    }
+  }
+}
 function render(preserve = false, navigationId = null) {
   if (!catalog || !state || composing) return;
   // Keep the current page, folds and drafts intact while only its edge tab is shown.
@@ -3180,24 +3449,65 @@ function render(preserve = false, navigationId = null) {
     }
     return;
   }
-  entityPreviews.close();
+  // The search/detail overlay remains connected when only the page is redrawn.
+  const previewReading = preserve ? entityPreviews.captureWithin(root) : null;
+  entityPreviews.closeWithin(root);
   captureIntentDrafts();
   const replaceRoot = (html) => {
-    const note = preserve ? root.querySelector('#note') : null;
-    if (!note) {
+    const journalFilters = preserve
+      ? root.querySelector('#journal-filter-form, #historical-journal-filter-form')
+      : null;
+    const activeEditor = document.activeElement;
+    const focusedEditor =
+      root.contains(activeEditor) &&
+      activeEditor.id &&
+      ['INPUT', 'TEXTAREA'].includes(activeEditor.tagName) &&
+      !['checkbox', 'radio', 'button', 'submit', 'file', 'range', 'color', 'hidden'].includes(
+        activeEditor.type,
+      )
+        ? activeEditor
+        : null;
+    const field = preserve ? journalFilters || focusedEditor || root.querySelector('#note') : null;
+    if (!field) {
       root.innerHTML = html;
       return;
     }
     const template = document.createElement('template');
     template.innerHTML = html;
-    const next = template.content.querySelector('#note');
-    if (!next || note.dataset.profileId !== next.dataset.profileId || note.value !== next.value) {
+    const next = template.content.querySelector('#' + field.id);
+    if (
+      !next ||
+      field.dataset.profileId !== next.dataset.profileId ||
+      field.value !== next.value ||
+      field.type !== next.type ||
+      field.disabled !== next.disabled ||
+      field.readOnly !== next.readOnly
+    ) {
       root.replaceChildren(template.content);
       return;
     }
+    // Update validation/label attributes while retaining the dirty value and
+    // Chromium's native edit history on the connected control.
+    for (const name of field.getAttributeNames())
+      if (name !== 'value' && !next.hasAttribute(name)) field.removeAttribute(name);
+    for (const { name, value } of next.attributes) if (name !== 'value') field.setAttribute(name, value);
+    if (journalFilters) {
+      // Keep the whole pending filter group connected, including native input
+      // history. Only the available tags can change during a background update.
+      for (const select of journalFilters.querySelectorAll('select')) {
+        const replacement = next.querySelector('#' + select.id);
+        const options = (node) => [...node.options].map((o) => [o.value, o.textContent]);
+        if (JSON.stringify(options(select)) === JSON.stringify(options(replacement))) continue;
+        const value = select.value;
+        const pending = [...select.options].find((option) => option.value === value)?.cloneNode(true);
+        select.replaceChildren(...[...replacement.options].map((option) => option.cloneNode(true)));
+        if (pending && ![...select.options].some((option) => option.value === value)) select.append(pending);
+        select.value = value;
+      }
+    }
     const oldPath = [],
       newPath = [];
-    for (let node = note; node !== root; node = node.parentNode) oldPath.unshift(node);
+    for (let node = field; node !== root; node = node.parentNode) oldPath.unshift(node);
     for (let node = next; node !== template.content; node = node.parentNode) newPath.unshift(node);
     if (
       oldPath.length !== newPath.length ||
@@ -3208,7 +3518,7 @@ function render(preserve = false, navigationId = null) {
     }
     oldPath.unshift(root);
     newPath.unshift(template.content);
-    // Chromium discards native undo even if the same textarea is reattached.
+    // Chromium discards native undo even if the same field/form is reattached.
     // Keep its entire ancestor chain connected; update only surrounding nodes.
     for (let i = 0; i < oldPath.length - 1; i++) {
       const current = oldPath[i],
@@ -3229,27 +3539,20 @@ function render(preserve = false, navigationId = null) {
     focusId = preserve ? active?.id : null,
     selection = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null,
     fieldValue = active && active.dataset?.persist ? active.value : null;
-  const referenceFocus =
-    preserve && root.contains(active) && active?.dataset?.entityId
-      ? {
-          action: active.dataset.action,
-          id: active.dataset.entityId,
-          occurrence: [...root.querySelectorAll('[data-entity-id]')]
-            .filter(
-              (el) =>
-                el.dataset.action === active.dataset.action &&
-                el.dataset.entityId === active.dataset.entityId,
-            )
-            .indexOf(active),
-        }
-      : null;
+  const previousDock = preserve ? root.querySelector('.live-choice-dock') : null;
+  const dockReading = previousDock
+    ? { key: previousDock.dataset.choiceKey, scroll: previousDock.scrollTop }
+    : null;
+  const disclosureScope = detailFolds.scope;
+  const restoreDisclosures = () => {
+    if (disclosureScope !== detailFolds.scope) return;
+    const dock = root.querySelector('.live-choice-dock');
+    if (dockReading && dock?.dataset.choiceKey === dockReading.key) dock.scrollTop = dockReading.scroll;
+  };
+  const referenceFocus = preserve ? entityPreviews.captureFocusWithin(root) : null;
   const restoreReferenceFocus = () => {
-    if (!referenceFocus || root.inert) return;
-    const next = [...root.querySelectorAll('[data-entity-id]')].filter(
-      (el) => el.dataset.action === referenceFocus.action && el.dataset.entityId === referenceFocus.id,
-    )[referenceFocus.occurrence];
-    next?.focus({ preventScroll: true });
-    entityPreviews.close(true);
+    if (!root.inert && disclosureScope === detailFolds.scope)
+      entityPreviews.restoreFocusWithin(root, referenceFocus);
   };
   navigationId ||=
     root.contains(active) && active.matches('.sidebar-nav .nav-btn, .companion-tabs [data-action="navigate"]')
@@ -3310,6 +3613,7 @@ function render(preserve = false, navigationId = null) {
     }
     if (companionMode === 'expanded' && availableIntentDrafts().length && route !== 'journey')
       root.querySelector('.compact-body')?.insertAdjacentHTML('afterbegin', intentDraftBanner());
+    if (companionMode === 'expanded') dockLiveChoice(true);
     syncItineraryIntentEditors();
     for (const el of root.querySelectorAll('[data-compact-detail]'))
       el.open = el.closest('.companion-material')
@@ -3333,15 +3637,18 @@ function render(preserve = false, navigationId = null) {
     restoreItineraryFocus();
     restoreNavigationFocus();
     restoreReferenceFocus();
+    restoreDisclosures();
+    if (disclosureScope === detailFolds.scope) entityPreviews.restoreWithin(root, previewReading);
     return;
   }
   const sidebarScroll = root.querySelector('.sidebar-nav')?.scrollTop || 0;
   replaceRoot(
-    `<div class="layout"><aside class="sidebar"><div class="brand"><img class="app-mark" src="../assets/icon-48.png" alt=""><div><div class="brand-name">逸剑手札</div><div class="brand-sub">《逸剑风云决》流程助手</div></div></div><nav class="sidebar-nav" aria-label="手札页面">${navigationView({ route, headings, icon, goalCount: profile().goals.filter((g) => !goalDone(g)).length })}</nav><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong></div>${iconButton('profiles', 'person', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑手札 · 流程助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="breadcrumb">我的江湖 ${icon('chevron')}<b>${headings[route]}</b></div><div class="row"><span data-save-health>${healthAlert()}</span><button id="global-search-trigger" class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${act('compact', '打开随行', 'btn soft', '', 'pin')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, duels: duelsPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`,
+    `<div class="layout"><aside class="sidebar"><div class="brand"><img class="app-mark" src="../assets/icon-48.png" alt=""><div><div class="brand-name">逸剑手札</div><div class="brand-sub">《逸剑风云决》流程助手</div></div></div><nav class="sidebar-nav" aria-label="手札页面">${navigationView({ route, headings, icon, goalCount: profile().goals.filter((g) => !goalDone(g)).length })}</nav><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong></div>${iconButton('profiles', 'person', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑手札 · 流程助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="breadcrumb">我的江湖 ${icon('chevron')}<b>${headings[route]}</b></div><div class="row"><span data-save-health>${healthAlert()}</span><span data-update-badge>${appUpdateViews.badge(environment.updates)}</span><button id="global-search-trigger" class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${act('compact', '打开随行', 'btn soft', '', 'pin')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, duels: duelsPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`,
   );
   root.querySelector('.sidebar-nav').scrollTop = sidebarScroll;
   if (availableIntentDrafts().length && !['home', 'journey'].includes(route))
     root.querySelector('.content')?.insertAdjacentHTML('afterbegin', intentDraftBanner());
+  dockLiveChoice();
   syncItineraryIntentEditors();
   root.querySelector('.sidebar-nav .nav-btn.active')?.scrollIntoView({ block: 'nearest' });
   if (preserve) {
@@ -3364,11 +3671,15 @@ function render(preserve = false, navigationId = null) {
   restoreItineraryFocus();
   restoreNavigationFocus();
   restoreReferenceFocus();
+  restoreDisclosures();
+  if (disclosureScope === detailFolds.scope) entityPreviews.restoreWithin(root, previewReading);
 }
 function intentDraftBanner() {
   return `<div class="notice mb">${act('intent-drafts', `继续未完成安排 · ${availableIntentDrafts().length} 份草稿`, 'text-btn')}</div>`;
 }
 function showOverlay(html, drawer = false, preserve = false, opener = null, retainDrawer = false) {
+  const previewReading = preserve ? entityPreviews.captureWithin(overlay) : null;
+  const referenceFocus = preserve ? entityPreviews.captureFocusWithin(overlay) : null;
   entityPreviews.close();
   ++backupPreviewRequest;
   if (
@@ -3389,7 +3700,7 @@ function showOverlay(html, drawer = false, preserve = false, opener = null, reta
   const focusedId = preserve && overlay.contains(document.activeElement) ? document.activeElement.id : null;
   const opened = preserve
     ? [...overlay.querySelectorAll('details[open]')].map(
-        (e) => e.id || e.querySelector('summary')?.textContent,
+        (e) => e.dataset?.persistDetail || e.id || e.querySelector('summary')?.textContent,
       )
     : [];
   if (!overlay.firstChild) lastFocus = opener || document.activeElement;
@@ -3398,7 +3709,9 @@ function showOverlay(html, drawer = false, preserve = false, opener = null, reta
     drawerHistory.length = 0;
   }
   root.inert = true;
+  carryLiveChoice();
   overlay.innerHTML = `<div class="overlay-backdrop ${drawer ? 'drawer-backdrop' : ''}" data-backdrop="true">${html}</div>`;
+  dockLiveChoice(compact);
   if (
     compact &&
     ((drawer &&
@@ -3434,13 +3747,19 @@ function showOverlay(html, drawer = false, preserve = false, opener = null, reta
           'drawer-back',
         ),
       );
-  const focusable = overlay.querySelector('input,textarea,select,button');
+  const focusable = [
+    ...(overlay.querySelector('.drawer, .modal') || overlay).querySelectorAll('input,textarea,select,button'),
+  ].find((el) => !el.closest('.live-choice-dock'));
   ((focusedId && overlay.querySelector('#' + CSS.escape(focusedId))) || focusable)?.focus();
   if (preserve)
     for (const e of overlay.querySelectorAll('details'))
-      e.open = opened.includes(e.id || e.querySelector('summary')?.textContent);
+      e.open = opened.includes(e.dataset?.persistDetail || e.id || e.querySelector('summary')?.textContent);
   if (preserve && overlay.querySelector('.drawer-body'))
     overlay.querySelector('.drawer-body').scrollTop = oldScroll;
+  if (preserve) {
+    entityPreviews.restoreFocusWithin(overlay, referenceFocus);
+    entityPreviews.restoreWithin(overlay, previewReading);
+  }
   if (currentDrawer?.type === 'timeline' && submittingNodes.has(currentDrawer.data.record.id))
     nodeControlsDisabled(currentDrawer.data.record.id, true);
   if (currentDrawer?.type === 'timeline') updateHealth(environment.health);
@@ -3540,6 +3859,7 @@ function closeOverlay() {
   comparisonState = null;
   currentDrawer = null;
   drawerHistory.length = 0;
+  carryLiveChoice();
   overlay.innerHTML = '';
   root.inert = false;
   drawerId = null;
@@ -3581,9 +3901,9 @@ function showDetail(id, keep = false, handoffRevealed) {
   }<p class="small muted mt">精选参考；版本与前置选择可能改变触发条件。</p></details></div><div class="drawer-actions">${e.checklist ? act('check', status === 'done' ? '已完成 · 撤销' : '标记为已完成', 'btn primary', id, 'check') : act('entry-goal', '加入我的目标', 'btn primary', id, 'plus')}${iconButton('favorite', 'star', profile().favorites.includes(id) ? '取消收藏' : '收藏线索', id, `favorite ${profile().favorites.includes(id) ? 'on' : ''}`)}${e.checklist ? act('skip', status === 'skip' ? '恢复待办' : '暂不做', 'btn', id) : ''}</div></section>`;
   showOverlay(html, true);
 }
-function modal(title, description, body, footer, retainDrawer = false) {
+function modal(title, description, body, footer, retainDrawer = false, closeLabel = '取消') {
   showOverlay(
-    `<section class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="row between"><h2>${title}</h2>${iconButton('close-overlay', 'close', '关闭')}</div>${description ? `<p>${description}</p>` : ''}${body}<div class="modal-footer">${act('close-overlay', '取消', 'btn')}${footer}</div></section>`,
+    `<section class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="row between"><h2>${title}</h2>${iconButton('close-overlay', 'close', '关闭')}</div>${description ? `<p>${description}</p>` : ''}${body}<div class="modal-footer">${act('close-overlay', esc(closeLabel), 'btn')}${footer}</div></section>`,
     false,
     false,
     null,
@@ -3735,7 +4055,14 @@ function searchQuestStatuses() {
   const saved =
     name &&
     (referenceSave?.name === name ? referenceSave : environment.saves.files.find((f) => f.name === name));
-  return new Map((saved?.metadata?.quests || []).map((task) => [task.id, task.status]));
+  const live = followsLiveWorld() ? currentFlow()?.liveReference : null;
+  const labels = ['未开始', '进行中', '已失败', '未接取', '已完成'];
+  return new Map(
+    ((live || saved)?.metadata?.quests || []).map((task) => [
+      task.id,
+      task.status || labels[task.step] || '待核对',
+    ]),
+  );
 }
 function showSearchResults(value) {
   const results = overlay.querySelector('#global-results');
@@ -3766,37 +4093,18 @@ function showSearchResults(value) {
       glyph: kindIcon(e.kind),
       group: 'guides',
     })),
-    ...gameIndex.entries.map((e) => ({
+    ...codexEntries(gameIndex, statuses).map((e) => ({
       ...e,
       quality: qualityText.quality(e),
       title: e.name,
       sub:
         entityReferences.variantSummary(e.id) ||
         [e.kind, e.type === '人物资料' ? '' : e.type].filter(Boolean).join(' · '),
-      action: 'database-detail',
-      glyph: { 物品: 'bag', 武学: 'sword', 人物: 'person', 配方: 'scroll' }[e.kind],
-      group: 'database',
-    })),
-    ...gameIndex.world.quests.map((e) => ({
-      ...e,
-      kind: '任务',
-      title: e.name,
-      status: statuses.get(e.gameId) || '待核对',
-      sub: '任务',
-      action: 'world-quest',
-      glyph: 'scroll',
-      group: 'quests',
-    })),
-    ...gameIndex.world.maps.map((e) => ({
-      ...e,
-      id: placeEntityId(e, gameIndex.world.maps),
-      kind: '地点',
-      title: e.name,
-      sub:
-        entityReferences.variantSummary(placeEntityId(e, gameIndex.world.maps)) || (e.cave ? '洞穴' : '地点'),
-      action: 'world-place',
-      glyph: 'map',
-      group: 'places',
+      action: e.kind === '任务' ? 'world-quest' : e.kind === '地点' ? 'world-place' : 'database-detail',
+      glyph: { 物品: 'bag', 武学: 'sword', 人物: 'person', 配方: 'scroll', 任务: 'scroll', 地点: 'map' }[
+        e.kind
+      ],
+      group: e.kind === '任务' ? 'quests' : e.kind === '地点' ? 'places' : 'database',
     })),
     ...profile().goals.map((g) => {
       const status = goalDone(g) ? '已完成' : '未完成',
@@ -3964,13 +4272,15 @@ function showSearchResults(value) {
       [
         ['records', '江湖记录'],
         ['guides', '精选线索'],
-        ['database', '百物图鉴'],
+        ['database', '全部图鉴'],
         ['quests', '任务'],
         ['places', '地点'],
       ]
         .filter(() => q)
         .map(([id, label]) => {
-          const count = all.filter((d) => d.group === id).length;
+          const count = all.filter((d) =>
+            id === 'database' ? ['database', 'quests', 'places'].includes(d.group) : d.group === id,
+          ).length;
           return count
             ? '<button class="text-btn" data-action="search-all" data-id="' +
                 id +
@@ -4062,6 +4372,28 @@ function searchHistory() {
     )
     .join('');
 }
+async function refreshLiveNpcDetail() {
+  if (
+    currentDrawer?.type === 'database' &&
+    (currentDrawer.liveContext || currentDrawer.liveNpcContext) &&
+    currentDrawer.npcLiveKey !== (currentFlow()?.npcStateKey || '')
+  )
+    await showDatabaseDetail(currentDrawer.id, currentDrawer.quantity || 1, currentDrawer.giftPage, {
+      origin: 'live',
+    });
+  if (
+    currentDrawer?.type === 'entity-choice' &&
+    currentDrawer.liveContext &&
+    currentDrawer.npcLiveKey !== (currentFlow()?.npcStateKey || '')
+  )
+    await showEntityChoice(currentDrawer.id, currentDrawer.flowReference, null, currentDrawer);
+  if (
+    (route === 'world' || currentDrawer?.type?.startsWith('world-')) &&
+    worldView.liveContext &&
+    worldView.reference?.key !== currentFlow()?.liveReference?.key
+  )
+    await loadWorldReference();
+}
 async function refresh(background = false) {
   const token = ++refreshRequest;
   const next = await call('refresh');
@@ -4077,13 +4409,19 @@ async function refresh(background = false) {
   if (route === 'recipe-discovery' && recipeDiscoveryNeedsRefresh) await refreshRecipeDiscovery();
   if (token !== refreshRequest) return;
   if (currentDrawer?.type === 'entity-choice' && currentDrawer.referenceName === undefined)
-    await showEntityChoice(currentDrawer.id);
+    await showEntityChoice(
+      currentDrawer.id,
+      currentDrawer.liveContext ? currentDrawer.flowReference : null,
+      null,
+      currentDrawer.liveContext ? currentDrawer : null,
+    );
   if (token !== refreshRequest) return;
   if (journeyDraft?.kind === 'gift' && document.querySelector('#journey-item-options'))
     loadGiftStock(journeyDraft);
   if (
     (route === 'world' || currentDrawer?.type === 'world-quest' || currentDrawer?.type === 'world-place') &&
-    worldView.referenceName === undefined
+    worldView.referenceName === undefined &&
+    !worldView.liveContext
   )
     await loadWorldReference();
   const signature = (name) => next.saves.files.find((f) => f.name === name)?.hash;
@@ -4138,7 +4476,7 @@ async function refresh(background = false) {
       if (currentDrawer?.type === 'database') {
         const e = gameViews.byId(gameIndex, currentDrawer.id);
         if (e?.kind === '配方') await showDatabaseDetail(e.id, currentDrawer.quantity || 1);
-        if (e?.kind === '人物' || e?.kind === '物品') await showDatabaseDetail(e.id);
+        if (['人物', '物品', '武学'].includes(e?.kind)) await showDatabaseDetail(e.id);
         const freshness = overlay.querySelector('.reference-freshness');
         if (freshness)
           freshness.textContent = name ? '已同步新的已保存进度 · ' + name : '参照存档不可读，请重新选择。';
@@ -4147,12 +4485,14 @@ async function refresh(background = false) {
   }
   if (
     currentDrawer?.type === 'database' &&
-    ['物品', '人物', '配方'].includes(gameViews.byId(gameIndex, currentDrawer.id)?.kind) &&
+    ['物品', '人物', '配方', '武学'].includes(gameViews.byId(gameIndex, currentDrawer.id)?.kind) &&
     (referenceSaveName === undefined || currentDrawer.planningSignature !== planningIntentSignature())
   )
     await showDatabaseDetail(currentDrawer.id, currentDrawer.quantity || 1, currentDrawer.giftPage);
   if ((!background || changed) && currentDrawer?.type === 'search' && !composing)
     showSearchResults(currentDrawer.query);
+  if (token === refreshRequest && (!background || changed)) entityPreviews.refreshOutside(root);
+  if (token === refreshRequest) await refreshLiveNpcDetail();
 }
 async function handle(action, id, target, navigationFocused = false) {
   let readingRequest;
@@ -4160,6 +4500,7 @@ async function handle(action, id, target, navigationFocused = false) {
     [
       'navigate',
       'search',
+      'updates',
       'detail',
       'help',
       'database-detail',
@@ -4216,6 +4557,35 @@ async function handle(action, id, target, navigationFocused = false) {
     };
   }
   switch (action) {
+    case 'updates':
+      modal('软件更新', '', updatePanel(), '', false, '关闭');
+      break;
+    case 'update-check':
+      renderUpdateStatus(await call('checkUpdates'));
+      break;
+    case 'update-download':
+      renderUpdateStatus(await call('downloadUpdate'));
+      break;
+    case 'update-cancel':
+      renderUpdateStatus(await call('cancelUpdate'));
+      break;
+    case 'update-auto':
+      await mutation({
+        type: 'settings',
+        value: { checkUpdatesOnStart: state.settings.checkUpdatesOnStart === false },
+      });
+      renderUpdateStatus();
+      break;
+    case 'update-install': {
+      if (target) target.disabled = true;
+      try {
+        const result = await call('installUpdate');
+        if (!result.restarting) toast('已取消重启，下载的更新继续保留');
+      } finally {
+        if (target?.isConnected) target.disabled = false;
+      }
+      break;
+    }
     case 'journey-trash-open':
     case 'journey-trash-close':
       journeyTrashView.open = action.endsWith('-open');
@@ -5077,6 +5447,7 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     case 'search-all': {
       const value = target.dataset.query || query;
+      const liveContext = followsLiveWorld();
       closeOverlay();
       if (id === 'records') {
         route = 'journal';
@@ -5107,6 +5478,12 @@ async function handle(action, id, target, navigationFocused = false) {
         worldView.roots = false;
         worldView.status = 'all';
         worldView.page = 0;
+        Object.assign(worldView, {
+          referenceName: referenceSaveName,
+          reference: referenceSave,
+          follow: referenceFollow,
+          liveContext,
+        });
         await loadWorldReference();
       }
       render();
@@ -5180,6 +5557,7 @@ async function handle(action, id, target, navigationFocused = false) {
           follow: worldView.follow,
           reference: worldView.reference,
           error: worldView.error,
+          liveContext: worldView.liveContext,
         };
         const restore = () => {
           if (request !== handbookRequest || overlay.firstChild !== owner) return;
@@ -5200,7 +5578,12 @@ async function handle(action, id, target, navigationFocused = false) {
       } else if (view.type === 'database') {
         referenceSaveName = view.referenceName;
         referenceFollow = view.follow;
-        await showDatabaseDetail(view.id, view.quantity || 1, view.giftPage);
+        await showDatabaseDetail(
+          view.id,
+          view.quantity || 1,
+          view.giftPage,
+          view.liveContext || view.liveNpcContext ? { origin: 'live' } : null,
+        );
         const reservation = overlay.querySelector('#reserve-count');
         if (
           currentDrawer?.type === 'database' &&
@@ -5251,6 +5634,7 @@ async function handle(action, id, target, navigationFocused = false) {
         worldView.follow = view.follow;
         worldView.reference = view.reference;
         worldView.error = view.error || '';
+        worldView.liveContext = view.liveContext === true;
         await loadWorldReference();
         if (request !== handbookRequest || token !== detailRequest) break;
         if (view.type === 'world-place') placeMapScopes.set(view.id, view.mapScope || 'region');
@@ -5290,6 +5674,7 @@ async function handle(action, id, target, navigationFocused = false) {
       referenceSave = null;
       worldView.referenceName = undefined;
       worldView.follow = defaultFollow();
+      worldView.liveContext = defaultFollow();
       worldView.reference = null;
       if (id !== 'archives') ++protectionRequest;
       await saveNote();
@@ -5561,10 +5946,10 @@ async function handle(action, id, target, navigationFocused = false) {
           (s) => s.actionId === id,
         )?.action?.id || id;
       render();
-      (
+      const entry =
         document.querySelector(`[data-journey-id="${CSS.escape(resolvedId)}"]`) ||
-        document.querySelector(`[data-itinerary-step="${CSS.escape(id)}"]`)
-      )?.scrollIntoView({ block: 'center' });
+        document.querySelector(`[data-itinerary-step="${CSS.escape(id)}"]`);
+      revealJourneyEntry(entry);
       break;
     }
     case 'journey-todo-dialog':
@@ -5603,10 +5988,10 @@ async function handle(action, id, target, navigationFocused = false) {
           (s) => s.actionId === id,
         )?.action?.id || id;
       render();
-      (
+      const entry =
         document.querySelector(`[data-journey-id="${CSS.escape(resolvedId)}"]`) ||
-        document.querySelector(`[data-itinerary-step="${CSS.escape(id)}"]`)
-      )?.scrollIntoView({ block: 'center' });
+        document.querySelector(`[data-itinerary-step="${CSS.escape(id)}"]`);
+      revealJourneyEntry(entry);
       break;
     }
     case 'journey-intent-save': {
@@ -5666,7 +6051,13 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     }
     case 'world-quest':
-      await showWorldDetail(id, 'quest', false, null, target);
+      if (
+        target.closest('[data-flow], .duel-page') ||
+        currentDrawer?.liveNpcContext ||
+        currentDrawer?.liveContext
+      )
+        await showFlowWorldDetail(id, 'quest', target, currentDrawer?.flowReference);
+      else await showWorldDetail(id, 'quest', false, null, target);
       break;
     case 'flow-quest': {
       await showFlowWorldDetail(id, 'quest', target, currentDrawer?.flowReference);
@@ -5678,6 +6069,12 @@ async function handle(action, id, target, navigationFocused = false) {
       worldView.referenceName = referenceSaveName;
       worldView.follow = referenceFollow;
       worldView.reference = referenceSave;
+      worldView.liveContext = defaultFollow() && currentDrawer?.liveNpcContext === true;
+      if (worldView.liveContext) {
+        worldView.follow = true;
+        worldView.referenceName = undefined;
+        worldView.reference = currentFlow()?.liveReference || null;
+      }
       closeOverlay();
       route = 'world';
       worldView.kind = 'quests';
@@ -5708,12 +6105,21 @@ async function handle(action, id, target, navigationFocused = false) {
       if (entityReferences.choices(id).length > 1) {
         await showEntityChoice(
           id,
-          target.closest('[data-flow], .duel-page') ? currentFlow()?.reference : null,
+          target.closest('[data-flow], .duel-page')
+            ? currentFlow()?.reference
+            : currentDrawer?.liveNpcContext || currentDrawer?.liveContext || followsLiveWorld()
+              ? { origin: 'live' }
+              : null,
           target,
         );
         break;
       }
-      if (target.closest('[data-flow], .duel-page')) await showFlowWorldDetail(id, 'place', target);
+      if (
+        target.closest('[data-flow], .duel-page') ||
+        currentDrawer?.liveNpcContext ||
+        currentDrawer?.liveContext
+      )
+        await showFlowWorldDetail(id, 'place', target, currentDrawer?.flowReference);
       else await showWorldDetail(id, 'place', false, null, target);
       break;
     case 'world-kind':
@@ -6013,6 +6419,16 @@ async function handle(action, id, target, navigationFocused = false) {
       databasePage = 0;
       render(true);
       break;
+    case 'npc-progress-tab':
+      if (!['remaining', 'learning', 'locked', 'cleared'].includes(id)) break;
+      npcProgressView.tab = id;
+      npcProgressView.page = 0;
+      render(true);
+      break;
+    case 'npc-progress-page':
+      npcProgressView.page = Math.max(0, Number(id) || 0);
+      render(true);
+      break;
     case 'database-page':
       databasePage = Number(id);
       render();
@@ -6027,7 +6443,11 @@ async function handle(action, id, target, navigationFocused = false) {
     case 'entity-choice':
       await showEntityChoice(
         id,
-        target.closest('[data-flow], .duel-page') ? currentFlow()?.reference : currentDrawer?.flowReference,
+        target.closest('[data-flow], .duel-page')
+          ? currentFlow()?.reference
+          : followsLiveWorld()
+            ? { origin: 'live' }
+            : currentDrawer?.flowReference,
         target,
       );
       break;
@@ -6070,12 +6490,16 @@ async function handle(action, id, target, navigationFocused = false) {
       }
       let quantity = 1;
       const flowReference = target.closest('[data-flow], .duel-page')
-        ? currentFlow()?.reference
-        : currentDrawer?.type === 'save'
-          ? currentDrawer.data
-          : currentDrawer?.type === 'entity-choice'
-            ? currentDrawer.reference
-            : currentDrawer?.flowReference;
+        ? defaultFollow() && ['人物', '武学'].includes(gameViews.byId(gameIndex, id)?.kind)
+          ? { origin: 'live' }
+          : currentFlow()?.reference
+        : !currentDrawer && route === 'world' && worldView.liveContext
+          ? { origin: 'live' }
+          : currentDrawer?.type === 'save'
+            ? currentDrawer.data
+            : currentDrawer?.type === 'entity-choice'
+              ? currentDrawer.reference
+              : currentDrawer?.flowReference;
       if (flowReference) {
         referenceSaveName = flowReference.name;
         referenceFollow =
@@ -7279,7 +7703,7 @@ async function handle(action, id, target, navigationFocused = false) {
       modal(
         '随行布局与显示',
         '拖动标题栏移动，拖动边缘调整大小；随行会记住你选的位置。',
-        `<div data-companion-layout><p class="small muted">恢复默认仅调整窗口的位置与大小。</p>${act('window-layout-reset', '恢复默认位置与大小', 'btn', '', 'reset')}${act('companion-display', '选择首页内容', 'btn', '', 'eye')}${act('navigate', '设置', 'btn', 'settings', 'settings')}</div>`,
+        `<div data-companion-layout><div class="row wrap mb">${act('navigate', '备料清单', 'btn', 'materials', 'bag')}${act('navigate', '地图', 'btn', 'world', 'map')}</div><p class="small muted">恢复默认仅调整窗口的位置与大小。</p>${act('window-layout-reset', '恢复默认位置与大小', 'btn', '', 'reset')}${act('companion-display', '选择首页内容', 'btn', '', 'eye')}${act('navigate', '设置', 'btn', 'settings', 'settings')}${act('updates', '软件更新', 'btn', '', 'download')}</div>`,
         '',
       );
       break;
@@ -7487,6 +7911,12 @@ document.addEventListener('input', (event) => {
     render(true);
     return;
   }
+  if (event.target.id === 'npc-progress-search' && !event.isComposing && !composing) {
+    npcProgressView.query = event.target.value;
+    npcProgressView.page = 0;
+    render(true);
+    return;
+  }
   if (['timeline-label', 'timeline-note'].includes(event.target.id)) {
     captureNodeDraft();
     return;
@@ -7629,6 +8059,10 @@ document.addEventListener('compositionend', (event) => {
     worldView.page = 0;
   }
   if (event.target.id === 'craft-search') materialView.query = event.target.value;
+  if (event.target.id === 'npc-progress-search') {
+    npcProgressView.query = event.target.value;
+    npcProgressView.page = 0;
+  }
   if (event.target.id === 'list-search') query = event.target.value;
   if (event.target.id === 'timeline-search') {
     timelineView.query = event.target.value;
@@ -7966,6 +8400,11 @@ try {
     companionMode = companionData.mode;
   }
   render();
+  api.onGuidance?.((value) => {
+    if (value.profileId !== state.activeProfileId) return;
+    if (compact) refreshCompanion().catch(() => {});
+    else refresh(true).catch(() => {});
+  });
   if (environment.warning) toast(environment.warning, true);
   api.onState((next) => {
     const currentId = state.activeProfileId;
@@ -7990,6 +8429,7 @@ try {
       invalidateRecipeDiscovery();
     }
     if (referenceChanged) {
+      entityPreviews.close();
       invalidateBackupPreview('存档来源或回顾选择已改变，旧预览已失效。请重新校验后再恢复。');
       resetPlanningViews();
       if (currentId !== state.activeProfileId) {
@@ -8008,6 +8448,10 @@ try {
     if (currentDrawer?.type === 'search' && !composing) showSearchResults(currentDrawer.query);
   });
   api.onEvent((event) => {
+    if (event.type === 'app-update') {
+      renderUpdateStatus(event.updates);
+      return;
+    }
     if (event.type === 'protection') {
       protectionView.busy = event.busy;
       protectionView.label = event.label;

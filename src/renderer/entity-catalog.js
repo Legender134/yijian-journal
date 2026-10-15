@@ -69,6 +69,9 @@ export function entityCatalog(index) {
   // wording once, rather than storing entity links in every sentence.
   const initiation = entries.get('quest-5213');
   if (initiation?.name.replace(/^【[^】]+】/, '') === '拜师武当') addName('拜入武当', initiation);
+  const investigation = entries.get('quest-11272');
+  if (investigation?.name.replace(/^【[^】]+】/, '') === '灭门之案 - 线索')
+    addName('灭门之案线索', investigation);
   const namedFacts = [...names.keys()].filter((name) =>
     names.get(name).some((entry) => entry.kind !== '任务'),
   );
@@ -127,6 +130,17 @@ export function entityCatalog(index) {
       queue.push(...(children.get(next.gameId) || []));
     }
     return rows;
+  };
+  const isActiveQuest = (q, status) => {
+    if (status(q) !== '进行中') return false;
+    const seen = new Set();
+    // Match flow's blocked semantics while retaining the raw records for history.
+    while (q && !seen.has(q.gameId)) {
+      seen.add(q.gameId);
+      if (['已失败', '未接取', '已完成'].includes(status(q))) return false;
+      q = questByNumber.get(q.parentId);
+    }
+    return true;
   };
   const mentions = (text) => {
     const found = new Map();
@@ -235,7 +249,17 @@ export function entityCatalog(index) {
     personCache.set(e.id, result);
     return result;
   };
-  const catalog = { entries, names, pattern, resolve, root, family, taskRelations, personRelations };
+  const catalog = {
+    entries,
+    names,
+    pattern,
+    resolve,
+    root,
+    family,
+    isActiveQuest,
+    taskRelations,
+    personRelations,
+  };
   catalogs.set(index, catalog);
   return catalog;
 }

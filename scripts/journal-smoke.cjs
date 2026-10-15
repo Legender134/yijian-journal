@@ -316,6 +316,8 @@ async function nav(page, id) {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
       dialog.showMessageBox = async () => ({ response: 1 });
     }, protection);
+    if (await page.locator('[data-protection-controls]:not([open])').count())
+      await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-import"]').click();
     await page.locator('[data-action="protection-journal-profile"]').waitFor({ state: 'attached' });
     await page

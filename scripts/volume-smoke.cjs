@@ -234,6 +234,8 @@ async function createEntry(title, body) {
 }
 async function mainExport(file, count) {
   await saveDialog(file);
+  if (await active.page.locator('[data-protection-controls]:not([open])').count())
+    await active.page.locator('[data-protection-controls] > summary').click();
   await active.page.locator('[data-action="protection-export"]').click();
   const text = await toast(new RegExp('保护包已校验[\\s\\S]* · 本机 ' + count + ' 份完整备份'));
   assert(fs.existsSync(file) || fs.existsSync(file + '.parts'), 'main UI export did not publish its target');
@@ -241,6 +243,8 @@ async function mainExport(file, count) {
 }
 async function uiImport(file, volumes = false, expected = '离线档案已保存') {
   await openDialog(file);
+  if (await active.page.locator('[data-protection-controls]:not([open])').count())
+    await active.page.locator('[data-protection-controls] > summary').click();
   await active.page
     .locator('[data-action="' + (volumes ? 'protection-import-volumes' : 'protection-import') + '"]')
     .click();
@@ -406,6 +410,8 @@ async function volumeAndCorruptFlow() {
     manifestHash = fileHash(path.join(long.saves.root, bad.id, 'manifest.json'));
   const rejected = path.join(data, '损坏备份主导出必须拒绝.yijian-protection');
   await saveDialog(rejected);
+  if (await page.locator('[data-protection-controls]:not([open])').count())
+    await page.locator('[data-protection-controls] > summary').click();
   await page.locator('[data-action="protection-export"]').click();
   await toast('完整导出未完成', true);
   const failureResult = page.locator('[aria-label="最近一次完整导出"]');
@@ -654,6 +660,8 @@ async function generationFlow() {
     };
   });
   await beginProtectionCycle('正在导出本机保护资料');
+  if (await active.page.locator('[data-protection-controls]:not([open])').count())
+    await active.page.locator('[data-protection-controls] > summary').click();
   await active.page.locator('[data-action="protection-export"]').click();
   await finishProtectionCycle();
   const cancellationDialogs = await active.app.evaluate(() => globalThis.volumeExportConfirmations);

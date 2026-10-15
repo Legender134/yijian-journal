@@ -47,7 +47,7 @@ export const searchFilterFields = [
     name: '状态',
     key: 'status',
     aliases: ['status'],
-    description: '完整匹配目标或已保存游戏任务的状态；游戏状态来自存档',
+    description: '完整匹配目标或游戏任务状态；按当前有效进度，固定查询使用所选存档',
     examples: ['未完成', '已完成', '未开始', '进行中', '已失败', '未接取', '待核对'],
   },
   { name: '标签', key: 'tags', aliases: ['tag'], description: '标签包含这段文字', examples: ['朋友'] },

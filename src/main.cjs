@@ -76,6 +76,35 @@ const quitHandoff = new QuitHandoff();
 const { companionSnapshot } = require('./core/companion.cjs');
 const { handbookContext } = require('./core/handbook-context.cjs');
 const { flowSnapshot } = require('./core/flow.cjs');
+const { UpdateService, compareVersions } = require('./core/app-updates.cjs');
+const {
+  prepareUpdateInstall,
+  launchUpdateInstall,
+  readInstallResult,
+} = require('./core/app-update-install.cjs');
+let appUpdates,
+  pendingAppUpdate,
+  preparingAppUpdate = false;
+function updateState(status = appUpdates?.status() || { phase: 'idle', currentVersion: app.getVersion() }) {
+  const result = readInstallResult(path.join(app.getPath('userData'), 'app-updates'));
+  try {
+    if (
+      result?.status === 'failed' &&
+      compareVersions(result.version, app.getVersion()) > 0 &&
+      ['idle', 'available', 'ready', 'error'].includes(status.phase) &&
+      (!status.version || result.version === status.version)
+    )
+      return {
+        ...status,
+        phase: status.phase === 'idle' ? 'error' : status.phase,
+        installFailed: true,
+        error: status.error || result.message,
+      };
+  } catch {
+    /* Ignore a malformed local receipt without interrupting normal use. */
+  }
+  return status;
+}
 let companion, windowMonitor, windowLayout;
 let protectionArchives,
   protectionJobPromise = null;
@@ -175,6 +204,7 @@ let recoveryWindow = null,
 let tray,
   shortcuts,
   trayTimer,
+  guidanceTimer,
   quitRequested = false,
   quitGranted = false,
   quitPromise;
@@ -274,10 +304,11 @@ function updateTray() {
   const state = protection.warning ? 'warning' : protection.ready ? 'ready' : 'pending';
   if (!trayImages.has(state)) {
     const image = nativeImage.createFromPath(path.join(__dirname, 'assets', `tray-${state}-16.png`));
-    for (const size of [20, 24, 32]) image.addRepresentation({
-      scaleFactor: size / 16,
-      buffer: fs.readFileSync(path.join(__dirname, 'assets', `tray-${state}-${size}.png`)),
-    });
+    for (const size of [20, 24, 32])
+      image.addRepresentation({
+        scaleFactor: size / 16,
+        buffer: fs.readFileSync(path.join(__dirname, 'assets', `tray-${state}-${size}.png`)),
+      });
     trayImages.set(state, image);
   }
   tray.setImage(trayImages.get(state));
@@ -348,6 +379,10 @@ function requestQuit() {
         return;
       }
       await bridge?.quiesce();
+      if (pendingAppUpdate) {
+        await launchUpdateInstall(pendingAppUpdate);
+        pendingAppUpdate = null;
+      }
       quitGranted = true;
       app.quit();
     } catch (e) {
@@ -358,6 +393,7 @@ function requestQuit() {
   return quitPromise;
 }
 function cancelQuit() {
+  pendingAppUpdate = null;
   quitHandoff.cancel();
   quitRequested = false;
   quitGranted = false;
@@ -502,6 +538,11 @@ function makeWindow(compact = false) {
 function toggleCompact() {
   return companion.expand();
 }
+function readGuidance(state = store.get()) {
+  const profile = state.profiles.find((row) => row.id === state.activeProfileId);
+  const mode = profile.referenceMode || (profile.saveSlot ? 'slot' : 'latest');
+  return mode === 'latest' ? bridge?.liveGuidance(state.settings.savePath) || null : null;
+}
 function readCompanion() {
   const state = store.get(),
     profile = state.profiles.find((p) => p.id === state.activeProfileId);
@@ -525,7 +566,10 @@ function readCompanion() {
         }
     }
   }
-  return { ...companionSnapshot(state, catalog, reference, error), ...companion.status() };
+  return {
+    ...companionSnapshot(state, catalog, reference, error, readGuidance(state)),
+    ...companion.status(),
+  };
 }
 function showMain() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -659,7 +703,7 @@ function overview() {
     goalProgress: goalProgress(profile, goalReference, goalError),
     allocations,
     journey,
-    flow: flowSnapshot(profile, goalReference, goalError),
+    flow: flowSnapshot(profile, goalReference, goalError, readGuidance(state)),
     preferredSave: preferred,
     preferredSaveMissing: !!preferred && !latest,
     backups: saves.list(),
@@ -682,6 +726,7 @@ function overview() {
     shortcuts: shortcuts?.summary(state.settings.shortcuts || DEFAULT_SHORTCUTS),
     health: snapshot,
     activity: activity?.get(),
+    updates: updateState(),
   };
 }
 function currentPlanningReference(profile) {
@@ -831,6 +876,34 @@ app.whenReady().then(async () => {
     recoveredIsolation = journalRecoveryIsolation(app.getPath('userData'));
     windowLayout = new WindowLayout(app.getPath('userData'));
     activity = new Activity(app.getPath('userData'));
+    const updateOptions = {
+      currentVersion: app.getVersion(),
+      cacheDir: path.join(app.getPath('userData'), 'app-updates'),
+      onChange: (updates) => broadcast('event', { type: 'app-update', updates: updateState(updates) }),
+    };
+    // GUI regression fixtures live only inside the explicitly isolated test directory.
+    // Production checks always use the pinned HTTPS channel and signing key.
+    if (isTest) {
+      updateOptions.request = async () => {
+        throw Error('测试环境不访问更新服务器');
+      };
+      if (process.env.YIJIAN_TEST_UPDATES === '1') {
+        const fixtureRoot = path.join(app.getPath('userData'), 'update-fixture');
+        const fixture = JSON.parse(fs.readFileSync(path.join(fixtureRoot, 'fixture.json'), 'utf8'));
+        updateOptions.config = { ...require('./data/update-channel.json'), publicKey: fixture.publicKey };
+        updateOptions.request = async (url) => {
+          const name = new URL(url).pathname.split('/').at(-1);
+          if (name !== 'latest.json' && !/^YijianJournal-\d+\.\d+\.\d+-windows-x64\.zip$/.test(name))
+            throw Error('测试更新地址无效');
+          const file = path.join(fixtureRoot, name);
+          const stream = fs.createReadStream(file);
+          stream.statusCode = 200;
+          stream.headers = {};
+          return stream;
+        };
+      }
+    }
+    appUpdates = new UpdateService(updateOptions);
     saves = new Saves(path.join(app.getPath('userData'), 'save-backups'));
     protectionArchives = new ProtectionArchives(app.getPath('userData'), () => store.get().settings.savePath);
     game = isTest ? { installed: false, path: '', build: '' } : detectGame();
@@ -844,6 +917,7 @@ app.whenReady().then(async () => {
       ? path.join(app.getPath('userData'), recoveredIsolation.bridgeDirectory)
       : bridgeStateRoot(game, app.getPath('userData'), isTest);
     bridge = new GameBridge(bridgeRoot, timeline, {
+      guidanceFile: path.join(app.getPath('userData'), 'live-guidance.json'),
       getGame: () => (isTest ? game : detectGame()),
       stopped: gameStopped,
       blocked: () =>
@@ -864,6 +938,41 @@ app.whenReady().then(async () => {
       environment: overview(),
       version: app.getVersion(),
     }));
+    handle('update-check', async () => {
+      if (preparingAppUpdate || quitRequested) throw Error('正在准备重启，请稍候');
+      await appUpdates.check();
+      return updateState();
+    });
+    handle('update-download', async () => {
+      if (preparingAppUpdate || quitRequested) throw Error('正在准备重启，请稍候');
+      await appUpdates.download();
+      return updateState();
+    });
+    handle('update-cancel', () => {
+      if (preparingAppUpdate || quitRequested) throw Error('正在准备重启，请稍候');
+      return updateState(appUpdates.cancel());
+    });
+    handle('update-install', async () => {
+      if (isTest) throw Error('界面测试不安装或重启个人软件');
+      if (!app.isPackaged || process.platform !== 'win32') throw Error('请在 Windows 安装版中更新');
+      if (preparingAppUpdate || quitRequested) throw Error('正在准备重启，请稍候');
+      if (protectionJobPromise || bridge.busy || bridge.loadQueued || saves.busy)
+        throw Error('请等待当前存读档或备份完成，再重启更新');
+      preparingAppUpdate = true;
+      try {
+        const updatePackage = await appUpdates.readyPackage();
+        pendingAppUpdate = await prepareUpdateInstall({
+          package: updatePackage,
+          cacheDir: path.join(app.getPath('userData'), 'app-updates'),
+          currentExe: app.getPath('exe'),
+          processId: process.pid,
+        });
+        await requestQuit();
+        return { restarting: quitGranted };
+      } finally {
+        preparingAppUpdate = false;
+      }
+    });
     handle('mutate', (_event, command) => {
       const trustedContext = {};
       let intentDraftCommit;
@@ -1120,10 +1229,10 @@ app.whenReady().then(async () => {
       if (isTest) throw Error('测试环境不安装游戏组件');
       const answer = await dialog.showMessageBox(owner(event), {
         type: 'question',
-        title: '接入游戏存读档',
+        title: '接入现场提醒',
         message: '安装或更新已校验的游戏接入组件？',
         detail:
-          '使用 UE4SS 官方组件接入游戏原生保存接口。会新增游戏目录下的组件文件，原游戏程序和资源包保留。请先退出游戏。\n\n安装前会建立完整存档保护副本。时间线使用 29 号手动槽，请保持这个槽专供时间线使用。',
+          '安装后可只读显示关键选项建议。会新增游戏目录下的组件文件，原游戏程序和资源包保留。请先退出游戏。\n\n安装前会建立完整存档保护副本。现场提醒不占用 29 号槽、不自动保存；时间线存读档需要另行明确开启。',
         buttons: ['取消', '保护存档并接入'],
         defaultId: 0,
         cancelId: 0,
@@ -1886,7 +1995,8 @@ app.whenReady().then(async () => {
       else if (action === 'close') w.close();
       else if (action === 'main') {
         const reading = context === undefined ? null : handbookContext(context);
-        if (reading && reading.profileId !== store.get().activeProfileId) throw Error('手札周目已变化，请重新打开');
+        if (reading && reading.profileId !== store.get().activeProfileId)
+          throw Error('手札周目已变化，请重新打开');
         if (w === companion.window) await companion.collapse(false);
         const main = showMain();
         if (reading) {
@@ -1975,6 +2085,33 @@ app.whenReady().then(async () => {
     });
     autoBackup.start();
     bridge.start();
+    let lastGuidance = '';
+    guidanceTimer = setInterval(() => {
+      if (quitRequested) return;
+      const state = store.get();
+      const guidance = readGuidance(state);
+      const key = JSON.stringify([
+        state.activeProfileId,
+        guidance?.dialogue,
+        guidance?.suppressedQuestIds,
+        guidance?.npcState?.key || null,
+      ]);
+      if (key !== lastGuidance) {
+        lastGuidance = key;
+        broadcast('guidance', { profileId: state.activeProfileId });
+      }
+    }, 750);
+    guidanceTimer.unref();
+    appUpdates
+      .restoreDownloaded()
+      .then(() => {
+        if (
+          ((app.isPackaged && !isTest) || (isTest && process.env.YIJIAN_TEST_UPDATES === '1')) &&
+          store.get().settings.checkUpdatesOnStart !== false
+        )
+          return appUpdates.check();
+      })
+      .catch(() => {});
     if (!isTest && process.argv.includes('--guard-game'))
       launchGame().catch((e) => resultFeedback('error', e.message, true));
   } catch (e) {
@@ -1993,7 +2130,9 @@ app.on('before-quit', (event) => {
   }
 });
 app.on('will-quit', () => {
+  appUpdates?.cancel();
   clearInterval(trayTimer);
+  clearInterval(guidanceTimer);
   tray?.destroy();
   autoBackup?.dispose();
   bridge?.dispose();

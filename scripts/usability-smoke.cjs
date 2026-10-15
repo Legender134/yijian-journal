@@ -164,6 +164,34 @@ async function shot(name) {
     );
 
     await route('materials');
+    assert.equal(await win.locator('[data-action="craft-goals-merge"]').count(), 0);
+    const goalTitle = '合成验证：制作布锦鞋';
+    await win.evaluate(async (title) => {
+      const result = await window.journal.mutate({
+        type: 'goal-add',
+        title,
+        source: { type: 'database', id: 'fusion-7000', quantity: 1 },
+      });
+      if (!result.ok) throw Error(result.error);
+    }, goalTitle);
+    await route('materials');
+    const mergeGoals = win.locator('[data-action="craft-goals-merge"]');
+    assert.equal(await mergeGoals.isVisible(), true, 'an empty list still offers to merge recipe goals');
+    assert.equal(await win.locator('.craft-result-card').count(), 0);
+    await mergeGoals.click();
+    assert.equal(await win.locator('#craft-qty-fusion-7000').inputValue(), '1');
+    const recipeGoal = JSON.parse(fs.readFileSync(path.join(data, 'journal.json')))
+      .profiles.find((profile) => profile.id === original)
+      .goals.find((goal) => goal.title === goalTitle);
+    await win.evaluate(async (id) => {
+      const result = await window.journal.mutate({ type: 'goal-remove', id });
+      if (!result.ok) throw Error(result.error);
+    }, recipeGoal.id);
+    await route('materials');
+    await win.locator('[data-action="craft-remove"][data-id="fusion-7000"]').click();
+    report.checks.push(
+      'empty materials keeps a working recipe-goal merge action without empty result panels',
+    );
     await win.locator('#craft-search').fill('布锦鞋精良图纸');
     await win.locator('[data-action="craft-add"][data-id="fusion-7000"]').click();
     await selectProgress(win, '2.sav');
@@ -216,7 +244,15 @@ async function shot(name) {
     await close();
     await win.locator('[data-action="craft-calculate"]').click();
     await win.waitForFunction(() => document.querySelector('.craft-totals')?.textContent.includes('3 件'));
-    assert.match(await win.locator('.craft-layout').innerText(), /保留 8 件/);
+    const keptMaterials = win.locator('.craft-layout details.card').filter({ hasText: '手动留用物品' });
+    assert.equal(await keptMaterials.count(), 1);
+    assert.equal(await keptMaterials.evaluate((node) => node.open), false);
+    await keptMaterials.locator('summary').click();
+    const keptCloth = keptMaterials
+      .locator('.world-rule')
+      .filter({ has: win.locator('[data-id="item-10300"]') });
+    assert.equal(await keptCloth.isVisible(), true);
+    assert.match(await keptCloth.innerText(), /保留 8 件/);
     await shot('reserved-materials');
     const person = index.entries
       .filter((e) => e.kind === '人物')
@@ -241,6 +277,8 @@ async function shot(name) {
     await win.locator('#list-search').fill(person.name);
     await win.locator('[data-action="database-detail"][data-id="' + person.id + '"]').click();
     await selectProgress(win, '2.sav');
+    if (await win.locator('.person-gifts:not([open])').count())
+      await win.locator('.person-gifts > summary').click();
     await win.locator('.person-gifts [data-action="gift-page"]').last().click();
     assert.equal(await progressValue(win), '2.sav');
     assert.match(await win.locator('.person-gifts').innerText(), /第 2 \/ 2 页/);
@@ -292,13 +330,16 @@ async function shot(name) {
     await win.keyboard.press('Control+k');
     await win.locator('#global-search').fill('剑');
     const searchSource = fs.readFileSync(path.join(base, 'src/renderer/search-query.js'), 'utf8');
-    const { compileSearch } = await import(
+    const { compileSearch, compareSearchTitles } = await import(
       'data:text/javascript;base64,' + Buffer.from(searchSource).toString('base64')
     );
-    const matches = index.entries.filter(compileSearch('剑'));
+    const { codexEntries } = await import(
+      require('node:url').pathToFileURL(path.join(base, 'src/renderer/game-views.js')).href
+    );
+    const matches = codexEntries(index).filter(compileSearch('剑')).sort(compareSearchTitles('剑'));
     assert.equal(
       await win.locator('[data-action="search-all"][data-id="database"]').innerText(),
-      `百物图鉴 ${matches.length} 项 · 查看全部`,
+      `全部图鉴 ${matches.length} 项 · 查看全部`,
     );
     await shot('search-all');
     await win.locator('[data-action="search-all"][data-id="database"]').click();
@@ -308,7 +349,7 @@ async function shot(name) {
     for (let page = 0; page < pages; page++) {
       await win.waitForFunction(
         ({ current, total }) =>
-          document.querySelector('.pagination')?.textContent.includes(`第 ${current} / ${total} 页`),
+          document.querySelector('.pagination')?.textContent.includes(`${current} / ${total}`),
         { current: page + 1, total: pages },
       );
       reachable.push(

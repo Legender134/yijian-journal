@@ -54,6 +54,7 @@ function readingHistoryHarness() {
     databaseKind: '全部',
     databaseType: '全部',
     databasePage: 0,
+    npcProgressView: { tab: 'remaining', query: '', page: 0 },
     worldView: {},
     worldRequest: 0,
     recipeQuantity: () => 1,
@@ -99,6 +100,43 @@ test('guide and other read-only drawer histories retain reading position before 
     context.remember({ type: 'guide', id: 'wei-huo' });
     assert.equal(context.drawerHistory.at(-1).presentation.scroll, 370, type);
   }
+});
+
+test('live NPC and task handoff select a fresh observed cohort, with saved fallback after withdrawal', async () => {
+  const { context } = readingHistoryHarness();
+  context.defaultFollow = () => true;
+  const old = { name: '1.sav', hash: 'a'.repeat(64) };
+  const latest = { name: '2.sav', hash: 'b'.repeat(64) };
+  const live = { origin: 'live', key: 'cohort-new', metadata: { quests: [{ id: 12001, step: 1 }] } };
+  context.referenceSave = old;
+  context.referenceSaveName = old.name;
+  context.currentDrawer = { type: 'database', id: 'npc-10047', liveNpcContext: true, flowReference: old };
+  context.drawerHistory = [{ type: 'world-quest', id: 'quest-12001', liveContext: true }];
+  const wire = handbookContext(context.capture());
+  assert.deepEqual(wire.reference, { name: '', hash: '', follow: true, live: true });
+  assert.deepEqual(wire.history[0].reference, wire.reference);
+  assert.equal(
+    handbookContext({ profileId: 'p', reference: { follow: false, live: true } }).reference.live,
+    undefined,
+  );
+  const reads = [];
+  context.latestReference = () => latest.name;
+  context.call = async (_method, name) => {
+    reads.push(name);
+    return latest;
+  };
+  context.showWorldDetail = async (_id, _type, _replace, view) => {
+    context.currentDrawer = { type: 'world-quest', id: 'quest-12001', ...view };
+    return context.currentDrawer;
+  };
+  for (const observed of [live, null]) {
+    context.currentFlow = () => ({ liveReference: observed });
+    await context.open(wire.history[0]);
+    assert.equal(context.currentDrawer.reference, observed || latest);
+    assert.equal(context.currentDrawer.follow, true);
+    assert.equal(context.currentDrawer.liveContext, true, 'live intent survives a temporary withdrawal');
+  }
+  assert.deepEqual(reads, ['2.sav'], 'the old saved cohort must not be resurrected');
 });
 
 test('search result mode survives direct handoff and handbook history, with strict boolean display state', async () => {
@@ -177,6 +215,34 @@ test('handoff refuses paths, invalid identities and arbitrary detail types', () 
   assert.equal(handbookContext({ profileId: 'p', route: 'remove-all' }).route, 'home');
 });
 
+test('NPC handoff accepts only bounded list filters and resets missing or invalid values', () => {
+  for (const tab of ['remaining', 'learning', 'locked', 'cleared']) {
+    const npcProgress = { tab, query: '炼丹', page: 2 };
+    assert.deepEqual(handbookContext({ profileId: 'p', npcProgress }).npcProgress, npcProgress);
+  }
+  for (const npcProgress of [undefined, null, [], { tab: 'delete', query: 'x'.repeat(101), page: -1 }])
+    assert.deepEqual(handbookContext({ profileId: 'p', npcProgress }).npcProgress, {
+      tab: 'remaining',
+      query: '',
+      page: 0,
+    });
+  for (const page of [1.5, Infinity, 100001, '1'])
+    assert.equal(handbookContext({ profileId: 'p', npcProgress: { page } }).npcProgress.page, 0);
+  assert.deepEqual(
+    handbookContext({
+      profileId: 'p',
+      npcProgress: {
+        tab: 'learning',
+        query: '江吟风',
+        page: 1,
+        command: 'remove',
+        path: 'private',
+      },
+    }).npcProgress,
+    { tab: 'learning', query: '江吟风', page: 1 },
+  );
+});
+
 test('legacy scene chooser transfers directly and remains valid in exact-scene history', () => {
   for (const id of ['place-96', 'place-97']) {
     const detail = { type: 'entity-choice', id };
@@ -214,6 +280,7 @@ test('handoff retains pages, filters, body reading and same-name history across 
     databaseKind: '人物',
     databaseType: '全部',
     databasePage: 3,
+    npcProgressView: { tab: 'learning', query: '炼丹', page: 1 },
     worldView: {
       kind: 'quests',
       query: '药',
@@ -267,14 +334,18 @@ test('handoff retains pages, filters, body reading and same-name history across 
   assert.equal(wire.detail.giftPage, 2);
   assert.equal(wire.history[0].detail.id, 'name:莫弃');
   assert.equal(wire.history[0].detail.flowBound, true);
+  assert.deepEqual(wire.npcProgress, { tab: 'learning', query: '炼丹', page: 1 });
+  Object.assign(context.npcProgressView, { tab: 'remaining', query: '', page: 0 });
   await context.receive(wire);
   assert.equal(context.currentDrawer.giftPage, 2);
   assert.equal(context.databasePage, 3);
+  assert.deepEqual(context.npcProgressView, { tab: 'learning', query: '炼丹', page: 1 });
   assert.equal(restored.at(-1).page, true);
   assert.equal(restored.at(-1).value.scroll, 840);
   await context.open(wire.history[0]);
   assert.equal(context.currentDrawer.id, 'name:莫弃');
   assert.equal(context.currentDrawer.flowReference.name, '2.sav');
+  assert.deepEqual(context.npcProgressView, { tab: 'learning', query: '炼丹', page: 1 });
   context.route = 'world';
   context.currentDrawer = null;
   const world = handbookContext(context.capture());
@@ -284,6 +355,11 @@ test('handoff retains pages, filters, body reading and same-name history across 
   assert.equal(context.worldView.status, 'active');
   assert.equal(context.worldView.page, 2);
   assert.equal(context.worldView.roots, false);
+  context.route = 'duels';
+  const npcList = handbookContext(context.capture());
+  Object.assign(context.npcProgressView, { tab: 'locked', query: '卫霍', page: 0 });
+  await context.receive(npcList);
+  assert.deepEqual(context.npcProgressView, { tab: 'learning', query: '炼丹', page: 1 });
 });
 
 test('body presentation restores semantic cards and folds despite a different main-window layout', () => {
@@ -363,39 +439,48 @@ test('additional reading state is bounded and cannot carry arbitrary selectors o
     assert.throws(() => handbookContext({ profileId: 'p', detail: { type: 'entity-choice', id } }));
 });
 
-test('task materials preserve the exact flow reference when a separate crafting reference is selected', async () => {
+test('task materials preserve their reference while current NPC navigation follows live updates only in latest mode', async () => {
+  const { createGameViews } = await import('../src/renderer/game-views.js');
+  const gameViews = createGameViews({ esc: String });
+  const gameIndex = require('../src/data/game-index.json');
   const app = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
   const start = app.indexOf("    case 'database-detail': {");
   const end = app.indexOf("    case 'database-uses':", start);
   assert.ok(start > 0 && end > start);
-  for (const fromFlow of [true, false]) {
-    let opened;
-    const flow = { name: '1.sav', hash: 'a'.repeat(64) };
-    const context = {
-      id: 'item-10016',
-      target: { closest: () => fromFlow },
-      currentDrawer: null,
-      currentFlow: () => ({ reference: flow }),
-      route: 'materials',
-      mutationQueue: Promise.resolve(),
-      materialView: { referenceName: '2.sav', follow: false },
-      referenceSave: {},
-      defaultReference: () => '3.sav',
-      defaultFollow: () => true,
-      profile: () => ({ craftList: [] }),
-      showDatabaseDetail: async (_id, _quantity, _page, expected) => {
-        opened = { name: context.referenceSaveName, expected };
-      },
-    };
-    vm.createContext(context);
-    vm.runInContext(
-      `this.run = async () => { switch ('database-detail') { ${app.slice(start, end)} } };`,
-      context,
-    );
-    await context.run();
-    assert.equal(opened.name, fromFlow ? '1.sav' : '2.sav');
-    assert.equal(opened.expected?.hash, fromFlow ? flow.hash : undefined);
-  }
+  for (const id of ['item-10016', 'npc-10016'])
+    for (const fromFlow of [true, false])
+      for (const follow of [true, false]) {
+        let opened;
+        const flow = { name: '1.sav', hash: 'a'.repeat(64) };
+        const context = {
+          id,
+          gameViews,
+          gameIndex,
+          target: { closest: () => fromFlow },
+          currentDrawer: null,
+          currentFlow: () => ({ reference: flow }),
+          route: 'materials',
+          mutationQueue: Promise.resolve(),
+          materialView: { referenceName: '2.sav', follow: false },
+          referenceSave: {},
+          defaultReference: () => '3.sav',
+          defaultFollow: () => follow,
+          profile: () => ({ craftList: [] }),
+          showDatabaseDetail: async (_id, _quantity, _page, expected) => {
+            opened = { name: context.referenceSaveName, expected };
+          },
+        };
+        vm.createContext(context);
+        vm.runInContext(
+          `this.run = async () => { switch ('database-detail') { ${app.slice(start, end)} } };`,
+          context,
+        );
+        await context.run();
+        const liveNpc = fromFlow && follow && id === 'npc-10016';
+        assert.equal(opened.name, liveNpc ? undefined : fromFlow ? '1.sav' : '2.sav');
+        assert.equal(opened.expected?.hash, fromFlow && !liveNpc ? flow.hash : undefined);
+        assert.equal(opened.expected?.origin, liveNpc ? 'live' : undefined);
+      }
 });
 
 test('choosing a namesake tracks its configured slot while explicit snapshots remain pinned', async () => {
@@ -444,6 +529,7 @@ test('a flow place uses its own saved task state and rejects changed bytes inste
       handbookRequest: 0,
       profile: () => ({ id: 'p' }),
       currentFlow: () => ({ reference: current }),
+      defaultFollow: () => false,
       call: async (_action, name) => {
         assert.equal(name, '1.sav');
         return { ...current, hash: changed ? 'b'.repeat(64) : current.hash };
@@ -526,6 +612,7 @@ test('handbook captures history, save, backup and comparison details instead of 
       databaseKind: '全部',
       databaseType: '全部',
       databasePage: 0,
+      npcProgressView: { tab: 'remaining', query: '', page: 0 },
       worldView: {},
       defaultFollow: () => false,
       handbookPresentation: () => null,
@@ -571,6 +658,7 @@ test('a pending flow place cannot replace a newer search, closed drawer, world s
       worldView: { referenceName: '2.sav' },
       profile: () => ({ id: 'p' }),
       currentFlow: () => flow,
+      defaultFollow: () => false,
       call: () => new Promise((r) => (resolve = r)),
       showWorldDetail: async () => {
         opened = true;
@@ -613,6 +701,7 @@ test('history handoff reloads the same detail through existing inspect APIs and 
       flushJournalDrafts: asyncNoop,
       flushIntentDrafts: asyncNoop,
       closeOverlay: () => context.detailRequest++,
+      npcProgressView: { tab: 'remaining', query: '', page: 0 },
       worldView: {},
       materialView: {},
       refresh: asyncNoop,
@@ -853,6 +942,7 @@ test('actual navigation cancels a handoff waiting for refresh before opening its
     closeOverlay: () => context.detailRequest++,
     overlay: { firstElementChild: null },
     defaultFollow: () => true,
+    npcProgressView: { tab: 'remaining', query: '', page: 0 },
     worldView: {},
     materialView: {},
     refresh: () => new Promise((r) => (resolve = r)),
@@ -1135,6 +1225,7 @@ test('item refresh preserves the latest unsubmitted reservation input only in th
         handbookRequest: 0,
         detailRequest: 0,
         profile: () => saved,
+        defaultFollow: () => false,
         planningIntentSignature: () => 'updated plans',
         gameIndex: {},
         catalog: { entries: [] },
@@ -1184,6 +1275,7 @@ test('late database reads cannot replace the newer preview reference or surface 
       handbookRequest: 0,
       detailRequest: 0,
       profile: () => ({ id: profileId, reservations: {} }),
+      defaultFollow: () => false,
       planningIntentSignature: () => '',
       gameIndex: {},
       catalog: { entries: [] },
@@ -1252,6 +1344,7 @@ test('handbook handoff reads the exact saved reference before resuming latest-fo
         defaultFollow: () => true,
         latestReference: () => newer.name,
         defaultReference: () => newer.name,
+        currentFlow: () => null,
         gameViews: {
           byId: () => ({ kind: '武学' }),
           detail: (_index, id, _quantity, reference) => {
@@ -1338,7 +1431,7 @@ test('saved-detail and pinned-choice previews cannot borrow a different progress
 });
 test('same-name chooser keeps pinned snapshots and follows latest through task and place navigation', async () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
-  const start = source.indexOf('async function showWorldDetail(');
+  const start = source.indexOf('function followsLiveWorld(');
   const end = source.indexOf('async function calculateMaterials(', start);
   for (const type of ['quest', 'place'])
     for (const mode of ['pinned', 'changed-pinned', 'fixed', 'latest']) {
@@ -1357,6 +1450,7 @@ test('same-name chooser keeps pinned snapshots and follows latest through task a
           follow,
           flowReference: mode.includes('pinned') ? saved : null,
         },
+        defaultFollow: () => follow,
         detailRequest: 0,
         handbookRequest: 0,
         worldView: { reference: latest, referenceName: latest.name, follow: true },
@@ -1409,6 +1503,8 @@ test('legacy journal place links open scene choices without rewriting the stored
       id: `place:${id}`,
       profile: () => ({ journalEntries: [record] }),
       currentDrawer: null,
+      route: 'journal',
+      defaultFollow: () => false,
       gameIndex: {
         world: {
           maps: [
@@ -1421,7 +1517,7 @@ test('legacy journal place links open scene choices without rewriting the stored
     };
     vm.createContext(ctx);
     vm.runInContext(
-      slice('async function showWorldDetail(', 'async function calculateMaterials(') +
+      slice('function followsLiveWorld(', 'async function calculateMaterials(') +
         `async function open() { switch ('journal-link') {` +
         slice("    case 'journal-link': {", "    case 'search-personal-all':") +
         '}} this.open = open;',
@@ -1513,6 +1609,8 @@ test('latest and fixed-slot choosers refresh while explicit snapshots keep their
       referenceSaveName: old.name,
       referenceFollow: follow,
       refreshRequest: 0,
+      root: {},
+      entityPreviews: { refreshOutside() {} },
       handbookRequest: 0,
       detailRequest: 0,
       environment: { saves: { files: [old] } },
@@ -1543,7 +1641,7 @@ test('latest and fixed-slot choosers refresh while explicit snapshots keep their
     vm.createContext(ctx);
     vm.runInContext(
       slice('async function showEntityChoice(', 'function render(') +
-        slice('async function refresh(', 'async function handle(') +
+        slice('async function refreshLiveNpcDetail(', 'async function handle(') +
         `async function select(id, target) { switch ('database-detail') {` +
         slice("    case 'database-detail': {", "    case 'database-uses': {") +
         '}}\nthis.poll = refresh; this.select = select;',
@@ -1619,7 +1717,7 @@ test('closing or replacing a pending world-detail return cancels the old drawer'
 
 test('new searches reject late historical refreshes and preview the Settings reference in latest, fixed and none modes', async () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
-  const a = source.indexOf('async function refresh('),
+  const a = source.indexOf('async function refreshLiveNpcDetail('),
     b = source.indexOf('async function handle(', a);
   const previewStart = source.indexOf(
     '  context: async (target) => {',
@@ -1729,6 +1827,9 @@ test('Settings updates from another window reload an open item or chooser and in
       refreshRequest: 0,
       handbookRequest: 0,
       detailRequest: 40,
+      root: {},
+      drawerHistory: [],
+      entityPreviews: { close() {}, refreshOutside() {} },
       journeyDraft: null,
       composing: false,
       recipeDiscoverySourceSignature: () => '',
@@ -1776,7 +1877,7 @@ test('Settings updates from another window reload an open item or chooser and in
     vm.runInContext(
       part('function resetPlanningViews()', 'function worldPage()') +
         part('async function showEntityChoice(', 'function render(') +
-        part('async function refresh(', 'async function handle(') +
+        part('async function refreshLiveNpcDetail(', 'async function handle(') +
         part('  api.onState((next) => {', '  api.onEvent((event) => {'),
       context,
     );
@@ -1812,6 +1913,7 @@ test('historical comparisons open static codex entries without substituting curr
     const live = { name: 'current.sav', hash: 'latest', metadata: { quests: [{ id: 5200, step: 4 }] } };
     const context = {
       currentDrawer: { type: drawerType },
+      defaultFollow: () => true,
       target: { closest: () => false },
       id: 'item-133',
       referenceSave: live,
@@ -1847,7 +1949,7 @@ test('historical comparisons open static codex entries without substituting curr
     };
     vm.createContext(context);
     vm.runInContext(
-      part('async function showWorldDetail(', 'async function calculateMaterials(') +
+      part('function followsLiveWorld(', 'async function calculateMaterials(') +
         `this.openItem = async () => { switch ('database-detail') { ${part("    case 'database-detail': {", "    case 'database-uses':")} } };` +
         '\nthis.preview = ' +
         source.slice(previewStart + '  context: '.length, previewEnd + 4) +
@@ -1916,11 +2018,19 @@ test('global quest filtering follows settings and keeps a historical search refe
   const ctx = {
     referenceSaveName: undefined,
     referenceSave: null,
+    referenceFollow: true,
+    currentDrawer: null,
+    route: 'database',
+    worldView: {},
+    currentFlow: () => null,
+    defaultFollow: () => !!chosen,
     defaultReference: () => chosen,
     environment: { recent: latest, saves: { files: [older, latest] } },
   };
   vm.createContext(ctx);
-  vm.runInContext(source.slice(begin, end), ctx);
+  const helperStart = source.indexOf('function followsLiveWorld(');
+  const helperEnd = source.indexOf('async function showWorldDetail(', helperStart);
+  vm.runInContext(source.slice(helperStart, helperEnd) + source.slice(begin, end), ctx);
   assert.equal(ctx.searchQuestStatuses().get(5200), '已完成');
   chosen = older.name;
   assert.equal(ctx.searchQuestStatuses().get(5200), '进行中');

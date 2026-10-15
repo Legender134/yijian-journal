@@ -4,6 +4,7 @@ const game = require('../data/game-index.json');
 const guide = require('../data/flow-guide.cjs');
 const materialGuide = require('../data/material-guide.cjs');
 const { selectedReference } = require('./goal-progress.cjs');
+const { withLiveDialogue } = require('./live-guidance.cjs');
 const { createDuelProjector } = require('./duels.cjs');
 const duelGuide = require('../data/duel-guide.cjs');
 
@@ -99,6 +100,22 @@ function createFlowProjector({
           .filter((id) => materialContent.sources[id])
           .map((id) => ({ ...materialContent.sources[id], id: 'material:' + id })),
       }));
+    const taskRoute = content.stepMaterialRoutes?.[task.gameId]?.[material.id];
+    if (taskRoute) routes.unshift({ ...taskRoute, taskSpecific: true });
+    for (const route of content.itemRoutes?.[material.id] || []) {
+      if (!route.placeId || !w.maps.some((place) => place.id === route.placeId)) continue;
+      routes.push({
+        kind: 'reference',
+        label: route.title,
+        detail: route.detail,
+        placeId: route.placeId,
+        place: w.maps.find((place) => place.id === route.placeId).name,
+        efficiency: route.efficiency || route.uncertainty || '',
+        sources: (route.sourceIds || [])
+          .filter((id) => content.sources[id])
+          .map((id) => ({ ...content.sources[id], id: 'flow:' + id })),
+      });
+    }
     for (const shop of g.merchants || []) {
       if (!shop.items.includes(material.id)) continue;
       if (routes.some((route) => route.personId === `npc-${shop.id}`)) continue;
@@ -128,7 +145,7 @@ function createFlowProjector({
       });
     // Quest text can supply a route absent from the item entry. Keep it as a
     // family-level clue, rather than assigning every mentioned place to every item.
-    if (/采集|购买|买来|买酒|刷|击败|获得/.test(task.description || ''))
+    if (!routes.length && /采集|购买|买来|买酒|刷|击败|获得/.test(task.description || ''))
       routes.push({
         kind: 'quest',
         label: '本步骤的获取说明',
@@ -147,7 +164,7 @@ function createFlowProjector({
       (route.place === currentMap ||
         textPlaces(route.detail || '').some((place) => place.name === currentMap));
     const rank = (route) =>
-      route.kind === 'quest'
+      route.taskSpecific
         ? 0
         : nearby(route)
           ? 1
@@ -155,13 +172,35 @@ function createFlowProjector({
             ? 4
             : 2;
     return routes
-      .map((route) => ({ ...route, alternative: rank(route) === 4 }))
+      .map((route) => ({
+        ...route,
+        placeName: route.place || w.maps.find((place) => place.id === route.placeId)?.name || '',
+        personName: route.personId ? npcName(Number(route.personId.replace(/^npc-/, ''))) : '',
+        alternative: rank(route) === 4,
+      }))
       .sort((a, b) => rank(a) - rank(b));
   }
-  function snapshot(profile, reference, error = '') {
+  function snapshot(profile, reference, error = '', dialogue = null) {
     const selected = selectedReference(profile, reference, error);
     const referenceMode = profile.referenceMode || (profile.saveSlot ? 'slot' : 'latest');
-    const metadata = selected?.metadata || {};
+    const live =
+      referenceMode === 'latest' && dialogue?.npcState?.origin === 'live' ? dialogue.npcState : null;
+    const savedAt = new Date(selected?.modifiedAt || '').getTime();
+    const showingOlderSave =
+      referenceMode === 'latest' &&
+      !live &&
+      Number.isFinite(dialogue?.lastLiveAt) &&
+      dialogue.lastLiveAt > 0 &&
+      (!Number.isFinite(savedAt) || savedAt < dialogue.lastLiveAt);
+    const liveMap = live ? maps.get(live.world.split('.').pop()) || maps.get(live.player.mapKey) : null;
+    const metadata = live
+      ? {
+          questStates: live.questStates,
+          map: liveMap?.key || '',
+          mapName: liveMap?.name || '',
+          combat: { origin: 'live', player: live.player, npcStates: live.npcStates },
+        }
+      : selected?.metadata || {};
     const states = Array.isArray(metadata.questStates) ? metadata.questStates : metadata.quests;
     const available = Array.isArray(states);
     const records = new Map((available ? states : []).map((r) => [r.id, r]));
@@ -175,8 +214,11 @@ function createFlowProjector({
           hash: selected.hash,
           modifiedAt: selected.modifiedAt,
           mapName: metadata.mapName || '',
+          ...(live ? { origin: 'live' } : {}),
         }
-      : null;
+      : live
+        ? { origin: 'live', mapName: metadata.mapName || '' }
+        : null;
     const step = (id) => records.get(id)?.step;
     function blocked(q, closedStates = [2, 3, 4]) {
       const seen = new Set();
@@ -193,13 +235,29 @@ function createFlowProjector({
       if (r.type === 'PreQuest')
         return {
           text: `${cleanName(name)}：需${labels[r.value] || '状态 ' + r.value}`,
-          status: step(r.id) === undefined ? 'unknown' : step(r.id) === r.value ? 'met' : 'unmet',
+          status: live
+            ? (step(r.id) ?? 0) === r.value
+              ? 'met'
+              : 'unmet'
+            : step(r.id) === undefined
+              ? 'unknown'
+              : step(r.id) === r.value
+                ? 'met'
+                : 'unmet',
         };
       // Absence in the public quest array does not prove a hidden flag is absent.
       if (r.type === 'NoQuest')
         return {
           text: `${cleanName(name)}：需尚未触发`,
-          status: step(r.id) === undefined ? 'unknown' : [1, 2, 4].includes(step(r.id)) ? 'unmet' : 'unknown',
+          status: live
+            ? records.has(r.id)
+              ? 'unmet'
+              : 'met'
+            : step(r.id) === undefined
+              ? 'unknown'
+              : [1, 2, 4].includes(step(r.id))
+                ? 'unmet'
+                : 'unknown',
         };
       if (r.type === 'Item')
         return {
@@ -404,6 +462,15 @@ function createFlowProjector({
               : null,
         }
       : null;
+    const duelProgress = projectDuels({
+      available,
+      states: available ? states : [],
+      mainQuestId: main?.gameId,
+      mapName: metadata.mapName || '',
+      difficultyName: metadata.difficultyName || '',
+      combat: metadata.combat || null,
+      metadata,
+    });
     const projectedRules = (content.rules || []).map((rule) => {
       const status = rule.questId ? step(rule.questId) : undefined;
       const knownFamily = rule.questId && quests.get(rule.questId) ? family(quests.get(rule.questId)) : [];
@@ -419,8 +486,13 @@ function createFlowProjector({
           const task = quests.get(id);
           return task && step(id) === 1 && !blocked(task);
         });
+      const locationMatch = (rule.locationIds || []).some((id) => {
+        const place = w.maps.find((entry) => entry.id === id);
+        return place && [place.key, place.name].includes(metadata.mapName);
+      });
       const relevant =
         activeRule ||
+        locationMatch ||
         (rule.requireStageMatch ? stageMatch && (!anchors.length || anchorsMet) : stageMatch || anchorsMet);
       const deadlineReached =
         (rule.untilAnyStarted || []).some((id) => [1, 2, 4].includes(step(id))) ||
@@ -447,7 +519,9 @@ function createFlowProjector({
         status === 1 &&
         ((decisionAnchors.length > 0 && decisionAnchors.every(completedDecisionAnchor)) ||
           decisionAnyAnchors.some(completedDecisionAnchor));
-      const decisionActive = !deadlineReached && (decisionStepActive || decisionWindowActive);
+      const decisionActive =
+        !deadlineReached &&
+        (decisionStepActive || decisionWindowActive || (rule.decisionOnArrival === true && locationMatch));
       const decisionResolved =
         !decisionActive && (rule.decisionSteps || []).some((id) => [2, 4].includes(step(id)));
       const affectedTasks = (rule.advanceEffects || [])
@@ -464,18 +538,33 @@ function createFlowProjector({
                 : effect.effect,
           };
         });
+      let checkpointWarning = '';
+      if (rule.checkpoint && step(rule.checkpoint.questId) === 1) {
+        const c = rule.checkpoint;
+        const person = duelProgress.progress.people.find((row) => row.npcId === c.npcId);
+        const friendship = person?.friendship.value;
+        checkpointWarning =
+          friendship === null || friendship === undefined
+            ? `共饮前先核对陈麟熙好感：达到 ${c.threshold} 时，取胜会让他离场${step(c.affectedQuestId) === 1 ? '，进行中的灭门之案线索也会失败' : ''}。`
+            : friendship >= c.threshold
+              ? `陈麟熙好感 ${friendship}：共饮后取胜会让他离场${step(c.affectedQuestId) === 1 ? '，进行中的灭门之案线索也会失败' : ''}。想保留人物内容，先不要推进。`
+              : `陈麟熙好感 ${friendship}：当前低于 ${c.threshold}，共饮会走保留人物的分支；此时继续赠礼可能改变结果。`;
+      }
       return {
         ...rule,
+        ...(checkpointWarning
+          ? { severity: 'warning', warning: checkpointWarning, compactWarning: checkpointWarning }
+          : {}),
         recommendation: rule.recommendation
           ? {
               ...rule.recommendation,
-              materials: decisionActive
-                ? (rule.recommendation.materialQuestIds || []).flatMap((id) => {
-                    const task = quests.get(id);
-                    if (!task || rootOf(task)?.gameId !== rule.questId) return [];
-                    return projectStep(task).materials;
-                  })
-                : [],
+              // Branch requirements are static facts, including when a live
+              // choice opens before the next save contains its quest step.
+              materials: (rule.recommendation.materialQuestIds || []).flatMap((id) => {
+                const task = quests.get(id);
+                if (!task || rootOf(task)?.gameId !== rule.questId) return [];
+                return projectStep(task).materials;
+              }),
             }
           : undefined,
         name: rule.title,
@@ -546,15 +635,6 @@ function createFlowProjector({
         consequence: r.warning || '社区资料标注此处为接取窗口边界，推进前请核对。',
         affectedTasks: r.affectedTasks,
       }));
-    if (chapter && changes[0])
-      chapter.next = {
-        title: changes[0].triggerName,
-        questId:
-          quests.get(
-            relevantRules.find((r) => r.id === changes[0].id)?.untilAnyStarted?.[0] ||
-              relevantRules.find((r) => r.id === changes[0].id)?.untilAnyComplete?.[0],
-          )?.id || null,
-      };
     const opportunities = relevantRules.filter(
       (r) => r.kind !== 'stage' && !r.activeRule && !r.deadlineReached,
     );
@@ -646,7 +726,7 @@ function createFlowProjector({
         ...r,
         message: `已出现窗口边界的剧情记录；请核对「${r.title}」是否仍可接取。没有任务记录不等于错过。`,
       }));
-    return {
+    const result = {
       profileId: profile.id,
       available,
       reason: available
@@ -675,13 +755,21 @@ function createFlowProjector({
             active.findIndex((row) => row.gameId === a.questId) -
             active.findIndex((row) => row.gameId === b.questId),
         ),
-      duels: projectDuels({
-        available,
-        states: available ? states : [],
-        mainQuestId: main?.gameId,
-        difficultyName: metadata.difficultyName || '',
-        combat: metadata.combat || null,
-      }),
+      duels: duelProgress,
+      stateOrigin: live ? 'live' : 'saved',
+      stateNotice: showingOlderSave
+        ? selected
+          ? '现场更新暂停 · 暂按最近保存显示'
+          : '现场更新暂停 · 等待重新读取'
+        : '',
+      npcStateKey: live?.key || '',
+      liveReference: live
+        ? {
+            origin: 'live',
+            key: live.key,
+            metadata: { quests: live.questStates, map: metadata.map, mapName: metadata.mapName },
+          }
+        : null,
       changes,
       coverage: {
         tasks: quests.size,
@@ -703,6 +791,15 @@ function createFlowProjector({
       })),
       guide: projectedRules,
     };
+    const projected = withLiveDialogue(result, dialogue, quests);
+    if (chapter && projected.changes[0]) {
+      const next = relevantRules.find((r) => r.id === projected.changes[0].id);
+      chapter.next = {
+        title: projected.changes[0].triggerName,
+        questId: quests.get(next?.untilAnyStarted?.[0] || next?.untilAnyComplete?.[0])?.id || null,
+      };
+    }
+    return projected;
   }
   return { flowSnapshot: snapshot };
 }

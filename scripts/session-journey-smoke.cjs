@@ -126,6 +126,8 @@ async function expandUndo() {
   try {
     await launch();
     await nav('journey');
+    if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
+      await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     assert.match(await page.locator('[data-itinerary]').innerText(), /挑选本次/);
     const firstPlan = await plan();
     const a = firstPlan.actions.find((a) => a.sources.some((s) => s.type === 'user' && s.id === 'first'));
@@ -143,6 +145,7 @@ async function expandUndo() {
       ),
       false,
     );
+    await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     assert.match(await row(q.id).innerText(), /场景待核定/);
     for (let i = 0; i < 2; i++)
       await row(q.id).locator('[data-action="journey-itinerary-move"][data-direction="up"]').click();
@@ -163,6 +166,8 @@ async function expandUndo() {
     await app.close();
     await launch();
     await nav('journey');
+    if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
+      await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     assert.equal((await current()).journey.itinerary.steps[0].actionId, q.id);
     assert.equal((await plan()).itinerary.next.placePending, true);
     assert.match(await row(q.id).innerText(), /场景待核定/);
@@ -221,6 +226,8 @@ async function expandUndo() {
     await page.locator('[data-home-itinerary-next] [data-action="journey-itinerary-handle"]').click();
     await page.locator('[data-home-itinerary-next="' + a.id + '"]').waitFor();
     await nav('journey');
+    if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
+      await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     await row(b.id).locator('[data-action="journey-itinerary-handle"]').click();
     await next(page, b.id);
     await app.evaluate(({ BrowserWindow }, size) => {
@@ -315,6 +322,8 @@ async function expandUndo() {
       if (!todo.ok) throw Error(todo.error);
     });
     await nav('journey');
+    if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
+      await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     const second = await current();
     await page.locator('[data-action="journey-itinerary-add"]').first().click();
     await page.locator('[data-itinerary] [data-action="journey-itinerary-status"][data-id="active"]').click();
@@ -339,6 +348,8 @@ async function expandUndo() {
       .filter({ hasText: '查看这一程回顾' })
       .waitFor();
     await nav('journey');
+    if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
+      await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     assert.equal((await current()).journey.itinerary.status, 'ended');
     assert.equal((await current()).journey.itinerary.steps.length, 3);
     assert.equal(

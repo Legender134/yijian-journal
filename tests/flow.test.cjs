@@ -823,11 +823,15 @@ test('Kushui return lead names recruitment route, handles missing prerequisites 
     assert.match(lead.affectedTasks[0].effect, /不把回村.*判为错过/);
     assert(current.flow.changes.some((row) => row.id === id && row.affectedTasks.length === 2));
     assert(!current.flow.warnings.some((row) => row.id === earlyId));
-    assert(
-      companionSnapshot(defaults(), catalog, current.reference).hints.some(
-        (row) => row.type === 'flow-warning' && /再探苦水.*涤罪僧/.test(row.title),
-      ),
-    );
+    const companion = companionSnapshot(defaults(), catalog, current.reference);
+    assert(companion.flow.warnings.some((row) => /再探苦水.*涤罪僧/.test(row.message)));
+    const choice = companion.flow.decisions[0];
+    const caution = choice?.recommendation?.caution || choice?.compactWarning;
+    if (caution) assert.equal(companion.hints[1].title, caution, 'current choice consequences take priority');
+    else
+      assert(
+        companion.hints.some((row) => row.type === 'flow-warning' && /再探苦水.*涤罪僧/.test(row.title)),
+      );
     assert.deepEqual(records, before);
   }
   const accepted = snapshot(middle.concat({ id: 13250, step: 1 }, { id: 13260, step: 1 })).flow;
@@ -1458,8 +1462,17 @@ test('mining puts the exact task route before distant merchants and retires the 
   );
   const iron = flow.active.find((row) => row.gameId === 11002).steps.find((row) => row.id === 'quest-11010')
     .materials[0];
-  assert.equal(iron.routes[0].kind, 'quest');
-  assert.match(iron.routes[0].detail, /后山山洞.*四个铁矿石/);
+  assert.equal(iron.routes[0].kind, 'gather');
+  assert(
+    !iron.routes.some((route) => route.kind === 'quest'),
+    'full task prose is not repeated per material when dedicated routes exist',
+  );
+  assert.equal(iron.routes[0].label, '后山山洞附近采集');
+  assert.equal(
+    iron.routes[0].placeId,
+    undefined,
+    'a task area mention must not select an arbitrary scene variant',
+  );
   assert.equal(iron.routes[0].alternative, false);
   const merchants = iron.routes.filter((row) => row.personId?.startsWith('npc-'));
   assert(merchants.some((row) => /平康城/.test(row.label) && row.placeId === 'place-15'));
@@ -2215,7 +2228,8 @@ test('current choice recommendations lead ordinary warnings and follow the track
   );
   assert.equal(snapshot.hints[0].type, 'flow-choice');
   assert.match(snapshot.hints[0].title, /孙老.*返乡/);
-  assert.equal(snapshot.hints[1].type, 'flow-warning');
+  assert.equal(snapshot.hints[1].type, 'flow-caution');
+  assert.match(snapshot.hints[1].title, /另一答法.*铜钱.*铁匠好感/);
   const updated = structuredClone(saved);
   updated.metadata.quests.find((row) => row.id === 11061).step = 4;
   const after = companionSnapshot(state, catalog, updated);
@@ -2242,8 +2256,8 @@ test('critical recommendations state conditional goals and incompatible rewards 
     assert(entry.sources.length, entry.id);
   }
   const find = (id) => entries.find((row) => row.id === id).recommendation;
-  assert.match(find('chenlinxi-critical-choice').action, /先保存.*好感.*60.*低于70.*义正词严/);
-  assert.match(find('chenlinxi-critical-choice').tradeoff, /70.*其他组合.*未确认/);
+  assert.match(find('chenlinxi-critical-choice').action, /先另存.*义正辞严.*降低10.*共饮.*低于70/);
+  assert.match(find('chenlinxi-critical-choice').tradeoff, /赠礼.*共饮.*恰好70.*对战/);
   assert.match(find('kongliang-choice').goal, /队友.*剧情/);
   assert.match(find('kongliang-choice').tradeoff, /漫天花雨.*一周目.*不救/);
   assert.match(find('golden-scorpion-choice').tradeoff, /不能兼走.*灵蝎挂坠.*截脉三式.*三条线/);
@@ -2851,7 +2865,11 @@ test('the shipped guide warns about the score window and consequential recruitme
   const chen = flowSnapshot(profile(), ref([{ id: 5246, step: 1 }])).warnings.find(
     (q) => q.id === 'chenlinxi-critical-choice',
   );
-  assert(chen.choices.some((choice) => /恰好70/.test(choice.label) && /没有完整说明/.test(choice.effect)));
+  assert.deepEqual(
+    chen.choices.map((choice) => choice.label),
+    ['好言相劝', '义正辞严'],
+  );
+  assert.match(chen.choices[1].effect, /大于等于70.*对战.*取胜/);
 });
 
 test('offline guide cards retain known outcomes rather than relabeling them as unknown', () => {

@@ -36,13 +36,14 @@ function cursor(data, start) {
   };
   const name = () => {
     const length = i32();
-    if (!length) return;
+    if (!length) return '';
     if (Math.abs(length) > 4096) throw Error('Native name too long');
     const width = length < 0 ? 2 : 1,
       bytes = Math.abs(length) * width;
     const at = take(bytes);
     if (data[at + bytes - 1] !== 0 || (width === 2 && data[at + bytes - 2] !== 0))
       throw Error('Native name unterminated');
+    return data.subarray(at, at + bytes - width).toString(width === 2 ? 'utf16le' : 'utf8');
   };
   const item = () => {
     take(16); // GUID
@@ -96,7 +97,8 @@ function readCombat(data, start, format) {
     const r = cursor(data, start),
       { npcCount } = inventoryPrefix(r);
     const seen = new Set(),
-      opponents = [];
+      opponents = [],
+      npcStates = [];
     let player = null;
     const fixedMap = (max, width) => r.take(r.count(max, width) * width);
     for (let i = 0; i < npcCount; i++) {
@@ -124,7 +126,7 @@ function readCombat(data, start, format) {
         r.i32();
         r.bool();
         r.bool();
-        if (id === 0) skills.push({ id: skillId, level });
+        skills.push({ id: skillId, level });
       }
       const meridians = r.count(10000, 20);
       for (let m = 0; m < meridians; m++) {
@@ -150,16 +152,16 @@ function readCombat(data, start, format) {
       fixedMap(10000, 5); // GuildFriendliness
       fixedMap(10000, 8); // GuildHonors
       const meridianPoints = r.i32();
-      r.items(); // NPC inventory is distinct from equipped items
+      const inventory = r.items(); // NPC private items, distinct from equipment
       const equipment = r.items();
       r.name(); // AvatarResourceName
       r.float();
       r.float();
       r.float();
-      r.name(); // location vector + map FName
-      r.bool();
-      r.bool();
-      r.bool();
+      const mapKey = r.name(); // location vector + map FName
+      const visible = r.bool();
+      const dynamic = r.bool();
+      const inHouse = r.bool();
       r.u8();
       fixedMap(10000, 8); // ItemUsedCount (version2)
       const buffs = r.count(10000, 9); // SceneBuffs (version4)
@@ -174,12 +176,26 @@ function readCombat(data, start, format) {
       for (let a = 0; a < avatars; a++) r.name();
       r.i32(); // AddNeiGongUpLimit (version14)
       const level = attributes[5];
-      if (id !== 0)
+      if (id !== 0) {
         opponents.push({
           id,
           level: Number.isInteger(level) && level > 0 && level <= 1000 ? level : null,
           rawFriendliness: playerFriendliness,
         });
+        npcStates.push({
+          id,
+          attributes,
+          skills,
+          inventory,
+          equipment,
+          mapKey,
+          visible,
+          dynamic,
+          inHouse,
+          level: Number.isInteger(level) && level > 0 && level <= 1000 ? level : null,
+          rawFriendliness: playerFriendliness,
+        });
+      }
       if (id === 0) {
         const ratio = (current, maximum) =>
           maximum > 0 && current >= 0 && current <= maximum ? current / maximum : null;
@@ -194,11 +210,13 @@ function readCombat(data, start, format) {
           meridianPoints: meridianPoints >= 0 ? meridianPoints : null,
           skills,
           equipment,
+          attributes,
+          mapKey,
         };
       }
     }
     // Any unknown suffix or shifted record invalidates combat information only.
-    return r.end() && player ? { format: 14, player, opponents } : null;
+    return r.end() && player ? { format: 14, player, opponents, npcStates } : null;
   } catch {
     return null;
   }

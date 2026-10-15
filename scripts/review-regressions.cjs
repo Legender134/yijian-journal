@@ -127,7 +127,7 @@ async function catalogueNameOrder() {
     assert.equal(await firstId(), 'fusion-9500');
     const ids = [];
     for (let page = 0; page < 5; page++) {
-      assert.match(await win.locator('.pagination').innerText(), new RegExp(`第 ${page + 1} / 5 页`));
+      assert.match(await win.locator('.pagination').innerText(), new RegExp(`${page + 1} / 5`));
       ids.push(
         ...(await win.locator('.database-card').evaluateAll((nodes) => nodes.map((n) => n.dataset.id))),
       );
@@ -296,6 +296,8 @@ async function recipeReservationConsistency() {
     await win.locator('.database-tab[data-id="人物"]').click();
     await win.locator('#list-search').fill('道玄');
     await win.locator('.database-card[data-id="npc-5014"]').click();
+    if (await win.locator('.person-gifts:not([open])').count())
+      await win.locator('.person-gifts > summary').click();
     const giftCoal = win.locator('.person-gifts [data-action="database-detail"][data-id="item-10205"]');
     await giftCoal.filter({ hasText: '2 件' }).waitFor();
     await reserve(false);
@@ -345,6 +347,8 @@ async function importBusyFeedback() {
   const { app, win } = running;
   try {
     await nav(win, 'saves');
+    if (await win.locator('[data-protection-controls]:not([open])').count())
+      await win.locator('[data-protection-controls] > summary').click();
     await win.locator('[data-action="protection-open"]').click();
     await win.locator('[data-action="protection-history"][data-id="' + imported.id + '"]').click();
     await win.locator('[data-action="protection-backup-select"][data-id="' + backup.id + '"]').click();
@@ -383,6 +387,8 @@ async function importBusyFeedback() {
     );
     const held = await app.evaluate(() => global.importBusyProbe.entered);
     assert(held, 'history verification must be pending before the second user action');
+    if (await win.locator('[data-protection-controls]:not([open])').count())
+      await win.locator('[data-protection-controls] > summary').click();
     await win.locator('[data-action="protection-import"]').click();
     await win.getByText('正在处理保护资料，请等待当前操作完成', { exact: true }).last().waitFor();
     const early = {
@@ -433,6 +439,8 @@ async function importBusyFeedback() {
       'import rejected during history verification opens no file picker and leaves no false package-failure guidance after successful protection-backed restore',
       { events: late.events, pickerCalls: 0 },
     );
+    if (await win.locator('[data-protection-controls]:not([open])').count())
+      await win.locator('[data-protection-controls] > summary').click();
     await win.locator('[data-action="protection-import"]').click();
     await win.waitForFunction(
       () =>
@@ -894,9 +902,11 @@ async function referenceAndPolling() {
     await win.locator('#list-search').fill('余裁缝');
     await win.locator('[data-action="database-detail"][data-id="npc-10802"]').click();
     await selectProgress(win, '1.sav');
+    if (await win.locator('.person-gifts:not([open])').count())
+      await win.locator('.person-gifts > summary').click();
     await win.locator('.person-gifts').scrollIntoViewIfNeeded();
     const beforeGifts = await win.locator('.person-gifts').innerText();
-    assert.match(beforeGifts, /背包中暂无合适礼物/);
+    assert.match(beforeGifts, /背包中暂无符合条件的物品/);
     fs.writeFileSync(path.join(source, '1.sav'), save(6, 1, 3663));
     await win.waitForFunction(
       () => document.querySelector('.person-gifts')?.textContent.includes('麻布'),
@@ -904,6 +914,8 @@ async function referenceAndPolling() {
       { timeout: 16000 },
     );
     assert.equal(await progressValue(win), '1.sav');
+    assert.equal(await win.locator('.person-gifts').evaluate((element) => element.open), true);
+    assert.match(await win.locator('.person-gifts').innerText(), /麻布/);
     check('person open drawer polls changed gifts without a synthetic event', {
       item: '麻布',
       selected: '1.sav',
@@ -1414,6 +1426,8 @@ async function referenceRefreshEdges() {
     await win.locator('#list-search').fill(person.name);
     await win.locator(`[data-action="database-detail"][data-id="${person.id}"]`).click();
     await selectProgress(win, '2.sav');
+    if (await win.locator('.person-gifts:not([open])').count())
+      await win.locator('.person-gifts > summary').click();
     await win.locator('.person-gifts [data-action="gift-page"]').last().click();
     assert.match(await win.locator('.person-gifts').innerText(), /第 2 \/ 2 页/);
     const gift = win.locator('.person-gifts [data-action="database-detail"]').first();
@@ -2295,6 +2309,9 @@ async function questReadingAndReservations() {
     await nav(win, 'world');
     await win.locator('#world-search').fill('采集半边莲');
     await win.locator('.world-quest-card[data-id="quest-5053"]').click();
+    const relatedSteps = win.locator('[data-persist-detail="quest-steps-quest-5053"]');
+    assert.equal(await relatedSteps.evaluate((e) => e.open), false);
+    await relatedSteps.locator(':scope > summary').click();
     await win.locator('.drawer .world-steps [data-action="world-quest"][data-id="quest-5057"]').click();
     assert.match(await win.locator('.drawer').innerText(), /库存 2 · 缺 3/);
     await win.locator('[data-action="world-reserve-material"][data-id="quest-5057:10016"]').click();
@@ -2403,7 +2420,7 @@ async function importedReferences() {
     await win.locator(`.database-card[data-id="${person.id}"]`).click();
     await selectProgress(win, '');
     assert.equal(await progressValue(win), '');
-    assert.match(await win.locator('.person-gifts h3').innerText(), /可送礼物/);
+    assert.match(await win.locator('.person-gifts > summary').innerText(), /符合偏好的物品/);
     assert.doesNotMatch(await win.locator('.person-gifts').innerText(), /仅列可用库存/);
     await close(win);
     // Shared Settings changed the profile itself; restore the pinned import fixture.

@@ -32,6 +32,7 @@ function fixture() {
     now: () => clock,
     revision: 'synthetic-revision',
     token: 'a'.repeat(64),
+    guidanceSource: path.join('synthetic-only', '76561190000000000', 'SaveGames'),
     timeline: {
       data: {
         source: path.join('synthetic-only', '76561190000000000', 'SaveGames'),

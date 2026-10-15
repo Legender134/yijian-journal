@@ -57,7 +57,25 @@ const tianshanTravelWindow = {
 };
 // Community flow clues; unknown task records never prove availability.
 module.exports = {
+  // Item-specific acquisition in the shipped quest-11010 description.
+  // The text names the cave area, without identifying one scene variant.
+  stepMaterialRoutes: {
+    11010: { 10201: { kind: 'gather', label: '后山山洞附近采集' } },
+  },
   itemRoutes: {
+    10055: [
+      {
+        title: '津鲤村 · 小蝶屋后宝箱与古钱交付',
+        questId: 11129,
+        placeId: 'place-21',
+        efficiency: '先查村内宝箱，已有古钱可直接交付；这是一次性宝箱线索，不是可反复刷取的来源。',
+        detail:
+          '到津鲤村小蝶右上方屋后查找宝箱。精美的古钱用于小蝶或司马相的委托，两条任务只能选择一条；偏重武学收益可先找小蝶。',
+        uncertainty:
+          '宝箱位置和推荐来自社区流程，不能据背包没有古钱认定宝箱尚未开启。不同版本的小蝶奖励记载有差异。',
+        sourceIds: ['jinliCoinSagume', 'jinliCoinStory'],
+      },
+    ],
     13701: [wudangNightChest],
     140: [wudangNightChest],
     10393: [xiaotongWoodenSword],
@@ -66,6 +84,14 @@ module.exports = {
     10498: [{ ...goldenScorpionRoute, title: goldenScorpionRoute.label, questId: 16000 }],
   },
   sources: {
+    jinliCoinStory: {
+      title: '详尽图文剧情攻略06：小蝶与司马相之心',
+      author: '爱生活（整理发布）',
+      url: 'https://jis520.com/article-1276-1.html',
+      date: '2024-11-27 14:24',
+      version: '全支线剧情整理，具体构建未标',
+      confidence: '正文分别列出两人、屋后宝箱和互斥交付，奖励保留版本差异。',
+    },
     ...duelGuide.sources,
     ...Object.fromEntries(goldenScorpionRoute.sourceIds.map((id) => [id, materialGuide.sources[id]])),
     flow065PoisonXu: {
@@ -716,6 +742,50 @@ module.exports = {
   },
   rules: [
     {
+      id: 'jinli-coin-before-accepting',
+      title: '津鲤村古钱：先决定帮小蝶还是司马相',
+      kind: 'stage',
+      questId: 11129,
+      locationIds: ['place-21'],
+      decisionOnArrival: true,
+      untilAnyStarted: [11127, 11128, 11129, 11130],
+      deadlineLabel: '答应任一方寻找古钱之前',
+      compactWarning: '小蝶之心与司马相之心只能选一条',
+      warning: '先决定帮助哪一方，再答应寻找古钱；两条委托互斥，多备一枚古钱也不能同次兼做。',
+      recommendation: {
+        summary: '津鲤村古钱：推荐先帮小蝶',
+        hint: '津鲤村：偏重武学收益，先接小蝶之心',
+        action:
+          '尚未答应任何一方时，偏重武学收益可先接小蝶之心，再把精美的古钱交给小蝶；想看司马相剧情或收集陶瓷塑像时，改接司马相之心。',
+        reason: '两位社区作者都记载两条任务互斥；小蝶路线有武学收益，司马相路线换得陶瓷塑像。',
+        goal: '优先武学成长，或按本周目缺少的剧情与物品调整',
+        caution: '接取一方后，另一条委托就不能接。',
+        tradeoff:
+          '推荐小蝶会放弃本次司马相之心的接取机会。旧版攻略另记纹龙佩，小蝶的具体奖励以当前游戏为准。',
+      },
+      pickup: {
+        place: '津鲤村上方屋旁；古钱在小蝶右上方屋后宝箱',
+        person: '小蝶；司马相',
+        action: '接取前先另存，再找本周目决定帮助的人。',
+      },
+      steps: [
+        '先选择要帮助小蝶还是司马相，只答应其中一人的委托。',
+        '查找小蝶右上方屋后宝箱里的精美的古钱，已有可直接交付。',
+        '把古钱交给已答应的一方，完成相应任务。',
+      ],
+      choices: [
+        { label: '小蝶之心', effect: '偏重武学收益；排除本次司马相之心的接取。' },
+        { label: '司马相之心', effect: '换得陶瓷塑像并看司马相的结算；排除本次小蝶之心的接取。' },
+      ],
+      advanceEffects: [
+        { questId: 11127, scope: 'accept', effect: '若先答应小蝶，这条委托不再能接取。' },
+        { questId: 11129, scope: 'accept', effect: '若先答应司马相，这条委托不再能接取。' },
+      ],
+      sourceIds: ['jinliCoinSagume', 'jinliCoinStory'],
+      uncertainty:
+        '到达提示依据已保存的津鲤村位置，不代表此刻正在对话。当前构建的任务接取表也列两条寻找古钱步骤互相排除；社区奖励记载有版本差异。',
+    },
+    {
       ...tianshanTravelWindow,
       id: 'tianshan-secret-pass-route',
       title: '前往天山：从白龟洞暗道去关外',
@@ -1198,6 +1268,7 @@ module.exports = {
       },
       recommendation: {
         hint: '赴一线天前：调查牢房，救兆成后再出发',
+        caution: '攻略记直接出发会使兆成死亡；救兆成的路线仍会牺牲万彪。',
         goal: '优先保留兆成存活与较完整的甘泉剧情',
         action: '先到甘泉牢房调查，沿鬼鹰现踪到卧秋山找兆成，完成商议和安置后再去一线天。',
         reason: '所引ver1.24.25流程将调查、救人路线与兆成存活及庆功宴另一分支关联。',
@@ -1527,7 +1598,7 @@ module.exports = {
       deadlineLabel: '取回军情、返回峋谷关交付之前',
       recommendation: {
         hint: '塞外风光：先去临昌救白锦',
-        caution: '与霹雳雷火弹、绝笔图鉴分支不能同次兼得。',
+        caution: '直接交军情会让白锦身亡；与霹雳雷火弹、绝笔图鉴分支不能同次兼得。',
         goal: '保留白锦存活与后续队友内容',
         action: '先留一份可回读进度；去临昌左下的渊军营寨找白锦，完成救人战斗后再回峋谷关将军府。',
         reason: '葬龙谷取军情只是其中一路；临昌救人走「危机解除」，保留白锦并获得天罗地网钉。',
@@ -1570,7 +1641,7 @@ module.exports = {
       ],
       sourceIds: ['gs33', 'pandaBai', 'threeDmBaiRescue'],
       uncertainty:
-        '当前构建已核对死亡、救出两种任务记录及奖励。地点与先后来自不同作者的攻略，未实机验证全部触发；75/80好感解锁有版本差异。提醒只依据保存进度，分支结算后不会自动回退。',
+        '当前构建已核对死亡、救出两种任务记录及奖励。地点与先后来自不同作者的攻略，未实机验证全部触发；75/80好感解锁有版本差异。分支结算后不会自动回退。',
     },
     {
       id: 'chengyu-stay-choice',
@@ -1737,6 +1808,7 @@ module.exports = {
       decisionSteps: [11061],
       recommendation: {
         hint: '孙老：劝返乡，优先丹药与好感',
+        caution: '攻略记返乡取丹药；另一答法送花换铜钱与铁匠好感。',
         goal: '前期丹药与孙老好感',
         action: '优先劝「趁着还硬朗，回去看看吧」。',
         reason: '较新表记这一线给两种丹药、武学笔记及孙老好感，收益比单纯铜钱更适合前期培养。',
@@ -2023,6 +2095,7 @@ module.exports = {
       recommendation: {
         goal: '保留调查与较完整的剧情路线',
         action: '暂不让李元兴安排休息，先离开丐帮去客栈核对玉伯剧情。',
+        caution: '攻略提醒直接休息可能进入坏结局；先核对玉伯剧情。',
         reason: '所引流程把直接休息列为坏结局路线；先调查能保留该作者的后续路径。',
         tradeoff: '需要多走一段调查；仍要满足其他剧情条件，不能只靠这个顺序保证结局。',
       },
@@ -2156,13 +2229,14 @@ module.exports = {
       compactWarning: '北山寒尸：好感与选项影响陈麟熙生死、入队',
       decisionSteps: [12078],
       recommendation: {
-        hint: '陈麟熙：先存档；好感60且低于70，再选义正词严',
-        caution: '其他好感组合未确认；此处影响生死与入队。',
+        hint: '陈麟熙：选义正辞严；回武馆共饮前保持好感低于70',
+        caution: '共饮时好感≥70：取胜后陈麟熙离场，进行中的灭门之案线索失败。',
         goal: '保留陈麟熙入队与后续剧情',
-        action: '先保存并核对好感；按所引路线控制在60且低于70，再选「义正词严」。',
-        reason: '该作者将此组合对应心灰意冷并保留后续招募；高于70时好言相劝反而对应死亡。',
+        action: '先另存，再选「义正辞严」降低10好感；回武馆共饮前保持好感低于70。',
+        reason:
+          '游戏在后续共饮时重新检查当前好感：低于70走心灰意冷分支，大于等于70则进入对战。选择前的好感不是最终判定。',
         tradeoff:
-          '选择会减10好感，之后还需完成调查与平康麟子。70或其他组合未确认；另一个图鉴需另留分支存档，不能同次兼得。',
+          '之后的赠礼等变化仍会影响共饮判定；好感恰好70也属于对战分支。另一分支需回读独立存档，不能同次兼得；不以单个好感数值保证入队。',
       },
       title: '北山寒尸：对话与好感共同影响陈麟熙去留',
       questId: 12075,
@@ -2182,38 +2256,43 @@ module.exports = {
         '按所选路线前往樊城调查，再回平康武馆核对平康麟子。',
       ],
       choices: [
-        { label: '好言相劝，且好感高于70', effect: '2026攻略记陈麟熙死亡，对应无可挽回图鉴。' },
+        { label: '好言相劝', effect: '当前好感增加10。后续回武馆共饮时重新判断好感，不是现在立即决定生死。' },
         {
-          label: '义正词严，且好感低于70',
-          effect: '2026攻略记好感减少10，保留后续入队路线，对应心灰意冷图鉴。',
-        },
-        {
-          label: '好感恰好70或其他组合',
-          effect: '本来源没有完整说明，不能套用上面的结果；先保存并在游戏中核对。',
+          label: '义正辞严',
+          effect: '当前好感减少10。共饮时低于70走心灰意冷分支；大于等于70进入对战，取胜后走不可挽回分支。',
         },
       ],
       sourceIds: ['gs22'],
       uncertainty:
-        '单一社区来源，未验证所有版本和分支组合；这里只提示选择后果，不自动判断人物存活或图鉴解锁。',
+        '按钮增减、共饮70边界与后续任务跳转已核对Build21798996原始任务及蓝图；人物当前状态仍按进度和实际交互核对。',
     },
     {
       id: 'chenlinxi-recruit-followup',
+      checkpoint: { questId: 12094, npcId: 10221, threshold: 70, affectedQuestId: 11272 },
       severity: 'reminder',
       title: '平康麟子：调查结束后回武馆继续对话',
       questId: 12090,
       chapterRoots: [],
       afterAllComplete: [12075],
-      untilAnyStarted: [],
-      deadlineLabel: '',
+      untilAnyStarted: [12095, 12098],
+      deadlineLabel: '回平康武馆共饮之前',
+      advanceEffects: [
+        {
+          questId: 11272,
+          scope: 'quest',
+          effect: '共饮时好感大于等于70进入对战，战胜后进行中的灭门之案线索会失败。',
+          evidence: 'Build21798996 Quest_12094与Quest_12096蓝图',
+        },
+      ],
       pickup: {
         place: '平康城武馆、客栈',
         person: '陈麟熙、客栈掌柜',
         action: '先核对陈麟熙仍存活且走在入队路线，再在武馆与他对话。',
       },
-      warning: '调查结束不等于已完成招募；存活分支还有武馆与客栈的后续。',
+      warning: '回武馆共饮前检查好感：低于70走心灰意冷；大于等于70进入对战，取胜后走不可挽回分支。',
       steps: [
         '武馆对话陈麟熙 → 客栈掌柜 → 回武馆。',
-        '攻略记后续好感达到60后可邀请入队；以当前游戏的招募条件为准。',
+        '共饮判断的是此刻受剧情上限限制的好感，后续赠礼会改变分支；想保留人物路线，先另存并保持低于70。',
       ],
       choices: [],
       sourceIds: ['gs22'],
@@ -2227,12 +2306,12 @@ module.exports = {
       chapterRoots: [5176, 5200, 5213],
       afterAllComplete: [],
       untilAnyStarted: [],
-      deadlineLabel: '拜入武当之前；精确触发步骤待核对',
+      deadlineLabel: '拜入武当之前',
       advanceEffects: [
         {
           questId: 11942,
           scope: 'accept',
-          effect: '攻略记正式拜入武当后不再触发莲心湖会晤；拜师前先去湖中央核对。',
+          effect: '正式拜入武当后无法接取；开始拜师任务不等于已经正式拜入。',
           evidence: '社区流程窗口；开始拜师任务不等于已经正式拜入。',
         },
       ],
@@ -2241,8 +2320,8 @@ module.exports = {
         person: '两名神秘男子',
         action: '处理水匪后到湖中央查看场景',
       },
-      warning: '攻略称拜入武当后会晤不再触发。',
-      steps: ['拜师前核对莲心湖中央会晤。'],
+      warning: '拜入武当前接莲湖会晤；只限制接取窗口',
+      steps: [],
       choices: [],
       sourceIds: ['gs04'],
       uncertainty:
@@ -2470,6 +2549,7 @@ module.exports = {
       recommendation: {
         goal: '优先保留队友互动与本段玄阳离火功路线',
         action: '出发前另存一份，默认保留白锦、冷无情等队友，先按队友路线核对准备。',
+        caution: '晋升执法前先核对出发；火云神掌需另一套队伍与顺序，该路线没有玄阳离火功。',
         reason:
           '这条整理路线包含羽毛、翼卫消息和瑶姬的西厢房互动，比直接为苦老分支移出队友更适合人物内容优先。',
         tradeoff:
@@ -2684,7 +2764,7 @@ module.exports = {
       },
       recommendation: {
         hint: '禁地前先另存；想收集乘黄御风优先三人赴战',
-        caution: '固定三人；还需第二战速杀，选三人不保证获奖。',
+        caution: '攻略记多人赴战没有本次轻功与鞋图；选三人还需第二战速杀，不保证获奖。',
         compact: {
           action: '先另存；收集乘黄御风优先核对三人赴战。',
           reason: '保留奖励路线，并有燕未还、荀杳杳协战。',
@@ -2798,7 +2878,7 @@ module.exports = {
       },
       recommendation: {
         hint: '长生殿决战：先另存；保留人物优先救援',
-        caution: '还受此前剧情与好感影响，不保证全员存活。',
+        caution: '不兼得不救分支的油尽灯枯图鉴；救援还受此前剧情与好感影响，不保证全员存活。',
         goal: '优先保留人物存活与长生殿的后续剧情',
         action: '出发前另存可回读记录；若战后出现「出手相救」，保留人物路线优先选它。',
         reason: '两位作者均采用救援路线；任务文字也将救治白惟一与为皓首一族作保相连。',
@@ -2965,7 +3045,7 @@ module.exports = {
       ],
       sourceIds: ['gs51', 'biliSecondCycle'],
       uncertainty:
-        '当前构建已核对继续、放弃两种分支及任务结束动作；隐藏结局关联来自二周目攻略，未实机验证全部条件。不读取未保存的实时对话。',
+        '当前构建已核对继续、放弃两种分支及任务结束动作；隐藏结局关联来自二周目攻略，未实机验证全部条件。',
     },
     {
       id: 'cold-wuqing-night-choice',
@@ -3165,7 +3245,7 @@ module.exports = {
       },
       recommendation: {
         hint: '欧阳衡请求：想保留后续与收集时同意重建',
-        caution: '先另存；早先掌门承诺可能限制选项。',
+        caution: '回绝放弃天机宫收益，并有攻略记商颂身亡；先另存，早先掌门承诺可能限制选项。',
         goal: '优先保留重建天机宫、商颂后续与武学收集路线',
         action: '先另存；若游戏提供该选项且想保留这条路线，选「重建天机宫」，随后按任务栏完成剧情。',
         reason: '两位独立作者都记同意路线可得贪狼枪法秘籍与天机再现成就；虚饮茶还将回绝与后续商颂身亡关联。',

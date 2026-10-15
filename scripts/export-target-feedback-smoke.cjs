@@ -55,6 +55,8 @@ async function clickExport(file) {
     globalThis.__exportTargetOutput = output;
     return globalThis.__exportTargetResponses.length;
   }, file);
+  if (await page.locator('[data-protection-controls]:not([open])').count())
+    await page.locator('[data-protection-controls] > summary').click();
   await page.locator('[data-action="protection-export"]').click();
   for (let attempt = 0; attempt < 150; attempt++) {
     const response = await app.evaluate(

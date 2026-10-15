@@ -30,7 +30,8 @@ async function catalogueView() {
     qualityText,
   });
   const render = (query, kind = '配方', page = 0, type = '全部') => view.page(index, query, kind, type, page);
-  const ids = (html) => [...html.matchAll(/class="database-card"[^>]*data-id="([^"]+)"/g)].map((m) => m[1]);
+  const ids = (html) =>
+    [...html.matchAll(/class="database-card[^"]*"[^>]*data-id="([^"]+)"/g)].map((m) => m[1]);
   return { render, ids, index };
 }
 

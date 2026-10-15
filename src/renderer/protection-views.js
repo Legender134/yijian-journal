@@ -114,7 +114,8 @@ export function createProtectionViews({
     return (
       importError +
       warning +
-      `<section class="card mb"><div class="card-header"><h2>离线保护与换机</h2><div class="row wrap">${act('protection-export', '导出全部保护资料', 'btn', '', 'download')}${act('protection-import', '导入保护包', 'btn', '', 'upload')}${act('protection-import-volumes', '导入分卷目录', 'btn', '', 'folder')}${act('protection-open', '浏览离线档案', 'text-btn', '', 'archive')}</div></div><p class="save-note">一次带走本机全部周目的手札、完整备份、时间线与书签说明，以及以前导入的每份历史档案。数据较多时自动生成分卷目录，请完整复制后用「导入分卷目录」。导入后先作为只读档案保存，确认后才能使用手札或恢复完整备份；重复档案经完整校验后沿用原件。已有文件不会覆盖。</p>${view.retainedUnverifiedArchives?.length ? notice(`本次保留了 ${view.retainedUnverifiedArchives.length} 份未通过校验的旧档案及原始字节；已从完好保护包另存可用档案。可继续浏览本次已校验的记录。`, true) : ''}${view.busy ? notice(view.label + '… 文件较多时需要一些时间，请等待校验完成。', true) : ''}</section>`
+      `${view.retainedUnverifiedArchives?.length ? notice(`本次保留了 ${view.retainedUnverifiedArchives.length} 份未通过校验的旧档案及原始字节；已从完好保护包另存可用档案。可继续浏览本次已校验的记录。`, true) : ''}${view.busy ? notice(view.label + '… 文件较多时需要一些时间，请等待校验完成。', true) : ''}` +
+      `<details class="card mb" data-protection-controls data-persist-detail="protection-controls"><summary>换机与导入导出</summary><div class="card-header"><div class="row wrap">${act('protection-export', '导出全部保护资料', 'btn', '', 'download')}${act('protection-import', '导入保护包', 'btn', '', 'upload')}${act('protection-import-volumes', '导入分卷目录', 'btn', '', 'folder')}${act('protection-open', '浏览离线档案', 'text-btn', '', 'archive')}</div></div><p class="save-note">一次带走本机全部周目的手札、完整备份、时间线与书签说明，以及以前导入的每份历史档案。数据较多时自动生成分卷目录，请完整复制后用「导入分卷目录」。导入后先作为只读档案保存，确认后才能使用手札或恢复完整备份；重复档案经完整校验后沿用原件。已有文件不会覆盖。</p></details>`
     );
   }
   function page(view) {

@@ -146,6 +146,8 @@ async function shot(name, target = page) {
   try {
     await launch();
     await nav('journey');
+    if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
+      await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     const anchor = stableId('quest', ['quest-11077']),
       otherAnchor = stableId('quest', ['quest-11079']);
     for (const [id, placeId] of [
@@ -157,6 +159,7 @@ async function shot(name, target = page) {
       await card.locator('[data-action="journey-itinerary-add"]').click();
     }
     await page.locator('[data-itinerary] [data-action="journey-itinerary-status"][data-id="active"]').click();
+    await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     const original = structuredClone((await current()).journey.itinerary);
     save([root, child, otherRoot, { id: 11080, step: 1 }, { id: 11081, step: 1 }]);
     await page.locator('[data-action="journey-refresh"]').click();
@@ -254,6 +257,17 @@ async function shot(name, target = page) {
       'ambiguous step did not become next',
     );
     await companion.locator(`[data-itinerary-next="${otherAnchor}"] [data-action="journey-open"]`).waitFor();
+    const mainQueue = page.locator('[data-persist-detail="itinerary-queue"]');
+    if (await mainQueue.evaluate((node) => node.open)) await mainQueue.locator('> summary').click();
+    await page.locator(`[data-itinerary-next="${otherAnchor}"] [data-action="journey-open"]`).click();
+    assert.equal(await mainQueue.evaluate((node) => node.open), true);
+    assert.equal(
+      await page
+        .locator(`[data-itinerary-step="${otherAnchor}"] [data-itinerary-place]`)
+        .first()
+        .evaluate((node) => document.activeElement === node),
+      true,
+    );
     assert.match(
       await companion.locator(`[data-itinerary-next="${otherAnchor}"]`).innerText(),
       /选择接续步骤/,
@@ -264,6 +278,11 @@ async function shot(name, target = page) {
     const selection = companion
       .locator(`[data-itinerary-step="${otherAnchor}"]`)
       .locator(`[data-itinerary-continuation]:has([data-target-id="${childActionId}"])`);
+    assert.equal(
+      await companion.locator('[data-persist-detail="itinerary-queue"]').evaluate((node) => node.open),
+      true,
+    );
+    assert.equal(await selection.locator('[data-itinerary-place]').isVisible(), true);
     await selection.locator('[data-itinerary-place]').selectOption('place-9');
     await selection.locator('[data-action="journey-itinerary-continue"]').click();
     await until(
@@ -374,6 +393,8 @@ async function shot(name, target = page) {
     app = null;
     await launch();
     await nav('journey');
+    if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
+      await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
     const restarted = await plan();
     assert.equal(restarted.itinerary.steps[0].action.questId, 'quest-11078');
     assert.equal(restarted.itinerary.steps[1].action.questId, 'quest-11082');

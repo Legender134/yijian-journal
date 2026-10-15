@@ -122,7 +122,7 @@ async function changeState(win) {
     companion = await created;
     companion.on('pageerror', (e) => report.errors.push(e.message));
     await companion.locator('.compact-shell').waitFor();
-    for (const id of ['materials', 'saves', 'home']) await navigate(companion, id, true);
+    for (const id of ['database', 'duels', 'saves', 'home']) await navigate(companion, id, true);
     assert.equal(await companion.locator('.companion-tabs').getAttribute('role'), 'navigation');
     await companion.locator('.companion-tabs [data-id="home"]').focus();
     await companion.keyboard.press('Control+k');

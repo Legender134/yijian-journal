@@ -115,6 +115,60 @@ test('valid item int32 and two flags do not become a fictitious int64 timestamp'
   }
 });
 
+test('saved NPC progress retains remaining private items, learned skills and life attributes without substituting equipment', () => {
+  const bytes = section([
+    rich,
+    {
+      id: 10047,
+      attributes: { 5: 15, 27: 2, 48: 3, 61: 4, 63: 5, 65: 6, 67: 7 },
+      skills: [
+        { id: 850, level: 8 },
+        { id: 851, level: 4 },
+      ],
+      friendliness: [[0, 35]],
+      inventory: [{ id: 100034, count: 1 }],
+      equipment: [{ id: 1002, count: 1 }],
+      map: 'LV_25_P',
+      visible: false,
+      dynamic: true,
+      inHouse: true,
+    },
+    { id: 10038, inventory: [], skills: [], map: { wide: '梧桐村' } },
+  ]);
+  const before = Buffer.from(bytes);
+  const result = readCombat(bytes, 0, 14);
+  assert.equal(result.npcStates.length, 2);
+  const npc = result.npcStates.find((row) => row.id === 10047);
+  assert.deepEqual(npc.inventory, [{ id: 100034, count: 1 }]);
+  assert.deepEqual(npc.equipment, [{ id: 1002, count: 1 }]);
+  assert.deepEqual(npc.skills, [
+    { id: 850, level: 8 },
+    { id: 851, level: 4 },
+  ]);
+  assert.equal(npc.rawFriendliness, 35);
+  assert.equal(npc.attributes[48], 3);
+  assert.equal(npc.mapKey, 'LV_25_P');
+  assert.equal(npc.visible, false);
+  assert.equal(npc.dynamic, true);
+  assert.equal(npc.inHouse, true);
+  assert.deepEqual(
+    result.npcStates.find((row) => row.id === 10038).inventory,
+    [],
+    'known empty inventory differs from an absent NPC record',
+  );
+  assert.equal(result.npcStates.find((row) => row.id === 10038).mapKey, '梧桐村');
+  assert.equal(
+    result.npcStates.some((row) => row.id === 5003),
+    false,
+  );
+  assert.deepEqual(bytes, before);
+  assert.equal(
+    readCombat(Buffer.concat([bytes, Buffer.from([0])]), 0, 14),
+    null,
+    'unknown layout never produces partial progress',
+  );
+});
+
 test('friendship is target NPC key0, signed and independent of reciprocal player entries', () => {
   const result = readCombat(
     section([

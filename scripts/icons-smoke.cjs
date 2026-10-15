@@ -137,6 +137,8 @@ async function shot(name) {
     await loaded('.database-card .game-image');
     await win.locator('.database-card[data-id="npc-10047"]').click();
     await selectProgress(win, '1.sav');
+    if (await win.locator('.person-gifts:not([open])').count())
+      await win.locator('.person-gifts > summary').click();
     await loaded('.person-gifts .game-image');
     assert.ok((await win.locator('.person-gifts').innerText()).includes('2 件'));
     await shot('22-person-pictures');

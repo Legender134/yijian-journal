@@ -33,6 +33,24 @@ node scripts/reduce-large-table.cjs NPCResources
 
 生成时间会变化。核对生成结果时应比较实际条目与关联内容，而不是仅比较 JSON 文件时间或条目总数。通过 `pnpm test` 核对索引与逻辑；规则变更后相应修订数据断言。
 
+## 当前任务选项的只读观察
+
+游戏接入的可选 `state.json.dialogue` 字段仅包含 `schema`、窗口 `sequence`、`questId`、`npcId` 与当前选项的 `{index,text}`；不传送完整对白、动作、原始UObject或内存地址。`index` 是显示次序，不是游戏OptionID。与原协议2共存，未识别或退出窗口时为null，保存与读档权限不变。
+
+此读取只适用于已pin的Build21798996及程序SHA-256 `946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c`。该构建的DialogModuleVM实例大小为0x260，任务编号是0x184的int32，紧邻0x188的反射CurrentNPCId。Lua以唯一私有别名只读该字段；注册依赖UE4SS精确commit的[IntProperty别名API](https://github.com/UE4SS-RE/RE-UE4SS/blob/e3ba1016562d6c0868c410d0a71e88bfcdbf691b/docs/lua-api/global-functions/registercustomproperty.md)。这不是可跨构建猜用的偏移，pcall不能替代布局及程序哈希核对。
+
+只采集类身份正确且当前可见的DialogModuleVM与DialogModuleListVE。每次私有读取前，反射CurrentNPCId必须仍是0x188处的有效IntProperty，且类型大小为4；此布局见证确保读取范围位于已知字段之前，不能替代QuestId语义所需的程序哈希。Options已由原生实现过滤前置条件。先核对数组长度再访问1..Num，最多16项、每项512 UTF-8字节、总量4096字节；越界读取在已pin UE4SS中可能扩展数组，所以不能以读取到nil的方式遍历。战斗、过场、存读档、窗口关闭或身份异常均撤回上下文。
+
+原生组件初始化先从Windows取得当前进程EXE路径，以只读、有界流式SHA-256匹配固定程序pin；不接受Lua传入路径、摘要或绕过开关。不匹配时初始化失败，Lua不会查询游戏对象、注册私有别名或写心跳。应用接收前再核对组件、程序和脚本哈希、会话、token、当前存档目录及三秒内心跳。只有最新进度模式参与；任务编号必须绑定已核验的具体选择步骤，完整选项组须逐项精确对应；当前已核验窗口的NPC编号仅作上下文，因为事件人物不一定是对白说话者，不以猜测人物约束替代任务与选项契约，格式差异可规范化，不能用子串或模糊匹配。推荐不会把旧存档材料升级为实时持有；已结束的现场窗口在同会话失联、战斗或切场时保留退场记忆，恢复后不会被旧保存记录重新提示。未知分支保留离线查询，不自动选择、推进或保存。
+
+已识别的现场选择在主窗和展开随行中只显示一张，位于页面阅读滚动区域之外；保留原页面滚动位置，关键推荐仍可见，理由与完整分支按需展开。此功能只覆盖任务编号及完整原生选项组均匹配的已核验窗口，规则数量不能当作实际现场覆盖率。
+
+补充开发验收：显式设置 `YIJIAN_LUA_BIN` 为Lua5.4开发解释器后运行 `node scripts/live-dialogue-lua-smoke.cjs`。该脚本使用真实Lua与合成UE对象、内存通道，不启动游戏、不接触个人存档；游戏程序与反汇编研究材料不分发。静态核对和合成验收不能替代新构建的真实兼容性验证。
+
+原生前置校验验收：在Windows显式配置provenance所pin的MSVC/SDK环境与 `YIJIAN_CL`、`YIJIAN_TOOLCHAIN_ID`，运行 `node scripts/native-executable-gate-smoke.cjs --out-dir <仓库.test-data内全新的绝对目录>`。只编译和运行合成EXE，核对当前进程摘要与Node/PowerShell一致、有效旧授权仍被固定游戏pin拒绝、拒绝后零Lua参数和Channel绑定、重定向路径拒绝及合成文件不变。无工具链时直接报错，不以跳过冒充通过。
+
+已发布Unicode组件仅允许按provenance的明确旧摘要清单升级。旧安装记录必须归属本手札、协议与mod一致，记录摘要须匹配实际旧DLL；游戏停止并核验应用数据中的组件保护副本后才原子替换，再更新本手札mod的脚本、配置与安装记录。保护副本位于应用数据的 `component-backups/YijianJournalUnicode/<旧摘要>.dll`，不写入游戏存档；旧运行目录位于游戏内时也不能用它充当保护目录。未知或改动的DLL、归属不符、保护失败、运行状态变化均保留原件并拒绝更新；这里的旧DLL保护不代表额外备份mod脚本或配置。
+
 ## 物品数值索引
 
 `scripts/build-item-stats.cjs` 另外生成 `src/data/item-stats.json`，按 `game-index.json` 的物品 ID 选择同版本静态数据。它不读取玩家存档，也不启动游戏；只输出展示所需的基础动作、使用条件、装备原始 Rank 值、共享随机候选池、引用到的增益文本及数值参数。原始全表、程序和工具不随产品分发。
@@ -117,3 +135,31 @@ node scripts/assets.cjs
 NPC头像资源名、地图名与解锁头像数组均经 `FObjectAndNameAsStringProxyArchive` 的FString编码读取，支持带NUL的ANSI／UTF16，不把内存中的8字节FName误当作保存格式。各集合有数量、剩余字节与总记录预算限制；重复人物／属性、非有限值、截断和未知尾部只撤回角色准备，已有效的背包和基本元数据继续可用。
 
 好感从目标NPCInfo的Friendliness键0读取，而不是玩家的反向关系表。原生 `GetFriendliness`（`14120d980`→`14120d9e0`）还会施加独立剧情上限，因此仅标记原始值；值达到20不自动宣称交互已开放，赠礼境界与剧情锁仍须观察游戏按钮。准备清单区分已记录、需准备与待核对，修炼等级目标是带理由的可选成长建议；不把它写成必胜要求。所有自动化验证使用临时合成存档，原始反汇编不分发。
+
+游戏接入 grant 的原槽位字段允许签名值 `observe`，表示仅观察现场。安装已核验组件并绑定当前 Steam 账户后可建立此 grant，不修改 Timeline 的 nativeProtocol、enabled 或槽位所有权。原生 Channel 在此模式仅允许读取 config，并禁止命令、expected、29.sav、索引文件以及保存回执的访问；Lua 发出只读心跳后返回，不读取或执行存读档命令。明确开启时间线后才沿用原签名 `29` 权限，旧授权不会自动提升。
+
+## 人物进度与现场一致性
+
+格式14完整人物段另保留实际私物、已学武学、基础属性和人物位置标志。私物不同于装备和初始掉落池；空袋才表示已清空，缺人物记录保持未知。`npc-interactions.json` 从相同构建的表和原生／蓝图路径投影：比武读原始好感20，请教读第一个未满足剧情锁限制后的有效好感。现代请教的六档功法好感为40至90，生活技艺为教师等级整十倍；生活推荐要求比玩家高。精力、武学点减免天赋尚未采集时保持条件分支，不把基础消耗当作唯一门槛。
+
+现场采集只枚举既有 SaveManager/NPCManager/QuestManager，要求当前 GameInstance 归属。TeamInfo 的合法 Outer 是同一 GI 或已接受的 NPCManager。反射字段、类型、偏移与结构体映射均校验；数组先核 Num，再读1..Num。NPCInfos 与 QuestProcesses/FinishQuests 在同一次游戏线程回调复制，前图优先。GameSaveConfig(+38)、LastLoadSaveData(+50) 是载入布局锚点；固定程序下的 Int8只读别名读取忙碌字节+9c。采集前后要求非载入、同一世界／玩家／管理器和当前人物0。轮询不能证明捕捉每次短暂的人工读档事件；整份线程内复制用于保证当前样本一致，不能把 pending 指针当永久读档编号。
+
+不调用会写入初始化或缓存的 GetNPCInfo、GetFriendliness、GetNPCManager、GetQuestManager、GetFightingCapacity 等便利查询。七项战力属性直接读 JHAttributeSet.CurrentValue；助手依原配置次序逐乘、逐加float32，境界阈值达到即进入该档。赠礼比较目标减主角境界是否≥2，不用人物等级差代替。此复现只覆盖原配置、ASC=null／bBeforeCreate=false 的已核定路径，不模拟战斗胜率，也不宣称修改配置的 MOD 兼容。
+
+完整现场内容只在变化时原子写到手札自己的 npc-observation.json。原生 HMAC 同时绑定内容与独立采样帧（来源、会话、脚本版本、世界、玩家、观察epoch、内容版本、采样序号和时间）。每次完整重读后才能推进序号，即使内容相同；单改心跳时间不能续用旧样本。Node校验两层MAC、单调序号、绑定与新鲜度，失败整份撤回。历史／固定存档不混用现场状态，现场持有数量未核定时不借用旧存档背包。人物图鉴、条件链接、预览和手札接续使用同一现场任务集合，手札消息只传已校验的读取模式，不传现场内容；接收窗口重新核对当前集合，暂时不可用时读取最新保存记录。内存缓存和内容键避免仅刷新时间就重排整个界面。
+
+载入忙碌与 pending 检查先于状态 ready 和读档完成回执。发起读档后即使玩家对象已切换，原生忙碌或 pending 尚未清除也不能回报完成。赠礼的满好感分支单独阻止继续送礼；境界限制是对方高出玩家两阶，不能用绝对差值代替方向判断。
+
+`live-choice-contracts.json` 记录15个真实选项窗口与12条流程规则的映射，验证完整原生按钮组；不从攻略标签反推选项。陈麟熙的对话实际是好言相劝(+10)／义正辞严(-10)，后续共饮节点12094才按当时有效好感≥70分支；高好感取胜分支让人物离场并使进行中的11272线索失败。动态提醒核对同次人物与任务状态，后续赠礼仍可能改变判断。原始资源和研究缓存不提交。新增 Lua、帧校验、流程与GUI验证全部使用合成对象、通道和存档，不运行或附加实际游戏。
+
+## 图鉴奖励、选择与武学详情
+
+`scripts/build-codex-details.cjs` 从 Build 21798996 的 Quests 与 Skills 静态表生成 `src/data/codex-details.json`。输入分别是按已发布任务 ID 选择的 UAssetAPI 属性数组和 Skills 的 UAssetAPI JSON；脚本校验输入 SHA-256，再按 ID、名称、任务父级匹配现有索引。任务表有一个 ID 同时用于未命名内部行，不能仅按 ID 取最后一行。生成结果不含本机路径、玩家状态或原始全表。
+
+```text
+node scripts/build-codex-details.cjs <quest-properties.json> <Skills.json>
+```
+
+固定任务属性输入 SHA-256 为 `45303fedd1778387ecfc26ff842251ba83e2057f9dbe90c3803a074a44c131d1`，Skills JSON 为 `1ef5e9f6debaaab410d11b331ea3869ba09f6f90926ee079200df34523e29313`。原 Quests.uasset / .uexp 分别为 `ca4fb2762930e4473fa10301678874e9ebbe4d0ee97b4a193b6ae71badcf3e41` / `2d84daae1fc93fc6f098fd5897091704960581d305adffd2f42a26315a881a86`；Skills.uasset / .uexp 分别为 `fc7018b0b3644f5ffbbae6aea40bfefc3b7990abdcbba9d2ea4fa254936d0d81` / `a2fd448cc404f316f3013611b94b131e7489a7fad3d363153dbc670be2bd6c88`。来源许可沿用游戏数据说明，不当作项目原创代码授权。
+
+当前投影覆盖 490 个有已识别结果的任务或步骤，以及 276 项武学的各级属性动作。普通、困难、极难的完成动作分开保存；只有三组展示结果完全相同时才合并显示一次。选项要求及动作保留在各自选项下，不把互斥结果相加；物品反向获取链接同样保留难度和选项标签。只展示已识别的动作及精确关联实体，不推演尚未核实的全剧情结果。请教消耗与好感复用 `npc-interactions.json`；静态教师或秘籍关系是学习线索，只有现有人物状态明确满足时才显示“可请教”。材料采集与掉落复用既有 `material-guide.cjs`，保留可展开的来源与版本，不新增掉率或效率假设。

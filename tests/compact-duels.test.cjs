@@ -120,7 +120,8 @@ test('compact readiness preserves unknown facts and visible incomplete prerequis
   ];
   const html = (await views).page(flowFor(row), { compact: true });
   const visible = collapsedText(html);
-  assert.match(visible, /到场核对 · 气血：未读到已保存的气血比例/);
+  assert.match(visible, /到场核对 · 气血待核对/);
+  assert.doesNotMatch(visible, /未读到已保存/);
   assert.match(visible, /前置未完成 · 前置待核对/);
   assert.doesNotMatch(visible, /已记录|准备完成|能打|必胜/);
   assert.match(html, /未完成剧情<\/button>：尚未完成/);

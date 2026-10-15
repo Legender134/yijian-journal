@@ -1,5 +1,7 @@
 'use strict';
 const { createDuelReadiness } = require('./duel-readiness.cjs');
+const { createNpcProgressProjector } = require('./npc-progress.cjs');
+const npcContracts = require('../data/npc-interactions.json');
 
 // Curated challenge leads describe a story window, never a live NPC presence or
 // a victory prediction. Missing saved conditions remain unknown.
@@ -9,8 +11,17 @@ function createDuelProjector({ guide, world, game }) {
   );
   const quests = new Map(world.quests.map((row) => [row.gameId, row]));
   const readiness = createDuelReadiness(game, world);
+  const projectProgress = createNpcProgressProjector({ game, world, contracts: npcContracts, guide });
   const taskName = (id) => String(quests.get(id)?.name || `剧情记录 #${id}`).replace(/^【[^】]+】\s*/, '');
-  return function project({ available, states, mainQuestId, difficultyName = '', combat = null }) {
+  return function project({
+    available,
+    states,
+    mainQuestId,
+    mapName = '',
+    difficultyName = '',
+    combat = null,
+    metadata = {},
+  }) {
     const saved = new Map((available ? states : []).map((row) => [row.id, row.step]));
     const rows = (guide.duels || []).map((entry) => {
       const person = people.get(entry.npcId);
@@ -23,6 +34,9 @@ function createDuelProjector({ guide, world, game }) {
         (entry.untilAnyStarted || []).some((id) => [1, 2, 4].includes(saved.get(id))) ||
         (entry.untilAnyComplete || []).some((id) => saved.get(id) === 4);
       const stageMatch = !!mainQuestId && (entry.chapterRoots || []).includes(mainQuestId);
+      const locationMatch = (entry.locationIds || []).some((id) =>
+        (world.maps || []).some((place) => place.id === id && [place.key, place.name].includes(mapName)),
+      );
       return {
         ...entry,
         name: entry.name || person?.name || '人物待核对',
@@ -30,10 +44,17 @@ function createDuelProjector({ guide, world, game }) {
         conditions,
         closed,
         stageMatch,
-        current: available && stageMatch && !closed && !conditions.some((row) => row.status === 'unmet'),
+        locationMatch,
+        current:
+          available &&
+          (stageMatch || locationMatch) &&
+          !closed &&
+          !conditions.some((row) => row.status === 'unmet'),
         confidence: conditions.some((row) => row.status === 'unknown')
           ? '阶段匹配 · 前置仍待核对'
-          : '阶段线索 · 到场核对',
+          : locationMatch
+            ? '地点线索 · 到场核对'
+            : '阶段线索 · 到场核对',
         readiness: readiness(entry, available ? combat : null),
         sources: (entry.sourceIds || [])
           .filter((id) => guide.sources[id])
@@ -42,14 +63,17 @@ function createDuelProjector({ guide, world, game }) {
     });
     return {
       available,
+      progress: projectProgress(available ? { ...metadata, combat, questStates: states } : {}),
       difficultyName,
       candidates: rows.filter((row) => row.current),
       guide: rows,
       reason: !available
         ? '尚未对照可读存档；下方可以查全部已整理的比武资料。'
-        : !mainQuestId
-          ? '当前主线阶段待核对；暂不猜测哪些人物现在可挑战。'
-          : '按已保存的主线阶段整理候选；人物是否仍在场、好感和私物请到游戏中核对。',
+        : rows.some((row) => row.current && row.locationMatch)
+          ? '按已保存地点列出顺路图纸；到场核对人物和切磋按钮。'
+          : !mainQuestId
+            ? '当前主线阶段待核对；暂不猜测哪些人物现在可挑战。'
+            : '按已保存的主线阶段整理候选；人物是否仍在场、好感和私物请到游戏中核对。',
       combatLimit:
         '按最近一次存档核对角色准备，不读取实时战斗面板，也未模拟战斗；静态等级不能直接换算胜率。具体修炼目标是准备建议，须再核对游戏中的交互条件。',
     };
