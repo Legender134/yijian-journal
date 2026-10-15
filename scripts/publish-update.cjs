@@ -8,12 +8,111 @@ const { verifyManifest } = require('../src/core/app-updates.cjs');
 const channel = require('../src/data/update-channel.json');
 const base = path.resolve(__dirname, '..');
 
-function signedFeed({ version, zip, notes, keyFile, config = channel }) {
+function verifyReleaseZip({ zip, folder }) {
+  if (process.platform !== 'win32') throw Error('Release ZIP verification requires Windows PowerShell');
+  const result = spawnSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      String.raw`$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression
+function Stream-Hash($stream) {
+  $algorithm = [Security.Cryptography.SHA256]::Create()
+  try { return [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+  finally { $algorithm.Dispose() }
+}
+$files = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
+$directories = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+function Read-Directory($directory, [string]$relative) {
+  if ($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Audited output contains a link' }
+  [void]$directories.Add($relative)
+  foreach ($item in $directory.EnumerateFileSystemInfos()) {
+    if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Audited output contains a link' }
+    if ($item.Attributes -band [IO.FileAttributes]::Directory) { Read-Directory $item ($relative + $item.Name + '/') }
+    else {
+      $stream = $item.OpenRead()
+      try { $files.Add(($relative + $item.Name), @{ size = $stream.Length; sha256 = (Stream-Hash $stream) }) }
+      finally { $stream.Dispose() }
+    }
+  }
+}
+$folder = [IO.DirectoryInfo]::new($env:YIJIAN_UPDATE_FOLDER)
+if (!$folder.Exists) { throw 'Audited output directory is missing' }
+Read-Directory $folder ($folder.Name + '/')
+$zipFile = [IO.FileInfo]::new($env:YIJIAN_UPDATE_ZIP)
+if (!$zipFile.Exists -or ($zipFile.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Release ZIP is missing or linked' }
+$zipStream = $zipFile.OpenRead()
+try {
+  $archive = [IO.Compression.ZipArchive]::new($zipStream, [IO.Compression.ZipArchiveMode]::Read, $true)
+  try {
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $foundDirectories = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $fileCount = 0
+    foreach ($entry in $archive.Entries) {
+      $name = $entry.FullName
+      $parts = @($name.TrimEnd('/').Split('/'))
+      if (!$name -or $name.Contains('\') -or $name.Contains(':') -or $name.StartsWith('/') -or $name -match '[\x00-\x1f\x7f]' -or
+          @($parts | Where-Object { !$_ -or $_ -eq '.' -or $_ -eq '..' -or $_.EndsWith('.') -or $_.EndsWith(' ') }).Count) { throw ('Unsafe ZIP entry path: ' + $name) }
+      if (!$seen.Add($name.TrimEnd('/'))) { throw 'Duplicate ZIP entry' }
+      if ((($entry.ExternalAttributes -shr 16) -band 0xf000) -eq 0xa000 -or ($entry.ExternalAttributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'ZIP contains a link' }
+      $isDirectory = $name.EndsWith('/')
+      $directoryParts = if ($isDirectory) { $parts.Count } else { $parts.Count - 1 }
+      for ($i = 1; $i -le $directoryParts; $i++) {
+        $parent = ($parts[0..($i - 1)] -join '/') + '/'
+        if (!$directories.Contains($parent)) { throw 'Foreign ZIP directory' }
+        [void]$foundDirectories.Add($parent)
+      }
+      if ($isDirectory) {
+        if ($entry.Length -ne 0) { throw 'ZIP directory has content' }
+        continue
+      }
+      if (!$files.ContainsKey($name)) { throw 'Foreign ZIP file' }
+      $expected = $files[$name]
+      if ($entry.Length -ne $expected.size) { throw 'ZIP entry size differs from audited output' }
+      $stream = $entry.Open()
+      try { if ((Stream-Hash $stream) -ne $expected.sha256) { throw 'ZIP entry hash differs from audited output' } }
+      finally { $stream.Dispose() }
+      $fileCount++
+    }
+    if ($fileCount -ne $files.Count -or !$foundDirectories.SetEquals($directories)) { throw 'ZIP entry set differs from audited output' }
+  } finally { $archive.Dispose() }
+  $zipStream.Position = 0
+  @{ size = $zipStream.Length; sha256 = (Stream-Hash $zipStream); fileCount = $fileCount } | ConvertTo-Json -Compress
+} finally { $zipStream.Dispose() }`,
+    ],
+    {
+      env: {
+        ...process.env,
+        YIJIAN_UPDATE_ZIP: path.resolve(zip),
+        YIJIAN_UPDATE_FOLDER: path.resolve(folder),
+      },
+      encoding: 'utf8',
+      windowsHide: true,
+      maxBuffer: 1024 * 1024,
+    },
+  );
+  if (result.error || result.status !== 0)
+    throw Error(result.error?.message || result.stderr || 'Release ZIP verification failed');
+  return JSON.parse(result.stdout);
+}
+
+function signedFeed({ version, zip, notes, keyFile, verifiedArchive, config = channel }) {
+  if (
+    !Number.isSafeInteger(verifiedArchive?.size) ||
+    verifiedArchive.size < 1 ||
+    !/^[a-f0-9]{64}$/.test(verifiedArchive.sha256 || '')
+  )
+    throw Error('A verified release ZIP is required before signing');
+  const file = fs.readFileSync(zip);
+  const sha256 = crypto.createHash('sha256').update(file).digest('hex');
+  if (file.length !== verifiedArchive.size || sha256 !== verifiedArchive.sha256)
+    throw Error('Release ZIP changed after verification');
   const privateKey = crypto.createPrivateKey(fs.readFileSync(keyFile));
   if (privateKey.asymmetricKeyType !== 'ed25519') throw Error('Expected Ed25519 release key');
   const publicKey = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'pem' });
   if (publicKey !== config.publicKey) throw Error('Release key differs from the client trust anchor');
-  const file = fs.readFileSync(zip);
   const payload = {
     app: 'yijian-journal',
     version,
@@ -22,7 +121,7 @@ function signedFeed({ version, zip, notes, keyFile, config = channel }) {
     publishedAt: new Date().toISOString(),
     url: new URL(`YijianJournal-${version}-windows-x64.zip`, config.manifestUrl).href,
     size: file.length,
-    sha256: crypto.createHash('sha256').update(file).digest('hex'),
+    sha256,
     notes,
   };
   const bytes = Buffer.from(JSON.stringify(payload));
@@ -102,7 +201,8 @@ function main(args) {
     if (!options[key]) throw Error('Missing ' + key);
   const version = require('../package.json').version;
   const directory = path.join(base, 'dist', `v${version}`);
-  const release = audit(path.join(directory, '逸剑手札-win32-x64'), { writeManifest: false });
+  const folder = path.join(directory, '逸剑手札-win32-x64');
+  const release = audit(folder, { writeManifest: false });
   const report = JSON.parse(
     fs.readFileSync(path.join(base, 'test-results', `packaged-regression-${version}.json`)),
   );
@@ -118,11 +218,13 @@ function main(args) {
   )
     throw Error('A complete fresh regression of this exact package is required');
   const zip = path.join(directory, `YijianJournal-${version}-windows-x64.zip`);
+  const verifiedArchive = verifyReleaseZip({ zip, folder });
   const envelope = signedFeed({
     version,
     zip,
     notes: JSON.parse(fs.readFileSync(options['--notes-file'])),
     keyFile: options['--key-file'],
+    verifiedArchive,
   });
   const manifest = path.join(directory, 'latest.json');
   fs.writeFileSync(manifest, JSON.stringify(envelope) + '\n');
@@ -164,4 +266,4 @@ if (require.main === module) {
     process.exitCode = 1;
   }
 }
-module.exports = { signedFeed, activateScript };
+module.exports = { verifyReleaseZip, signedFeed, activateScript };

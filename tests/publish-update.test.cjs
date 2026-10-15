@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
-const { signedFeed, activateScript } = require('../scripts/publish-update.cjs');
+const { verifyReleaseZip, signedFeed, activateScript } = require('../scripts/publish-update.cjs');
 const { verifyManifest } = require('../src/core/app-updates.cjs');
 const channel = require('../src/data/update-channel.json');
 
@@ -14,6 +14,13 @@ const keys = crypto.generateKeyPairSync('ed25519');
 const config = { ...channel, publicKey: keys.publicKey.export({ type: 'spki', format: 'pem' }) };
 const archive = Buffer.from('synthetic release archive; no game or personal data');
 const posixOnly = { skip: process.platform === 'win32' ? 'Run Linux activation checks in WSL' : false };
+const windowsOnly = {
+  skip: process.platform !== 'win32' ? 'Run native ZIP publication checks on Windows' : false,
+};
+
+function archiveIdentity(bytes) {
+  return { size: bytes.length, sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
+}
 
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-publish-test-'));
@@ -25,7 +32,7 @@ function fixture(t) {
   function feed(version, bytes = archive, notes = ['合成测试更新']) {
     const zip = path.join(dir, `synthetic-${crypto.randomUUID()}.zip`);
     fs.writeFileSync(zip, bytes);
-    return signedFeed({ version, zip, keyFile, notes, config });
+    return signedFeed({ version, zip, keyFile, notes, config, verifiedArchive: archiveIdentity(bytes) });
   }
   function stage(version, bytes = archive, notes) {
     const uploadId = crypto.randomUUID();
@@ -67,6 +74,136 @@ function failure(result, message) {
   if (message) assert.match(result.stderr, message);
 }
 
+function zipFixture(t) {
+  const setup = fixture(t);
+  const folder = path.join(setup.dir, '逸剑手札-win32-x64');
+  const files = [
+    ['逸剑手札.exe', Buffer.from('synthetic executable')],
+    ['resources/app.asar', Buffer.from('synthetic audited asar')],
+    ['使用说明.txt', Buffer.from('合成发行内容')],
+    ['.hidden', Buffer.from('synthetic hidden output')],
+  ];
+  for (const [name, bytes] of files) {
+    const file = path.join(folder, name);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, bytes);
+  }
+  fs.mkdirSync(path.join(folder, 'empty'));
+  const prefix = path.basename(folder) + '/';
+  const entries = files.map(([name, bytes]) => ({ name: prefix + name, data: bytes.toString('base64') }));
+  entries.push({ name: prefix + 'empty/', data: '' });
+  function createZip(contents = entries) {
+    const zip = path.join(setup.dir, `synthetic-${crypto.randomUUID()}.zip`);
+    const result = spawnSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        String.raw`$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+Add-Type -AssemblyName System.IO.Compression
+$archive = [IO.Compression.ZipFile]::Open($env:YIJIAN_TEST_ZIP_PATH, [IO.Compression.ZipArchiveMode]::Create)
+try {
+  foreach ($item in (ConvertFrom-Json $env:YIJIAN_TEST_ZIP_ENTRIES)) {
+    $entry = $archive.CreateEntry($item.name)
+    if ($null -ne $item.attributes) { $entry.ExternalAttributes = $item.attributes }
+    $stream = $entry.Open()
+    try {
+      $bytes = [Convert]::FromBase64String($item.data)
+      $stream.Write($bytes, 0, $bytes.Length)
+    } finally { $stream.Dispose() }
+  }
+} finally { $archive.Dispose() }`,
+      ],
+      {
+        env: {
+          ...process.env,
+          YIJIAN_TEST_ZIP_PATH: zip,
+          YIJIAN_TEST_ZIP_ENTRIES: JSON.stringify(contents),
+        },
+        encoding: 'utf8',
+        windowsHide: true,
+      },
+    );
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, result.stderr);
+    return zip;
+  }
+  return { ...setup, folder, entries, createZip };
+}
+
+test(
+  'native publication gate verifies the full tree and hashes of a canonical release ZIP before signing',
+  windowsOnly,
+  (t) => {
+    const { folder, createZip, keyFile } = zipFixture(t);
+    const zip = createZip();
+    const verifiedArchive = verifyReleaseZip({ zip, folder });
+    assert.deepEqual(verifiedArchive, { ...archiveIdentity(fs.readFileSync(zip)), fileCount: 4 });
+    const envelope = signedFeed({ version: '1.20.0', zip, keyFile, notes: [], config, verifiedArchive });
+    assert.equal(verifyManifest(envelope, config).sha256, verifiedArchive.sha256);
+  },
+);
+
+test(
+  'native publication gate rejects stale bytes, omitted output, foreign files and missing empty directories',
+  windowsOnly,
+  (t) => {
+    const { folder, entries, createZip } = zipFixture(t);
+    for (const [contents, message] of [
+      [
+        entries.map((entry, index) =>
+          index === 1 ? { ...entry, data: Buffer.from('different audited asar').toString('base64') } : entry,
+        ),
+        /ZIP entry hash differs/,
+      ],
+      [entries.slice(1), /ZIP entry set differs/],
+      [[...entries, { name: path.basename(folder) + '/unrelated.txt', data: '' }], /Foreign ZIP file/],
+      [entries.slice(0, -1), /ZIP entry set differs/],
+    ]) {
+      assert.throws(() => verifyReleaseZip({ zip: createZip(contents), folder }), message);
+    }
+  },
+);
+
+test(
+  'native publication gate rejects duplicate entries, case collisions, unsafe paths and ZIP links',
+  windowsOnly,
+  (t) => {
+    const { folder, entries, createZip } = zipFixture(t);
+    const prefix = path.basename(folder) + '/';
+    for (const [entry, message] of [
+      [entries[0], /Duplicate ZIP entry/],
+      [{ ...entries[1], name: prefix + 'resources/APP.ASAR' }, /Duplicate ZIP entry/],
+      [{ name: 'other-root/file.txt', data: '' }, /Foreign ZIP directory/],
+      ...[
+        '../outside',
+        '/absolute',
+        'C:/drive',
+        prefix + '../outside',
+        prefix + './file',
+        prefix + 'resources\\file',
+        prefix + 'resources//file',
+      ].map((name) => [{ name, data: '' }, /Unsafe ZIP entry path/]),
+      [{ ...entries[0], name: prefix + 'link', attributes: 0xa1ff << 16 }, /ZIP contains a link/],
+    ]) {
+      assert.throws(() => verifyReleaseZip({ zip: createZip([...entries, entry]), folder }), message);
+    }
+  },
+);
+
+test('release signing requires a verified archive and rejects any later byte replacement', (t) => {
+  const { dir, keyFile } = fixture(t);
+  const zip = path.join(dir, 'synthetic.zip');
+  fs.writeFileSync(zip, archive);
+  const options = { version: '1.20.0', zip, keyFile, notes: [], config };
+  assert.throws(() => signedFeed(options), /verified release ZIP/);
+  const verifiedArchive = archiveIdentity(archive);
+  fs.writeFileSync(zip, Buffer.alloc(archive.length, 9));
+  assert.throws(() => signedFeed({ ...options, verifiedArchive }), /changed after verification/);
+});
+
 test('release signing authenticates exact synthetic archive bytes with the configured trust anchor', (t) => {
   const { feed } = fixture(t);
   const envelope = feed('1.20.0');
@@ -91,7 +228,14 @@ test('release signing rejects a foreign signer, unsupported key and invalid rele
   const { dir, keyFile, feed } = fixture(t);
   const zip = path.join(dir, 'archive.zip');
   fs.writeFileSync(zip, archive);
-  const options = { version: '1.20.0', zip, keyFile, notes: [], config };
+  const options = {
+    version: '1.20.0',
+    zip,
+    keyFile,
+    notes: [],
+    config,
+    verifiedArchive: archiveIdentity(archive),
+  };
   const foreign = crypto.generateKeyPairSync('ed25519');
   assert.throws(
     () =>
