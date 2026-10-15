@@ -115,6 +115,7 @@ const shot = async (name) => {
         .evaluate((e) => e.open),
       false,
     );
+    await win.locator('[data-persist-detail="quest-steps-quest-5200"] > summary').click();
     await win.locator('.world-drawer .world-steps [data-action="world-quest"][data-id="quest-5201"]').click();
     await win.locator('[data-action="drawer-back"]').click();
     assert.ok((await win.locator('.world-drawer h1').innerText()).includes('武当求助'));
@@ -154,6 +155,7 @@ const shot = async (name) => {
     await nav('database');
     await win.locator('[data-action="database-kind"][data-id="人物"]').click();
     await win.locator('#list-search').fill('卫霍');
+    await shot('codex-main-list');
     await win.locator('.database-card[data-id="npc-10047"]').click();
     await selectProgress(win, '1.sav');
     if (await win.locator('.person-gifts:not([open])').count())
@@ -396,6 +398,96 @@ const shot = async (name) => {
     assert.equal(await win.locator('.world-drawer').count(), 0);
     assert.equal(await win.locator('#app').evaluate((e) => e.inert), false);
     report.checks.push('late task detail cannot reopen a dismissed search dialog');
+    const compactReady = app.waitForEvent('window');
+    await win.locator('.topbar [data-action="compact"]').click();
+    const small = await compactReady;
+    small.on('pageerror', (e) => report.errors.push(e.message));
+    small.on('request', (r) => {
+      if (/^https?:/.test(r.url())) report.externalRequests.push(r.url());
+    });
+    await small.locator('.compact-shell').waitFor();
+    const compactShot = async (name, width = 460) => {
+      await app.evaluate(
+        ({ BrowserWindow }, { url, width }) => {
+          const window = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL() === url);
+          window.setBounds({ width, height: 780 });
+          window.showInactive();
+        },
+        { url: small.url(), width },
+      );
+      await small.locator('.toast').waitFor({ state: 'hidden' });
+      if (!(await small.locator('.drawer').count()))
+        await small.locator('.compact-body').evaluate((e) => {
+          e.scrollTop = 0;
+        });
+      await small.screenshot({
+        path: path.join(base, 'test-results', name + '.png'),
+        animations: 'disabled',
+      });
+      assert(
+        await small.locator('.compact-body').evaluate((e) => e.scrollWidth <= e.clientWidth + 1),
+        'compact reader has no horizontal overflow',
+      );
+    };
+    assert.deepEqual(
+      await small
+        .locator('.companion-tabs [data-action="navigate"]')
+        .evaluateAll((nodes) => nodes.map((n) => n.textContent.trim())),
+      ['流程', '比武请教', '图鉴', '存档'],
+    );
+    await small.locator('.compact-title [data-action="search"]').click();
+    await small.locator('#global-search').fill('剑');
+    await small.locator('[data-action="search-all"][data-id="database"]').click();
+    await small.locator('.codex-browser .database-card').first().waitFor();
+    assert.equal(await small.locator('#list-search').inputValue(), '剑');
+    await small.locator('[data-action="database-page"][data-id="1"]').click();
+    await small.locator('.pagination').filter({ hasText: '2 /' }).waitFor();
+    await compactShot('codex-companion-list-360', 360);
+    await small.locator('[data-action="database-kind"][data-id="任务"]').click();
+    await small.locator('#list-search').fill('养生秘术');
+    await small.locator('.database-card[data-id="quest-11077"]').click();
+    await small.locator('.codex-outcomes > summary').click();
+    await small.locator('.codex-outcomes [data-id="item-13853"]').waitFor();
+    await compactShot('codex-companion-task-360', 360);
+    await small.locator('.codex-outcomes [data-id="item-13853"]').click();
+    await small.locator('.drawer h1').filter({ hasText: '养心秘术' }).waitFor();
+    await small.locator('.item-quest-sources [data-id="quest-11078"]').click();
+    await small.locator('.drawer h1').filter({ hasText: '收集药材' }).waitFor();
+    await small.locator('.drawer [data-action="close-overlay"]').click();
+    await small.locator('[data-action="database-kind"][data-id="武学"]').click();
+    await small.locator('#list-search').fill('两仪连华剑');
+    await small.locator('.database-card[data-id="skill-101"]').click();
+    await small.locator('.skill-consult > summary').click();
+    assert.match(await small.locator('.skill-consult').innerText(), /好感 60[\s\S]*1300 武学点/);
+    await small.locator('.skill-teachers > summary').click();
+    await compactShot('codex-companion-skill-460');
+    await small.locator('.skill-teachers [data-action="database-detail"]').first().click();
+    await small.locator('[data-npc-progress]').waitFor();
+    await small.locator('.drawer [data-action="close-overlay"]').click();
+    await small.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await small.locator('#list-search').fill('卫霍');
+    await small.locator('.database-card[data-id="npc-10047"]').click();
+    await small.locator('[data-action="database-gifts"]').click();
+    await small.locator('.codex-browser').waitFor();
+    assert.equal(
+      await small.locator('[data-action="database-kind"][data-id="物品"]').getAttribute('aria-pressed'),
+      'true',
+    );
+    await small.locator('[data-action="database-kind"][data-id="地点"]').click();
+    await small.locator('#database-type').selectOption('全部');
+    await small.locator('#list-search').fill('');
+    await small.locator('.codex-browser .place-map-frame').waitFor();
+    await compactShot('codex-companion-map-360', 360);
+    await small.locator('.companion-tabs [data-id="duels"]').click();
+    await small.locator('.duel-page').waitFor();
+    await small.locator('.companion-tabs [data-id="saves"]').click();
+    await small.locator('[data-persist-detail="compact-backups"] > summary').click();
+    await compactShot('codex-companion-saves-360', 360);
+    await small.locator('.companion-tabs [data-id="home"]').click();
+    await small.locator('[data-flow]').waitFor();
+    report.checks.push(
+      'four companion cores, codex pagination and gifting, typed task-item links, skill learning conditions and map stay in the companion',
+    );
     for (const f of originals) {
       assert.equal(sha(fs.readFileSync(path.join(source, f.name))), f.hash);
       assert.equal(fs.statSync(path.join(source, f.name), { bigint: true }).mtimeNs.toString(), f.time);

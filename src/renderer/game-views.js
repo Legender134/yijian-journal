@@ -1,4 +1,5 @@
-import { placeEntityId } from './entity-catalog.js';
+import { placeEntityId, entityCatalog } from './entity-catalog.js';
+import { createCodexDetailViews } from './codex-detail-views.js';
 import { compileSearch, compareSearchTitles } from './search-query.js';
 import { createItemStatViews, itemNumericSummary } from './item-stat-views.js';
 import { createNpcFactViews } from './npc-fact-views.js';
@@ -20,8 +21,10 @@ export function createGameViews({
   richText = esc,
   variantSummary = () => '',
   personRelations = () => '',
+  placeMap = () => '',
 }) {
   const itemStats = createItemStatViews({ esc, act });
+  const codexDetails = createCodexDetailViews({ esc, act, richText });
   const npcFacts = createNpcFactViews({ esc, act });
   const npcProgress = createNpcProgressViews({ esc, act, richText });
   const byId = (index, id) => index.entries.find((e) => e.id === id);
@@ -32,10 +35,29 @@ export function createGameViews({
     return quests.filter((q) => !q.parentId || !ids.has(q.parentId));
   }
   function page(index, query, kind, type, pageNumber) {
-    const categories = ['全部', '物品', '武学', '人物', '配方'];
-    const all = index.entries.filter((e) => kind === '全部' || e.kind === kind);
-    const types = [...new Set(all.map((e) => e.type))];
-    const q = query.trim();
+    const categories = ['全部', '任务', '人物', '物品', '武学', '配方', '地点'];
+    const entities = [...entityCatalog(index).entries.values()].map((e) =>
+      e.kind === '任务'
+        ? {
+            ...e,
+            type: e.parentId
+              ? '任务步骤'
+              : index.world.quests.find((q) => q.id === e.id)?.kind === 'Primary'
+                ? '主线'
+                : '支线',
+          }
+        : e.kind === '地点'
+          ? { ...e, type: e.cave ? '洞窟' : '地点' }
+          : e,
+    );
+    const all = entities.filter(
+      (e) =>
+        (kind === '全部' || e.kind === kind) &&
+        (query.trim() || type === '任务步骤' || e.kind !== '任务' || !e.parentId),
+    );
+    const types = [
+      ...new Set(entities.filter((e) => kind === '全部' || e.kind === kind).map((e) => e.type)),
+    ].filter(Boolean);
     let match,
       compareTitles = () => 0,
       searchError = '';
@@ -50,14 +72,39 @@ export function createGameViews({
       .map((e) => ({ ...e, quality: qualityText?.quality(e) || e.quality }))
       .filter((e) => (type === '全部' || e.type === type) && match(e))
       .sort(compareTitles);
-    const pages = Math.max(1, Math.ceil(filtered.length / 24)),
-      current = Math.min(pageNumber, pages - 1);
-    const list = filtered.slice(current * 24, current * 24 + 24);
-    return `<div class="page-header"><div><h1 class="serif">百物图鉴</h1></div></div>${searchError ? notice(searchError, true) : ''}
-      <div class="database-tabs">${categories.map((k) => `<button class="database-tab ${kind === k ? 'active' : ''}" data-action="database-kind" data-id="${k}">${icon(glyph(k))}<strong>${k}</strong><span>${k === '全部' ? index.entries.length : index.entries.filter((e) => e.kind === k).length}</span></button>`).join('')}</div>
-      <div class="toolbar"><label class="search-input database-search">${icon('search')}<input id="list-search" data-persist="list-search" value="${esc(query)}" placeholder="${kind === '人物' ? '输入名字或赠礼类别，如：字画' : '输入名称、材料或效果，如：铁矿石'}" aria-label="搜索百物图鉴" maxlength="100"></label><select id="database-type" aria-label="图鉴分类"><option value="全部">全部分类</option>${types.map((t) => `<option value="${esc(t)}" ${t === type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>${q || type !== '全部' ? act('database-reset', '清除筛选', 'btn', '', 'refresh') : ''}<span class="spacer"></span>${pill(`${filtered.length} 项结果`)}</div>
-      ${list.length ? `<div class="database-grid">${list.map((e) => `<button class="database-card" data-action="database-detail" data-id="${e.id}"><div class="row between">${picture(e.id, 'card')}${qualityText.label(e) || pill(e.kind)}</div><h3>${qualityText.name(e, e.name)}</h3><p>${esc(e.kind === '人物' ? variantSummary(e.id) || (e.hobbies.length ? `偏好：${e.hobbies.join('、')}` : '查看相关任务、武学或售卖线索') : e.kind === '配方' ? e.materials.map((m) => `${m.name} ×${m.count}`).join('、') : e.description || '查看本机资料详情')}</p>${itemNumericSummary(e, index) ? `<p class="database-numeric">${esc(itemNumericSummary(e, index))}</p>` : ''}<div class="database-card-foot">${esc(typeName(e))}${icon('chevron')}</div></button>`).join('')}</div><div class="pagination">${act('database-page', '上一页', 'btn', String(Math.max(0, current - 1)))}<span>第 ${current + 1} / ${pages} 页</span>${act('database-page', '下一页', 'btn', String(Math.min(pages - 1, current + 1)))}</div>` : empty('没有找到匹配的资料', '换个名称、效果词，或切换上方分类。')}
-`;
+    const pages = Math.max(1, Math.ceil(filtered.length / 24));
+    const current = Math.max(0, Math.min(pageNumber, pages - 1));
+    const categoryIcon = (k) => ({ 任务: 'scroll', 地点: 'map', 全部: 'book' })[k] || glyph(k);
+    const row = (e) => {
+      const action =
+        e.kind === '任务' ? 'world-quest' : e.kind === '地点' ? 'world-place' : 'database-detail';
+      const name = e.kind === '任务' ? e.name.replace(/^【[^】]+】\s*/, '') : e.name;
+      const numeric = itemNumericSummary(e, index);
+      const summary =
+        e.kind === '人物'
+          ? variantSummary(e.id) || (e.hobbies?.length ? e.hobbies.join('、') : '')
+          : e.kind === '地点'
+            ? variantSummary(e.id)
+            : numeric ||
+              (e.kind === '配方'
+                ? e.materials.map((m) => `${m.name} ×${m.count}`).join('、')
+                : e.description || '');
+      return `<button class="database-card codex-result" data-action="${action}" data-id="${esc(e.id)}">${picture(e.id, 'card')}<span class="codex-result-copy"><strong>${qualityText.name(e, name)}</strong>${summary ? `<span class="codex-result-summary${numeric ? ' database-numeric' : ''}">${esc(summary)}</span>` : ''}<span class="codex-result-meta">${esc(e.kind === '人物' ? '人物' : typeName(e))}</span></span>${icon('chevron')}</button>`;
+    };
+    return `<section class="codex-browser"><div class="page-header"><h1 class="serif">图鉴</h1></div>
+      <div class="database-tabs" role="group" aria-label="图鉴种类">${categories.map((k) => `<button class="database-tab ${kind === k ? 'active' : ''}" data-action="database-kind" data-id="${k}" aria-pressed="${kind === k}">${icon(categoryIcon(k))}<strong>${k}</strong></button>`).join('')}</div>
+      <div class="toolbar"><label class="search-input database-search">${icon('search')}<input id="list-search" data-persist="list-search" value="${esc(query)}" placeholder="名称、人物、任务或效果" aria-label="搜索百物图鉴" maxlength="100"></label><select id="database-type" aria-label="图鉴分类"><option value="全部">全部分类</option>${types.map((t) => `<option value="${esc(t)}" ${t === type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>${query || type !== '全部' ? act('database-reset', '清除', 'text-btn', '', 'refresh') : ''}</div>
+      ${searchError ? notice(searchError, true) : ''}${kind === '地点' && !query.trim() ? placeMap(index, '', { scope: 'world' }) : ''}
+      <div class="codex-result-count" role="status">${filtered.length} 项</div>${
+        filtered.length
+          ? `<div class="database-grid codex-results">${filtered
+              .slice(current * 24, current * 24 + 24)
+              .map(row)
+              .join(
+                '',
+              )}</div><div class="pagination"><button class="btn" data-action="database-page" data-id="${current - 1}" ${current === 0 ? 'disabled' : ''}>上一页</button><span>${current + 1} / ${pages}</span><button class="btn" data-action="database-page" data-id="${current + 1}" ${current + 1 === pages ? 'disabled' : ''}>下一页</button></div>`
+          : empty('没有找到匹配的资料', '换个关键词或分类。')
+      }</section>`;
   }
   function detail(
     index,
@@ -84,7 +131,7 @@ export function createGameViews({
     if (e.kind === '物品')
       extra = `${itemStats.detail(index, e)}<div class="detail-stat-grid"><div><small>买入基础价</small><strong>${e.buyPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 文</strong></div><div><small>卖出基础价</small><strong>${e.sellPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 文</strong></div><div><small>赠礼</small><strong>${e.giftable ? '可以赠送' : '不可赠送'}</strong></div>${e.useLimit ? `<div><small>使用次数上限</small><strong>${e.useLimit} 次</strong></div>` : ''}</div>`;
     if (e.kind === '武学')
-      extra = `${e.special ? `<div class="detail-block"><h3>特殊效果</h3><p class="preserve-text">${richText(e.special)}</p></div>` : ''}`;
+      extra = `${stateNotice ? `<p class="notice info flow-state-notice" role="status">${esc(stateNotice)}</p>` : ''}${e.special ? `<div class="detail-block"><h3>特殊效果</h3><p class="preserve-text">${richText(e.special)}</p></div>` : ''}${codexDetails.skill(index, e, liveNpcProgress || reference?.metadata?.npcProgress, liveReference ? 'live' : 'saved')}`;
     if (e.kind === '人物') {
       const statusReference = liveReference || reference;
       const personProgress = (liveNpcProgress || reference?.metadata?.npcProgress)?.people.find(
@@ -107,7 +154,7 @@ export function createGameViews({
         personProgress,
         false,
         liveReference ? 'live' : 'saved',
-      )}${npcFacts.person(index, e)}${personRelations(index, e, statusReference)}${
+      )}${personProgress?.place ? `<p class="codex-person-place">${act('world-place', esc(personProgress.place.name), 'text-btn', personProgress.place.id)}</p>` : ''}${npcFacts.person(index, e)}${personRelations(index, e, statusReference)}${
         e.hobbies.length
           ? `<div class="detail-block"><h3>赠礼偏好</h3><div class="tag-row">${e.hobbies.map((h) => pill(h, 'green')).join('')}</div></div><details class="detail-block person-gifts" data-persist-detail="person-gifts-${esc(e.id)}"><summary>${inventory ? '背包中的偏好物品' : '符合偏好的物品'} · ${gifts.length} 种${minimumQuality >= 0 ? ` · ${esc(giftGate.minimumQuality)}色起` : ''}</summary><div class="related-items">${
               gifts
@@ -152,6 +199,7 @@ export function createGameViews({
     if (e.kind === '物品') {
       if (e.acquisitionRoutes?.length)
         extra += `<section class="detail-block item-acquisition-routes"><h3>阶段获取线索</h3>${e.acquisitionRoutes.map((route) => `<h4>${esc(route.title)}</h4><p>${richText(route.detail)}</p>${act('world-quest', '查看对应任务步骤', 'text-btn', 'quest-' + route.questId)}<details><summary>资料来源</summary>${route.uncertainty ? `<p class="small">${esc(route.uncertainty)}</p>` : ''}${route.sources.map((source) => `<p>${act('source', esc(source.title), 'text-btn', source.id)}<span class="small muted"> · ${esc(source.date)} · ${esc(source.version)}</span></p>`).join('')}</details>`).join('')}</section>`;
+      extra += codexDetails.item(index, e);
       extra += npcFacts.holders(index, e);
       extra += `${itemUsage}`;
       extra += `<details class="detail-block reservation-editor"><summary>预留物品</summary><div class="row"><label class="quantity-label">保留<input id="reserve-count" type="number" min="0" max="999999" step="1" value="${reservations[e.gameId] || 0}" aria-label="保留物品数量"></label>${act('reserve-save', '保存预留数量', 'btn', e.id, 'shield')}</div></details>`;
@@ -186,7 +234,7 @@ export function createGameViews({
     }
     const guides =
       index.guideEntries?.filter((g) => g.title.includes(e.name) || e.name.includes(g.title)) || [];
-    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(e.name)}资料"><div class="drawer-head"><span class="small muted">百物图鉴 / ${e.kind}</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${e.kind === '人物' ? '' : pill(e.kind, 'green')}${e.type === '人物资料' ? '' : pill(typeName(e))}${qualityText.label(e)}</div><div class="game-detail-title">${picture(e.id, 'detail')}<div><h1>${qualityText.name(e, e.name)}</h1></div></div>${e.description ? `<p class="intro preserve-text">${richText(e.description)}</p>` : ''}${extra}${guides.length ? `<div class="detail-block"><h3>手札里的相关线索</h3>${guides.map((g) => '<div class="row wrap mb"><span>' + richText(g.title) + '</span>' + act('detail', '查看线索', 'text-btn', g.id, 'arrow') + '</div>').join('')}</div>` : ''}</div><div class="drawer-actions">${act(e.kind === '配方' ? 'recipe-goal' : 'database-goal', e.kind === '配方' ? '把备料单加入待办' : '记为我的目标', 'btn primary', e.id, 'plus')}${e.kind === '人物' ? act('database-gifts', '查符合偏好的物品', 'btn', e.id, 'search') + act('journey-gift-dialog', '规划赠礼', 'btn', e.id, 'plus') : e.kind === '物品' && e.giftable ? act('journey-gift-dialog', '规划赠礼', 'btn', ':' + e.id, 'plus') : ''}</div></section>`;
+    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(e.name)}资料"><div class="drawer-head"><span class="small muted">百物图鉴 / ${e.kind}</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${e.kind === '人物' ? '' : pill(e.kind, 'green')}${e.kind === '人物' ? '' : pill(typeName(e))}${qualityText.label(e)}</div><div class="game-detail-title">${picture(e.id, 'detail')}<div><h1>${qualityText.name(e, e.name)}</h1></div></div>${e.description && e.kind !== '人物' ? `<p class="intro preserve-text">${richText(e.description)}</p>` : ''}${extra}${e.description && e.kind === '人物' ? `<details class="detail-block"><summary>人物经历</summary><p class="preserve-text">${richText(e.description)}</p></details>` : ''}${guides.length ? `<div class="detail-block"><h3>手札里的相关线索</h3>${guides.map((g) => '<div class="row wrap mb"><span>' + richText(g.title) + '</span>' + act('detail', '查看线索', 'text-btn', g.id, 'arrow') + '</div>').join('')}</div>` : ''}</div><div class="drawer-actions">${act(e.kind === '配方' ? 'recipe-goal' : 'database-goal', e.kind === '配方' ? '把备料单加入待办' : '记为我的目标', 'btn primary', e.id, 'plus')}${e.kind === '人物' ? act('database-gifts', '查符合偏好的物品', 'btn', e.id, 'search') + act('journey-gift-dialog', '规划赠礼', 'btn', e.id, 'plus') : e.kind === '物品' && e.giftable ? act('journey-gift-dialog', '规划赠礼', 'btn', ':' + e.id, 'plus') : ''}</div></section>`;
   }
   function recipeMaterials(e, quantity, index, reference = null) {
     const inventory = reference?.metadata.inventory,

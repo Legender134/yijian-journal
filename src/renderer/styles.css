@@ -4082,6 +4082,140 @@ kbd {
   font-size: 12px;
   margin-top: 8px;
 }
+.codex-browser .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.codex-browser .database-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.codex-browser .database-tab {
+  gap: 5px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+}
+.codex-browser .database-tab.active {
+  background: var(--green-soft);
+  box-shadow: none;
+}
+.codex-browser .database-tab svg {
+  width: 16px;
+  height: 16px;
+}
+.codex-result-count {
+  margin: 12px 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.codex-results {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 22px;
+}
+.codex-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 14px 4px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+.codex-result:hover {
+  transform: none;
+  background: var(--green-soft);
+}
+.codex-result > .game-picture {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+}
+.codex-result > svg {
+  width: 14px;
+  min-width: 14px;
+  color: var(--muted);
+}
+.codex-result-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.codex-result-copy > strong {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.codex-result-summary {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.codex-result-meta {
+  color: var(--green);
+  font-size: 11px;
+}
+.codex-source-row,
+.codex-growth > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.codex-source-row > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.codex-outcome-step + .codex-outcome-step {
+  border-top: 1px solid var(--line);
+  margin-top: 14px;
+  padding-top: 12px;
+}
+.codex-effects {
+  padding-left: 18px;
+  margin: 10px 0;
+}
+.codex-effects li {
+  margin: 7px 0;
+}
+.compact-backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.compact-backup-row > div {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .codex-results {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .item-statistics {
   border: 1px solid var(--line);
   border-radius: 10px;

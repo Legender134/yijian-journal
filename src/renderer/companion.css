@@ -280,10 +280,9 @@
   gap: 5px 10px;
 }
 .companion-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  justify-content: space-around;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
   border-bottom: 1px solid var(--line);
   padding: 7px 5px;
   flex-shrink: 0;
@@ -291,8 +290,26 @@
 .companion-tabs .text-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 12px;
+  justify-content: center;
+  padding: 8px 0;
+}
+.companion .codex-browser .page-header h1 {
+  font-size: 20px;
+}
+.companion .codex-browser .database-tab {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.companion .codex-browser .toolbar {
+  gap: 7px;
+}
+.companion .codex-browser .database-search {
+  flex-basis: 100%;
+}
+.companion .codex-results {
+  grid-template-columns: minmax(0, 1fr);
 }
 .companion-tabs [aria-current='page'] {
   text-decoration: underline;
@@ -384,6 +401,17 @@
 }
 .companion .drawer-body h1 {
   font-size: 25px;
+}
+.companion .game-detail-title {
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+.companion .game-detail-title > .game-picture {
+  width: 56px;
+  height: 56px;
+}
+.companion .drawer-body > .detail-block {
+  margin: 16px 0;
 }
 .companion .modal {
   overflow-y: auto;

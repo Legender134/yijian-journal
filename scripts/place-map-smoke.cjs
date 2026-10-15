@@ -48,7 +48,8 @@ delete env.ELECTRON_RUN_AS_NODE;
     const small = await app.waitForEvent('window');
     await small.waitForSelector('.compact-shell');
     small.on('pageerror', (e) => errors.push(e.message));
-    await small.locator('.companion-tabs [data-id="world"]').click();
+    await small.locator('.companion-tabs [data-id="database"]').click();
+    await small.locator('[data-action="database-kind"][data-id="地点"]').click();
     await small.locator('.place-map-frame').waitFor();
     assert.ok(
       (await small.locator('.place-map-frame').boundingBox()).height > 100,
@@ -95,9 +96,8 @@ delete env.ELECTRON_RUN_AS_NODE;
     await win.locator('[data-action="close-overlay"]').click();
     await small.bringToFront();
     await small.locator('[data-action="close-overlay"]').click();
-    await small.locator('[data-action="world-kind"][data-id="places"]').click();
-    await small.locator('#world-search').fill('仙人渡');
-    await small.locator('.world-place-card[data-id="place-96:LV_64_P2"]').click();
+    await small.locator('#list-search').fill('仙人渡');
+    await small.locator('.database-card[data-id="place-96:LV_64_P2"]').click();
     await small.locator('.drawer [data-action="place-map-scope"]').click();
     await small.locator('.drawer [data-action="main"]').click();
     await win.locator('.drawer [data-map-place="LV_64_P2"]').waitFor();

@@ -1344,6 +1344,7 @@ test('handbook handoff reads the exact saved reference before resuming latest-fo
         defaultFollow: () => true,
         latestReference: () => newer.name,
         defaultReference: () => newer.name,
+        currentFlow: () => null,
         gameViews: {
           byId: () => ({ kind: '武学' }),
           detail: (_index, id, _quantity, reference) => {

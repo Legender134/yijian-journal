@@ -921,6 +921,7 @@ const gameViews = createGameViews({
   qualityText,
   richText: entityReferences.text,
   variantSummary: entityReferences.variantSummary,
+  placeMap: (index, id, options) => placeMapViews.render(index, id, { compact, ...options }),
   personRelations: (index, person, reference) => entityDetailViews.person(index, person, reference),
 });
 const duelViews = createDuelViews({
@@ -2323,8 +2324,9 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
     (expectedReference?.origin === 'live' ||
       (!expectedReference &&
         (referenceFollow ?? defaultFollow()) === true &&
-        ((sameDrawer && (currentDrawer.liveContext || currentDrawer.liveNpcContext)) || e?.kind === '人物')));
-  const liveNpcContext = liveContext && e?.kind === '人物';
+        ((sameDrawer && (currentDrawer.liveContext || currentDrawer.liveNpcContext)) ||
+          ['人物', '武学'].includes(e?.kind))));
+  const liveNpcContext = liveContext && ['人物', '武学'].includes(e?.kind);
   let referenceError = '';
   let loadedReference = referenceSave;
   if (!e) return;
@@ -3181,6 +3183,12 @@ function healthAlert(h = environment.health) {
     ? timelineViews.chip(h)
     : '';
 }
+function compactSavesPage() {
+  const backups = environment.backups || [];
+  const row = (b) =>
+    `<div class="compact-backup-row"><div><strong>${esc(b.label)}</strong><span class="small muted">${when(b.createdAt)}</span></div>${act('backup-preview', '查看副本', 'btn', b.id, 'eye')}</div>`;
+  return `<div class="row between mb"><h2>存档</h2>${act('backup', '备份当前存档', 'btn', '', 'download')}</div>${restoreRecoveryBanner()}${backupCareBanner()}${environment.saves?.error ? notice(environment.saves.error) : ''}${environment.autoError ? notice(environment.autoError) : ''}${timelinePanel()}${backupViews.anomalies(environment.backupAnomalies || [])}<details data-persist-detail="compact-backups"><summary>完整存档副本 · ${backups.length}</summary>${backups.slice(0, 6).map(row).join('') || '<p>暂无副本，先在游戏中保存，再点击备份。</p>'}${backups.length > 6 ? `<details><summary>更早的 ${backups.length - 6} 份</summary>${backups.slice(6).map(row).join('')}</details>` : ''}<div class="row between mt"><span>存档变化时自动备份</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></details>${!environment.saves?.path ? act('choose-saves', '连接存档目录', 'btn', '', 'folder') : ''}`;
+}
 function compactPage() {
   document.body.classList.add('companion');
   document.body.classList.toggle('passive', companionMode === 'hint');
@@ -3189,9 +3197,10 @@ function compactPage() {
   if (route === 'settings') return companionViews.frame(settingsPage(), healthAlert());
   if (route === 'materials') return companionViews.frame(compactMaterialsPage(), healthAlert());
   if (route === 'duels') return companionViews.frame(duelsPage(), healthAlert());
+  if (route === 'database') return companionViews.frame(databaseView(), healthAlert());
+  if (route === 'library') return companionViews.frame(libraryPage(), healthAlert());
   if (route === 'recipe-discovery') return companionViews.frame(recipeDiscoveryPage(), healthAlert());
-  if (route === 'saves')
-    return companionViews.frame(timelineViews.page(environment.timeline, timelineView), healthAlert());
+  if (route === 'saves') return companionViews.frame(compactSavesPage(), healthAlert());
   if (route === 'journey') return companionViews.frame(journeyPage(), healthAlert());
   if (route === 'checklist') return companionViews.frame(checklistPage(), healthAlert());
   if (route === 'journal') return companionViews.frame(journalPage(), healthAlert());
@@ -3202,7 +3211,7 @@ function compactPage() {
     compactUndo?.profileId === profile().id
       ? `<div class="notice"><span>已完成：${esc(compactUndo.title)}</span>${act('compact-undo', '撤销这次完成', 'text-btn')}</div>`
       : '';
-  const body = `${sourceErrors}${flowViews.panel(currentFlow(), { compact: true, sections: state.settings.companionSections })}<details class="flow-personal" data-compact-detail="flow-personal"><summary>个人目标、行程与备料</summary>${companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${undo}<h3 class="companion-section">我的目标</h3>${
+  const body = `${sourceErrors}${flowViews.panel(currentFlow(), { compact: true, sections: state.settings.companionSections })}<details class="flow-personal" data-compact-detail="flow-personal"><summary>个人目标、行程与备料</summary><div class="row wrap">${act('navigate', '备料清单', 'text-btn', 'materials', 'bag')}${act('navigate', '地图', 'text-btn', 'world', 'map')}</div>${companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${undo}<h3 class="companion-section">我的目标</h3>${
     orderedGoals()
       .filter((g) => !goalDone(g))
       .map(
@@ -4445,7 +4454,7 @@ async function refresh(background = false) {
       if (currentDrawer?.type === 'database') {
         const e = gameViews.byId(gameIndex, currentDrawer.id);
         if (e?.kind === '配方') await showDatabaseDetail(e.id, currentDrawer.quantity || 1);
-        if (e?.kind === '人物' || e?.kind === '物品') await showDatabaseDetail(e.id);
+        if (['人物', '物品', '武学'].includes(e?.kind)) await showDatabaseDetail(e.id);
         const freshness = overlay.querySelector('.reference-freshness');
         if (freshness)
           freshness.textContent = name ? '已同步新的已保存进度 · ' + name : '参照存档不可读，请重新选择。';
@@ -4454,7 +4463,7 @@ async function refresh(background = false) {
   }
   if (
     currentDrawer?.type === 'database' &&
-    ['物品', '人物', '配方'].includes(gameViews.byId(gameIndex, currentDrawer.id)?.kind) &&
+    ['物品', '人物', '配方', '武学'].includes(gameViews.byId(gameIndex, currentDrawer.id)?.kind) &&
     (referenceSaveName === undefined || currentDrawer.planningSignature !== planningIntentSignature())
   )
     await showDatabaseDetail(currentDrawer.id, currentDrawer.quantity || 1, currentDrawer.giftPage);
@@ -6423,7 +6432,7 @@ async function handle(action, id, target, navigationFocused = false) {
       }
       let quantity = 1;
       const flowReference = target.closest('[data-flow], .duel-page')
-        ? defaultFollow() && gameViews.byId(gameIndex, id)?.kind === '人物'
+        ? defaultFollow() && ['人物', '武学'].includes(gameViews.byId(gameIndex, id)?.kind)
           ? { origin: 'live' }
           : currentFlow()?.reference
         : !currentDrawer && route === 'world' && worldView.liveContext
@@ -7636,7 +7645,7 @@ async function handle(action, id, target, navigationFocused = false) {
       modal(
         '随行布局与显示',
         '拖动标题栏移动，拖动边缘调整大小；随行会记住你选的位置。',
-        `<div data-companion-layout><p class="small muted">恢复默认仅调整窗口的位置与大小。</p>${act('window-layout-reset', '恢复默认位置与大小', 'btn', '', 'reset')}${act('companion-display', '选择首页内容', 'btn', '', 'eye')}${act('navigate', '设置', 'btn', 'settings', 'settings')}</div>`,
+        `<div data-companion-layout><div class="row wrap mb">${act('navigate', '备料清单', 'btn', 'materials', 'bag')}${act('navigate', '地图', 'btn', 'world', 'map')}</div><p class="small muted">恢复默认仅调整窗口的位置与大小。</p>${act('window-layout-reset', '恢复默认位置与大小', 'btn', '', 'reset')}${act('companion-display', '选择首页内容', 'btn', '', 'eye')}${act('navigate', '设置', 'btn', 'settings', 'settings')}</div>`,
         '',
       );
       break;

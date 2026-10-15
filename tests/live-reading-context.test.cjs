@@ -48,7 +48,10 @@ function harness() {
     environment: { saves: { files: [old, latest] } },
     worldViews: {},
     gameViews: {
-      byId: (_index, id) => ({ id, kind: id.startsWith('npc-') ? '人物' : '物品' }),
+      byId: (_index, id) => ({
+        id,
+        kind: id.startsWith('npc-') ? '人物' : id.startsWith('skill-') ? '武学' : '物品',
+      }),
       detail: (...args) => {
         renders.push({ id: args[1], reference: args[3], progress: args[11], live: args[12] });
         return 'synthetic HTML';
@@ -203,4 +206,29 @@ test('live namesake selection withdraws and reacquires the same reading mode thr
   assert.equal(h.renders.at(-1).reference, newer);
   assert.equal(h.renders.at(-1).progress, h.progress);
   assert(!h.reads.includes(h.old.name));
+});
+
+test('skill teacher status follows the live cohort, withdraws and keeps fixed lookup isolated', async () => {
+  const h = harness(),
+    c = h.context;
+  await c.showDatabaseDetail('skill-100');
+  assert.equal(h.renders.at(-1).reference, h.live);
+  assert.equal(h.renders.at(-1).progress, h.progress);
+  assert.equal(c.currentDrawer.liveNpcContext, true);
+  h.setObserved(null);
+  await c.refreshLiveNpcDetail();
+  assert.equal(h.renders.at(-1).reference, h.latest);
+  assert.equal(h.renders.at(-1).progress, null);
+  const newLive = { ...h.live, key: 'new-skill-cohort' };
+  h.setObserved(newLive);
+  await c.refreshLiveNpcDetail();
+  assert.equal(h.renders.at(-1).reference, newLive);
+  assert.equal(h.renders.at(-1).progress, h.progress);
+  h.selected.referenceMode = 'slot';
+  h.selected.saveSlot = h.old.name;
+  c.resetPlanningViews();
+  c.referenceSaveName = undefined;
+  await c.showDatabaseDetail('skill-100');
+  assert.equal(h.renders.at(-1).reference, h.old);
+  assert.equal(h.renders.at(-1).progress, null);
 });

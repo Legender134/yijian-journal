@@ -327,6 +327,54 @@ const pulse = () => {
     );
     await small.screenshot({ animations: 'disabled', path: path.join(output, 'live-codex-cleared.png') });
     await small.keyboard.press('Escape');
+    await small.locator('.compact-title [data-action="search"]').click();
+    await small.locator('#global-search').fill('武当剑法');
+    await small.locator('.search-result[data-id="skill-100"]').click();
+    await small.locator('.skill-teachers > summary').click();
+    if (await small.locator('.skill-teachers details > summary').count())
+      await small.locator('.skill-teachers details > summary').click();
+    const teacher = small.locator('.skill-teachers .codex-source-row').filter({
+      has: small.locator('[data-id="npc-10016"]'),
+    });
+    assert.equal(
+      await small
+        .locator('.skill-teachers .codex-source-row [data-action="database-detail"]')
+        .first()
+        .getAttribute('data-id'),
+      'npc-10016',
+    );
+    assert.match(await teacher.innerText(), /可请教/);
+    publish([], {
+      npcs: [
+        liveNpc(0, { skills: [{ id: 850, level: 1 }] }),
+        liveNpc(10016, { rawFriendliness: 20, skills: [{ id: 100, level: 10 }] }),
+      ],
+    });
+    pulse();
+    await small.waitForFunction(() =>
+      [...document.querySelectorAll('.skill-teachers .codex-source-row')].some(
+        (row) => row.querySelector('[data-id="npc-10016"]') && row.textContent.includes('条件未满足'),
+      ),
+    );
+    await small.screenshot({
+      animations: 'disabled',
+      path: path.join(output, 'live-skill-teacher-gate.png'),
+    });
+    currentObservation = null;
+    pulse();
+    await small.waitForFunction(() =>
+      document.querySelector('.skill-teachers > summary')?.textContent.includes('保存时状态'),
+    );
+    await small.locator('#overlay .flow-state-notice').waitFor();
+    publish([]);
+    pulse();
+    await small.waitForFunction(() =>
+      [...document.querySelectorAll('.skill-teachers .codex-source-row')].some(
+        (row) => row.querySelector('[data-id="npc-10016"]') && row.textContent.includes('可请教'),
+      ),
+    );
+    assert.doesNotMatch(await small.locator('.skill-teachers > summary').innerText(), /保存时状态/);
+    await small.keyboard.press('Escape');
     await search.fill('卫霍');
     await small.locator('[data-action="npc-progress-tab"][data-id="remaining"]').click();
     await small

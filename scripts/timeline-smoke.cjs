@@ -106,7 +106,12 @@ let app;
       await win.locator('#list-search').fill(e.name);
       const card = win.locator(`.database-card[data-id="${e.id}"]`);
       await card.waitFor();
-      assert.equal(await card.locator('h3 .quality-text').evaluate((e) => getComputedStyle(e).color), color);
+      assert.equal(
+        await card
+          .locator('.codex-result-copy > strong .quality-text')
+          .evaluate((e) => getComputedStyle(e).color),
+        color,
+      );
       assert.equal(
         await card.locator('.game-picture').evaluate((e) => getComputedStyle(e).borderTopColor),
         color,
@@ -123,7 +128,7 @@ let app;
     await win.screenshot({ path: path.join(base, 'test-results', 'quality-colored-items.png') });
     await win.locator('[data-action="database-kind"][data-id="人物"]').click();
     await win.locator('#list-search').fill('卫霍');
-    assert.equal(await win.locator('.database-card h3 .quality-text').count(), 0);
+    assert.equal(await win.locator('.database-card .codex-result-copy > strong .quality-text').count(), 0);
     assert.equal(sha(fs.readFileSync(path.join(source, '29.sav'))), before);
     const backups = new Saves(path.join(data, 'save-backups'));
     assert.equal(backups.list().length, 1, 'native waiting retains one full automatic copy');

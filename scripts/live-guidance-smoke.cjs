@@ -480,9 +480,10 @@ const pulse = () =>
       await assertExposed();
       assert.equal(await surface.locator('.live-choice-dock').count(), 1);
       await surface.locator('#overlay [data-action="close-overlay"]').first().click();
-      await surface
-        .locator(index ? '.companion-tabs [data-id="world"]' : '.sidebar-nav [data-id="world"]')
-        .click();
+      if (index) {
+        await surface.locator('.companion-tabs [data-id="database"]').click();
+        await surface.locator('[data-action="database-kind"][data-id="地点"]').click();
+      } else await surface.locator('.sidebar-nav [data-id="world"]').click();
       if (await surface.locator('[data-action="world-kind"][data-id="places"]').count())
         await surface.locator('[data-action="world-kind"][data-id="places"]').click();
       await surface.locator('.place-map-pin[aria-label="查看梧桐村"]').click();

@@ -151,3 +151,15 @@ NPC头像资源名、地图名与解锁头像数组均经 `FObjectAndNameAsStrin
 载入忙碌与 pending 检查先于状态 ready 和读档完成回执。发起读档后即使玩家对象已切换，原生忙碌或 pending 尚未清除也不能回报完成。赠礼的满好感分支单独阻止继续送礼；境界限制是对方高出玩家两阶，不能用绝对差值代替方向判断。
 
 `live-choice-contracts.json` 记录15个真实选项窗口与12条流程规则的映射，验证完整原生按钮组；不从攻略标签反推选项。陈麟熙的对话实际是好言相劝(+10)／义正辞严(-10)，后续共饮节点12094才按当时有效好感≥70分支；高好感取胜分支让人物离场并使进行中的11272线索失败。动态提醒核对同次人物与任务状态，后续赠礼仍可能改变判断。原始资源和研究缓存不提交。新增 Lua、帧校验、流程与GUI验证全部使用合成对象、通道和存档，不运行或附加实际游戏。
+
+## 图鉴奖励、选择与武学详情
+
+`scripts/build-codex-details.cjs` 从 Build 21798996 的 Quests 与 Skills 静态表生成 `src/data/codex-details.json`。输入分别是按已发布任务 ID 选择的 UAssetAPI 属性数组和 Skills 的 UAssetAPI JSON；脚本校验输入 SHA-256，再按 ID、名称、任务父级匹配现有索引。任务表有一个 ID 同时用于未命名内部行，不能仅按 ID 取最后一行。生成结果不含本机路径、玩家状态或原始全表。
+
+```text
+node scripts/build-codex-details.cjs <quest-properties.json> <Skills.json>
+```
+
+固定任务属性输入 SHA-256 为 `45303fedd1778387ecfc26ff842251ba83e2057f9dbe90c3803a074a44c131d1`，Skills JSON 为 `1ef5e9f6debaaab410d11b331ea3869ba09f6f90926ee079200df34523e29313`。原 Quests.uasset / .uexp 分别为 `ca4fb2762930e4473fa10301678874e9ebbe4d0ee97b4a193b6ae71badcf3e41` / `2d84daae1fc93fc6f098fd5897091704960581d305adffd2f42a26315a881a86`；Skills.uasset / .uexp 分别为 `fc7018b0b3644f5ffbbae6aea40bfefc3b7990abdcbba9d2ea4fa254936d0d81` / `a2fd448cc404f316f3013611b94b131e7489a7fad3d363153dbc670be2bd6c88`。来源许可沿用游戏数据说明，不当作项目原创代码授权。
+
+当前投影覆盖 490 个有已识别结果的任务或步骤，以及 276 项武学的各级属性动作。普通、困难、极难的完成动作分开保存；只有三组展示结果完全相同时才合并显示一次。选项要求及动作保留在各自选项下，不把互斥结果相加；物品反向获取链接同样保留难度和选项标签。只展示已识别的动作及精确关联实体，不推演尚未核实的全剧情结果。请教消耗与好感复用 `npc-interactions.json`；静态教师或秘籍关系是学习线索，只有现有人物状态明确满足时才显示“可请教”。材料采集与掉落复用既有 `material-guide.cjs`，保留可展开的来源与版本，不新增掉率或效率假设。

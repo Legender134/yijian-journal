@@ -1,4 +1,5 @@
 import { placeChoiceLabel } from './place-picker.js';
+import { createCodexDetailViews } from './codex-detail-views.js';
 import { placeEntityId } from './entity-catalog.js';
 import { compileSearch } from './search-query.js';
 import { taskMentions } from './task-mentions.js';
@@ -17,6 +18,7 @@ export function createWorldViews({
   taskRelations = () => '',
   placeMap = () => '',
 }) {
+  const codexDetails = createCodexDetailViews({ esc, act, richText });
   let cached, quests, people, maps, children, families;
   const labels = ['未开始', '进行中', '已失败', '未接取', '已完成'];
   function prepare(index) {
@@ -219,9 +221,16 @@ export function createWorldViews({
       : null;
     const targetNames = (ids) => ids.map((id) => npc(id, index)).join('、');
     const text = `<p class="preserve-text">${richText(q.description || '资料没有提供任务说明。')}</p>`;
-    return `<section class="drawer world-drawer" role="dialog" aria-modal="true" aria-label="任务资料"><div class="drawer-head"><span class="small muted">任务手册</span>${iconButton('close-overlay', 'close', '关闭任务资料')}</div><div class="drawer-body"><div class="tag-row">${pill(q.parentId ? '任务步骤' : q.kind === 'Primary' ? '主线' : '支线')}${pill(status(q, view))}</div><div class="game-detail-title">${picture(q.id, 'detail')}<h1>${esc(q.name.replace(/^【[^】]+】\s*/, ''))}</h1></div>${view.error ? notice(view.error) : ''}${parent ? `<div class="detail-block"><h3>所属任务</h3>${questLink(parent)}</div>` : ''}<details class="detail-block" ${showText ? 'open' : ''}><summary>任务说明 · 可能涉及剧情</summary>${text}</details>${q.requestNPCs?.length || q.finishNPCs?.length ? `<div class="detail-block"><h3>交互人物</h3>${q.requestNPCs?.length ? `<p>接取：${targetNames(q.requestNPCs)}</p>` : ''}${q.finishNPCs?.length ? `<p>完成：${targetNames(q.finishNPCs)}</p>` : ''}</div>` : ''}${taskRelations(index, q, view.reference)}${mentionLinks(index, q, showText)}${q.materials?.length ? `<div class="detail-block"><h3>任务所需物品</h3>${q.materials.map((m) => `<div class="material-row"><span>${act('database-detail', esc(m.name), 'text-btn', `item-${m.id}`)}</span><strong>需 ${m.count}</strong>${inventory ? pill(`库存 ${inventory.get(m.id) || 0} · 缺 ${Math.max(0, m.count - (inventory.get(m.id) || 0))}`, (inventory.get(m.id) || 0) >= m.count ? 'green' : 'orange') : pill('库存未读取')}${act('world-reserve-material', (reservations[m.id] || 0) >= m.count ? `已预留 ${reservations[m.id]} 件` : `为任务预留 ${m.count} 件`, 'btn', `${q.id}:${m.id}`)}</div>`).join('')}<p class="save-note">任务完成后自动释放预留。</p></div>` : ''}${q.requirements.length ? `<details class="detail-block"><summary>接取条件</summary>${requirementRows(q.requirements, index, view)}</details>` : ''}${q.placements.length ? `<details class="detail-block"><summary>关联地点</summary>${q.placements.map((p) => `<div class="world-rule"><span>${mapLink(p.mapKey)}</span><span>${npc(p.npcId, index)}${p.inHouse ? ' · 室内' : ''}</span><small class="muted">${p.interactionTarget ? '对应交互人物' : '任务事件中的场景布置'}</small></div>`).join('')}</details>` : ''}${
+    return `<section class="drawer world-drawer" role="dialog" aria-modal="true" aria-label="任务资料"><div class="drawer-head"><span class="small muted">任务手册</span>${iconButton('close-overlay', 'close', '关闭任务资料')}</div><div class="drawer-body"><div class="tag-row">${pill(q.parentId ? '任务步骤' : q.kind === 'Primary' ? '主线' : '支线')}${pill(status(q, view))}</div><div class="game-detail-title">${picture(q.id, 'detail')}<h1>${esc(q.name.replace(/^【[^】]+】\s*/, ''))}</h1></div>${view.error ? notice(view.error) : ''}${
+      group.some((c) => c.gameId !== q.gameId && saved.get(c.gameId)?.step === 1)
+        ? `<section class="detail-block codex-active-steps"><h3>当前步骤</h3>${group
+            .filter((c) => c.gameId !== q.gameId && saved.get(c.gameId)?.step === 1)
+            .map((c) => `<p>${questLink(c)}</p>`)
+            .join('')}</section>`
+        : ''
+    }${parent ? `<div class="detail-block"><h3>所属任务</h3>${questLink(parent)}</div>` : ''}<details class="detail-block" ${showText ? 'open' : ''}><summary>任务说明 · 可能涉及剧情</summary>${text}</details>${q.requestNPCs?.length || q.finishNPCs?.length ? `<div class="detail-block"><h3>交互人物</h3>${q.requestNPCs?.length ? `<p>接取：${targetNames(q.requestNPCs)}</p>` : ''}${q.finishNPCs?.length ? `<p>完成：${targetNames(q.finishNPCs)}</p>` : ''}</div>` : ''}${codexDetails.quest(index, q, view.reference)}${taskRelations(index, q, view.reference)}${mentionLinks(index, q, showText)}${q.materials?.length ? `<div class="detail-block"><h3>任务所需物品</h3>${q.materials.map((m) => `<div class="material-row"><span>${act('database-detail', esc(m.name), 'text-btn', `item-${m.id}`)}</span><strong>需 ${m.count}</strong>${inventory ? pill(`库存 ${inventory.get(m.id) || 0} · 缺 ${Math.max(0, m.count - (inventory.get(m.id) || 0))}`, (inventory.get(m.id) || 0) >= m.count ? 'green' : 'orange') : pill('库存未读取')}${act('world-reserve-material', (reservations[m.id] || 0) >= m.count ? `已预留 ${reservations[m.id]} 件` : `为任务预留 ${m.count} 件`, 'btn', `${q.id}:${m.id}`)}</div>`).join('')}<p class="save-note">任务完成后自动释放预留。</p></div>` : ''}${q.requirements.length ? `<details class="detail-block"><summary>接取条件</summary>${requirementRows(q.requirements, index, view)}</details>` : ''}${q.placements.length ? `<details class="detail-block"><summary>关联地点</summary>${q.placements.map((p) => `<div class="world-rule"><span>${mapLink(p.mapKey)}</span><span>${npc(p.npcId, index)}${p.inHouse ? ' · 室内' : ''}</span><small class="muted">${p.interactionTarget ? '对应交互人物' : '任务事件中的场景布置'}</small></div>`).join('')}</details>` : ''}${
       group.length > 1
-        ? `<details class="detail-block" open><summary>相关步骤 · ${group.length - 1}</summary><div class="world-steps">${group
+        ? `<details class="detail-block" data-persist-detail="quest-steps-${esc(q.id)}"><summary>相关步骤 · ${group.length - 1}</summary><div class="world-steps">${group
             .filter((c) => c !== q)
             .map(
               (c) =>

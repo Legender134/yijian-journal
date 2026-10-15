@@ -510,7 +510,7 @@ async function guideAndSearchHandoff(main, compact) {
     window.setBounds({ ...bounds, width: 900, height: 600 });
     return bounds;
   });
-  await compact.locator('.companion-tabs [data-action="search"]').click();
+  await compact.locator('.compact-title [data-action="search"]').click();
   await compact.locator('#global-search').fill('卫霍');
   await compact.locator('.search-result[data-action="detail"][data-id="wei-training"]').click();
   if (await compact.locator('[data-action="reveal"]').count())
@@ -558,7 +558,7 @@ async function guideAndSearchHandoff(main, compact) {
       .goals.filter((row) => row.title.startsWith('接续合成目标'));
   });
   assert.equal(created.length, 9);
-  await compact.locator('.companion-tabs [data-action="search"]').click();
+  await compact.locator('.compact-title [data-action="search"]').click();
   await compact.locator('#global-search').fill('接续合成目标');
   assert.equal(await compact.locator('.search-result[data-action="search-goal"]').count(), 8);
   await compact.locator('[data-action="search-personal-all"]').click();
@@ -826,7 +826,8 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="compact"]').first().click();
     const choiceCompact = await choiceWindowReady;
     await choiceCompact.waitForSelector('.compact-shell');
-    await choiceCompact.locator('.companion-tabs [data-id="materials"]').click();
+    await choiceCompact.locator('[data-action="companion-layout"]').click();
+    await choiceCompact.locator('[data-companion-layout] [data-id="materials"]').click();
     const taskMaterialText = (
       await choiceCompact.locator('[data-flow-task-materials] .flow-material').first().textContent()
     ).replace(/\s+/g, '');
@@ -909,7 +910,7 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="compact"]').first().click();
     await choiceCompact.locator('[data-action="close-overlay"]').first().click();
     await selectProgressReference(choiceCompact, '@none');
-    await choiceCompact.locator('.companion-tabs [data-action="search"]').click();
+    await choiceCompact.locator('.compact-title [data-action="search"]').click();
     await choiceCompact.locator('#global-search').fill('清虚道长');
     await choiceCompact.locator('.search-result[data-id="npc-5003"]').click();
     await assertSharedProgressUi(choiceCompact);
@@ -928,7 +929,7 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="compact"]').first().click();
     await choiceCompact.locator('[data-action="close-overlay"]').first().click();
     await guideAndSearchHandoff(win, choiceCompact);
-    await choiceCompact.locator('.companion-tabs [data-action="search"]').click();
+    await choiceCompact.locator('.compact-title [data-action="search"]').click();
     await choiceCompact.locator('#global-search').fill('金疮药');
     await choiceCompact.locator('.search-modal [data-action="main"]').click();
     await win.locator('#global-search').waitFor();
@@ -975,7 +976,7 @@ async function companionHomeInventorySync(page) {
     await choiceCompact.locator('[data-action="close-overlay"]').click();
     for (const sourceReference of ['1.sav', '@none']) {
       await selectProgressReference(choiceCompact, sourceReference);
-      await choiceCompact.locator('.companion-tabs [data-action="search"]').click();
+      await choiceCompact.locator('.compact-title [data-action="search"]').click();
       await choiceCompact.locator('#global-search').fill('水煮鱼');
       await choiceCompact.locator('[data-action="database-detail"][data-id="cooking-102"]').first().click();
       await assertSharedProgressUi(choiceCompact);
