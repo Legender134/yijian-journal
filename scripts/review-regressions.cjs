@@ -2309,6 +2309,9 @@ async function questReadingAndReservations() {
     await nav(win, 'world');
     await win.locator('#world-search').fill('采集半边莲');
     await win.locator('.world-quest-card[data-id="quest-5053"]').click();
+    const relatedSteps = win.locator('[data-persist-detail="quest-steps-quest-5053"]');
+    assert.equal(await relatedSteps.evaluate((e) => e.open), false);
+    await relatedSteps.locator(':scope > summary').click();
     await win.locator('.drawer .world-steps [data-action="world-quest"][data-id="quest-5057"]').click();
     assert.match(await win.locator('.drawer').innerText(), /库存 2 · 缺 3/);
     await win.locator('[data-action="world-reserve-material"][data-id="quest-5057:10016"]').click();

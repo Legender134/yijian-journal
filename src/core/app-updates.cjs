@@ -3,7 +3,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const https = require('node:https');
 const crypto = require('node:crypto');
-const { TextDecoder } = require('node:util');
+const { TextDecoder, promisify } = require('node:util');
+// Keep valid Windows 8.3 aliases while still resolving parent symlinks.
+// promises.realpath expands short names, which are not redirected directories.
+const realpath = promisify(fs.realpath);
 const channel = require('../data/update-channel.json');
 
 const MANIFEST_URL = 'https://data.riftbuddy.dpdns.org/yijian-journal/latest.json';
@@ -390,11 +393,7 @@ class UpdateService {
     for (;;) {
       try {
         const stat = await fs.promises.lstat(existing);
-        if (
-          !stat.isDirectory() ||
-          stat.isSymbolicLink() ||
-          !samePath(await fs.promises.realpath(existing), existing)
-        )
+        if (!stat.isDirectory() || stat.isSymbolicLink() || !samePath(await realpath(existing), existing))
           fail('unsafe-cache', '更新缓存目录不安全');
         break;
       } catch (error) {
@@ -408,7 +407,7 @@ class UpdateService {
     if (
       !stat.isDirectory() ||
       stat.isSymbolicLink() ||
-      !samePath(await fs.promises.realpath(this.cacheDir), this.cacheDir)
+      !samePath(await realpath(this.cacheDir), this.cacheDir)
     )
       fail('unsafe-cache', '更新缓存目录不安全');
   }

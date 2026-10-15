@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { execFileSync } = require('node:child_process');
 const { Readable, PassThrough } = require('node:stream');
 const { UpdateService, verifyManifest, compareVersions } = require('../src/core/app-updates.cjs');
 const channel = require('../src/data/update-channel.json');
@@ -509,3 +510,56 @@ test('a redirected cache directory never writes into its symlink target', async 
   await assert.rejects(service.download(), assertCode('unsafe-cache'));
   assert.deepEqual(fs.readdirSync(outside), []);
 });
+
+test(
+  'Windows short-name cache paths support download and cached verification',
+  { skip: process.platform !== 'win32' },
+  async (t) => {
+    const { service, dir } = fixture(t);
+    const short = execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:YIJIAN_METADATA_PATH).ShortPath',
+      ],
+      {
+        encoding: 'utf8',
+        windowsHide: true,
+        env: { ...process.env, YIJIAN_METADATA_PATH: dir },
+      },
+    ).trim();
+    if (!short.includes('~')) return t.skip('8.3 names are disabled on this volume');
+    service.cacheDir = path.join(short, 'updates');
+    await service.check();
+    await service.download();
+    assert.deepEqual(
+      fs.readFileSync(path.join(dir, 'updates', 'YijianJournal-1.20.0-windows-x64.zip')),
+      archive,
+    );
+    assert.equal((await service.check()).phase, 'ready');
+    assert.equal((await service.readyPackage()).manifest.version, '1.20.0');
+  },
+);
+
+for (const existingCache of [false, true]) {
+  test(`a redirected ancestor rejects ${existingCache ? 'existing' : 'missing'} cache directories`, async (t) => {
+    const { service, dir } = fixture(t);
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'yijian-update-outside-'));
+    t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+    const link = path.join(dir, 'redirected-parent');
+    if (existingCache) fs.mkdirSync(path.join(outside, 'updates'));
+    try {
+      fs.symlinkSync(outside, link, process.platform === 'win32' ? 'junction' : 'dir');
+    } catch (error) {
+      if (error.code === 'EPERM') return t.skip('symlink privilege unavailable');
+      throw error;
+    }
+    service.cacheDir = existingCache ? path.join(link, 'updates') : path.join(link, 'missing', 'updates');
+    await service.check();
+    await assert.rejects(service.download(), assertCode('unsafe-cache'));
+    assert.deepEqual(fs.readdirSync(outside), existingCache ? ['updates'] : []);
+    if (existingCache) assert.deepEqual(fs.readdirSync(path.join(outside, 'updates')), []);
+  });
+}

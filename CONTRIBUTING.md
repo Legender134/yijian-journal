@@ -72,7 +72,7 @@ pnpm release:zip
 
 输出位于 `dist/v<package.json中的version>/`。`package` 会检查包内文件与源码一致，`test:package` 测试该目录中的 exe，`release:zip` 生成 ZIP 和 `SHA256SUMS.txt`。既有目录与 ZIP 不会覆盖；正式新版本应先更新版本号和说明，不要删除玩家数据来重打包。
 
-`main` 是持续开发分支。下载包以对应 release tag 为准，`v1.10.10` 保留首次公开版本的源码；后续开发文档和工具补充不改写该下载包。
+`main` 是持续开发分支，下载包对应发布标签。发布前核对源码、安装包与说明一致；更新服务器的发布流程见 [更新服务](docs/updates.md)，对外截图与视频的重建方式见 [宣传素材](docs/promotion.md)。
 
 ## 资料、图标和游戏版本维护
 

@@ -1875,7 +1875,9 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="close-overlay"]').click();
     await win.locator('.nav-btn[data-id="settings"]').click();
     await win.locator('[data-action="help"]').click();
-    assert.ok((await win.locator('.help-copy').innerText()).includes('读取范围'));
+    const helpCopy = await win.locator('.help-copy').innerText();
+    assert.ok(helpCopy.includes('流程任务'));
+    assert.ok(helpCopy.includes('恢复完整备份前必须退出游戏'));
     await win.locator('[data-action="close-overlay"]').click();
     await win.screenshot({ animations: 'disabled', path: path.join(results, '04-settings.png') });
     await win.locator('[data-action="compact"]').first().click();
