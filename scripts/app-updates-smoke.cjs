@@ -67,6 +67,17 @@ async function phase(page, expected) {
     expected,
   );
 }
+async function companionBadge(page, title) {
+  const badge = page.locator('.compact-foot [data-action="updates"]');
+  await badge.waitFor({ state: 'visible' });
+  assert.equal(await badge.innerText(), title);
+}
+async function showCompanionUpdate(update) {
+  await app.evaluate(({ BrowserWindow }, updates) => {
+    const compact = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact'));
+    compact.webContents.send('journal:event', { type: 'app-update', updates });
+  }, update);
+}
 async function screenshot(page, name) {
   const encoded = await app.evaluate(
     async ({ BrowserWindow }, id) => {
@@ -125,6 +136,37 @@ async function screenshot(page, name) {
       const window = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact'));
       window.setBounds({ x: 100, y: 100, width: 360, height: 660 });
     });
+    assert.equal(
+      await small.locator('.compact-foot .save-health').count(),
+      0,
+      'ordinary companion state has no save warning',
+    );
+    const cachedUpdate = (await small.evaluate(() => window.journal.bootstrap())).data.environment.updates;
+    await companionBadge(small, '更新已就绪');
+    // Exercise the renderer event path for transient phases without slowing the
+    // local signed-download fixture or sending any external network requests.
+    for (const route of ['duels', 'database', 'saves', 'home']) {
+      await small.locator('.companion-tabs [data-id="' + route + '"]').click();
+      await small.locator('.companion-tabs [data-id="' + route + '"][aria-current="page"]').waitFor();
+      assert.equal(await small.locator('.compact-foot .save-health').count(), 0);
+      for (const [update, title] of [
+        [{ ...cachedUpdate, phase: 'available' }, '有新版'],
+        [{ ...cachedUpdate, phase: 'downloading', progress: 42 }, '下载 42%'],
+        [{ ...cachedUpdate, installFailed: true }, '更新未完成'],
+        [cachedUpdate, '更新已就绪'],
+      ]) {
+        await showCompanionUpdate(update);
+        await companionBadge(small, title);
+      }
+      await showCompanionUpdate({ phase: 'current', currentVersion: version });
+      await small.locator('.compact-foot').waitFor({ state: 'hidden' });
+      await showCompanionUpdate(cachedUpdate);
+      await companionBadge(small, '更新已就绪');
+    }
+    await screenshot(small, 'app-updates-companion-badge-360.png');
+    await small.locator('.compact-foot [data-action="updates"]').click();
+    await small.getByRole('dialog', { name: '软件更新' }).locator('[data-action="update-install"]').waitFor();
+    await small.keyboard.press('Escape');
     await small.locator('[data-action="companion-layout"]').click();
     await small.getByRole('dialog').locator('[data-action="updates"]').click();
     const smallDialog = small.getByRole('dialog', { name: '软件更新' });
@@ -162,6 +204,17 @@ async function screenshot(page, name) {
     await win.getByRole('dialog').locator('[data-action="update-check"]').click();
     await phase(win, 'ready');
     await win.getByRole('dialog').getByText('检查暂不可用，已下载更新可安装', { exact: true }).waitFor();
+    const failedWindow = app.waitForEvent('window');
+    await win.keyboard.press('Escape');
+    await win.locator('.topbar [data-action="compact"]').click();
+    const failedCompanion = await failedWindow;
+    await failedCompanion.locator('.compact-shell').waitFor();
+    await companionBadge(failedCompanion, '更新未完成');
+    await failedCompanion.locator('.compact-foot [data-action="updates"]').click();
+    await failedCompanion
+      .getByRole('dialog', { name: '软件更新' })
+      .locator('[data-action="update-install"]')
+      .waitFor();
     assert.deepEqual(errors, []);
     assert.deepEqual(external, []);
     console.log(
