@@ -133,3 +133,39 @@ test('unified codex browses quests and scenes, keeps every search result and dis
     'child instructions remain in task detail unless searched or requested',
   );
 });
+
+test('codex searches share canonical identities and task status across every page', async () => {
+  const { createGameViews, codexEntries } = await import('../src/renderer/game-views.js');
+  const { compileSearch, compareSearchTitles } = await import('../src/renderer/search-query.js');
+  const index = encyclopedia(),
+    view = createGameViews(helpers);
+  const statuses = new Map([
+    [5200, '进行中'],
+    [5201, '已完成'],
+  ]);
+  const entries = codexEntries(index, statuses);
+  assert.equal(new Set(entries.map((e) => e.id)).size, entries.length);
+  for (const query of ['剑', '种类:任务 状态:进行中', '种类:任务 类型:主线', '种类:地点 洛村']) {
+    const expected = entries.filter(compileSearch(query)).sort(compareSearchTitles(query));
+    assert(expected.length, query);
+    const ids = [];
+    for (let page = 0; page < Math.ceil(expected.length / 24); page++) {
+      const html = view.page(index, query, '全部', '全部', page, statuses);
+      assert(html.includes(`role="status">${expected.length} 项`), query);
+      ids.push(
+        ...[
+          ...html.matchAll(/class="database-card codex-result" data-action="[^"]+" data-id="([^"]+)"/g),
+        ].map((match) => match[1]),
+      );
+    }
+    assert.deepEqual(
+      ids,
+      expected.map((e) => e.id),
+      query,
+    );
+  }
+  assert.deepEqual(
+    entries.filter(compileSearch('种类:任务 状态:进行中')).map((e) => e.id),
+    ['quest-5200'],
+  );
+});

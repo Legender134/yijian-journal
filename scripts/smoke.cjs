@@ -1895,6 +1895,11 @@ async function companionHomeInventorySync(page) {
     await quick.keyboard.press('Escape');
     assert.equal(await quick.locator('.drawer').count(), 0);
     await quick.locator('.companion-tabs [data-action="navigate"][data-id="saves"]').click();
+    await quick.locator('[data-persist-detail="compact-backups"]').waitFor();
+    assert.equal(await quick.locator('[data-action="backup"]').isVisible(), true);
+    const unusedTimeline = quick.locator('[data-persist-detail="unused-timeline"]');
+    assert.equal(await unusedTimeline.evaluate((el) => el.open), false);
+    await unusedTimeline.locator(':scope > summary').click();
     await quick.locator('.timeline-card').first().waitFor();
     await quick.screenshot({ animations: 'disabled', path: path.join(results, '05-compact-history.png') });
     await quick.locator('[data-action="navigate"][data-id="home"]').click();

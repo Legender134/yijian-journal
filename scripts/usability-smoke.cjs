@@ -330,13 +330,16 @@ async function shot(name) {
     await win.keyboard.press('Control+k');
     await win.locator('#global-search').fill('剑');
     const searchSource = fs.readFileSync(path.join(base, 'src/renderer/search-query.js'), 'utf8');
-    const { compileSearch } = await import(
+    const { compileSearch, compareSearchTitles } = await import(
       'data:text/javascript;base64,' + Buffer.from(searchSource).toString('base64')
     );
-    const matches = index.entries.filter(compileSearch('剑'));
+    const { codexEntries } = await import(
+      require('node:url').pathToFileURL(path.join(base, 'src/renderer/game-views.js')).href
+    );
+    const matches = codexEntries(index).filter(compileSearch('剑')).sort(compareSearchTitles('剑'));
     assert.equal(
       await win.locator('[data-action="search-all"][data-id="database"]').innerText(),
-      `百物图鉴 ${matches.length} 项 · 查看全部`,
+      `全部图鉴 ${matches.length} 项 · 查看全部`,
     );
     await shot('search-all');
     await win.locator('[data-action="search-all"][data-id="database"]').click();
@@ -346,7 +349,7 @@ async function shot(name) {
     for (let page = 0; page < pages; page++) {
       await win.waitForFunction(
         ({ current, total }) =>
-          document.querySelector('.pagination')?.textContent.includes(`第 ${current} / ${total} 页`),
+          document.querySelector('.pagination')?.textContent.includes(`${current} / ${total}`),
         { current: page + 1, total: pages },
       );
       reachable.push(

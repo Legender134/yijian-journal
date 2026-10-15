@@ -127,7 +127,7 @@ async function catalogueNameOrder() {
     assert.equal(await firstId(), 'fusion-9500');
     const ids = [];
     for (let page = 0; page < 5; page++) {
-      assert.match(await win.locator('.pagination').innerText(), new RegExp(`第 ${page + 1} / 5 页`));
+      assert.match(await win.locator('.pagination').innerText(), new RegExp(`${page + 1} / 5`));
       ids.push(
         ...(await win.locator('.database-card').evaluateAll((nodes) => nodes.map((n) => n.dataset.id))),
       );

@@ -6,7 +6,7 @@ import {
   insertSearchFilter,
 } from './search-query.js';
 import { createSearchHelpViews } from './search-help-views.js';
-import { createGameViews } from './game-views.js';
+import { createGameViews, codexEntries } from './game-views.js';
 import { createComparisonViews } from './comparison-views.js';
 import { createWorldViews } from './world-views.js';
 import { createPlaceMapViews } from './place-map-views.js';
@@ -2309,7 +2309,7 @@ async function readComparison() {
   }
 }
 function databaseView() {
-  return gameViews.page(gameIndex, query, databaseKind, databaseType, databasePage);
+  return gameViews.page(gameIndex, query, databaseKind, databaseType, databasePage, searchQuestStatuses());
 }
 async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference = null, opener = null) {
   const sameDrawer = currentDrawer?.type === 'database' && currentDrawer.id === id;
@@ -4054,37 +4054,18 @@ function showSearchResults(value) {
       glyph: kindIcon(e.kind),
       group: 'guides',
     })),
-    ...gameIndex.entries.map((e) => ({
+    ...codexEntries(gameIndex, statuses).map((e) => ({
       ...e,
       quality: qualityText.quality(e),
       title: e.name,
       sub:
         entityReferences.variantSummary(e.id) ||
         [e.kind, e.type === '人物资料' ? '' : e.type].filter(Boolean).join(' · '),
-      action: 'database-detail',
-      glyph: { 物品: 'bag', 武学: 'sword', 人物: 'person', 配方: 'scroll' }[e.kind],
-      group: 'database',
-    })),
-    ...gameIndex.world.quests.map((e) => ({
-      ...e,
-      kind: '任务',
-      title: e.name,
-      status: statuses.get(e.gameId) || '待核对',
-      sub: '任务',
-      action: 'world-quest',
-      glyph: 'scroll',
-      group: 'quests',
-    })),
-    ...gameIndex.world.maps.map((e) => ({
-      ...e,
-      id: placeEntityId(e, gameIndex.world.maps),
-      kind: '地点',
-      title: e.name,
-      sub:
-        entityReferences.variantSummary(placeEntityId(e, gameIndex.world.maps)) || (e.cave ? '洞穴' : '地点'),
-      action: 'world-place',
-      glyph: 'map',
-      group: 'places',
+      action: e.kind === '任务' ? 'world-quest' : e.kind === '地点' ? 'world-place' : 'database-detail',
+      glyph: { 物品: 'bag', 武学: 'sword', 人物: 'person', 配方: 'scroll', 任务: 'scroll', 地点: 'map' }[
+        e.kind
+      ],
+      group: e.kind === '任务' ? 'quests' : e.kind === '地点' ? 'places' : 'database',
     })),
     ...profile().goals.map((g) => {
       const status = goalDone(g) ? '已完成' : '未完成',
@@ -4252,13 +4233,15 @@ function showSearchResults(value) {
       [
         ['records', '江湖记录'],
         ['guides', '精选线索'],
-        ['database', '百物图鉴'],
+        ['database', '全部图鉴'],
         ['quests', '任务'],
         ['places', '地点'],
       ]
         .filter(() => q)
         .map(([id, label]) => {
-          const count = all.filter((d) => d.group === id).length;
+          const count = all.filter((d) =>
+            id === 'database' ? ['database', 'quests', 'places'].includes(d.group) : d.group === id,
+          ).length;
           return count
             ? '<button class="text-btn" data-action="search-all" data-id="' +
                 id +

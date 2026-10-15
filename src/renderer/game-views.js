@@ -4,6 +4,21 @@ import { compileSearch, compareSearchTitles } from './search-query.js';
 import { createItemStatViews, itemNumericSummary } from './item-stat-views.js';
 import { createNpcFactViews } from './npc-fact-views.js';
 import { createNpcProgressViews } from './npc-progress-views.js';
+export function codexEntries(index, statuses = new Map()) {
+  const kinds = new Map((index.world?.quests || []).map((q) => [q.id, q.kind]));
+  return [...entityCatalog(index).entries.values()].map((e) =>
+    e.kind === '任务'
+      ? {
+          ...e,
+          type: e.parentId ? '任务步骤' : kinds.get(e.id) === 'Primary' ? '主线' : '支线',
+          status: statuses.get(e.gameId) || '待核对',
+        }
+      : e.kind === '地点'
+        ? { ...e, type: e.cave ? '洞窟' : '地点' }
+        : e,
+  );
+}
+
 // Rendering helpers for the local game index. All game strings remain plain text.
 export function createGameViews({
   esc,
@@ -34,22 +49,9 @@ export function createGameViews({
     const ids = new Set(quests.map((q) => q.id));
     return quests.filter((q) => !q.parentId || !ids.has(q.parentId));
   }
-  function page(index, query, kind, type, pageNumber) {
+  function page(index, query, kind, type, pageNumber, statuses = new Map()) {
     const categories = ['全部', '任务', '人物', '物品', '武学', '配方', '地点'];
-    const entities = [...entityCatalog(index).entries.values()].map((e) =>
-      e.kind === '任务'
-        ? {
-            ...e,
-            type: e.parentId
-              ? '任务步骤'
-              : index.world.quests.find((q) => q.id === e.id)?.kind === 'Primary'
-                ? '主线'
-                : '支线',
-          }
-        : e.kind === '地点'
-          ? { ...e, type: e.cave ? '洞窟' : '地点' }
-          : e,
-    );
+    const entities = codexEntries(index, statuses);
     const all = entities.filter(
       (e) =>
         (kind === '全部' || e.kind === kind) &&

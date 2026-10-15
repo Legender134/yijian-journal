@@ -439,10 +439,32 @@ const shot = async (name) => {
     await small.locator('#global-search').fill('剑');
     await small.locator('[data-action="search-all"][data-id="database"]').click();
     await small.locator('.codex-browser .database-card').first().waitFor();
+    const { codexEntries } = await import(
+      require('node:url').pathToFileURL(path.join(base, 'src/renderer/game-views.js')).href
+    );
+    const { compileSearch } = await import(
+      require('node:url').pathToFileURL(path.join(base, 'src/renderer/search-query.js')).href
+    );
+    assert.equal(
+      await small.locator('.codex-result-count').innerText(),
+      `${codexEntries(index).filter(compileSearch('剑')).length} 项`,
+    );
     assert.equal(await small.locator('#list-search').inputValue(), '剑');
     await small.locator('[data-action="database-page"][data-id="1"]').click();
     await small.locator('.pagination').filter({ hasText: '2 /' }).waitFor();
     await compactShot('codex-companion-list-360', 360);
+    await small.locator('.compact-title [data-action="search"]').click();
+    await small.locator('#global-search').fill('种类:任务 状态:进行中');
+    const activeTasks = small.locator('[data-action="search-all"][data-id="database"]');
+    await activeTasks.waitFor();
+    const activeCount = Number((await activeTasks.innerText()).match(/(\d+) 项/)[1]);
+    assert(activeCount > 0);
+    await activeTasks.click();
+    assert.equal(await small.locator('.codex-result-count').innerText(), `${activeCount} 项`);
+    assert.equal(
+      await small.locator('.database-card[data-action="world-quest"]').count(),
+      Math.min(activeCount, 24),
+    );
     await small.locator('[data-action="database-kind"][data-id="任务"]').click();
     await small.locator('#list-search').fill('养生秘术');
     await small.locator('.database-card[data-id="quest-11077"]').click();
