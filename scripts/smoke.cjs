@@ -1128,6 +1128,11 @@ async function companionHomeInventorySync(page) {
     await choiceCompact.locator('.flow-task-peek').evaluate((el) => {
       el.open = false;
     });
+    // Earlier reading checks deliberately open disclosures. Measure the default
+    // first screen with the individual risk explanations folded again.
+    await compactRisk.locator('.flow-risk-window').evaluateAll((windows) => {
+      for (const window of windows) window.open = false;
+    });
     assert.equal(
       await choiceCompact.locator('[data-flow-now] > .flow-next-action').isVisible(),
       false,
