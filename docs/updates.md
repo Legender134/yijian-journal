@@ -1,0 +1,21 @@
+# 软件更新
+
+Windows 安装版启动时默认检查一次更新，只请求小型版本清单。设置 → 软件更新和随行 → 布局与显示 → 软件更新均可手动检查。发现新版时显示简短入口，点击后才下载；下载完成后选择“重启并更新”。退出前继续执行现有草稿保存与存读档收尾，取消退出会保留已下载的更新。
+
+更新安装至 `%LOCALAPPDATA%\Programs\YijianJournal\版本号`，更新桌面、开始菜单和存档守护入口。个人手札、设置与备份继续使用原数据目录。旧安装目录保留用于恢复，服务器仅保留最新版。首次使用不需要填写服务器地址；离线时原有功能正常工作。可在设置关闭启动检查。
+
+## 发布
+
+固定入口：`https://data.riftbuddy.dpdns.org/yijian-journal/latest.json`。
+
+清单使用 Ed25519 签名，客户端内置公钥位于 `src/data/update-channel.json`。私钥只保存在发布者本机，不能放入仓库、安装包或服务器。客户端拒绝异源、重定向、非 HTTPS、无效签名、旧版本、大小或 SHA-256 不符的下载。
+
+每次发布先提高版本号并完成 `pnpm test`、`pnpm smoke`、三个独立审查，再运行 `pnpm package`、完整的 `pnpm test:package` 和 `pnpm release:zip`。检查确切差异和归档后，准备最多 8 条简短中文更新说明的 JSON 数组：
+
+```powershell
+node scripts/publish-update.cjs --host rift-buddy-data --ssh-config <本机SSH配置> --key-file <本机发布私钥> --notes-file <更新说明JSON>
+```
+
+发布脚本要求同一安装包的全部正式回归通过且无复用记录，重新审计包内容后生成签名清单。上传暂存于 `/srv/yijian-journal/.incoming-随机标识`，服务器复核大小、SHA-256、应用和版本后先激活 ZIP，再原子替换 `latest.json`。成功后只清理本目录内旧的 `YijianJournal-版本-windows-x64.zip` 和本次暂存；不同内容不能覆盖已经发布的同版本。上传或校验失败保持原入口；切换后清理失败会报错，应核对当前清单并清理残留旧包。长期仅保留最新版 ZIP、清单和一个零字节发布锁，不部署源码、依赖或构建缓存。
+
+通过现有 Caddy 服务提供只读 GET/HEAD；配置中的 `/yijian-journal/*` 使用独立根目录，其他服务路由保持原样。HTTPS 证书所需的 80/443 端口和 SSH 管理范围分别管理。更新功能没有遥测、账户或个人存档上传。

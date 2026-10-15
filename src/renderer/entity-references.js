@@ -162,14 +162,10 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
         if (place && !variant) lines.push('行走场景：' + place.name);
       }
     } else if (e.kind === '任务') {
-      const state = context.statuses?.get(e.id) || questStatus(e.gameId, context.reference);
-      lines.push(state);
+      const status = (task) => context.statuses?.get(task.id) || questStatus(task.gameId, context.reference);
+      lines.push(status(e));
       const relation = catalog().taskRelations(e);
-      const active = relation.group.find(
-        (step) =>
-          step.id !== e.id &&
-          (context.statuses?.get(step.id) || questStatus(step.gameId, context.reference)) === '进行中',
-      );
+      const active = relation.group.find((step) => step.id !== e.id && catalog().isActiveQuest(step, status));
       if (context.nextStep || active) lines.push('下一步：' + (context.nextStep || active.name));
       else if (e.parentId && e.description) lines.push(String(e.description).slice(0, 100));
       const people = relation.people.filter((row) =>

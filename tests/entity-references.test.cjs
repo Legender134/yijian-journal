@@ -79,7 +79,13 @@ test('NPC previews use their exact saved or live cohort across catalogue, flow a
     call: async (_method, name) => (name === empty.name ? empty : remaining),
   };
   const context = require('node:vm').runInNewContext(
-    '(' + source.slice(at + '  context: '.length, end + 4) + ')',
+    source.slice(
+      source.indexOf('function followsLiveWorld()'),
+      source.indexOf('async function showWorldDetail('),
+    ) +
+      '\n(' +
+      source.slice(at + '  context: '.length, end + 4) +
+      ')',
     state,
   );
   const target = { dataset: { action: 'database-detail', id: 'npc-10038' }, closest: () => null };
@@ -100,6 +106,7 @@ test('NPC previews use their exact saved or live cohort across catalogue, flow a
   assert.match(await preview(), /私物已清空/, 'flow previews use the exact verified saved hash');
   target.closest = () => null;
   state.defaultFollow = () => true;
+  state.referenceFollow = true;
   state.defaultReference = () => remaining.name;
   state.currentFlow = () => ({ reference: remaining, liveReference: null });
   assert.match(await preview(), /私物还剩 1 种/, 'after live withdrawal the latest saved bag is used');
@@ -109,6 +116,7 @@ test('NPC previews use their exact saved or live cohort across catalogue, flow a
   });
   assert.match(await preview(), /私物已清空/, 'an explicit live cohort takes priority over saved state');
   state.defaultFollow = () => false;
+  state.referenceFollow = false;
   state.defaultReference = () => '';
   assert.doesNotMatch(await preview(), /私物已清空|私物还剩/, 'lookup-only mode cannot borrow either cohort');
   assert.match(await preview(), /固定私物/);

@@ -203,3 +203,230 @@ test('initial NPC previews and the related-task list retain the live cohort thro
   assert.equal(ctx.worldView.liveContext, false, 'a queued live list handoff rechecks current Settings');
   assert.equal(ctx.worldView.reference, null);
 });
+
+async function codexLiveHarness() {
+  const { createWorldViews } = await import('../src/renderer/world-views.js');
+  const index = encyclopedia();
+  const saved = {
+    name: '1.sav',
+    hash: 'a'.repeat(64),
+    metadata: { quests: [{ id: 12090, step: 1, status: '进行中' }] },
+  };
+  const older = {
+    name: '2.sav',
+    hash: 'b'.repeat(64),
+    metadata: { quests: [{ id: 12090, step: 2, status: '已失败' }] },
+  };
+  const live = {
+    origin: 'live',
+    key: 'cohort-codex-1',
+    metadata: {
+      quests: [
+        { id: 12090, step: 4 },
+        { id: 12094, step: 1 },
+      ],
+    },
+  };
+  const selected = { id: 'synthetic', referenceMode: 'latest', saveSlot: older.name, allocations: [] };
+  let flow = { reference: { ...saved, origin: 'live' }, liveReference: live };
+  const reads = [];
+  const helpers = {
+    esc: String,
+    act: () => '',
+    icon: () => '',
+    iconButton: () => '',
+    pill: String,
+    notice: String,
+    empty: String,
+    picture: () => '',
+  };
+  const ctx = {
+    ...helpers,
+    currentDrawer: null,
+    route: 'database',
+    worldView: {},
+    referenceSaveName: undefined,
+    referenceFollow: true,
+    referenceSave: null,
+    selectedSave: null,
+    worldRequest: 0,
+    detailRequest: 0,
+    handbookRequest: 0,
+    state: { settings: { spoiler: 'hints' } },
+    gameIndex: index,
+    environment: { saves: { files: [saved, older] } },
+    profile: () => selected,
+    currentFlow: () => flow,
+    defaultFollow: () => selected.referenceMode === 'latest',
+    defaultReference: () =>
+      selected.referenceMode === 'none'
+        ? ''
+        : selected.referenceMode === 'slot'
+          ? selected.saveSlot
+          : saved.name,
+    latestReference: () => saved.name,
+    render() {},
+    showOverlay(html) {
+      ctx.html = html;
+    },
+    rememberDrawer(view) {
+      ctx.currentDrawer = view;
+    },
+    closeOverlay() {
+      ctx.currentDrawer = null;
+    },
+    call: async (method, name) => {
+      assert.equal(method, 'saveDetails');
+      reads.push(name);
+      return [saved, older].find((row) => row.name === name) || null;
+    },
+    worldViews: createWorldViews(helpers),
+    placeMapScopes: new Map(),
+    query: '',
+    entityReferences: { choices: () => [{}] },
+    installEntityPreviews: (options) => options,
+    document: {},
+    window: {},
+  };
+  const app = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const part = (start, end) => {
+    const a = app.indexOf(start),
+      b = app.indexOf(end, a);
+    assert(a >= 0 && b > a, start);
+    return app.slice(a, b);
+  };
+  vm.createContext(ctx);
+  vm.runInContext(
+    [
+      part('let entityPreviewReference = null;', 'const materialViews ='),
+      part('async function loadWorldReference(', 'async function calculateMaterials('),
+      part('function searchQuestStatuses(', 'function showSearchResults('),
+      "this.quest=async(id,target)=>{switch('world-quest'){" +
+        part("    case 'world-quest':", "    case 'flow-quest': {") +
+        '}};',
+      "this.place=async(id,target)=>{switch('world-place'){" +
+        part("    case 'world-place':", "    case 'world-kind':") +
+        '}};',
+      "this.all=async(id,target)=>{switch('search-all'){" +
+        part("    case 'search-all': {", "    case 'library-search-all':") +
+        '}};',
+      'this.preview=entityPreviews.context;',
+    ].join('\n'),
+    ctx,
+  );
+  const target = (id) => ({
+    dataset: { id, entityId: id, query: '种类:任务 状态:进行中' },
+    closest: () => null,
+  });
+  function reset() {
+    ctx.currentDrawer = null;
+    ctx.route = 'database';
+    ctx.worldView = {};
+    ctx.referenceSaveName = undefined;
+    ctx.referenceSave = null;
+    ctx.referenceFollow = ctx.defaultFollow();
+  }
+  return {
+    ctx,
+    selected,
+    saved,
+    older,
+    live,
+    reads,
+    target,
+    reset,
+    setFlow(next) {
+      flow = next;
+    },
+  };
+}
+
+test('direct codex tasks, place previews and search results use the current live cohort', async () => {
+  const h = await codexLiveHarness(),
+    { ctx, target, live, reads } = h;
+  assert.equal((await ctx.preview(target('quest-12090'))).reference, live);
+  assert.equal((await ctx.preview(target('place-22'))).reference, live);
+  await ctx.quest('quest-12090', target('quest-12090'));
+  assert.equal(ctx.currentDrawer.reference, live);
+  assert.equal(ctx.currentDrawer.liveContext, true);
+  assert.match(ctx.html, /已完成/);
+  assert.equal(ctx.searchQuestStatuses().get(12090), '已完成');
+  assert.equal(ctx.searchQuestStatuses().get(12094), '进行中');
+  h.reset();
+  ctx.currentDrawer = { type: 'search', follow: true };
+  await ctx.quest('quest-12090', target('quest-12090'));
+  assert.equal(ctx.currentDrawer.reference, live);
+  h.reset();
+  await ctx.place('place-22', target('place-22'));
+  assert.equal(ctx.currentDrawer.reference, live);
+  assert.equal(ctx.currentDrawer.liveContext, true);
+  h.reset();
+  ctx.currentDrawer = { type: 'search', follow: true };
+  ctx.worldView = { follow: false, reference: h.older };
+  await ctx.all('quests', target(''));
+  assert.equal(ctx.route, 'world');
+  assert.equal(ctx.worldView.reference, live);
+  assert.equal(ctx.worldView.liveContext, true);
+  assert.deepEqual(reads, [], 'current live lookups do not read old saves');
+});
+
+test('codex reading withdraws and reacquires live state without keeping a stale cohort', async () => {
+  const h = await codexLiveHarness(),
+    { ctx, target, saved, live } = h;
+  await ctx.quest('quest-12090', target('quest-12090'));
+  h.setFlow({ reference: saved, liveReference: null });
+  await ctx.loadWorldReference();
+  assert.equal(ctx.currentDrawer.reference, saved);
+  assert.equal(ctx.currentDrawer.liveContext, true, 'latest intent survives a temporary disconnect');
+  assert.equal(ctx.searchQuestStatuses().get(12090), '进行中');
+  const next = { ...live, key: 'cohort-codex-2', metadata: { quests: [{ id: 12090, step: 2 }] } };
+  h.setFlow({ reference: saved, liveReference: next });
+  await ctx.loadWorldReference();
+  assert.equal(ctx.currentDrawer.reference, next);
+  assert.equal(ctx.searchQuestStatuses().get(12090), '已失败');
+  assert.equal(
+    ctx.searchQuestStatuses().has(12094),
+    false,
+    'withdrawn task rows are not borrowed from the previous sample',
+  );
+  assert.equal((await ctx.preview(target('quest-12090'))).reference, next);
+});
+
+test('fixed, offline and historical codex reading never adopts current live task state', async () => {
+  const h = await codexLiveHarness(),
+    { ctx, target, older, selected } = h;
+  selected.referenceMode = 'slot';
+  h.reset();
+  await ctx.quest('quest-12090', target('quest-12090'));
+  assert.equal(ctx.currentDrawer.reference, older);
+  assert.equal(ctx.currentDrawer.liveContext, false);
+  assert.equal(ctx.searchQuestStatuses().get(12090), '已失败');
+  selected.referenceMode = 'none';
+  h.reset();
+  await ctx.quest('quest-12090', target('quest-12090'));
+  assert.equal(ctx.currentDrawer.reference, null);
+  assert.equal(ctx.searchQuestStatuses().size, 0);
+  selected.referenceMode = 'latest';
+  h.reset();
+  ctx.currentDrawer = { type: 'save', data: older };
+  ctx.selectedSave = older;
+  await ctx.quest('quest-12090', target('quest-12090'));
+  assert.equal(ctx.currentDrawer.reference, older);
+  assert.equal(ctx.currentDrawer.liveContext, false);
+  for (const type of ['timeline', 'comparison']) {
+    h.reset();
+    ctx.currentDrawer = { type };
+    await ctx.quest('quest-12090', target('quest-12090'));
+    assert.equal(ctx.currentDrawer.reference, null, type);
+    assert.equal(ctx.currentDrawer.liveContext, false, type);
+  }
+  h.reset();
+  ctx.currentDrawer = { type: 'search', follow: false };
+  ctx.referenceFollow = false;
+  ctx.referenceSaveName = older.name;
+  ctx.referenceSave = older;
+  assert.equal(ctx.searchQuestStatuses().get(12090), '已失败');
+  await ctx.all('quests', target(''));
+  assert.equal(ctx.worldView.reference, older);
+  assert.equal(ctx.worldView.liveContext, false);
+});

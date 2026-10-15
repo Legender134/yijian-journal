@@ -1431,7 +1431,7 @@ test('saved-detail and pinned-choice previews cannot borrow a different progress
 });
 test('same-name chooser keeps pinned snapshots and follows latest through task and place navigation', async () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
-  const start = source.indexOf('async function showWorldDetail(');
+  const start = source.indexOf('function followsLiveWorld(');
   const end = source.indexOf('async function calculateMaterials(', start);
   for (const type of ['quest', 'place'])
     for (const mode of ['pinned', 'changed-pinned', 'fixed', 'latest']) {
@@ -1450,6 +1450,7 @@ test('same-name chooser keeps pinned snapshots and follows latest through task a
           follow,
           flowReference: mode.includes('pinned') ? saved : null,
         },
+        defaultFollow: () => follow,
         detailRequest: 0,
         handbookRequest: 0,
         worldView: { reference: latest, referenceName: latest.name, follow: true },
@@ -1503,6 +1504,7 @@ test('legacy journal place links open scene choices without rewriting the stored
       profile: () => ({ journalEntries: [record] }),
       currentDrawer: null,
       route: 'journal',
+      defaultFollow: () => false,
       gameIndex: {
         world: {
           maps: [
@@ -1515,7 +1517,7 @@ test('legacy journal place links open scene choices without rewriting the stored
     };
     vm.createContext(ctx);
     vm.runInContext(
-      slice('async function showWorldDetail(', 'async function calculateMaterials(') +
+      slice('function followsLiveWorld(', 'async function calculateMaterials(') +
         `async function open() { switch ('journal-link') {` +
         slice("    case 'journal-link': {", "    case 'search-personal-all':") +
         '}} this.open = open;',
@@ -1911,6 +1913,7 @@ test('historical comparisons open static codex entries without substituting curr
     const live = { name: 'current.sav', hash: 'latest', metadata: { quests: [{ id: 5200, step: 4 }] } };
     const context = {
       currentDrawer: { type: drawerType },
+      defaultFollow: () => true,
       target: { closest: () => false },
       id: 'item-133',
       referenceSave: live,
@@ -1946,7 +1949,7 @@ test('historical comparisons open static codex entries without substituting curr
     };
     vm.createContext(context);
     vm.runInContext(
-      part('async function showWorldDetail(', 'async function calculateMaterials(') +
+      part('function followsLiveWorld(', 'async function calculateMaterials(') +
         `this.openItem = async () => { switch ('database-detail') { ${part("    case 'database-detail': {", "    case 'database-uses':")} } };` +
         '\nthis.preview = ' +
         source.slice(previewStart + '  context: '.length, previewEnd + 4) +
@@ -2015,11 +2018,19 @@ test('global quest filtering follows settings and keeps a historical search refe
   const ctx = {
     referenceSaveName: undefined,
     referenceSave: null,
+    referenceFollow: true,
+    currentDrawer: null,
+    route: 'database',
+    worldView: {},
+    currentFlow: () => null,
+    defaultFollow: () => !!chosen,
     defaultReference: () => chosen,
     environment: { recent: latest, saves: { files: [older, latest] } },
   };
   vm.createContext(ctx);
-  vm.runInContext(source.slice(begin, end), ctx);
+  const helperStart = source.indexOf('function followsLiveWorld(');
+  const helperEnd = source.indexOf('async function showWorldDetail(', helperStart);
+  vm.runInContext(source.slice(helperStart, helperEnd) + source.slice(begin, end), ctx);
   assert.equal(ctx.searchQuestStatuses().get(5200), '已完成');
   chosen = older.name;
   assert.equal(ctx.searchQuestStatuses().get(5200), '进行中');

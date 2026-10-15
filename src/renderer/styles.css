@@ -4391,3 +4391,12 @@ kbd {
 .npc-curated-duels {
   margin-top: 18px;
 }
+.update-progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent, #527957);
+}
+[data-update-panel] .setting-row {
+  flex-wrap: wrap;
+  gap: 12px;
+}

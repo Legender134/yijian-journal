@@ -131,6 +131,17 @@ export function entityCatalog(index) {
     }
     return rows;
   };
+  const isActiveQuest = (q, status) => {
+    if (status(q) !== '进行中') return false;
+    const seen = new Set();
+    // Match flow's blocked semantics while retaining the raw records for history.
+    while (q && !seen.has(q.gameId)) {
+      seen.add(q.gameId);
+      if (['已失败', '未接取', '已完成'].includes(status(q))) return false;
+      q = questByNumber.get(q.parentId);
+    }
+    return true;
+  };
   const mentions = (text) => {
     const found = new Map();
     personPattern.lastIndex = 0;
@@ -238,7 +249,17 @@ export function entityCatalog(index) {
     personCache.set(e.id, result);
     return result;
   };
-  const catalog = { entries, names, pattern, resolve, root, family, taskRelations, personRelations };
+  const catalog = {
+    entries,
+    names,
+    pattern,
+    resolve,
+    root,
+    family,
+    isActiveQuest,
+    taskRelations,
+    personRelations,
+  };
   catalogs.set(index, catalog);
   return catalog;
 }

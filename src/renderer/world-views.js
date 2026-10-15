@@ -1,6 +1,6 @@
 import { placeChoiceLabel } from './place-picker.js';
 import { createCodexDetailViews } from './codex-detail-views.js';
-import { placeEntityId } from './entity-catalog.js';
+import { entityCatalog, placeEntityId } from './entity-catalog.js';
 import { compileSearch } from './search-query.js';
 import { taskMentions } from './task-mentions.js';
 export function createWorldViews({
@@ -50,6 +50,8 @@ export function createWorldViews({
     return result;
   }
   const records = (view) => new Map((view.reference?.metadata.quests || []).map((q) => [q.id, q]));
+  const isActiveQuest = (q, saved) =>
+    entityCatalog(cached).isActiveQuest(q, (task) => labels[saved.get(task.gameId)?.step]);
   const status = (q, view) =>
     !Array.isArray(view.reference?.metadata.quests)
       ? '进度未知'
@@ -111,7 +113,7 @@ export function createWorldViews({
         return false;
       if (view.status === 'all') return true;
       if (!Array.isArray(view.reference?.metadata.quests)) return false;
-      if (view.status === 'active') return group.some((c) => saved.get(c.gameId)?.step === 1);
+      if (view.status === 'active') return group.some((c) => isActiveQuest(c, saved));
       if (view.status === 'completed') return saved.get(t.gameId)?.step === 4;
       if (view.status === 'recorded') return group.some((c) => saved.has(c.gameId));
       return group.every((c) => !saved.has(c.gameId));
@@ -125,7 +127,7 @@ export function createWorldViews({
           const related = index.world.quests.filter((q) => q.placements.some((p) => p.mapKey === t.key));
           return `<button class="database-card world-place-card" data-action="world-place" data-id="${esc(placeEntityId(t, index.world.maps))}"><span class="database-symbol">${icon('map')}</span><h3>${esc(t.name)}</h3><p>${esc(variantSummary(placeEntityId(t, index.world.maps), view.reference) || (related.length ? `${related.length} 条任务关联地点` : '查看此地点的资料关联'))}${t.cave ? ' · 洞穴场景' : ''}</p><div class="database-card-foot">${t.cave ? '洞穴' : '地点'}${icon('chevron')}</div></button>`;
         }
-        const active = family(t).filter((c) => c !== t && saved.get(c.gameId)?.step === 1);
+        const active = family(t).filter((c) => c !== t && isActiveQuest(c, saved));
         return `<button class="database-card world-quest-card" data-action="world-quest" data-id="${t.id}"><div class="row between"><span class="database-symbol">${icon('scroll')}</span>${pill(status(t, view), saved.get(t.gameId)?.step === 4 ? 'green' : '')}</div><h3>${esc(t.name)}</h3><p>${
           active.length
             ? `进行中的步骤：${active
@@ -215,16 +217,16 @@ export function createWorldViews({
     if (!q) return '';
     const saved = records(view),
       group = family(q),
-      parent = quests.get(q.parentId);
+      parent = quests.get(q.parentId),
+      active = group.filter((c) => c.gameId !== q.gameId && isActiveQuest(c, saved));
     const inventory = Array.isArray(view.reference?.metadata.inventory)
       ? new Map(view.reference.metadata.inventory.map((i) => [i.id, i.count]))
       : null;
     const targetNames = (ids) => ids.map((id) => npc(id, index)).join('、');
     const text = `<p class="preserve-text">${richText(q.description || '资料没有提供任务说明。')}</p>`;
     return `<section class="drawer world-drawer" role="dialog" aria-modal="true" aria-label="任务资料"><div class="drawer-head"><span class="small muted">任务手册</span>${iconButton('close-overlay', 'close', '关闭任务资料')}</div><div class="drawer-body"><div class="tag-row">${pill(q.parentId ? '任务步骤' : q.kind === 'Primary' ? '主线' : '支线')}${pill(status(q, view))}</div><div class="game-detail-title">${picture(q.id, 'detail')}<h1>${esc(q.name.replace(/^【[^】]+】\s*/, ''))}</h1></div>${view.error ? notice(view.error) : ''}${
-      group.some((c) => c.gameId !== q.gameId && saved.get(c.gameId)?.step === 1)
-        ? `<section class="detail-block codex-active-steps"><h3>当前步骤</h3>${group
-            .filter((c) => c.gameId !== q.gameId && saved.get(c.gameId)?.step === 1)
+      active.length
+        ? `<section class="detail-block codex-active-steps"><h3>当前步骤</h3>${active
             .map((c) => `<p>${questLink(c)}</p>`)
             .join('')}</section>`
         : ''

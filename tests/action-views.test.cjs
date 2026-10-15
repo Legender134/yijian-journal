@@ -125,6 +125,8 @@ function renderFoldHarness(compact) {
     goalDone: () => false,
     headings: {},
     pending: false,
+    environment: {},
+    appUpdateViews: { badge: () => '' },
   };
   const page = () =>
     '<details data-persist-detail="default-open" open></details>' +

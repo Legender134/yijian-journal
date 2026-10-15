@@ -39,6 +39,7 @@ import { createDuelViews } from './duel-views.js';
 import { createEntityReferences, installEntityPreviews } from './entity-references.js';
 import { createEntityDetailViews } from './entity-detail-views.js';
 import { navigationView } from './navigation-view.js';
+import { createAppUpdateViews } from './app-update-views.js';
 const api = window.journal;
 const compact = new URLSearchParams(location.search).has('compact');
 const root = document.querySelector('#app'),
@@ -860,6 +861,7 @@ const companionViews = createCompanionViews({
   picture,
   qualityText,
   index: () => gameIndex,
+  updateBadge: () => appUpdateViews.badge(environment?.updates),
 });
 async function refreshCompanion() {
   if (!compact) return;
@@ -883,6 +885,29 @@ document.addEventListener(
 const entityReferences = createEntityReferences({ index: () => gameIndex, esc, picture, icon, qualityText });
 const act = (action, label, cls = 'btn', id = '', glyph = '', accessibleLabel = '') =>
   entityReferences.button(action, label, cls, id, glyph, accessibleLabel);
+const appUpdateViews = createAppUpdateViews({ esc, act, bytes });
+function updatePanel() {
+  return appUpdateViews.panel(environment.updates, version, state.settings.checkUpdatesOnStart !== false);
+}
+function renderUpdateStatus(updates = environment.updates) {
+  environment.updates = updates;
+  for (const badge of document.querySelectorAll('[data-update-badge]'))
+    badge.innerHTML = appUpdateViews.badge(updates);
+  for (const panel of document.querySelectorAll('[data-update-panel]')) {
+    const opened = panel.querySelector('[data-update-notes]')?.open;
+    const focused = panel.contains(document.activeElement) ? document.activeElement.dataset.action : null;
+    const holder = document.createElement('div');
+    holder.innerHTML = updatePanel();
+    const next = holder.firstElementChild;
+    if (opened && next.querySelector('[data-update-notes]'))
+      next.querySelector('[data-update-notes]').open = true;
+    panel.replaceWith(next);
+    if (focused)
+      [...next.querySelectorAll('[data-action]')]
+        .find((button) => button.dataset.action === focused)
+        ?.focus({ preventScroll: true });
+  }
+}
 const iconButton = (action, glyph, title, id = '', cls = '') =>
   `<button class="icon-btn ${cls}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''} aria-label="${esc(title)}" title="${esc(title)}">${icon(glyph)}</button>`;
 const pill = (label, style = '') => `<span class="pill ${style}">${esc(label)}</span>`;
@@ -998,12 +1023,8 @@ const entityPreviews = installEntityPreviews({
       currentDrawer?.liveContext ||
       currentDrawer?.flowReference?.origin === 'live' ||
       (worldView.liveContext && (route === 'world' || currentDrawer?.type?.startsWith('world-'))) ||
-      (String(target.dataset?.entityId || target.dataset?.id || '').startsWith('npc-') &&
-        defaultFollow() &&
-        (!currentDrawer ||
-          (['guide', 'search'].includes(currentDrawer.type) &&
-            (currentDrawer.follow ?? referenceFollow ?? defaultFollow()) === true &&
-            !currentDrawer.flowReference)))
+      (/^(?:npc|skill|quest|place)-/.test(String(target.dataset?.entityId || target.dataset?.id || '')) &&
+        followsLiveWorld())
     ) {
       const flow = currentFlow();
       if (flow?.liveReference) return { reference: flow.liveReference, npcProgress: flow.duels?.progress };
@@ -2063,8 +2084,8 @@ async function showFlowWorldDetail(id, type, opener, referenceOverride = null) {
     referenceOverride && referenceOverride.origin !== 'live'
       ? { reference: referenceOverride }
       : currentFlow();
-  const name = flow?.reference?.name || '';
   const liveContext = defaultFollow() && (!referenceOverride || referenceOverride.origin === 'live');
+  const name = flow?.reference?.name || (liveContext ? latestReference() : '');
   const live = liveContext ? currentFlow()?.liveReference : null;
   const view = {
     referenceName: live ? undefined : name,
@@ -2076,7 +2097,7 @@ async function showFlowWorldDetail(id, type, opener, referenceOverride = null) {
   if (name && !live) {
     try {
       view.reference = await call('saveDetails', name);
-      if (view.reference?.hash !== flow.reference.hash) {
+      if (flow?.reference?.hash && view.reference?.hash !== flow.reference.hash) {
         view.reference = null;
         view.error = '这份存档已变化，请刷新流程后重新查看。';
       }
@@ -2093,12 +2114,23 @@ async function showFlowWorldDetail(id, type, opener, referenceOverride = null) {
     (!referenceOverride && currentFlow()?.reference?.hash !== flow?.reference?.hash)
   )
     return;
+  const current = liveContext ? currentFlow()?.liveReference : null;
+  if (current) Object.assign(view, { reference: current, referenceName: undefined, error: '' });
   Object.assign(worldView, view, { loading: false });
   await showWorldDetail(id, type, false, view, opener);
 }
+function followsLiveWorld() {
+  if (!defaultFollow()) return false;
+  const view = currentDrawer;
+  if (view?.liveContext || view?.liveNpcContext || view?.flowReference?.origin === 'live') return true;
+  if (view?.flowReference) return false;
+  if (!view) return (route === 'world' ? worldView.follow : referenceFollow) ?? defaultFollow();
+  if (['guide', 'search', 'database'].includes(view.type))
+    return (view.follow ?? referenceFollow ?? defaultFollow()) === true;
+  return view.type?.startsWith('world-') && worldView.follow === true && worldView.liveContext === true;
+}
 async function showWorldDetail(id, type = 'quest', replace = false, flowReference = null, opener = null) {
-  if (!flowReference && !currentDrawer && route === 'world' && worldView.liveContext)
-    return showFlowWorldDetail(id, type, opener, { origin: 'live' });
+  if (!flowReference && followsLiveWorld()) return showFlowWorldDetail(id, type, opener, { origin: 'live' });
   if (flowReference)
     Object.assign(worldView, flowReference, { liveContext: flowReference.liveContext === true });
   if (type === 'place' && (gameIndex.world?.maps || []).filter((place) => place.id === id).length > 1) {
@@ -2995,7 +3027,7 @@ function settingsPage() {
   return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">游戏进度</h2><div class="setting-row"><div><h3>${profile().referenceMode === 'none' ? '仅查资料' : profile().saveSlot ? esc(profile().saveSlot) : '自动使用最新进度'}</h3><p>流程、图鉴和备料共用此进度。</p></div>${act('save-slot', '更改', 'btn', '', 'edit')}</div></section><section class="card"><h2 class="mb">阅读与陪伴</h2><div class="setting-row"><div><label for="reading-scale"><strong>界面大小</strong></label><p>快捷键 Ctrl + / −，Ctrl + 0 恢复默认。</p></div><div class="row wrap"><select id="reading-scale" class="input" aria-label="界面大小">${[100, 110, 125, 150].map((size) => `<option value="${size}"${(state.settings.readingScale || 100) === size ? ' selected' : ''}>${size}%${size === 100 ? ' · 默认' : ''}</option>`).join('')}</select>${act('reading-scale-reset', '恢复默认大小', 'text-btn')}</div></div><div class="setting-row"><div><h3>第一次使用这本手札</h3></div>${act('help', '打开使用说明', 'btn', '', 'book')}</div><div class="setting-row"><div><h3>少剧透提示</h3><p>详细剧情折叠显示。</p></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3>随行小窗</h3><p>Ctrl + Alt + J 展开或收起。</p></div>${act('compact', '打开随行小窗', 'btn', '', 'pin')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3></div>${act('profiles', '管理周目', 'btn', '', 'person')}</div></section>
  ${windowLayoutSettings()}${companionSettings()}${shortcutSettings()}<section class="card"><h2 class="mb">本机连接</h2><div class="setting-row"><div><h3>逸剑风云决 ${environment.game.installed ? '· 已找到' : '· 由 Steam 启动'}</h3><p>${esc(environment.game.path || '使用 Steam 游戏入口启动')}${environment.game.build ? ` · Build ${esc(environment.game.build)}` : ''}</p></div>${act('launch', '启动游戏', 'btn', '', 'game')}</div><div class="setting-row"><div><h3>游戏存档目录</h3><p class="mono">${esc(state.settings.savePath || '尚未选择')}</p></div>${act('choose-saves', '选择目录', 'btn', '', 'folder')}</div>${environment.detected.length > 1 ? `<div class="setting-row"><div><h3>检测到多个存档目录</h3><p>请选择你本次游玩的账户目录。</p></div><select id="detected-save" class="input">${environment.detected.map((p) => `<option value="${esc(p)}" ${p === state.settings.savePath ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>` : ''}<div class="setting-row"><div><h3>完整自动备份 · ${backupStatus()}</h3><p>保存后自动留存副本；游戏内自动存档在存档匣设置。</p></div><button class="switch ${state.settings.autoBackup ? 'on' : ''}" role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" data-action="auto-backup"></button></div></section>
  ${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${protectionViews.controls(protectionView)}<section class="card"><h2 class="mb">记录与数据</h2><div class="setting-row"><div><h3>手札备份</h3><p>导出全部周目的记录。导入前会保留当前手札副本；此功能不包含游戏存档。</p></div><div class="row">${act('import', '导入', 'btn', '', 'upload')}${act('export', '导出手札', 'btn', '', 'download')}</div></div><div class="setting-row"><div><h3>本地数据目录</h3><p class="mono">${esc(environment.userData)}</p></div>${act('folder', '打开', 'btn', 'data', 'folder')}</div><div class="setting-row"><div><h3>游戏存档备份目录</h3><p class="mono">${esc(environment.backupRoot)}</p></div>${act('folder', '打开', 'btn', 'backups', 'folder')}</div></section>
- <section class="card"><div class="card-header"><h2>资料与版本</h2>${pill(`v${version}`)}</div><p class="small muted mb">${esc(gameIndex.source)} · Build ${esc(gameIndex.build)}。非官方助手。</p><details data-persist-detail="settings-reading-source"><summary>读取方式与资料说明</summary><p>未接入游戏时，保存后更新。接入后，跟随最新进度的任务、人物和已支持对话选择会现场更新。</p><p>背包、铜钱和备料仍按保存记录核对。</p><p>图鉴基础等级与商品资料可能随剧情、难度和培养变化。</p><p>${esc(catalog.notice)}</p></details><details data-persist-detail="settings-sources"><summary>资料来源</summary><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></details></section></div>`;
+ <section class="card"><h2 class="mb">软件更新</h2>${updatePanel()}</section><section class="card"><div class="card-header"><h2>资料与版本</h2>${pill(`v${version}`)}</div><p class="small muted mb">${esc(gameIndex.source)} · Build ${esc(gameIndex.build)}。非官方助手。</p><details data-persist-detail="settings-reading-source"><summary>读取方式与资料说明</summary><p>未接入游戏时，保存后更新。接入后，跟随最新进度的任务、人物和已支持对话选择会现场更新。</p><p>背包、铜钱和备料仍按保存记录核对。</p><p>图鉴基础等级与商品资料可能随剧情、难度和培养变化。</p><p>${esc(catalog.notice)}</p></details><details data-persist-detail="settings-sources"><summary>资料来源</summary><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></details></section></div>`;
 }
 function homeJourney() {
   const plan = environment.journey;
@@ -3611,7 +3643,7 @@ function render(preserve = false, navigationId = null) {
   }
   const sidebarScroll = root.querySelector('.sidebar-nav')?.scrollTop || 0;
   replaceRoot(
-    `<div class="layout"><aside class="sidebar"><div class="brand"><img class="app-mark" src="../assets/icon-48.png" alt=""><div><div class="brand-name">逸剑手札</div><div class="brand-sub">《逸剑风云决》流程助手</div></div></div><nav class="sidebar-nav" aria-label="手札页面">${navigationView({ route, headings, icon, goalCount: profile().goals.filter((g) => !goalDone(g)).length })}</nav><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong></div>${iconButton('profiles', 'person', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑手札 · 流程助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="breadcrumb">我的江湖 ${icon('chevron')}<b>${headings[route]}</b></div><div class="row"><span data-save-health>${healthAlert()}</span><button id="global-search-trigger" class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${act('compact', '打开随行', 'btn soft', '', 'pin')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, duels: duelsPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`,
+    `<div class="layout"><aside class="sidebar"><div class="brand"><img class="app-mark" src="../assets/icon-48.png" alt=""><div><div class="brand-name">逸剑手札</div><div class="brand-sub">《逸剑风云决》流程助手</div></div></div><nav class="sidebar-nav" aria-label="手札页面">${navigationView({ route, headings, icon, goalCount: profile().goals.filter((g) => !goalDone(g)).length })}</nav><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong></div>${iconButton('profiles', 'person', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑手札 · 流程助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="breadcrumb">我的江湖 ${icon('chevron')}<b>${headings[route]}</b></div><div class="row"><span data-save-health>${healthAlert()}</span><span data-update-badge>${appUpdateViews.badge(environment.updates)}</span><button id="global-search-trigger" class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${act('compact', '打开随行', 'btn soft', '', 'pin')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, duels: duelsPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`,
   );
   root.querySelector('.sidebar-nav').scrollTop = sidebarScroll;
   if (availableIntentDrafts().length && !['home', 'journey'].includes(route))
@@ -3869,9 +3901,9 @@ function showDetail(id, keep = false, handoffRevealed) {
   }<p class="small muted mt">精选参考；版本与前置选择可能改变触发条件。</p></details></div><div class="drawer-actions">${e.checklist ? act('check', status === 'done' ? '已完成 · 撤销' : '标记为已完成', 'btn primary', id, 'check') : act('entry-goal', '加入我的目标', 'btn primary', id, 'plus')}${iconButton('favorite', 'star', profile().favorites.includes(id) ? '取消收藏' : '收藏线索', id, `favorite ${profile().favorites.includes(id) ? 'on' : ''}`)}${e.checklist ? act('skip', status === 'skip' ? '恢复待办' : '暂不做', 'btn', id) : ''}</div></section>`;
   showOverlay(html, true);
 }
-function modal(title, description, body, footer, retainDrawer = false) {
+function modal(title, description, body, footer, retainDrawer = false, closeLabel = '取消') {
   showOverlay(
-    `<section class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="row between"><h2>${title}</h2>${iconButton('close-overlay', 'close', '关闭')}</div>${description ? `<p>${description}</p>` : ''}${body}<div class="modal-footer">${act('close-overlay', '取消', 'btn')}${footer}</div></section>`,
+    `<section class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="row between"><h2>${title}</h2>${iconButton('close-overlay', 'close', '关闭')}</div>${description ? `<p>${description}</p>` : ''}${body}<div class="modal-footer">${act('close-overlay', esc(closeLabel), 'btn')}${footer}</div></section>`,
     false,
     false,
     null,
@@ -4023,7 +4055,14 @@ function searchQuestStatuses() {
   const saved =
     name &&
     (referenceSave?.name === name ? referenceSave : environment.saves.files.find((f) => f.name === name));
-  return new Map((saved?.metadata?.quests || []).map((task) => [task.id, task.status]));
+  const live = followsLiveWorld() ? currentFlow()?.liveReference : null;
+  const labels = ['未开始', '进行中', '已失败', '未接取', '已完成'];
+  return new Map(
+    ((live || saved)?.metadata?.quests || []).map((task) => [
+      task.id,
+      task.status || labels[task.step] || '待核对',
+    ]),
+  );
 }
 function showSearchResults(value) {
   const results = overlay.querySelector('#global-results');
@@ -4461,6 +4500,7 @@ async function handle(action, id, target, navigationFocused = false) {
     [
       'navigate',
       'search',
+      'updates',
       'detail',
       'help',
       'database-detail',
@@ -4517,6 +4557,35 @@ async function handle(action, id, target, navigationFocused = false) {
     };
   }
   switch (action) {
+    case 'updates':
+      modal('软件更新', '', updatePanel(), '', false, '关闭');
+      break;
+    case 'update-check':
+      renderUpdateStatus(await call('checkUpdates'));
+      break;
+    case 'update-download':
+      renderUpdateStatus(await call('downloadUpdate'));
+      break;
+    case 'update-cancel':
+      renderUpdateStatus(await call('cancelUpdate'));
+      break;
+    case 'update-auto':
+      await mutation({
+        type: 'settings',
+        value: { checkUpdatesOnStart: state.settings.checkUpdatesOnStart === false },
+      });
+      renderUpdateStatus();
+      break;
+    case 'update-install': {
+      if (target) target.disabled = true;
+      try {
+        const result = await call('installUpdate');
+        if (!result.restarting) toast('已取消重启，下载的更新继续保留');
+      } finally {
+        if (target?.isConnected) target.disabled = false;
+      }
+      break;
+    }
     case 'journey-trash-open':
     case 'journey-trash-close':
       journeyTrashView.open = action.endsWith('-open');
@@ -5378,6 +5447,7 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     case 'search-all': {
       const value = target.dataset.query || query;
+      const liveContext = followsLiveWorld();
       closeOverlay();
       if (id === 'records') {
         route = 'journal';
@@ -5408,6 +5478,12 @@ async function handle(action, id, target, navigationFocused = false) {
         worldView.roots = false;
         worldView.status = 'all';
         worldView.page = 0;
+        Object.assign(worldView, {
+          referenceName: referenceSaveName,
+          reference: referenceSave,
+          follow: referenceFollow,
+          liveContext,
+        });
         await loadWorldReference();
       }
       render();
@@ -5598,6 +5674,7 @@ async function handle(action, id, target, navigationFocused = false) {
       referenceSave = null;
       worldView.referenceName = undefined;
       worldView.follow = defaultFollow();
+      worldView.liveContext = defaultFollow();
       worldView.reference = null;
       if (id !== 'archives') ++protectionRequest;
       await saveNote();
@@ -6030,9 +6107,7 @@ async function handle(action, id, target, navigationFocused = false) {
           id,
           target.closest('[data-flow], .duel-page')
             ? currentFlow()?.reference
-            : currentDrawer?.liveNpcContext ||
-                currentDrawer?.liveContext ||
-                (!currentDrawer && route === 'world' && worldView.liveContext)
+            : currentDrawer?.liveNpcContext || currentDrawer?.liveContext || followsLiveWorld()
               ? { origin: 'live' }
               : null,
           target,
@@ -6370,7 +6445,7 @@ async function handle(action, id, target, navigationFocused = false) {
         id,
         target.closest('[data-flow], .duel-page')
           ? currentFlow()?.reference
-          : !currentDrawer && route === 'world' && worldView.liveContext
+          : followsLiveWorld()
             ? { origin: 'live' }
             : currentDrawer?.flowReference,
         target,
@@ -7628,7 +7703,7 @@ async function handle(action, id, target, navigationFocused = false) {
       modal(
         '随行布局与显示',
         '拖动标题栏移动，拖动边缘调整大小；随行会记住你选的位置。',
-        `<div data-companion-layout><div class="row wrap mb">${act('navigate', '备料清单', 'btn', 'materials', 'bag')}${act('navigate', '地图', 'btn', 'world', 'map')}</div><p class="small muted">恢复默认仅调整窗口的位置与大小。</p>${act('window-layout-reset', '恢复默认位置与大小', 'btn', '', 'reset')}${act('companion-display', '选择首页内容', 'btn', '', 'eye')}${act('navigate', '设置', 'btn', 'settings', 'settings')}</div>`,
+        `<div data-companion-layout><div class="row wrap mb">${act('navigate', '备料清单', 'btn', 'materials', 'bag')}${act('navigate', '地图', 'btn', 'world', 'map')}</div><p class="small muted">恢复默认仅调整窗口的位置与大小。</p>${act('window-layout-reset', '恢复默认位置与大小', 'btn', '', 'reset')}${act('companion-display', '选择首页内容', 'btn', '', 'eye')}${act('navigate', '设置', 'btn', 'settings', 'settings')}${act('updates', '软件更新', 'btn', '', 'download')}</div>`,
         '',
       );
       break;
@@ -8373,6 +8448,10 @@ try {
     if (currentDrawer?.type === 'search' && !composing) showSearchResults(currentDrawer.query);
   });
   api.onEvent((event) => {
+    if (event.type === 'app-update') {
+      renderUpdateStatus(event.updates);
+      return;
+    }
     if (event.type === 'protection') {
       protectionView.busy = event.busy;
       protectionView.label = event.label;

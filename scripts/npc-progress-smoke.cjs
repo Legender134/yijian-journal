@@ -292,6 +292,40 @@ const pulse = () => {
       document.querySelector('[data-npc-progress-page]')?.textContent.includes('现场更新'),
     );
     assert.match(await small.locator('[data-npc-progress-card="10016"] > summary').innerText(), /×2/);
+    // Direct codex entries and both search surfaces share the same live task cohort.
+    await small.locator('.companion-tabs [data-id="database"]').click();
+    await small.locator('[data-action="database-kind"][data-id="任务"]').click();
+    await small.locator('#list-search').fill('种类:任务 状态:已完成');
+    const directTask = small.locator('.database-card[data-id="quest-5062"]');
+    await directTask.waitFor();
+    await directTask.click();
+    await small.locator('#overlay .world-drawer').waitFor();
+    assert.match(await small.locator('#overlay .world-drawer .tag-row').first().innerText(), /已完成/);
+    await small.keyboard.press('Escape');
+    publish([{ id: 100034, count: 2 }], {
+      quests: [
+        { id: 5062, step: 1 },
+        { id: 5066, step: 4 },
+        { id: 5091, step: 4 },
+        { id: 12001, step: 1 },
+      ],
+    });
+    pulse();
+    await directTask.waitFor({ state: 'detached' });
+    publish([{ id: 100034, count: 2 }]);
+    pulse();
+    await directTask.waitFor();
+    await small.locator('.compact-title [data-action="search"]').click();
+    await small.locator('#global-search').fill('种类:任务 状态:已完成');
+    await small.locator('.search-result[data-id="quest-5062"]').waitFor();
+    await small.locator('[data-action="search-all"][data-id="database"]').click();
+    await small.locator('.database-card[data-id="quest-5062"]').click();
+    await small.locator('#overlay .world-drawer').waitFor();
+    assert.match(await small.locator('#overlay .world-drawer .tag-row').first().innerText(), /已完成/);
+    await small.screenshot({ animations: 'disabled', path: path.join(output, 'direct-live-codex-task.png') });
+    await small.keyboard.press('Escape');
+    await small.locator('.companion-tabs [data-id="duels"]').click();
+
     assert.equal(await small.locator('.flow-state-notice').count(), 0);
     // An ordinary codex list must use the same current NPC state before a
     // detail has ever been opened; the saved fixture says this bag is empty.

@@ -9,6 +9,7 @@ const { goalProgress } = require('../src/core/goal-progress.cjs');
 const { resourceBudget } = require('../src/core/resource-budget.cjs');
 const { journeyPlan } = require('../src/core/journey-plan.cjs');
 const { flowSnapshot } = require('../src/core/flow.cjs');
+const { compareVersions } = require('../src/core/app-updates.cjs');
 const main = fs.readFileSync(path.join(__dirname, '../src/main.cjs'), 'utf8');
 function section(start, end) {
   const a = main.indexOf(start),
@@ -20,6 +21,38 @@ const code =
   section('function autoBackupBlocked(', '\nfunction sendAction(') +
   '\n' +
   section('function overview() {', '\nfunction handle(');
+
+test('installation failure remains visible after startup checks and disappears after upgrading or a newer offer', () => {
+  let current = '1.19.0';
+  let receipt = { status: 'failed', version: '1.20.0', message: '无法安装新版，旧版本保持可用。' };
+  const context = {
+    path,
+    app: { getVersion: () => current, getPath: () => 'synthetic-userData' },
+    appUpdates: null,
+    readInstallResult: () => receipt,
+    compareVersions,
+  };
+  vm.createContext(context);
+  vm.runInContext(
+    section('function updateState(', '\nlet companion') + '\nthis.status = updateState;',
+    context,
+  );
+  for (const phase of ['idle', 'available', 'ready']) {
+    const result = context.status({ phase, version: phase === 'idle' ? null : '1.20.0' });
+    assert.equal(result.error, receipt.message);
+    assert.equal(result.installFailed, true);
+    assert.equal(result.phase, phase === 'idle' ? 'error' : phase);
+  }
+  const interrupted = { phase: 'error', error: '网络断开' };
+  assert.equal(context.status(interrupted).error, '网络断开');
+  const newer = { phase: 'available', version: '1.21.0', error: '' };
+  assert.equal(context.status(newer), newer);
+  current = '1.20.0';
+  const installed = { phase: 'idle', error: '' };
+  assert.equal(context.status(installed), installed);
+  receipt = { ...receipt, version: '99999999999999999999999.0.0' };
+  assert.equal(context.status(installed), installed);
+});
 
 test('overview shares one current timeline snapshot and retains fields and protection faults', () => {
   let calls = 0,
@@ -79,6 +112,7 @@ test('overview shares one current timeline snapshot and retains fields and prote
     journeyPlan,
     flowSnapshot,
     readGuidance: () => null,
+    updateState: () => ({ phase: 'idle', currentVersion: '1.19.0' }),
   };
   vm.createContext(context);
   vm.runInContext(code + '\nthis.overviewResult = overview();', context);
