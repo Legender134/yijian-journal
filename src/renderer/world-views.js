@@ -182,11 +182,12 @@ export function createWorldViews({
       list
         .map((r) => {
           const q = quests.get(r.id),
+            relatedQuest = q || quests.get(r.relatedQuestId),
             person = people.get(r.id);
           const link =
             r.type === 'PreQuest' || r.type === 'NoQuest'
-              ? q
-                ? questLink(q)
+              ? relatedQuest
+                ? questLink(relatedQuest, 'text-btn', q ? relatedQuest.name : r.name)
                 : esc(r.name)
               : r.type === 'Item'
                 ? act('database-detail', esc(r.name), 'text-btn', `item-${r.id}`)

@@ -58,6 +58,8 @@ export function createItemStatViews({ esc, act }) {
       data = index.itemStats;
     if (!stats || !data) return '<p class="save-note">数值暂缺</p>';
     const equipment = equipmentTypes.has(entry.typeKey);
+    // Materials with no direct effects need no empty statistics panel.
+    if (!equipment && !stats.effects.length && !stats.requirements.length && !stats.random.length) return '';
     const byId = new Map(index.entries.map((row) => [row.id, row]));
     const link = (id, fallback) =>
       byId.has(id) ? act('database-detail', text(byId.get(id).name), 'text-btn', id) : text(fallback);

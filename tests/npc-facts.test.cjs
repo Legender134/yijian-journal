@@ -73,10 +73,10 @@ test('shipped static facts cover every known Compare template and retain verifie
   const before = structuredClone(world),
     index = encyclopedia();
   assert.equal(source.build, index.build);
-  assert.equal(Object.keys(source.people).length, 252);
+  assert.equal(Object.keys(source.people).length, 257);
   assert.equal(
     Object.values(source.people).reduce((sum, row) => sum + row.fixedItems.length, 0),
-    1301,
+    1335,
   );
   assert.deepEqual(
     new Set(Object.keys(source.people).map(Number)),

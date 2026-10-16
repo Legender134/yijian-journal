@@ -14,7 +14,7 @@ const game = require('../src/data/game-index.json');
 const T0 = '2026-10-09T08:00:00.000Z';
 const T1 = '2026-10-09T08:01:00.000Z';
 const PLACE = world.maps[0].id;
-const NPC = world.people[0].id;
+const NPC = world.people.find((person) => person.functions.includes('Gift')).id;
 const ITEM = game.entries.find((entry) => entry.kind === '物品' && entry.giftable === true).id;
 const RECIPE = game.entries.find((entry) => entry.kind === '配方').id;
 const OWNER = 'journey:todo:' + 'a'.repeat(32);

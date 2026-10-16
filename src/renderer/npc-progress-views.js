@@ -1,8 +1,24 @@
+export function npcLearningSummary(learning = []) {
+  if (!learning.length) return '';
+  const ready = learning.filter((item) => item.status === 'met').length;
+  const blocked = learning.filter((item) => item.status === 'unmet').length;
+  const unknown = learning.length - ready - blocked;
+  return [
+    ready ? `可请教 ${ready} 项` : '',
+    unknown ? `待确认 ${unknown} 项` : '',
+    blocked ? (ready || unknown ? `受限 ${blocked} 项` : '请教受限') : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 export function createNpcProgressViews({ esc, act, richText = esc }) {
   const text = (value) => esc(String(value ?? ''));
   const link = (row) =>
     row.entityId ? act('database-detail', text(row.name), 'text-btn', row.entityId) : text(row.name);
   const unmet = (checks = []) => checks.filter((row) => row.status !== 'met');
+  const missingEntry = (gate) =>
+    unmet(gate.checks).find((check) => /^暂无常规(?:赠礼|比武|请教)入口$/.test(check.text));
   const orderedLearning = (row) =>
     [...row.learning].sort(
       (a, b) =>
@@ -57,7 +73,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
     return orderedLearning(row)
       .map(
         (item) =>
-          `<li>${link(item)}${item.kind === 'life' ? ` · ${text(item.playerLevel)} → ${text(item.teacherLevel)} 级` : ''}${reason(item.checks, excluded) ? `<p class="small">${reason(item.checks, excluded)}</p>` : ''}</li>`,
+          `<li>${link(item)}${item.kind === 'life' ? ` · ${text(item.playerLevel)} → ${text(item.teacherLevel)} 级` : Number.isFinite(item.teacherLevel) && item.teacherLevel > 0 ? ` · 对方 ${text(item.teacherLevel)} 级` : ''}${reason(item.checks, excluded) ? `<p class="small">${reason(item.checks, excluded)}</p>` : ''}</li>`,
       )
       .join('');
   }
@@ -67,10 +83,13 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
       row.power && row.ownPower
         ? `<p>战力参考：你 ${Math.round(row.ownPower.value)}，对方 ${Math.round(row.power.value)} · ${text(row.power.title)}${row.power.value > row.ownPower.value ? '。建议先检查主修武学与配装。' : ''}</p>`
         : '';
-    const giftQuality = row.gift.checks.find((check) => check.text.startsWith('礼物至少'))?.text;
+    const giftQuality = missingEntry(row.gift)
+      ? ''
+      : row.gift.checks.find((check) => check.text.startsWith('礼物至少'))?.text;
     const common = sharedChecks(row);
     const excluded = new Set(common.map(checkKey));
     const operation = (label, gate) => {
+      if (missingEntry(gate)) return `<p>${label}：暂无入口</p>`;
       const detail = reason(gate.checks, excluded).replace(new RegExp(`^${label}[：:]?`), '');
       return detail ? `<p>${label}：${detail}</p>` : '';
     };
@@ -81,8 +100,24 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
       return `<section class="detail-block" data-npc-progress><h3>比武与请教</h3><p>还没有此人物的状态，${origin === 'live' ? '遇见后再查看' : '遇见并保存后再查看'}。</p></section>`;
     const heading = embedded
       ? ''
-      : `<h3>比武与请教</h3><p>${row.remainingItems.length ? `私物还剩 ${row.remainingItems.length} 种${row.importantCount ? ` · 重点 ${row.importantCount} 种` : ''}` : '私物已清空'}${row.learning.length ? ` · 还有 ${row.learning.length} 项可提升` : ''}</p>`;
-    return `<section class="${embedded ? '' : 'detail-block '}npc-progress-detail" data-npc-progress="${text(row.npcId)}">${heading}${gates(row)}${row.remainingItems.length ? `<details data-persist-detail="npc-private-${text(row.npcId)}"><summary>剩余私物 · ${row.remainingItems.length} 种</summary><div class="related-items mt">${items(row)}</div></details>` : ''}${row.learning.length ? `<details data-persist-detail="npc-learning-${text(row.npcId)}"><summary>可提升技艺与未学功法 · ${row.learning.length} 项</summary><ul>${learning(row)}</ul></details>` : ''}${embedded ? '' : `<details><summary>${origin === 'live' ? '现场更新' : '保存后更新'}</summary><p>${origin === 'live' ? '人物状态与相关任务来自同次现场读取。' : '按最近读取的保存记录整理。'}</p></details>`}</section>`;
+      : `<h3>比武与请教</h3><p>${row.remainingItems.length ? `私物还剩 ${row.remainingItems.length} 种${row.importantCount && row.importantCount < row.remainingItems.length ? ` · 重点 ${row.importantCount} 种` : ''}` : '私物已清空'}${row.learning.length ? ' · ' + text(npcLearningSummary(row.learning)) : ''}</p>`;
+    const orderedItems = [...row.remainingItems].sort((a, b) => Number(b.important) - Number(a.important));
+    const visibleItems = items({ remainingItems: orderedItems.slice(0, 3) });
+    const privatePreview = visibleItems
+      ? '<div class="related-items npc-private-preview">' +
+        visibleItems +
+        '</div>' +
+        (orderedItems.length > 3
+          ? '<details data-persist-detail="npc-private-' +
+            text(row.npcId) +
+            '"><summary>其余私物 · ' +
+            (orderedItems.length - 3) +
+            ' 种</summary><div class="related-items mt">' +
+            items({ remainingItems: orderedItems.slice(3) }) +
+            '</div></details>'
+          : '')
+      : '';
+    return `<section class="${embedded ? '' : 'detail-block '}npc-progress-detail" data-npc-progress="${text(row.npcId)}">${heading}${embedded ? '' : privatePreview}${gates(row)}${embedded && row.remainingItems.length ? `<details data-persist-detail="npc-private-${text(row.npcId)}"><summary>剩余私物 · ${row.remainingItems.length} 种</summary><div class="related-items mt">${items(row)}</div></details>` : ''}${row.learning.length ? `<details data-persist-detail="npc-learning-${text(row.npcId)}"><summary>请教内容 · ${row.learning.length} 项</summary><ul>${learning(row)}</ul></details>` : ''}</section>`;
   }
   function card(row, tab, scope) {
     const learning = orderedLearning(row);
@@ -123,25 +158,30 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
     ];
     if (!tabs.some(([id]) => id === tab)) tab = 'remaining';
     const needle = query.trim().toLocaleLowerCase('zh-CN');
-    const rows = data[tab].filter(
-      (row) =>
-        !needle ||
-        [
-          row.name,
-          row.place?.name,
-          ...row.remainingItems.map((item) => item.name),
-          ...row.learning.map((item) => item.name),
-        ]
-          .filter(Boolean)
-          .some((value) => value.toLocaleLowerCase('zh-CN').includes(needle)),
-    );
+    const matches = (row) =>
+      !needle ||
+      [
+        row.name,
+        row.place?.name,
+        ...row.remainingItems.map((item) => item.name),
+        ...row.learning.map((item) => item.name),
+      ]
+        .filter(Boolean)
+        .some((value) => value.toLocaleLowerCase('zh-CN').includes(needle));
+    const matching = Object.fromEntries(tabs.map(([id]) => [id, data[id].filter(matches)]));
+    const rows = matching[tab];
+    const otherMatches = tabs.filter(([id]) => id !== tab && matching[id].length);
+    const empty =
+      needle && otherMatches.length
+        ? `<p>当前分类没有匹配。</p><div class="tag-row">${otherMatches.map(([id, label]) => act('npc-progress-tab', `${label} · ${matching[id].length}`, 'btn', id)).join('')}</div>`
+        : '<p class="small">没有匹配的人物。</p>';
     const pages = Math.max(1, Math.ceil(rows.length / 12));
     page = Math.max(0, Math.min(page, pages - 1));
-    return `<section class="npc-progress-page duel-page" data-npc-progress-page><h2>比武与请教</h2><div class="npc-progress-tabs" role="group" aria-label="比武与请教筛选">${tabs.map(([id, label]) => `<button class="btn${tab === id ? ' soft' : ''}" data-action="npc-progress-tab" data-id="${id}" aria-pressed="${tab === id}">${label} ${data[id].length}</button>`).join('')}</div><label class="search-input"><input id="npc-progress-search" value="${text(query)}" maxlength="100" placeholder="人物、地点、私物或功法" aria-label="搜索比武与请教"></label><div class="npc-progress-list">${
+    return `<section class="npc-progress-page duel-page" data-npc-progress-page><h2>比武与请教</h2><div class="npc-progress-tabs" role="group" aria-label="比武与请教筛选">${tabs.map(([id, label]) => `<button class="btn${tab === id ? ' soft' : ''}" data-action="npc-progress-tab" data-id="${id}" aria-pressed="${tab === id}">${label} ${matching[id].length}</button>`).join('')}</div><label class="search-input"><input id="npc-progress-search" value="${text(query)}" maxlength="100" placeholder="人物、地点、私物或功法" aria-label="搜索比武与请教"></label><div class="npc-progress-list">${
       rows
         .slice(page * 12, page * 12 + 12)
         .map((row) => card(row, tab, scope))
-        .join('') || '<p class="small">没有匹配的人物。</p>'
+        .join('') || empty
     }</div>${pages > 1 ? `<div class="pagination">${act('npc-progress-page', '上一页', 'btn', String(Math.max(0, page - 1)))}<span>${page + 1} / ${pages}</span>${act('npc-progress-page', '下一页', 'btn', String(Math.min(pages - 1, page + 1)))}</div>` : ''}<details data-persist-detail="npc-progress-basis-${text(scope)}"><summary>${data.origin === 'live' ? '现场更新' : '保存后更新'}</summary><p>${data.origin === 'live' ? '当前清单来自同次现场读取；读档、切换场景或连接中断时撤回现场结果。' : '游戏保存后更新清单；接入现场读取后，无需等待保存。'}私物按人物实际剩余物品统计。</p><p>请教列出更高生活技艺和未学功法；已持有同类物品仍保留剩余收集机会。未记录人物不算完成。</p></details></section>`;
   }
   return { person, page };

@@ -37,13 +37,14 @@ export function createEntityDetailViews({ esc, act, pill, guide = () => [], rich
         Number(questStatus(b.entity.gameId, reference) === '进行中') -
         Number(questStatus(a.entity.gameId, reference) === '进行中'),
     );
+    if (!locations && !quests.length && !related.people.length && !related.items.length) return '';
     const taskRow = (row) =>
       `<div class="entity-relation-row"><div>${link(row.entity)} ${pill(questStatus(row.entity.gameId, reference))}</div><details><summary>对应步骤 · ${row.via.length}</summary><p class="small muted">${esc(row.roles.join(' / '))}</p><div class="related-items">${steps(row.via)}</div></details></div>`;
     const peopleRow = (row) =>
       `<div class="entity-relation-row">${link(row.entity)}<p class="small muted">在关联任务中：${esc(row.roles.join(' / '))}</p><details><summary>在哪些步骤出现</summary>${steps(row.via)}</details></div>`;
     const itemsRow = (row) =>
       `<div class="entity-relation-row">${link(row.entity)}${row.via.map(({ quest, count }) => `<p class="small">${link(quest)} · 该步骤需 ${esc(count)} 件</p>`).join('')}</div>`;
-    return `<section class="detail-block entity-relations" data-person-relations>${locations}<details data-persist-detail="person-related-quests-${esc(e.id)}"><summary>相关任务 · ${quests.length}</summary>${folded(quests, taskRow) || '<p class="small muted">暂无关联任务。</p>'}</details>${related.people.length ? `<details class="detail-block"><summary>关联任务中的其他人物 · ${related.people.length} · 可能涉及剧情</summary>${folded(related.people, peopleRow)}</details>` : ''}${related.items.length ? `<details class="detail-block"><summary>关联步骤需要的物品 · ${related.items.length}</summary>${folded(related.items, itemsRow)}</details>` : ''}</section>`;
+    return `<section class="detail-block entity-relations" data-person-relations>${locations}${quests.length ? `<details data-persist-detail="person-related-quests-${esc(e.id)}"><summary>相关任务 · ${quests.length}</summary>${folded(quests, taskRow)}</details>` : ''}${related.people.length ? `<details class="detail-block"><summary>关联任务中的其他人物 · ${related.people.length} · 可能涉及剧情</summary>${folded(related.people, peopleRow)}</details>` : ''}${related.items.length ? `<details class="detail-block"><summary>关联步骤需要的物品 · ${related.items.length}</summary>${folded(related.items, itemsRow)}</details>` : ''}</section>`;
   }
   function task(index, q, reference) {
     const related = entityCatalog(index).taskRelations(q);
@@ -78,7 +79,15 @@ export function createEntityDetailViews({ esc, act, pill, guide = () => [], rich
           `<details class="entity-related-advice"><summary>${richText(row.name || row.title)}</summary>${row.recommendation?.action ? `<p><strong>推荐做法：</strong>${richText(row.recommendation.action)}</p><p><strong>为什么：</strong>${richText(row.recommendation.reason)}</p>` : ''}${row.recommendation?.goal ? `<p>适合：${richText(row.recommendation.goal)}</p>` : ''}${row.recommendation?.tradeoff ? `<p>取舍：${richText(row.recommendation.tradeoff)}</p>` : ''}${row.warning ? `<p>${richText(row.warning)}</p>` : ''}${(row.affectedTasks || []).map((affected) => `<p><strong>${affectedName(affected)}：</strong>${richText(affected.effect)}</p>`).join('')}${row.uncertainty ? `<p class="save-note">${richText(row.uncertainty)}</p>` : ''}${(row.sources || []).map((source) => act('source', esc(source.title), 'text-btn', source.id)).join(' · ')}</details>`,
       )
       .join('');
-    return `<section class="detail-block entity-relations" data-task-relations><h3>${q.parentId ? '本步骤与子步骤关联' : '整条任务关联汇总'}</h3>${locations}<details><summary>涉及人物 · ${related.people.length}</summary>${folded(related.people, personRow) || '<p class="small muted">资料未列出可识别的人物关系。</p>'}</details>${related.items.length ? `<details><summary>步骤需要的物品 · ${related.items.length}</summary>${folded(related.items, itemRow)}</details>` : ''}${related.requirements.length ? `<details><summary>前置与排除任务 · ${related.requirements.length}</summary>${folded(related.requirements, requirementRow)}</details>` : ''}${advice ? `<details><summary>已整理的选择、收益与推进影响 · ${curated.length}</summary>${advice}</details>` : ''}</section>`;
+    if (
+      !locations &&
+      !related.people.length &&
+      !related.items.length &&
+      !related.requirements.length &&
+      !advice
+    )
+      return '';
+    return `<section class="detail-block entity-relations" data-task-relations>${locations}${related.people.length ? `<details><summary>涉及人物 · ${related.people.length}</summary>${folded(related.people, personRow)}</details>` : ''}${related.items.length ? `<details><summary>步骤需要的物品 · ${related.items.length}</summary>${folded(related.items, itemRow)}</details>` : ''}${related.requirements.length ? `<details><summary>前置与排除任务 · ${related.requirements.length}</summary>${folded(related.requirements, requirementRow)}</details>` : ''}${advice ? `<details><summary>已整理的选择、收益与推进影响 · ${curated.length}</summary>${advice}</details>` : ''}</section>`;
   }
   return { person, task };
 }

@@ -52,6 +52,7 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       const id = raw.id ?? raw.Id;
       const value = raw.value ?? raw.Num;
       const quest = quests.get(id);
+      const linkedQuest = quest || quests.get(raw.relatedQuestId);
       const name = raw.name || quest?.name || `任务 #${id}`;
       const result = { type, id, value, name, status: 'unknown' };
       if (type === 'None') return { ...result, status: 'met', text: '' };
@@ -59,11 +60,13 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         // The native GetQuestStep returns 0 for a missing key. This default is
         // valid only when the complete quest collection was parsed successfully.
         const step = states ? (states.get(id) ?? 0) : undefined;
+        const completedOwner =
+          !quest && raw.relatedQuestId !== id && states?.get(raw.relatedQuestId) === 4 && step !== value;
         return {
           ...result,
           status: step === undefined ? 'unknown' : step === value ? 'met' : 'unmet',
-          text: `${name.replace(/^【[^】]+】\s*/, '')}：${value === 4 ? '完成后解锁' : '需要状态 ' + value}`,
-          entityId: quest?.id || null,
+          text: `${name.replace(/^【[^】]+】\s*/, '')}：${completedOwner && value === 4 ? '相关步骤尚未完成' : value === 4 ? '完成后解锁' : '需要状态 ' + value}`,
+          entityId: linkedQuest?.id || null,
         };
       }
       if (type === 'NoQuest')
@@ -71,7 +74,7 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
           ...result,
           status: states ? (states.has(id) ? 'unmet' : 'met') : 'unknown',
           text: `${name.replace(/^【[^】]+】\s*/, '')}：尚未触发`,
-          entityId: quest?.id || null,
+          entityId: linkedQuest?.id || null,
         };
       if (type === 'Item') {
         const item = entries.get('item-' + id);

@@ -123,6 +123,11 @@ function createJourneyStateTools({ world: worldIndex, game: gameIndex }) {
     [...worldIndex.people, ...gameIndex.entries.filter((e) => e.kind === '人物')].map((p) => p.id),
   );
   const items = new Map(gameIndex.entries.filter((e) => e.kind === '物品').map((e) => [e.id, e]));
+  const giftless = new Set(
+    worldIndex.people
+      .filter((person) => Array.isArray(person.functions) && !person.functions.includes('Gift'))
+      .map((person) => person.id),
+  );
   function placeId(id, optional = false) {
     if ((optional && id === undefined) || places.has(id)) return;
     throw Error('地点须为本机索引中的地点 ID');
@@ -279,6 +284,8 @@ function createJourneyStateTools({ world: worldIndex, game: gameIndex }) {
       if (command.type.endsWith('-remove')) {
         if (at >= 0) list.splice(at, 1);
       } else {
+        if (kind === 'gift' && giftless.has(command.npcId) && (at < 0 || list[at].npcId !== command.npcId))
+          throw Error('该人物暂无赠礼入口，请改选人物。');
         const { type, ...row } = command;
         if (at < 0) list.push(row);
         else list[at] = row;

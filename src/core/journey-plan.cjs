@@ -968,6 +968,8 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
     for (const g of [...state.gifts].sort((a, b) => a.id.localeCompare(b.id))) {
       const item = entries.get(g.itemId),
         person = entries.get(g.npcId) || worldIndex.people.find((p) => p.id === g.npcId);
+      const definition = worldIndex.people.find((p) => p.id === g.npcId) || person;
+      const noGiftEntry = Array.isArray(definition?.functions) && !definition.functions.includes('Gift');
       const matchingRows =
         budgetBound && Array.isArray(budget.gifts) ? budget.gifts.filter((row) => row.id === g.id) : [];
       const granted = matchingRows.length === 1 ? matchingRows[0] : null;
@@ -983,7 +985,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
       );
       const allocated = allocationKnown ? granted.allocated : null;
       addAction('gift', [g.id], {
-        title: `赠礼意图：${giftPersonLabel(person, gameIndex.entries)} · ${giftItemLabel(item)} × ${g.quantity}`,
+        title: `赠礼意图：${giftPersonLabel(person, gameIndex.entries)} · ${giftItemLabel(item)} × ${g.quantity}${noGiftEntry ? ' · 暂无赠礼入口' : ''}`,
         detail: g.note,
         userDone: g.done,
         gift: {

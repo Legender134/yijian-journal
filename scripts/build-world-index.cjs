@@ -20,6 +20,7 @@ const rawQuests = read('Quests');
 const allQuests = new Map(rawQuests.map((q) => [q.QuestId, q]));
 const originalPeople = new Map(data.entries.filter((e) => e.kind === '人物').map((e) => [e.gameId, e]));
 const originalItems = new Map(data.entries.filter((e) => e.kind === '物品').map((e) => [e.gameId, e]));
+const itemTypes = new Map(data.entries.filter((e) => e.kind === '物品').map((e) => [e.typeKey, e.type]));
 const rawPeople = read('NPCs');
 const npcById = new Map(rawPeople.map((n) => [n.Id, n]));
 const maps = read('Maps')
@@ -33,23 +34,47 @@ const maps = read('Maps')
   }));
 const mapByKey = new Map(maps.map((m) => [m.key, m]));
 const names = (ids) => [...new Set(ids)].filter((id) => valid(npcById.get(id)?.Name));
-const requirement = (r) => {
+// Keep the hidden condition ID for evaluation; its owner is a navigation clue only.
+const storyCondition = (id, personName) => {
+  // Quest 12681 is a named-NPC conversation after the Tan City incident.
+  if (id === 12681) return { name: '谭城之乱后与李元兴交谈' };
+  let current = allQuests.get(id);
+  const seen = new Set([id]);
+  while (current?.OwnerQuestId && !seen.has(current.OwnerQuestId)) {
+    const ownerId = current.OwnerQuestId;
+    seen.add(ownerId);
+    if (data.quests[ownerId])
+      return {
+        name: clean(data.quests[ownerId].name).replace(/^【[^】]+】\s*/, '') + '相关剧情',
+        relatedQuestId: ownerId,
+      };
+    current = allQuests.get(ownerId);
+  }
+  return { name: personName + '相关剧情' };
+};
+const requirement = (r, personName = '') => {
   const type = enumName(r.Type),
     value = Number(r.Num);
   if (type === 'None' || !Number.isFinite(value)) return null;
+  const hiddenStory = personName && ['PreQuest', 'NoQuest'].includes(type) && !data.quests[r.Id];
   return {
     type,
     id: r.Id,
     value,
-    name:
-      type === 'PreQuest' || type === 'NoQuest'
-        ? clean(allQuests.get(r.Id)?.Name) || `任务步骤 #${r.Id}`
-        : type === 'Item'
-          ? originalItems.get(r.Id)?.name || `物品 #${r.Id}`
-          : clean(npcById.get(r.Id)?.Name) || '',
+    ...(hiddenStory
+      ? storyCondition(r.Id, personName)
+      : {
+          name:
+            type === 'PreQuest' || type === 'NoQuest'
+              ? clean(allQuests.get(r.Id)?.Name) || '任务步骤 #' + r.Id
+              : type === 'Item'
+                ? originalItems.get(r.Id)?.name || '物品 #' + r.Id
+                : clean(npcById.get(r.Id)?.Name) || '',
+        }),
   };
 };
-const requirements = (list) => (list || []).map(requirement).filter(Boolean);
+const requirements = (list, personName = '') =>
+  (list || []).map((r) => requirement(r, personName)).filter(Boolean);
 const quests = Object.entries(data.quests).map(([id, q]) => {
   const raw = allQuests.get(Number(id));
   const placements = [
@@ -82,7 +107,10 @@ const people = rawPeople
     (n) =>
       valid(n.Name) &&
       !n.bNotShowInUI &&
-      (originalPeople.has(n.Id) || n.SellItems.length || relatedNpcIds.has(n.Id)),
+      (originalPeople.has(n.Id) ||
+        n.SellItems.length ||
+        relatedNpcIds.has(n.Id) ||
+        n.Functions.some((f) => ['Compare', 'Consult', 'Gift', 'AddToTeam'].includes(enumName(f.Function)))),
   )
   .map((n) => {
     const original = originalPeople.get(n.Id);
@@ -102,8 +130,8 @@ const people = rawPeople
         name: clean(n.Name),
         description: clean(n.Description),
         type: '人物资料',
-        hobbies: [],
-        hobbyKeys: [],
+        hobbies: n.Hobbies.map((type) => itemTypes.get(enumName(type)) || enumName(type)),
+        hobbyKeys: n.Hobbies.map(enumName),
       }),
       functions: n.Functions.map((f) => enumName(f.Function)),
       recruitable: n.Functions.some((f) => f.Function === 'ENPCFunction::AddToTeam'),
@@ -116,7 +144,7 @@ const people = rawPeople
       })),
       friendshipLocks: n.FriendlinessLockSettings.map((l) => ({
         at: Number(l.FriendlinessLock),
-        requirements: requirements(l.ReqirementsForUnlock),
+        requirements: requirements(l.ReqirementsForUnlock, clean(n.Name)),
       })),
       joinRequirements: requirements(n.JoinTeamRequirements),
       walkMap: mapByKey.has(n.WalkLevelName) ? n.WalkLevelName : '',
