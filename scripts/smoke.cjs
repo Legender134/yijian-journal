@@ -804,7 +804,22 @@ async function companionHomeInventorySync(page) {
     assert.equal(await win.locator('.entity-preview-heading small').innerText(), '同名资料');
     await armorChoice.click();
     await win.locator('[aria-label="选择同名资料"]').waitFor();
-    await win.locator('[aria-label="选择同名资料"] [data-id="item-9004"]').click();
+    const armorOption = win.locator('[aria-label="选择同名资料"] [data-id="item-9004"]');
+    await armorOption.hover();
+    await win.waitForTimeout(350);
+    assert.equal(
+      await win.locator('#entity-preview').isVisible(),
+      false,
+      'choice reading stays unobstructed',
+    );
+    await armorOption.focus();
+    await win.waitForTimeout(350);
+    assert.equal(
+      await win.locator('#entity-preview').isVisible(),
+      false,
+      'choice keyboard focus stays unobstructed',
+    );
+    await armorOption.click();
     await win.locator('[data-item-statistics]').waitFor();
     await assertProgressReference(win, '2.sav');
     await assertSharedProgressUi(win);
@@ -1600,9 +1615,23 @@ async function companionHomeInventorySync(page) {
       (await win.locator('[data-flow-quest="quest-8830"] .flow-next-action').innerText()).replace(/\s+/g, ''),
       /返回武当/,
     );
-    const returnPlaces = win.locator('[data-flow-quest="quest-8830"] .flow-targets');
-    assert.match(await returnPlaces.innerText(), /武当派/);
-    assert.match(await returnPlaces.innerText(), /名剑山庄/);
+    const returnTask = win.locator('[data-flow-quest="quest-8830"]').first();
+    assert.equal(
+      await returnTask.locator('.flow-targets').count(),
+      0,
+      'do not repeat the linked destination or promote story locations',
+    );
+    assert.equal(
+      await returnTask
+        .locator('.flow-next-action [data-action="entity-choice"][data-id="place-name:武当"]')
+        .count(),
+      1,
+    );
+    assert.match(
+      await returnTask.locator('.flow-places').first().textContent(),
+      /名剑山庄/,
+      'keep narrative locations in expanded details',
+    );
     await rosterWarning.locator('.flow-rule-details > summary').click();
     await rosterWarning
       .locator('details details')

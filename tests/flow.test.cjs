@@ -2745,7 +2745,8 @@ test('actual current tasks take companion hint priority while preserving persona
   );
   assert.equal(snapshot.hints[0].id, 'quest-11077');
   assert.equal(snapshot.hints[0].type, 'quest');
-  assert.equal(snapshot.hints[0].title, '收集药材向洛村郎中换取秘术');
+  assert.equal(snapshot.hints[0].title, '先备齐所需材料');
+  assert.equal(snapshot.flow.active[0].steps[0].name, '收集药材向洛村郎中换取秘术');
   assert.equal(snapshot.hints[1].title, '我的个人计划');
   assert(snapshot.flow.advice.some((r) => r.id === 'medicine-shared-herbs'));
   assert.deepEqual(state, before);

@@ -1,0 +1,1474 @@
+{
+  "5025": {
+    "evidenceQuestIds": [5020, 5025],
+    "instruction": "到梧桐村西边的小树林寻找江小彤"
+  },
+  "5037": {
+    "evidenceQuestIds": [5020, 5037],
+    "instruction": "到梧桐村西边的山坡教训猴子，夺回江小彤的木剑"
+  },
+  "5068": {
+    "evidenceQuestIds": [5068],
+    "instruction": "先送礼将卫霍好感提升至20以上，再与他切磋赢得高粱酒；精力不足可到客栈或江吟风家休息"
+  },
+  "5153": {
+    "evidenceQuestIds": [5153],
+    "instruction": "进入洛村客栈，打听小彤的消息"
+  },
+  "5169": {
+    "evidenceQuestIds": [5169],
+    "instruction": "先用伤药恢复伤势、用武学点提升武学，再到主屋击败大当家"
+  },
+  "5203": {
+    "evidenceQuestIds": [5203],
+    "instruction": "在武当派大殿附近逛逛，等待莫问通传"
+  },
+  "5212": {
+    "evidenceQuestIds": [5212],
+    "instruction": "在武当派跟随莫问，前往弟子房休息"
+  },
+  "5216": {
+    "evidenceQuestIds": [5216],
+    "instruction": "到武当派三清殿西侧洞玄殿，向道微师叔问好"
+  },
+  "5218": {
+    "evidenceQuestIds": [5213, 5218],
+    "instruction": "到武当派正殿东侧的真武殿，向道通师叔问好并领取身份铭牌"
+  },
+  "5219": {
+    "evidenceQuestIds": [5219],
+    "instruction": "在武当派回复莫问师兄，继续熟悉门派"
+  },
+  "5221": {
+    "evidenceQuestIds": [5221],
+    "instruction": "到武当派执事堂，向道妙师叔问好并领取弟子袍服"
+  },
+  "5229": {
+    "evidenceQuestIds": [5229],
+    "instruction": "在武当派随莫问前往试剑台，学习基础武学"
+  },
+  "5233": {
+    "evidenceQuestIds": [5233],
+    "instruction": "在清河村找兰儿，询问山贼线索"
+  },
+  "5239": {
+    "evidenceQuestIds": [5239],
+    "instruction": "返回武当派，向道通师叔复命"
+  },
+  "5241": {
+    "evidenceQuestIds": [5241],
+    "instruction": "返回武当派弟子房休息"
+  },
+  "5243": {
+    "evidenceQuestIds": [5243],
+    "instruction": "找元风接门派任务，贡献达标后找道通晋升资深弟子",
+    "actionRequirements": [
+      {
+        "type": "Context",
+        "name": "门派贡献需达到300"
+      }
+    ]
+  },
+  "5256": {
+    "evidenceQuestIds": [5256],
+    "instruction": "到城内药铺抓跌打药，为王钧治伤"
+  },
+  "5265": {
+    "evidenceQuestIds": [5265],
+    "instruction": "在博坊地窖寻找密室，救出王钧的妻子"
+  },
+  "5305": {
+    "evidenceQuestIds": [5305],
+    "instruction": "找元风接门派任务，贡献达标后找道通晋升精英弟子",
+    "actionRequirements": [
+      {
+        "type": "Context",
+        "name": "门派贡献需达到1500"
+      }
+    ]
+  },
+  "5358": {
+    "evidenceQuestIds": [5358],
+    "instruction": "在姑苏城客栈休息一晚，明日再走"
+  },
+  "5370": {
+    "evidenceQuestIds": [5370],
+    "instruction": "前往名剑山庄剑坪，与师兄们会合"
+  },
+  "5394": {
+    "evidenceQuestIds": [5370, 5394],
+    "instruction": "在名剑山庄向东寻找琴声来源",
+    "evidenceUrls": ["https://steamcommunity.com/sharedfiles/filedetails/?id=3552565492"]
+  },
+  "5408": {
+    "evidenceQuestIds": [5399, 5408],
+    "instruction": "在姑苏城继续逛灯会；想离开时，从西边桥头离开"
+  },
+  "5412": {
+    "instruction": "回名剑山庄客房休息，准备明日的品剑大会",
+    "evidenceQuestIds": [5370, 5412]
+  },
+  "5444": {
+    "instruction": "回名剑山庄客房休息，明日再与同伴启程",
+    "evidenceQuestIds": [5412, 5444, 5446]
+  },
+  "5446": {
+    "evidenceQuestIds": [5368, 5444, 5446],
+    "instruction": "到名剑山庄门口码头，与欧阳雪、瑶姬会合后乘船离开"
+  },
+  "5503": {
+    "evidenceQuestIds": [5503],
+    "instruction": "到幽云泽渡口南侧乘船北上"
+  },
+  "5514": {
+    "evidenceQuestIds": [5514],
+    "instruction": "趁夜前往峋谷关将军府，找黄宗政"
+  },
+  "5526": {
+    "evidenceQuestIds": [5500, 5526],
+    "instruction": "到峋谷关东南方向的徐海家，查清其假装受伤的目的"
+  },
+  "5536": {
+    "evidenceQuestIds": [5536],
+    "instruction": "离开峋谷关将军府"
+  },
+  "5540": {
+    "evidenceQuestIds": [5540],
+    "instruction": "在峋谷关内寻找瑶姬"
+  },
+  "5583": {
+    "evidenceQuestIds": [5580, 5583],
+    "instruction": "到黎城东边的法场，向清虚师父复命"
+  },
+  "5584": {
+    "evidenceQuestIds": [5580, 5584],
+    "instruction": "到黎城东边的法场，向清霄师伯复命"
+  },
+  "5604": {
+    "evidenceQuestIds": [5604],
+    "instruction": "前往不风山顶，支援各派主力"
+  },
+  "5656": {
+    "evidenceQuestIds": [5656],
+    "instruction": "在不风山顶附近和屋内，搜寻暗道入口"
+  },
+  "5684": {
+    "evidenceQuestIds": [5684],
+    "instruction": "前往黎城城门口，询问欧阳雪的伤情"
+  },
+  "5685": {
+    "evidenceQuestIds": [5685],
+    "instruction": "前往黎城城门口，询问欧阳雪的伤情"
+  },
+  "5714": {
+    "evidenceQuestIds": [5704, 5714],
+    "collectionPlaces": [
+      {
+        "name": "万劫窟",
+        "materialIds": [10074]
+      }
+    ]
+  },
+  "5715": {
+    "replacePlaceMentions": {
+      "山洞": "万劫窟"
+    },
+    "evidenceQuestIds": [5704, 5714, 5715]
+  },
+  "5724": {
+    "instruction": "回名剑山庄客房休息",
+    "evidenceQuestIds": [5721, 5724]
+  },
+  "5733": {
+    "evidenceQuestIds": [5733],
+    "instruction": "进入威远镖局，查看打斗情况"
+  },
+  "5751": {
+    "evidenceQuestIds": [5751],
+    "instruction": "找元风接门派任务，贡献达标后找道通晋升传功弟子",
+    "actionRequirements": [
+      {
+        "type": "Context",
+        "name": "门派贡献需达到3000"
+      }
+    ]
+  },
+  "5768": {
+    "evidenceQuestIds": [5768],
+    "instruction": "去紫竹林赶走玄火教众，再将消息告知村长"
+  },
+  "5787": {
+    "evidenceQuestIds": [5787],
+    "instruction": "趁夜在程家堡找程堡主，打听灵蛛使的下落"
+  },
+  "5790": {
+    "evidenceQuestIds": [5790],
+    "instruction": "在程家堡右侧第一桌入席"
+  },
+  "5851": {
+    "evidenceQuestIds": [5851],
+    "instruction": "找元风接门派任务，贡献达标后找道通晋升执法弟子",
+    "actionRequirements": [
+      {
+        "type": "Context",
+        "name": "门派贡献需达到6000"
+      }
+    ]
+  },
+  "5865": {
+    "evidenceQuestIds": [5860, 5865],
+    "instruction": "前往景陇城与欧阳庄主会合；可经幽云泽乘船，或绕西北的蔓阴林"
+  },
+  "5867": {
+    "evidenceQuestIds": [5867],
+    "instruction": "前往景陇城南的竹桥，与欧阳庄主会合"
+  },
+  "5881": {
+    "evidenceQuestIds": [5881],
+    "instruction": "前往五仙教五神殿，面见蓝孔雀"
+  },
+  "5942": {
+    "evidenceQuestIds": [5942],
+    "instruction": "到少林寺旁边的禅房，向莫问师兄报平安"
+  },
+  "5943": {
+    "evidenceQuestIds": [5940, 5943],
+    "instruction": "到少林寺西边的方丈室寻找莫问师兄"
+  },
+  "5953": {
+    "evidenceQuestIds": [5940, 5953],
+    "instruction": "回武当派争取晋升真武殿首座，为少林英雄大会做准备"
+  },
+  "5991": {
+    "evidenceQuestIds": [5991],
+    "instruction": "前往山门与清虚道长会合",
+    "currentNPCs": [5003]
+  },
+  "6002": {
+    "evidenceQuestIds": [5990, 6002],
+    "instruction": "到少林寺南边的禅房，向清虚询问风云诀一事"
+  },
+  "6006": {
+    "evidenceQuestIds": [6006],
+    "instruction": "沿小路下山，离开少林寺"
+  },
+  "6054": {
+    "evidenceQuestIds": [6054],
+    "instruction": "通过葬龙谷，前往玄火教"
+  },
+  "6084": {
+    "evidenceQuestIds": [6080, 6084],
+    "instruction": "到玄火教东侧暗牢入口，与万花红会合"
+  },
+  "6085": {
+    "evidenceQuestIds": [6080, 6085],
+    "instruction": "进入玄火教暗牢，营救瑶姬"
+  },
+  "7035": {
+    "evidenceQuestIds": [7035],
+    "instruction": "在景陇城与娜乌、顾思归等人商议，稍事休息"
+  },
+  "7090": {
+    "evidenceQuestIds": [7090],
+    "instruction": "可继续追击萧无颜，或与五仙教之人一同离开凤凰洞"
+  },
+  "7150": {
+    "evidenceQuestIds": [7150],
+    "instruction": "救治欧阳雪：宇文逸内功120以上，或有特殊队友在队；救治顾思归：曼罗香（愁雾林）、乌头血（百药谷）、玉骨莲（十万大山），毒草任选一种",
+    "objectivePlaces": [
+      {
+        "name": "愁雾林",
+        "hint": "曼罗香；救治顾思归的毒草任选一种"
+      },
+      {
+        "name": "百药谷",
+        "hint": "乌头血；救治顾思归的毒草任选一种"
+      },
+      {
+        "name": "十万大山",
+        "hint": "玉骨莲；救治顾思归的毒草任选一种"
+      }
+    ]
+  },
+  "7151": {
+    "evidenceQuestIds": [7151],
+    "instruction": "寻觅毒草：曼罗香（愁雾林）、乌头血（百药谷）、玉骨莲（十万大山），毒草任选一种",
+    "objectivePlaces": [
+      {
+        "name": "愁雾林",
+        "hint": "曼罗香；救治顾思归的毒草任选一种"
+      },
+      {
+        "name": "百药谷",
+        "hint": "乌头血；救治顾思归的毒草任选一种"
+      },
+      {
+        "name": "十万大山",
+        "hint": "玉骨莲；救治顾思归的毒草任选一种"
+      }
+    ]
+  },
+  "7222": {
+    "evidenceQuestIds": [7222],
+    "instruction": "到五仙教西边平台的客房休息，等待消息；期间可先做其他事"
+  },
+  "8033": {
+    "evidenceQuestIds": [8033],
+    "instruction": "去碧波门东侧房间，找上官雨治疗寒毒"
+  },
+  "8053": {
+    "instruction": "回碧波门客房，准备接受上官雨的治疗",
+    "evidenceQuestIds": [8030, 8033, 8053]
+  },
+  "8577": {
+    "evidenceQuestIds": [8499, 8577],
+    "instruction": "到五仙教西侧厢房看望欧阳雪",
+    "evidenceUrls": ["https://steamcommunity.com/sharedfiles/filedetails/?id=3552565492"]
+  },
+  "8579": {
+    "evidenceQuestIds": [8499, 8579],
+    "instruction": "回五仙教西侧厢房休息一段时日",
+    "evidenceUrls": ["https://steamcommunity.com/sharedfiles/filedetails/?id=3552565492"]
+  },
+  "9050": {
+    "evidenceQuestIds": [5980, 9050],
+    "instruction": "到武当派找道通，晋升真武殿首座"
+  },
+  "9055": {
+    "evidenceQuestIds": [9055],
+    "instruction": "前往山门与清虚道长会合",
+    "currentNPCs": [5003]
+  },
+  "9246": {
+    "evidenceQuestIds": [9246],
+    "instruction": "前往少林寺东侧禅房，应圆觉之邀"
+  },
+  "9249": {
+    "evidenceQuestIds": [9249],
+    "instruction": "前往少林寺方丈室，祭奠圆觉方丈"
+  },
+  "11001": {
+    "evidenceQuestIds": [11001],
+    "instruction": "去后山山洞，击杀三条蛇"
+  },
+  "11010": {
+    "evidenceQuestIds": [11010],
+    "collectionPlaces": [
+      {
+        "name": "后山山洞",
+        "materialIds": [10201]
+      }
+    ]
+  },
+  "11109": {
+    "collectionPlaces": [
+      {
+        "name": "莲心湖",
+        "materialIds": [10531]
+      },
+      {
+        "name": "津鲤村",
+        "materialIds": [10534]
+      },
+      {
+        "name": "天鸣村",
+        "materialIds": [10537]
+      }
+    ],
+    "evidenceQuestIds": [11109]
+  },
+  "11279": {
+    "evidenceQuestIds": [11279],
+    "instruction": "到武馆与陈麟熙交谈；若他已在队伍，可先让他离队"
+  },
+  "11317": {
+    "evidenceQuestIds": [11317],
+    "instruction": "在洛村找王氏，询问她的心事"
+  },
+  "11336": {
+    "evidenceQuestIds": [11336],
+    "collectionPlaces": [
+      {
+        "name": "津鲤村",
+        "materialIds": [10529]
+      },
+      {
+        "name": "姑苏城",
+        "materialIds": [10529]
+      }
+    ]
+  },
+  "11342": {
+    "evidenceQuestIds": [11342],
+    "instruction": "在洛村找柳氏，购买水芹"
+  },
+  "11373": {
+    "evidenceQuestIds": [11370, 11373],
+    "instruction": "到城隍庙左侧跟上老猿，看看它要做什么"
+  },
+  "11406": {
+    "evidenceQuestIds": [11406],
+    "instruction": "前往姑苏城，查看吕家比武招亲"
+  },
+  "11475": {
+    "collectionPlaces": [
+      {
+        "name": "凤凰洞",
+        "materialIds": [10215]
+      },
+      {
+        "name": "天山",
+        "materialIds": [10215]
+      }
+    ],
+    "evidenceQuestIds": [11475]
+  },
+  "11476": {
+    "turnInPlaces": ["姑苏城"],
+    "evidenceQuestIds": [11476]
+  },
+  "11478": {
+    "evidenceQuestIds": [11478],
+    "instruction": "再次拜访姑苏城铁匠，看看剑是否铸好"
+  },
+  "11630": {
+    "evidenceQuestIds": [11630],
+    "instruction": "前往天水城，找臧镖头拿画押"
+  },
+  "11657": {
+    "evidenceQuestIds": [11657],
+    "instruction": "将旺福带回南渝村洛员外家"
+  },
+  "11697": {
+    "evidenceQuestIds": [11695, 11697],
+    "instruction": "到谭城找晋大夫购买避障丹，再交给洛员外"
+  },
+  "11708": {
+    "evidenceQuestIds": [11708],
+    "instruction": "前往幽云泽与假扮驱虫药商人的买家接头，避开南疆士兵"
+  },
+  "11717": {
+    "evidenceQuestIds": [11717],
+    "instruction": "将与买家接头的结果回报霹雳门主汤统"
+  },
+  "11721": {
+    "collectionPlaces": [
+      {
+        "name": "万劫窟",
+        "materialIds": [10304]
+      }
+    ],
+    "evidenceQuestIds": [11721]
+  },
+  "11736": {
+    "evidenceQuestIds": [11736],
+    "collectionPlaces": [
+      {
+        "name": "断天崖",
+        "materialIds": [10288]
+      },
+      {
+        "name": "碧幽林",
+        "materialIds": [10285]
+      },
+      {
+        "name": "落英林",
+        "materialIds": [10285]
+      }
+    ]
+  },
+  "11738": {
+    "evidenceQuestIds": [11738],
+    "instruction": "前往武当派，向道玄师叔借用丹炉"
+  },
+  "11779": {
+    "evidenceQuestIds": [11775, 11779],
+    "instruction": "到连鼓山寻找张彩织的货物，可能藏在宝箱内"
+  },
+  "11821": {
+    "evidenceQuestIds": [11821],
+    "collectionPlaces": [
+      {
+        "name": "猴儿林",
+        "materialIds": [168]
+      },
+      {
+        "name": "清河村",
+        "materialIds": [10525]
+      }
+    ]
+  },
+  "11822": {
+    "evidenceQuestIds": [11822],
+    "collectionPlaces": [
+      {
+        "name": "猴儿林",
+        "materialIds": [168]
+      },
+      {
+        "name": "清河村",
+        "materialIds": [10525]
+      }
+    ]
+  },
+  "11857": {
+    "evidenceQuestIds": [11855, 11857],
+    "instruction": "与上官虹前往白帝湖湖心亭，进行第二次试炼"
+  },
+  "11878": {
+    "evidenceQuestIds": [11878],
+    "collectionPlaces": [
+      {
+        "name": "野猪林",
+        "materialIds": [10248]
+      }
+    ],
+    "actionRequirements": [
+      {
+        "type": "TeamMember",
+        "id": 10047,
+        "name": "卫霍",
+        "hint": "交付时需卫霍在队"
+      }
+    ]
+  },
+  "11891": {
+    "evidenceQuestIds": [11891],
+    "instruction": "若有空，可回青木舫看看司马铃"
+  },
+  "11935": {
+    "evidenceQuestIds": [11935],
+    "instruction": "回姑苏城，告知海商赵伦李泰的答复"
+  },
+  "11947": {
+    "evidenceQuestIds": [11945, 11947],
+    "instruction": "到武当派三清殿东侧找道通，处理千陵渡凶案"
+  },
+  "11963": {
+    "evidenceQuestIds": [11963],
+    "instruction": "在千陵渡重新调查，寻找新的线索"
+  },
+  "11972": {
+    "evidenceQuestIds": [11972],
+    "instruction": "与莫弃前往武当山门，寻找樵夫"
+  },
+  "12007": {
+    "evidenceQuestIds": [12007],
+    "instruction": "先吸引碗子山山贼注意，为白锦创造探查机会；完成后回洛村与白锦会合",
+    "objectivePlaces": [
+      {
+        "name": "洛村",
+        "hint": "先吸引山贼注意，待白锦探查后再回洛村会合"
+      }
+    ]
+  },
+  "12014": {
+    "evidenceQuestIds": [12014],
+    "instruction": "若要再找白锦，可前往落英林"
+  },
+  "12016": {
+    "evidenceQuestIds": [12016],
+    "collectionPlaces": [
+      {
+        "name": "谭城",
+        "materialIds": [245]
+      }
+    ]
+  },
+  "12022": {
+    "evidenceQuestIds": [12022],
+    "instruction": "与白锦在断天崖擒下五名草寇，盘问来意"
+  },
+  "12033": {
+    "evidenceQuestIds": [12033],
+    "instruction": "前往峋谷关的将军府，探问究竟"
+  },
+  "12035": {
+    "collectionPlaces": [
+      {
+        "name": "葬龙谷",
+        "materialIds": [10390]
+      }
+    ],
+    "evidenceQuestIds": [12035]
+  },
+  "12067": {
+    "evidenceQuestIds": [12067],
+    "instruction": "前往平康城武馆，挑战陈麟熙"
+  },
+  "12069": {
+    "evidenceQuestIds": [12069],
+    "instruction": "前往平康城武馆，挑战陈麟熙"
+  },
+  "12078": {
+    "evidenceQuestIds": [12078],
+    "instruction": "与陈麟熙在北山村调查寒尸"
+  },
+  "12082": {
+    "evidenceQuestIds": [12082],
+    "instruction": "协助斩无刑在樊城寻找开碑手周斛"
+  },
+  "12084": {
+    "evidenceQuestIds": [12084],
+    "instruction": "在樊城寻找陈麟熙的踪影"
+  },
+  "12113": {
+    "evidenceQuestIds": [12113],
+    "instruction": "若要陪吕仙儿同行，先去梧桐村找她"
+  },
+  "12122": {
+    "evidenceQuestIds": [12122],
+    "instruction": "与吕仙儿前往龙门峡，击杀渊军精锐"
+  },
+  "12287": {
+    "evidenceQuestIds": [12287],
+    "instruction": "在少林寺寻找圆觉方丈，请他帮忙寻找栾姑娘的父亲"
+  },
+  "12328": {
+    "evidenceQuestIds": [12328],
+    "collectionPlaces": [
+      {
+        "name": "谭城",
+        "materialIds": [130]
+      }
+    ]
+  },
+  "12334": {
+    "evidenceQuestIds": [12334],
+    "instruction": "回谭城，将钱掌柜的话告知捕头张判龙"
+  },
+  "12339": {
+    "evidenceQuestIds": [12339],
+    "turnInPlaces": ["谭城"]
+  },
+  "12340": {
+    "evidenceQuestIds": [12340],
+    "instruction": "将伤药带给谭城武馆的刘信"
+  },
+  "12348": {
+    "evidenceQuestIds": [12348],
+    "collectionPlaces": [
+      {
+        "name": "青萝山",
+        "materialIds": [10289]
+      }
+    ],
+    "turnInPlaces": ["谭城"]
+  },
+  "12353": {
+    "evidenceQuestIds": [12353],
+    "instruction": "去幽云泽渡口找商人，求购苗疆特产"
+  },
+  "12354": {
+    "evidenceQuestIds": [12354],
+    "instruction": "回谭城客栈，告知洪掌柜已购得千年蜈蚣蜕"
+  },
+  "12363": {
+    "evidenceQuestIds": [12363],
+    "instruction": "前往名剑山庄找欧阳献公，商议丐帮订购武备"
+  },
+  "12377": {
+    "evidenceQuestIds": [12377],
+    "instruction": "在谭城找龚进，询问徐长老被害一事"
+  },
+  "12379": {
+    "evidenceQuestIds": [12379],
+    "instruction": "到天鸣村找刘玄，询问他目击徐长老身亡的情况"
+  },
+  "12380": {
+    "evidenceQuestIds": [12380],
+    "instruction": "到紫竹林深处靠北竹桥的西侧，寻找刺杀线索"
+  },
+  "12382": {
+    "evidenceQuestIds": [12382],
+    "instruction": "回谭城再问龚进，打听更多线索"
+  },
+  "12402": {
+    "evidenceQuestIds": [12400, 12402],
+    "instruction": "在武当派弟子房东侧找元辰，打听莫问的喜好"
+  },
+  "12404": {
+    "evidenceQuestIds": [12400, 12404],
+    "instruction": "在武当派试剑台西侧找莫弃，打听莫问的喜好"
+  },
+  "12407": {
+    "evidenceQuestIds": [12407],
+    "instruction": "备好白光剑后送给莫问；购买线索：平康城铁匠处似乎有售",
+    "objectivePlaces": [
+      {
+        "name": "平康城",
+        "hint": "平康城铁匠处似乎有售白光剑；备好后送给莫问"
+      }
+    ]
+  },
+  "12408": {
+    "evidenceQuestIds": [12408],
+    "instruction": "备好花坞茶、双井茶或阳羡茶中的任一种，再送给莫问"
+  },
+  "12412": {
+    "actionRequirements": [
+      {
+        "type": "Money",
+        "value": 3000
+      }
+    ],
+    "evidenceQuestIds": [12412],
+    "instruction": "备好每次挑战所需的3000文，在程家村与陆博枭比棋"
+  },
+  "12508": {
+    "evidenceQuestIds": [12508],
+    "instruction": "在雷家村与村民逐一交谈，打听勾结海寇之人"
+  },
+  "12524": {
+    "evidenceQuestIds": [12524],
+    "instruction": "到连鼓山擒下雷壮"
+  },
+  "12558": {
+    "evidenceQuestIds": [12558],
+    "instruction": "登上连鼓山山顶，斩杀娄赴召"
+  },
+  "12629": {
+    "evidenceQuestIds": [12629],
+    "instruction": "去南渝村寻找玉伯"
+  },
+  "12630": {
+    "evidenceQuestIds": [12630],
+    "instruction": "到蔓阴林取回双生荼蘼"
+  },
+  "12632": {
+    "evidenceQuestIds": [12632],
+    "instruction": "到紫竹林最深处取出凤冠霞帔"
+  },
+  "12633": {
+    "evidenceQuestIds": [12633],
+    "instruction": "回南渝村，将凤冠霞帔交给玉伯"
+  },
+  "12667": {
+    "evidenceQuestIds": [12667],
+    "instruction": "先在天鸣村休整，再与燕未还对话"
+  },
+  "12712": {
+    "evidenceQuestIds": [12712],
+    "instruction": "在卧秋山抓羊，准备烧烤"
+  },
+  "12831": {
+    "evidenceQuestIds": [12831],
+    "instruction": "前往牢房，查看闯入的紫衣女子"
+  },
+  "12838": {
+    "evidenceQuestIds": [12838],
+    "instruction": "在甘泉村与冷鹰商议对付穷山寇"
+  },
+  "12839": {
+    "evidenceQuestIds": [12839],
+    "instruction": "在甘泉村与村长商议对付穷山寇"
+  },
+  "12842": {
+    "evidenceQuestIds": [12842],
+    "instruction": "到平阳堡向王道明求援；需先与平阳堡增进关系"
+  },
+  "12843": {
+    "evidenceQuestIds": [12843],
+    "instruction": "前往鹰愁谷，向神鹰门门主殷无矜求援"
+  },
+  "12910": {
+    "evidenceQuestIds": [12910],
+    "instruction": "先在甘泉村休整，准备好后与冷鹰同行"
+  },
+  "12936": {
+    "evidenceQuestIds": [12936],
+    "instruction": "到甘泉村北面寻找兆成"
+  },
+  "13006": {
+    "evidenceQuestIds": [13006],
+    "instruction": "深入一线天，寻找殷无矜"
+  },
+  "13010": {
+    "evidenceQuestIds": [13010],
+    "instruction": "在一线天与冷姑娘迎战穷山寇先头部队"
+  },
+  "13026": {
+    "evidenceQuestIds": [13026],
+    "instruction": "深入一线天，寻找殷无矜"
+  },
+  "13030": {
+    "evidenceQuestIds": [13030],
+    "instruction": "在一线天与冷姑娘迎战穷山寇先头部队"
+  },
+  "13046": {
+    "evidenceQuestIds": [13046],
+    "instruction": "深入一线天，寻找殷无矜"
+  },
+  "13054": {
+    "evidenceQuestIds": [13054],
+    "instruction": "在一线天与冷姑娘迎战穷山寇先头部队"
+  },
+  "13081": {
+    "evidenceQuestIds": [13081],
+    "instruction": "与冷鹰往苦水村方向，追杀计酆都"
+  },
+  "13085": {
+    "evidenceQuestIds": [13085],
+    "instruction": "与冷鹰往苦水村方向，追杀计酆都"
+  },
+  "13090": {
+    "evidenceQuestIds": [13090],
+    "instruction": "与冷鹰往苦水村方向，追杀计酆都"
+  },
+  "13218": {
+    "evidenceQuestIds": [13218],
+    "instruction": "在天水城找钱六婶，打听程二爷的为人"
+  },
+  "13219": {
+    "evidenceQuestIds": [13219],
+    "instruction": "在天水城找张老三，打听程二爷的为人"
+  },
+  "13220": {
+    "evidenceQuestIds": [13220],
+    "instruction": "在天水城找小红杏，打听程二爷的为人"
+  },
+  "13260": {
+    "evidenceQuestIds": [13260],
+    "instruction": "在苍岚村寻找涤罪僧"
+  },
+  "13265": {
+    "evidenceQuestIds": [13265],
+    "instruction": "与涤罪僧前往程家堡，除掉程万清"
+  },
+  "13304": {
+    "evidenceQuestIds": [13304],
+    "instruction": "到神鹰门飞鹰殿，拜谒殷无矜"
+  },
+  "13502": {
+    "evidenceQuestIds": [13502],
+    "instruction": "若要比武，可在平阳堡找王天聪"
+  },
+  "13503": {
+    "evidenceQuestIds": [13503],
+    "instruction": "若要比武，可在平阳堡找王天聪"
+  },
+  "13511": {
+    "evidenceQuestIds": [13511],
+    "collectionPlaces": [
+      {
+        "name": "卧秋山",
+        "materialIds": [10213]
+      }
+    ]
+  },
+  "13801": {
+    "evidenceQuestIds": [13801],
+    "instruction": "前往万劫窟，击杀首领震山龙"
+  },
+  "13828": {
+    "evidenceQuestIds": [13824, 13828],
+    "instruction": "到武当派后山厢房，迎战武林前辈"
+  },
+  "13829": {
+    "evidenceQuestIds": [13824, 13829],
+    "instruction": "到武当派后山厢房，迎战武林名宿"
+  },
+  "14002": {
+    "evidenceQuestIds": [14002],
+    "collectionPlaces": [
+      {
+        "name": "平康城",
+        "materialIds": [10154],
+        "hint": "当铺购买"
+      }
+    ]
+  },
+  "14005": {
+    "evidenceQuestIds": [14005],
+    "collectionPlaces": [
+      {
+        "name": "阎浮镇",
+        "materialIds": [10156],
+        "hint": "客栈持有人线索"
+      }
+    ]
+  },
+  "14008": {
+    "evidenceQuestIds": [14008],
+    "instruction": "带张秀才前往少林寺，会见慧达大师"
+  },
+  "14012": {
+    "evidenceQuestIds": [14012],
+    "collectionPlaces": [
+      {
+        "name": "阎浮镇",
+        "materialIds": [152],
+        "hint": "杂货处购买"
+      }
+    ]
+  },
+  "14056": {
+    "evidenceQuestIds": [14056],
+    "collectionPlaces": [
+      {
+        "name": "青萝山",
+        "materialIds": [10262]
+      },
+      {
+        "name": "素节林",
+        "materialIds": [10262]
+      }
+    ]
+  },
+  "14057": {
+    "evidenceQuestIds": [14057],
+    "collectionPlaces": [
+      {
+        "name": "平康城",
+        "materialIds": [10190],
+        "hint": "当铺购买"
+      }
+    ]
+  },
+  "14066": {
+    "evidenceQuestIds": [14066],
+    "instruction": "前往野猪林，清剿五头野猪"
+  },
+  "14076": {
+    "evidenceQuestIds": [14076],
+    "instruction": "到六扇门，将清霄师伯的信交给神侯刘雄"
+  },
+  "14079": {
+    "evidenceQuestIds": [14079],
+    "instruction": "回武当派，向元风师兄复命"
+  },
+  "14091": {
+    "evidenceQuestIds": [14091],
+    "instruction": "前往青萝山，清剿五头狼"
+  },
+  "14106": {
+    "evidenceQuestIds": [14106],
+    "collectionPlaces": [
+      {
+        "name": "断天崖",
+        "materialIds": [10288]
+      }
+    ]
+  },
+  "14109": {
+    "evidenceQuestIds": [14109],
+    "instruction": "前往少林寺，将清虚掌门的书信送给圆觉方丈"
+  },
+  "14110": {
+    "evidenceQuestIds": [14110],
+    "instruction": "回武当派，向元风师兄复命"
+  },
+  "14111": {
+    "evidenceQuestIds": [14111],
+    "collectionPlaces": [
+      {
+        "name": "猴儿林",
+        "materialIds": [168]
+      }
+    ]
+  },
+  "14121": {
+    "evidenceQuestIds": [14121],
+    "collectionPlaces": [
+      {
+        "name": "断天崖",
+        "materialIds": [10212]
+      }
+    ]
+  },
+  "14155": {
+    "evidenceQuestIds": [14155],
+    "instruction": "动身前往少林寺，拜访圆觉方丈"
+  },
+  "14156": {
+    "evidenceQuestIds": [14156],
+    "instruction": "到少林后殿，与慧空、慧平较量"
+  },
+  "14161": {
+    "evidenceQuestIds": [14161],
+    "instruction": "回武当派，向元风师兄复命"
+  },
+  "14162": {
+    "evidenceQuestIds": [14162],
+    "collectionPlaces": [
+      {
+        "name": "万劫窟",
+        "materialIds": [10213]
+      }
+    ]
+  },
+  "14171": {
+    "evidenceQuestIds": [14171],
+    "instruction": "前往威远镖局寻找李泰，送去清虚掌门备下的丹药"
+  },
+  "14181": {
+    "collectionHints": [
+      {
+        "materialIds": [10174, 10176],
+        "text": "幽云泽商人出售"
+      }
+    ],
+    "evidenceQuestIds": [14181]
+  },
+  "14302": {
+    "evidenceQuestIds": [14302],
+    "instruction": "赠送卫霍喜好的物品，将好感提升至60以上；好感越高，需要的礼物品质越高"
+  },
+  "16019": {
+    "evidenceQuestIds": [16019, 16020],
+    "deferDestinations": true
+  },
+  "16020": {
+    "evidenceQuestIds": [16019, 16020],
+    "instruction": "回姑苏城再访柳麻衣",
+    "currentNPCs": [17009]
+  },
+  "16035": {
+    "evidenceQuestIds": [16035],
+    "turnInPlaces": ["霹雳门"],
+    "actionRequirements": [
+      {
+        "type": "Context",
+        "name": "等待合适时机，再到霹雳门找商葶苧"
+      }
+    ]
+  },
+  "16059": {
+    "evidenceQuestIds": [16059],
+    "turnInPlaces": ["霹雳门"],
+    "actionRequirements": [
+      {
+        "type": "Context",
+        "name": "等待合适时机，再到霹雳门找元疆"
+      }
+    ]
+  },
+  "16091": {
+    "evidenceQuestIds": [16075, 16091],
+    "instruction": "到幽云泽渡口东侧找霹雳门弟子，与顾思归一同前往霹雳门",
+    "evidenceUrls": ["https://www.bilibili.com/opus/1083464358677184516"]
+  },
+  "16114": {
+    "evidenceQuestIds": [16114],
+    "instruction": "先回厢房休息，或在霹雳门内逛逛，等待明日演示"
+  },
+  "16121": {
+    "evidenceQuestIds": [16121],
+    "instruction": "前往霹雳门库房，调查火器受潮"
+  },
+  "16123": {
+    "evidenceQuestIds": [16123],
+    "instruction": "在霹雳门库房调查铁砂弹丸遭破坏一事"
+  },
+  "16169": {
+    "evidenceQuestIds": [16120, 16169],
+    "instruction": "回霹雳门厢房休息，等候明日"
+  },
+  "16189": {
+    "evidenceQuestIds": [16120, 16189],
+    "instruction": "回霹雳门厢房休息，等候明日"
+  },
+  "16200": {
+    "evidenceQuestIds": [16200],
+    "instruction": "前往霹雳门宝库一探究竟"
+  },
+  "16270": {
+    "evidenceQuestIds": [16255, 16270],
+    "instruction": "进入厢房，面见童安"
+  },
+  "16301": {
+    "evidenceQuestIds": [16301],
+    "instruction": "或可先在霹雳门向五仙教之人打听七毒灵芯，取得后交给童安"
+  },
+  "17009": {
+    "evidenceQuestIds": [17009],
+    "actionRequirements": [
+      {
+        "type": "Money",
+        "value": 100000
+      }
+    ]
+  },
+  "17031": {
+    "evidenceQuestIds": [17031],
+    "instruction": "往姑苏城西追缉行凶者"
+  },
+  "17141": {
+    "evidenceQuestIds": [17141],
+    "instruction": "前往五仙教地牢，见龙桑杰",
+    "literalNames": ["龙桑杰"]
+  },
+  "17151": {
+    "evidenceQuestIds": [17151],
+    "instruction": "到五仙教西南的平台，寻找玉蟾使·石赫"
+  },
+  "17171": {
+    "evidenceQuestIds": [17171],
+    "instruction": "回五仙岭，向玉蟾使石赫询问"
+  },
+  "17345": {
+    "evidenceQuestIds": [17340, 17345],
+    "instruction": "到西侧生殿邀请段履霜"
+  },
+  "17346": {
+    "evidenceQuestIds": [17340, 17346],
+    "instruction": "到东侧死殿邀请段朝晨"
+  },
+  "17544": {
+    "evidenceQuestIds": [17544],
+    "instruction": "靠近云纹太极图参悟；需熟练掌握太极招式及本门内功"
+  },
+  "18505": {
+    "evidenceQuestIds": [18505],
+    "collectionPlaces": [
+      {
+        "name": "苍岚村",
+        "materialIds": [10123]
+      }
+    ]
+  },
+  "18804": {
+    "evidenceQuestIds": [18804],
+    "instruction": "到宋宅找宋仵作，寻求真相"
+  },
+  "18932": {
+    "evidenceQuestIds": [18930, 18932],
+    "instruction": "按村长的线索，往比天山更远的北方寻找隆大松",
+    "nonDestinationPlaces": ["天山"]
+  },
+  "20037": {
+    "evidenceQuestIds": [20037],
+    "turnInPlaces": ["天剑宗"]
+  },
+  "20072": {
+    "evidenceQuestIds": [20072],
+    "instruction": "先往渡口找肖寒光，再与他同返姑苏"
+  },
+  "20081": {
+    "evidenceQuestIds": [20081],
+    "instruction": "前往姑苏城客栈，与莲芯相会"
+  },
+  "20082": {
+    "evidenceQuestIds": [20082],
+    "instruction": "与冷无情前往姑苏城客栈，与莲芯相会"
+  },
+  "20331": {
+    "evidenceQuestIds": [20331],
+    "instruction": "前往驼铃丘，寻找真正的玄火神丹"
+  },
+  "20340": {
+    "evidenceQuestIds": [20340],
+    "instruction": "回武当派，将玄火神丹之事告知清虚掌门"
+  },
+  "20455": {
+    "evidenceQuestIds": [20455],
+    "instruction": "在少林寺找知客僧安排厢房，等候剑决"
+  },
+  "20504": {
+    "evidenceQuestIds": [20504],
+    "instruction": "到大雄宝殿前参加剑决"
+  },
+  "21003": {
+    "evidenceQuestIds": [21003],
+    "instruction": "前往少林寺戒律院，拜访圆悟方丈"
+  },
+  "21059": {
+    "evidenceQuestIds": [21059],
+    "instruction": "到阎浮镇找大夫楚材，询问凶案情况"
+  },
+  "21060": {
+    "evidenceQuestIds": [21060],
+    "instruction": "在镇内寻找六扇门之人继续调查；尸体发现于佛塔"
+  },
+  "21178": {
+    "evidenceQuestIds": [21178],
+    "instruction": "进入野林，寻找江小彤"
+  },
+  "21192": {
+    "evidenceQuestIds": [21192],
+    "instruction": "江小彤恢复伤势还需时间，可先做其他事"
+  },
+  "21281": {
+    "evidenceQuestIds": [21281],
+    "instruction": "等待段朝晨调查；若无他事，找知客僧选择等候剑决"
+  },
+  "21282": {
+    "evidenceQuestIds": [21282],
+    "instruction": "入夜后与冷鹰一同追蹑赤鹰；可找知客僧选择等候剑决"
+  },
+  "22020": {
+    "instruction": "去少林寺东侧客房，找清虚道长商议",
+    "evidenceQuestIds": [22020, 22000],
+    "evidenceUrls": ["https://steamcommunity.com/sharedfiles/filedetails/?id=3552565492"]
+  },
+  "22060": {
+    "evidenceQuestIds": [22060],
+    "instruction": "做好准备后，回武当派与清霄道长汇合"
+  },
+  "22150": {
+    "evidenceQuestIds": [22150],
+    "instruction": "到试剑台参加誓师大会"
+  },
+  "22172": {
+    "evidenceQuestIds": [22172],
+    "instruction": "先在天佛窟外协助各派驱散江湖人士，再进入洞窟"
+  },
+  "22334": {
+    "evidenceQuestIds": [22170, 22334],
+    "instruction": "前往天佛窟第三层，击败迦摩",
+    "evidenceUrls": [
+      "https://www.bilibili.com/opus/1098750804429373478",
+      "https://www.gamersky.com/handbook/202608/2188490_52.shtml"
+    ]
+  },
+  "22431": {
+    "evidenceQuestIds": [22431],
+    "instruction": "在天佛窟路口休整，查看各派情况"
+  },
+  "22480": {
+    "evidenceQuestIds": [22480],
+    "instruction": "整备后离开天佛窟，前往玄火教阵地实行擒王策"
+  },
+  "23007": {
+    "evidenceQuestIds": [23007],
+    "instruction": "到少林寺拜访圆悟方丈，探问此人来历"
+  },
+  "23025": {
+    "evidenceQuestIds": [23025],
+    "instruction": "到少林寺拜访圆悟方丈，探问此人来历"
+  },
+  "23049": {
+    "evidenceQuestIds": [23049],
+    "instruction": "在囚室寻找达摩武经线索，或向圆悟方丈询问"
+  },
+  "23234": {
+    "evidenceQuestIds": [23234],
+    "instruction": "到阎浮镇东北方小屋，探望江小彤"
+  },
+  "24042": {
+    "evidenceQuestIds": [24042],
+    "instruction": "前往峋谷关外，与桓王相会"
+  },
+  "24043": {
+    "evidenceQuestIds": [24043],
+    "instruction": "前往峋谷关外，与桓王相会"
+  },
+  "24044": {
+    "evidenceQuestIds": [24044],
+    "instruction": "前往峋谷关外，与桓王相会"
+  },
+  "24045": {
+    "evidenceQuestIds": [24045],
+    "instruction": "前往峋谷关外，与桓王相会"
+  },
+  "24046": {
+    "evidenceQuestIds": [24046],
+    "instruction": "前往峋谷关外，与桓王相会"
+  },
+  "24047": {
+    "evidenceQuestIds": [24047],
+    "instruction": "前往峋谷关外，与桓王相会"
+  },
+  "28014": {
+    "evidenceQuestIds": [28014],
+    "instruction": "到平康铁匠处准备一柄可作武器的扇子"
+  },
+  "28015": {
+    "evidenceQuestIds": [28015],
+    "instruction": "到平康城客栈，再会步微月"
+  },
+  "28017": {
+    "evidenceQuestIds": [28017],
+    "instruction": "到平康城外寻找步微月"
+  },
+  "28020": {
+    "evidenceQuestIds": [28020],
+    "instruction": "到平康城客栈，与步微月赴约"
+  },
+  "28027": {
+    "evidenceQuestIds": [28027],
+    "instruction": "在仙人渡打探步微月的落脚处"
+  },
+  "28038": {
+    "evidenceQuestIds": [28038],
+    "instruction": "与柏二爷对话出海【需步微月在队】"
+  },
+  "28041": {
+    "evidenceQuestIds": [28041],
+    "instruction": "前往野猪林、碧幽林或猴儿林，修炼青云扇法"
+  },
+  "28073": {
+    "evidenceQuestIds": [28073],
+    "turnInPlaces": ["仙人渡"]
+  },
+  "28205": {
+    "evidenceQuestIds": [28205],
+    "instruction": "前往仙猿山、灵龟岛取得传承线索"
+  },
+  "28420": {
+    "evidenceQuestIds": [28400, 28420],
+    "instruction": "在灵龟岛左侧石台破解河图机关"
+  },
+  "28421": {
+    "evidenceQuestIds": [28400, 28421],
+    "instruction": "在灵龟岛右侧石台破解洛书机关"
+  },
+  "29710": {
+    "evidenceQuestIds": [29710],
+    "instruction": "到和璞山庄正厅赴慕迟的宴席"
+  },
+  "29720": {
+    "evidenceQuestIds": [29700, 29720],
+    "instruction": "到和璞山庄东厢房休息一晚"
+  },
+  "29760": {
+    "evidenceQuestIds": [29700, 29760],
+    "instruction": "到和璞山庄正厅找慕迟，让吕仙儿请教兵法"
+  },
+  "29855": {
+    "evidenceQuestIds": [29700, 29800, 29855],
+    "instruction": "去和璞山庄东侧客房，看看吕仙儿的新想法",
+    "evidenceUrls": ["https://steamcommunity.com/sharedfiles/filedetails/?id=3552565492"]
+  },
+  "30006": {
+    "evidenceQuestIds": [30000, 30006],
+    "instruction": "到西厢房拜访叶云"
+  },
+  "30044": {
+    "evidenceQuestIds": [30040, 30044],
+    "instruction": "到和璞山庄校场一探"
+  },
+  "30046": {
+    "evidenceQuestIds": [30040, 30046],
+    "instruction": "在和璞山庄与慕寒梅告别，再回房间休息"
+  },
+  "30056": {
+    "collectionPlaces": [
+      {
+        "name": "平康城",
+        "materialIds": [10326, 10330],
+        "hint": "行脚货郎购买"
+      }
+    ],
+    "evidenceQuestIds": [30056]
+  },
+  "30088": {
+    "evidenceQuestIds": [30088],
+    "instruction": "前往庄外桃林，与叶家兄妹共饮"
+  },
+  "30113": {
+    "evidenceQuestIds": [30113],
+    "instruction": "与吕仙儿回姑苏城，拜访吕奉贤吕员外"
+  },
+  "30143": {
+    "evidenceQuestIds": [30143],
+    "instruction": "前往威远镖局寻找李泰，送去清虚掌门备下的丹药"
+  },
+  "30145": {
+    "collectionHints": [
+      {
+        "materialIds": [10174, 10176],
+        "text": "幽云泽商人出售"
+      }
+    ],
+    "evidenceQuestIds": [30145]
+  },
+  "30332": {
+    "instruction": "回刚才藏身的山洞安顿惊雷使；妥当后再去和璞山庄与道微会合",
+    "evidenceQuestIds": [30331, 30332, 30340],
+    "nonDestinationPlaces": ["山洞"],
+    "deferDestinations": true,
+    "evidenceUrls": ["https://steamcommunity.com/sharedfiles/filedetails/?id=3552565492"]
+  },
+  "30344": {
+    "instruction": "去和璞山庄旁边客房，与道微师叔商议",
+    "evidenceQuestIds": [30340, 30344],
+    "evidenceUrls": ["https://steamcommunity.com/sharedfiles/filedetails/?id=3552565492"]
+  },
+  "30350": {
+    "evidenceQuestIds": [30150, 30340, 30344, 30350],
+    "instruction": "到和璞山庄西厢房，与瑶姬交谈"
+  },
+  "30392": {
+    "instruction": "到和璞山庄的玄火教客房，寻找惊雷使",
+    "evidenceQuestIds": [30340, 30344, 30392],
+    "nonDestinationPlaces": ["玄火教", "客房"],
+    "evidenceUrls": ["https://steamcommunity.com/sharedfiles/filedetails/?id=3552565492"]
+  },
+  "30602": {
+    "evidenceQuestIds": [30602],
+    "instruction": "设法看到真正的《混沌武典》，或向可信的玄火教中人探听"
+  },
+  "30670": {
+    "evidenceQuestIds": [30670],
+    "instruction": "回厢房，等待夜幕降临"
+  },
+  "30690": {
+    "evidenceQuestIds": [30150, 30690],
+    "instruction": "在厢房稍事休息，等候夜幕降临"
+  },
+  "30722": {
+    "evidenceQuestIds": [30722],
+    "instruction": "入夜后往玄火教方向，与瑶姬汇合"
+  },
+  "30811": {
+    "evidenceQuestIds": [30811],
+    "instruction": "前往峋谷关客栈赴约，瑶姬或许已在等候"
+  },
+  "32502": {
+    "evidenceQuestIds": [32502],
+    "turnInPlaces": ["仙人渡"]
+  },
+  "32524": {
+    "evidenceQuestIds": [32524],
+    "instruction": "在仙人渡与各国商贾逐一接触，寻找海寇内应"
+  },
+  "32543": {
+    "evidenceQuestIds": [32543],
+    "instruction": "前往仙人渡东北方向的小屋，进入暗市"
+  },
+  "32544": {
+    "evidenceQuestIds": [32544],
+    "instruction": "调查暗市中唯一的商人，寻找海寇线索"
+  },
+  "materialSources": {
+    "10201": ["梧桐村", "碗子山"],
+    "10202": ["梧桐村", "碗子山"],
+    "10212": ["断天崖"],
+    "10213": ["竹海"],
+    "10215": ["恶人谷", "凤凰洞"],
+    "10248": ["碧幽林"],
+    "10256": ["十万大山"],
+    "10259": ["梧桐村", "碧幽林"],
+    "10260": ["碗子山", "素节林"],
+    "10261": ["碗子山", "野猪林"],
+    "10262": ["野猪林", "青萝山"],
+    "10263": ["碧幽林", "野猪林"],
+    "10268": ["桃花林", "落英林"],
+    "10270": ["素节林", "桃花林"],
+    "10272": ["断天崖", "檀林"],
+    "10276": ["万劫窟", "十万大山"],
+    "10278": ["不风山", "卧秋山"],
+    "10279": ["白龟洞", "恶人谷"],
+    "10284": ["饿虎坡"],
+    "10285": ["后山山洞"],
+    "10293": ["天水城"],
+    "10296": ["少林寺"],
+    "10314": ["天水城"],
+    "10326": ["平康城"],
+    "10330": ["平康城"],
+    "10332": ["桃花林", "落英林"],
+    "10521": ["碧幽林"],
+    "10525": ["梧桐村", "清河村"],
+    "10527": ["清河村", "双河村"],
+    "10529": ["姑苏城", "名剑山庄"],
+    "10531": ["莲心湖", "白帝湖"],
+    "10534": ["天鸣村", "白龟洞"],
+    "10537": ["天鸣村", "洱郡"],
+    "10548": ["万劫窟", "一线天"],
+    "10551": ["津鲤村", "百药谷"],
+    "10555": ["蜃楼海域"],
+    "10580": ["蟹岛"],
+    "10588": ["游仙村"]
+  }
+}

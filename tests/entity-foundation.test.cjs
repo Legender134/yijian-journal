@@ -6,7 +6,10 @@ const path = require('node:path');
 const url = (name) => {
   const source = fs
     .readFileSync(path.join(__dirname, '../src/renderer', name), 'utf8')
-    .replace(/from '(\.\/[^']+)'/g, (_, dependency) => 'from ' + JSON.stringify(url(dependency.slice(2))));
+    .replace(
+      /from '(\.\.?\/[^']+)'/g,
+      (_, dependency) => 'from ' + JSON.stringify(url(path.posix.join(path.posix.dirname(name), dependency))),
+    );
   return 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
 };
 const loaded = Promise.all([

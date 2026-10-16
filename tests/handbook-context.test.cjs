@@ -439,7 +439,7 @@ test('additional reading state is bounded and cannot carry arbitrary selectors o
     assert.throws(() => handbookContext({ profileId: 'p', detail: { type: 'entity-choice', id } }));
 });
 
-test('task materials preserve their reference while current NPC navigation follows live updates only in latest mode', async () => {
+test('flow item and NPC navigation follows live intent only in latest mode while fixed and crafting lookups keep their reference', async () => {
   const { createGameViews } = await import('../src/renderer/game-views.js');
   const gameViews = createGameViews({ esc: String });
   const gameIndex = require('../src/data/game-index.json');
@@ -476,10 +476,10 @@ test('task materials preserve their reference while current NPC navigation follo
           context,
         );
         await context.run();
-        const liveNpc = fromFlow && follow && id === 'npc-10016';
-        assert.equal(opened.name, liveNpc ? undefined : fromFlow ? '1.sav' : '2.sav');
-        assert.equal(opened.expected?.hash, fromFlow && !liveNpc ? flow.hash : undefined);
-        assert.equal(opened.expected?.origin, liveNpc ? 'live' : undefined);
+        const liveReading = fromFlow && follow;
+        assert.equal(opened.name, liveReading ? undefined : fromFlow ? '1.sav' : '2.sav');
+        assert.equal(opened.expected?.hash, fromFlow && !liveReading ? flow.hash : undefined);
+        assert.equal(opened.expected?.origin, liveReading ? 'live' : undefined);
       }
 });
 
@@ -2044,4 +2044,24 @@ test('global quest filtering follows settings and keeps a historical search refe
   assert.equal(ctx.searchQuestStatuses().get(5200), '进行中');
   ctx.referenceSaveName = '';
   assert.equal(ctx.searchQuestStatuses().size, 0);
+});
+
+test('typed place choices survive handoff and history without accepting paths or unbounded identifiers', () => {
+  const id = 'place-name:和璞山庄';
+  const result = handbookContext({
+    profileId: 'p',
+    detail: { type: 'entity-choice', id },
+    history: [{ detail: { type: 'entity-choice', id: 'place-name:五仙教' } }],
+  });
+  assert.equal(result.detail.id, id);
+  assert.equal(result.history[0].detail.id, 'place-name:五仙教');
+  assert.equal(
+    handbookContext({ profileId: 'p', detail: { type: 'entity-choice', id: 'place-name:' + 'a'.repeat(89) } })
+      .detail.id.length,
+    100,
+  );
+  for (const suffix of ['', '../private', 'C:\\private', '\nscript', 'a'.repeat(90)])
+    assert.throws(() =>
+      handbookContext({ profileId: 'p', detail: { type: 'entity-choice', id: 'place-name:' + suffix } }),
+    );
 });

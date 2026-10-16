@@ -3560,6 +3560,12 @@ kbd {
 .world-step .text-btn {
   text-align: left;
 }
+.place-current-tasks > .world-step {
+  display: block;
+}
+.place-current-tasks > .world-step > p {
+  margin: 8px 0;
+}
 .world-drawer .detail-block summary {
   cursor: pointer;
   padding: 10px 0;

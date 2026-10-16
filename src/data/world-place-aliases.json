@@ -1,3 +1,61 @@
 [
-  { "name": "武当派", "mentions": ["武当山", "武当"] }
+  {
+    "name": "武当派",
+    "mentions": ["武当山", "武当"]
+  },
+  {
+    "name": "后山山洞",
+    "mentions": ["后山的山洞口", "后山的山洞"],
+    "ambiguousMentions": ["山洞"]
+  },
+  {
+    "name": "饿虎坡山洞",
+    "mentions": [],
+    "ambiguousMentions": ["山洞"]
+  },
+  {
+    "name": "崖底山洞",
+    "mentions": [],
+    "ambiguousMentions": ["山洞"]
+  },
+  {
+    "name": "青木舫",
+    "mentions": ["青木画舫"]
+  },
+  {
+    "name": "檀林",
+    "mentions": ["檀林瀑布"]
+  },
+  {
+    "name": "五仙教圣潭",
+    "mentions": ["圣潭"]
+  },
+  {
+    "name": "五仙教禁地",
+    "mentions": ["山洞禁地", "五仙教东北侧禁地", "五仙教东北的禁地"]
+  },
+  {
+    "name": "平康城",
+    "mentions": ["平康"]
+  },
+  {
+    "name": "少林寺",
+    "mentions": ["少林"]
+  },
+  {
+    "name": "姑苏城",
+    "mentions": ["姑苏"]
+  },
+  {
+    "name": "五仙教牢房",
+    "mentions": ["五仙教地牢"]
+  },
+  {
+    "name": "佛窟二层",
+    "mentions": ["天佛窟第二层", "天佛窟二层"]
+  },
+  {
+    "name": "佛窟顶层",
+    "mentions": ["天佛窟第三层", "天佛窟三层", "天佛窟顶层"]
+  }
 ]

@@ -1,10 +1,7 @@
 'use strict';
 const test = require('node:test'),
   assert = require('node:assert/strict');
-const fs = require('node:fs'),
-  path = require('node:path');
-const source = fs.readFileSync(path.join(__dirname, '../src/renderer/task-mentions.js'), 'utf8');
-const loaded = import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+const loaded = import('../src/renderer/task-mentions.js');
 const { encyclopedia } = require('../src/core/game-data.cjs');
 test('literal task mentions open known people and places while retaining ambiguous location choices', async () => {
   const { taskMentions } = await loaded,

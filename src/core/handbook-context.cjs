@@ -48,7 +48,7 @@ function handbookContext(value) {
       save: /^\d{1,12}\.sav$/i,
       comparison: /^$/,
       'entity-choice':
-        /^(?:name:[^/\\\u0000-\u001f]{1,90}|place-\d+|map-point:\d{1,4}(?:\.\d{1,2})?:\d{1,4}(?:\.\d{1,2})?)$/,
+        /^(?:name:[^/\\\u0000-\u001f]{1,90}|place-name:[^/\\\u0000-\u001f]{1,89}|place-\d+|map-point:\d{1,4}(?:\.\d{1,2})?:\d{1,4}(?:\.\d{1,2})?)$/,
     };
     const valid =
       detail.type === 'backup'

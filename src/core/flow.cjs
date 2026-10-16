@@ -7,6 +7,7 @@ const { selectedReference } = require('./goal-progress.cjs');
 const { withLiveDialogue } = require('./live-guidance.cjs');
 const { createDuelProjector } = require('./duels.cjs');
 const duelGuide = require('../data/duel-guide.cjs');
+const { createTaskTargetProjector } = require('./task-targets.cjs');
 
 // These are named sections of the story, not a numeric quest-ID ordering.
 // A section is selected only by an actually active main-quest record.
@@ -42,6 +43,7 @@ function createFlowProjector({
   const people = new Map(w.people.map((p) => [p.gameId, p]));
   const items = new Map(g.entries.map((e) => [e.id, e]));
   const maps = new Map(w.maps.map((p) => [p.key, p]));
+  const taskTargets = createTaskTargetProjector(w, materialContent.items);
   const projectDuels = createDuelProjector({ world: w, game: g, guide: duelGuide });
   const children = new Map();
   for (const q of quests.values()) {
@@ -92,7 +94,7 @@ function createFlowProjector({
     }
     return [...distinct.values()].sort((a, b) => text.indexOf(a.mention) - text.indexOf(b.mention));
   }
-  function routesFor(material, task, currentMap) {
+  function routesFor(material, task, currentMap, targets) {
     const item = items.get(`item-${material.id}`),
       routes = (materialContent.items[material.id]?.routes || []).map((route) => ({
         ...route,
@@ -102,6 +104,56 @@ function createFlowProjector({
       }));
     const taskRoute = content.stepMaterialRoutes?.[task.gameId]?.[material.id];
     if (taskRoute) routes.unshift({ ...taskRoute, taskSpecific: true });
+    for (const hint of targets?.materialHints || [])
+      if (hint.materialIds.includes(material.id))
+        routes.unshift({
+          kind: 'reference',
+          label: hint.text,
+          detail: task.description,
+          taskSpecific: true,
+        });
+    const collectionPlaces = (targets?.places || []).filter(
+      (p) =>
+        p.purpose === 'objective' || (p.purpose === 'material-source' && p.materialIds.includes(material.id)),
+    );
+    const explicitSources = collectionPlaces.filter((place) => place.materialIds?.includes(material.id));
+    const inferredSources = explicitSources.length
+      ? explicitSources
+      : collectionPlaces.length === 1 &&
+          task.name.includes(material.name) &&
+          /采集|购买|买来|寻找|收集|搜集|找齐|抓|捕捉|获取|取得|取回|钓取/.test(task.name)
+        ? collectionPlaces
+        : [];
+    if (!taskRoute)
+      for (const place of inferredSources) {
+        if (
+          routes.some(
+            (route) =>
+              route.place === place.name ||
+              route.placeName === place.name ||
+              (route.placeId && w.maps.find((row) => row.id === route.placeId)?.name === place.name),
+          )
+        )
+          continue;
+        routes.push({
+          kind: 'reference',
+          label: place.name + (place.hint ? ' · ' + place.hint : ' 获取线索'),
+          placeId: place.id,
+          place: place.name,
+          taskSpecific: place.evidence !== '物品资料获取线索',
+          instruction:
+            !place.hint &&
+            place.mentions.some((mention) => (targets.nextAction || task.name).includes(mention))
+              ? cleanName(targets.nextAction || task.name)
+              : '',
+          detail:
+            place.evidence === '物品资料获取线索'
+              ? item?.description
+              : place.evidence === '任务获取地点'
+                ? task.description
+                : '',
+        });
+      }
     for (const route of content.itemRoutes?.[material.id] || []) {
       if (!route.placeId || !w.maps.some((place) => place.id === route.placeId)) continue;
       routes.push({
@@ -282,6 +334,7 @@ function createFlowProjector({
       return { text: `${r.name || npcName(r.id)}：${r.type} ${r.value}`, status: 'unknown' };
     }
     function projectStep(q) {
+      const targets = taskTargets.project(q, metadata);
       const places = textPlaces(q.name + ' ' + q.description).map((p) => ({
         id: p.id,
         name: p.name,
@@ -318,10 +371,13 @@ function createFlowProjector({
       return {
         id: q.id,
         name: cleanName(q.name),
+        targets,
         nextAction:
           !q.parentId && children.get(q.gameId)?.length
-            ? '下一步未识别，请查看游戏任务栏。'
-            : cleanName(q.name),
+            ? targets.conditionHint
+              ? `下一步未识别，请查看游戏任务栏；${targets.conditionHint}`
+              : '下一步未识别，请查看游戏任务栏。'
+            : targets.nextAction || cleanName(q.name),
         description: q.description,
         people: npcs,
         places,
@@ -331,7 +387,7 @@ function createFlowProjector({
           required: m.count,
           owned: inventory ? inventory.get(m.id) || 0 : null,
           missing: inventory ? Math.max(0, m.count - (inventory.get(m.id) || 0)) : null,
-          routes: routesFor(m, q, metadata.mapName),
+          routes: routesFor(m, q, metadata.mapName, targets),
         })),
         requirements: (q.requirements || []).map(requirement),
         upcoming: [...quests.values()]

@@ -16,8 +16,9 @@ const moduleUrl = (name) => {
   const source = fs
     .readFileSync(path.join(__dirname, '../src/renderer', name), 'utf8')
     .replace(
-      /from '(\.\/[^']+)'/g,
-      (_, dependency) => 'from ' + JSON.stringify(moduleUrl(dependency.slice(2))),
+      /from '(\.\.?\/[^']+)'/g,
+      (_, dependency) =>
+        'from ' + JSON.stringify(moduleUrl(path.posix.join(path.posix.dirname(name), dependency))),
     );
   return 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
 };

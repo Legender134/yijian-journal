@@ -2,11 +2,22 @@ import { entityCatalog, questStatus } from './entity-catalog.js';
 import { itemNumericSummary } from './item-stat-views.js';
 import { sharedEntityArtwork } from './game-images.js';
 import { createPlaceMapViews } from './place-map-views.js';
+import {
+  allObjectivePlaces,
+  resolveTaskObjectives,
+  isGenericPlaceName,
+  placeMentionIsQualifier,
+} from '../shared/task-objectives.mjs';
 
 export function createEntityReferences({ index, esc, picture, icon, qualityText }) {
   const placeMaps = createPlaceMapViews({ esc, icon });
   const catalog = () => index() && entityCatalog(index());
   const rows = (id) => catalog()?.resolve(id) || [];
+  const currentAt = (quest, key, reference) =>
+    catalog().isCurrentQuestStep(quest, (q) => questStatus(q.gameId, reference)) &&
+    resolveTaskObjectives(index().world?.objectives?.[quest.id], reference?.metadata)?.places.some((target) =>
+      target.mapKeys.includes(key),
+    );
   function choiceSummary(entry, choices, reference = null) {
     const sameName = choices.filter((row) => row.name === entry.name && row.kind === entry.kind);
     const position = sameName.findIndex((row) => row.id === entry.id) + 1;
@@ -16,12 +27,27 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
     if (entry.kind === '地点') {
       if (reference?.metadata?.map === entry.key) facts.push('当前地点');
       const related =
-        index().world?.quests?.filter((quest) =>
-          (quest.placements || []).some((placement) => placement.mapKey === entry.key),
+        index().world?.quests?.filter(
+          (quest) =>
+            (quest.placements || []).some((placement) => placement.mapKey === entry.key) ||
+            allObjectivePlaces(index().world?.objectives?.[quest.id]).some((target) =>
+              target.mapKeys.includes(entry.key),
+            ),
         ) || [];
+      related.sort(
+        (a, b) => Number(currentAt(b, entry.key, reference)) - Number(currentAt(a, entry.key, reference)),
+      );
       const tasks = [...new Set(related.map((quest) => quest.name.replace(/^【[^】]+】/, '')))];
       if (tasks.length) facts.push('任务：' + tasks.slice(0, 2).join('、'));
       else if (sameName.length > 1) facts.push('暂无关联任务');
+      if (
+        related.some((quest) =>
+          index().world?.objectives?.[quest.id]?.places.some(
+            (target) => target.mapKeys.length > 1 && target.mapKeys.includes(entry.key),
+          ),
+        )
+      )
+        facts.push('场景待确认');
     } else if (entry.kind === '人物') {
       if (Number.isFinite(entry.npcFacts?.level)) facts.push('初始等级 ' + entry.npcFacts.level);
       const place = index().world?.maps?.find((row) => row.key === entry.walkMap);
@@ -86,26 +112,107 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       rows(entityId).length;
     return `<button type="button" class="${cls}${entity ? ' pictured-link entity-link' : ''}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''}${entity ? ` data-entity-id="${esc(entityId)}"` : ''}${accessibleLabel ? ` aria-label="${esc(accessibleLabel)}"` : ''}>${entity ? artwork(entityId) + '<span class="entity-link-label">' + (action === 'database-detail' || action === 'archive-entity' || journal?.[1] === 'database' ? qualityText.html(entityId, label) : label) + '</span>' : (glyph ? icon(glyph) : '') + label}</button>`;
   }
-  function text(value, taskAction = 'world-quest') {
+  function text(value, taskAction = 'world-quest', targets = {}) {
     const source = String(value ?? ''),
       data = catalog();
     if (!data) return esc(source);
+    // Quoted task titles are deliberate references, including titles that are
+    // ordinary instructions when used without a title marker.
+    if (!Array.isArray(targets?.places))
+      for (const quoted of source.matchAll(/「([^」\r\n]+)」|“([^”\r\n]+)”|《([^》\r\n]+)》/gu)) {
+        const label = quoted[1] || quoted[2] || quoted[3];
+        const choices = data.names.get(label) || [];
+        if (!choices.length || !choices.every((entry) => entry.kind === '任务')) continue;
+        const link =
+          choices.length === 1
+            ? button(taskAction, esc(label), 'text-btn entity-inline', choices[0].id)
+            : button('entity-choice', esc(label), 'text-btn entity-inline', 'name:' + label);
+        return (
+          text(source.slice(0, quoted.index), taskAction, targets) +
+          esc(quoted[0][0]) +
+          link +
+          esc(quoted[0].at(-1)) +
+          text(source.slice(quoted.index + quoted[0].length), taskAction, targets)
+        );
+      }
     let html = '',
       at = 0;
-    data.pattern.lastIndex = 0;
-    for (const match of source.matchAll(data.pattern)) {
+    const pattern = Array.isArray(targets?.places) ? data.objectivePattern : data.pattern;
+    pattern.lastIndex = 0;
+    for (const match of source.matchAll(pattern)) {
       html += esc(source.slice(at, match.index));
-      const choices = data.names.get(match[0]) || [];
+      // A root task can itself be named “返回五仙教”. Its prose match must not
+      // swallow a destination already identified by the current objective.
+      const interiorPlace =
+        /^(?:殿|堂|阁|室|峰|楼|厅|院|塔|窟)/.test(source.slice(match.index + match[0].length)) &&
+        match[0].endsWith('主') &&
+        data.names.get(match[0].slice(0, -1))?.some((entry) => entry.kind === '地点')
+          ? match[0].slice(0, -1)
+          : '';
+      const nestedMention =
+        [...(targets?.people || []), ...(targets?.places || [])]
+          .filter((entry) => data.entries.has(entry.id) || entry.mapKeys?.length)
+          .flatMap((entry) => [...new Set([entry.name, ...(entry.mentions || [])])])
+          .filter((name) => name?.length > 1 && name !== match[0] && match[0].includes(name))
+          .sort((a, b) => b.length - a.length)[0] || interiorPlace;
+      const globalChoices = data.names.get(match[0]) || [];
+      if (nestedMention && globalChoices.length && globalChoices.every((entry) => entry.kind === '任务')) {
+        const offset = match[0].indexOf(nestedMention);
+        html +=
+          text(match[0].slice(0, offset), taskAction, targets) +
+          text(nestedMention, taskAction, targets) +
+          text(match[0].slice(offset + nestedMention.length), taskAction, targets);
+        at = match.index + match[0].length;
+        continue;
+      }
+      // A local building name must not become an unrelated shorter quest.
+      // Explicit quoted titles have already been handled above.
+      if (
+        /^(?:殿|堂|阁|室|峰|楼|厅|院|塔|窟)/.test(source.slice(match.index + match[0].length)) &&
+        globalChoices.length &&
+        globalChoices.every((entry) => entry.kind === '任务')
+      ) {
+        html += esc(match[0]);
+        at = match.index + match[0].length;
+        continue;
+      }
+      const preferred = [...(targets?.people || []), ...(targets?.places || [])].filter(
+        (entry) => entry.id && (entry.name === match[0] || entry.mentions?.includes(match[0])),
+      );
+      const ids = [...new Set(preferred.map((entry) => entry.id))];
+      const exact = ids.length === 1 ? data.entries.get(ids[0]) : null;
+      const placeTarget = (targets?.places || []).find(
+        (entry) => entry.mapKeys?.length && (entry.name === match[0] || entry.mentions?.includes(match[0])),
+      );
+      const choiceId = (placeTarget ? 'place-name:' : 'name:') + match[0];
+      const choices = exact ? [exact] : data.resolve(choiceId);
       const e = choices[0];
+      // Keep landmarks and acquisition clues linkable. Only reject a place
+      // interpretation contradicted by the phrase or its known local context.
+      const blockedPlace =
+        Array.isArray(targets?.places) &&
+        choices.length &&
+        choices.every(
+          (entry) =>
+            entry.kind === '地点' &&
+            (targets.nonDestinationPlaces?.includes(match[0]) ||
+              targets.nonDestinationPlaces?.includes(entry.name) ||
+              placeMentionIsQualifier(entry.name, source.slice(match.index + match[0].length)) ||
+              (isGenericPlaceName(entry.name) &&
+                targets.places.some((place) => !isGenericPlaceName(place.name)) &&
+                !targets.places.some((place) => place.mapKeys?.includes(entry.key)))),
+        );
       html +=
-        choices.length === 1
-          ? button(
-              e.kind === '任务' ? taskAction : e.kind === '地点' ? 'world-place' : 'database-detail',
-              esc(match[0]),
-              'text-btn entity-inline',
-              e.id,
-            )
-          : button('entity-choice', esc(match[0]), 'text-btn entity-inline', 'name:' + match[0]);
+        !choices.length || blockedPlace
+          ? esc(match[0])
+          : choices.length === 1
+            ? button(
+                e.kind === '任务' ? taskAction : e.kind === '地点' ? 'world-place' : 'database-detail',
+                esc(match[0]),
+                'text-btn entity-inline',
+                e.id,
+              )
+            : button('entity-choice', esc(match[0]), 'text-btn entity-inline', choiceId);
       at = match.index + match[0].length;
     }
     return html + esc(source.slice(at));
@@ -116,8 +223,8 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
     if (!e) return '';
     const name =
       choices.length > 1
-        ? id.startsWith('name:')
-          ? id.slice(5)
+        ? /^(?:place-)?name:/.test(id)
+          ? id.slice(id.indexOf(':') + 1)
           : [...new Set(choices.map((row) => row.name))].join(' / ')
         : e.name;
     const groupLabel = new Set(choices.map((row) => row.name)).size > 1 ? '资料选择' : '同名资料';
@@ -165,19 +272,39 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       const status = (task) => context.statuses?.get(task.id) || questStatus(task.gameId, context.reference);
       lines.push(status(e));
       const relation = catalog().taskRelations(e);
-      const active = relation.group.find((step) => step.id !== e.id && catalog().isActiveQuest(step, status));
-      if (context.nextStep || active) lines.push('下一步：' + (context.nextStep || active.name));
-      else if (e.parentId && e.description) lines.push(String(e.description).slice(0, 100));
-      const people = relation.people.filter((row) =>
-        row.roles.some((role) => ['接取人物', '完成人物'].includes(role)),
+      const activeSteps = relation.group.filter(
+        (step) => step.id !== e.id && catalog().isCurrentQuestStep(step, status),
       );
+      const recordOrder = new Map((context.reference?.metadata?.quests || []).map((q, i) => [q.id, i]));
+      activeSteps.sort(
+        (a, b) =>
+          Number(b.kind === 'Primary') - Number(a.kind === 'Primary') ||
+          (recordOrder.get(a.gameId) ?? Infinity) - (recordOrder.get(b.gameId) ?? Infinity),
+      );
+      const active =
+        activeSteps.find((step) => step.id === context.currentSteps?.get(e.id)) ||
+        activeSteps.find((step) => step.gameId === context.reference?.metadata?.trackingQuest) ||
+        activeSteps.find((step) => step.gameId === context.reference?.metadata?.trackingMainQuest) ||
+        activeSteps[0];
+      const selected = active || (catalog().isCurrentQuestStep(e, status) ? e : null);
+      const targets = selected
+        ? resolveTaskObjectives(index().world?.objectives?.[selected.id], context.reference?.metadata)
+        : null;
+      const nextStep = context.nextSteps?.get(e.id) || context.nextStep || targets?.nextAction;
+      if (nextStep || active) lines.push('下一步：' + (nextStep || active.name));
+      else if (e.parentId && e.description) lines.push(String(e.description).slice(0, 100));
+      const people = selected
+        ? targets?.people || []
+        : (e.requestNPCs || []).flatMap((id) => {
+            const person = catalog().entries.get('npc-' + id);
+            return person ? [{ name: person.name, role: '接取' }] : [];
+          });
       if (people.length)
         lines.push(
-          '交互人物：' +
-            people
-              .slice(0, 3)
-              .map((row) => row.entity.name)
-              .join('、'),
+          people
+            .slice(0, 3)
+            .map((person) => `${person.role || '交互'}：${person.name}`)
+            .join('；'),
         );
       const conditions = (e.requirements || []).filter((condition) => condition.name).slice(0, 2);
       if (conditions.length) lines.push('条件：' + conditions.map((condition) => condition.name).join('、'));
@@ -228,8 +355,12 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       if (!variant && context.reference?.metadata?.map === e.key)
         lines.push(context.reference?.origin === 'live' ? '当前地点' : '当前保存地点');
       const related =
-        index().world?.quests?.filter((quest) =>
-          (quest.placements || []).some((placement) => placement.mapKey === e.key),
+        index().world?.quests?.filter(
+          (quest) =>
+            (quest.placements || []).some((placement) => placement.mapKey === e.key) ||
+            allObjectivePlaces(index().world?.objectives?.[quest.id]).some((target) =>
+              target.mapKeys.includes(e.key),
+            ),
         ) || [];
       const roots = [
         ...new Map(
@@ -238,7 +369,23 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
             return [root.id, root];
           }),
         ).values(),
-      ];
+      ].sort(
+        (a, b) =>
+          Number(
+            related.some(
+              (q) =>
+                catalog().root(catalog().entries.get(q.id))?.id === b.id &&
+                currentAt(q, e.key, context.reference),
+            ),
+          ) -
+          Number(
+            related.some(
+              (q) =>
+                catalog().root(catalog().entries.get(q.id))?.id === a.id &&
+                currentAt(q, e.key, context.reference),
+            ),
+          ),
+      );
       if (roots.length && !variant)
         lines.push(
           '相关任务：' +
@@ -285,7 +432,12 @@ export function installEntityPreviews({ document, window, references, context })
     dismissed = null;
   const selector =
     '[data-entity-id], [data-action="database-detail"][data-id], [data-action="world-quest"][data-id], [data-action="flow-quest"][data-id], [data-action="world-place"][data-id]';
-  const eligible = (node) => node?.closest?.(selector);
+  const eligible = (node) => {
+    const entry = node?.closest?.(selector);
+    // Expanded choices already include their summaries. Another popup would
+    // cover neighbouring choices in the narrow companion window.
+    return entry?.closest('[data-entity-choice-list]') ? null : entry;
+  };
   const focusSelector = selector + ', button[data-action], summary';
   const identity = (node) =>
     JSON.stringify([

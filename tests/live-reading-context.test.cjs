@@ -46,7 +46,10 @@ function harness() {
     gameIndex: {},
     catalog: { entries: [] },
     environment: { saves: { files: [old, latest] } },
-    worldViews: {},
+    worldViews: { placeDetail: () => 'synthetic map HTML', questDetail: () => 'synthetic quest HTML' },
+    state: { settings: { spoiler: 'details' } },
+    placeMapScopes: new Map(),
+    render() {},
     gameViews: {
       byId: (_index, id) => ({
         id,
@@ -98,6 +101,7 @@ function harness() {
     [
       part('function rememberDrawer(', 'const paths ='),
       part('function resetPlanningViews()', 'function worldPage()'),
+      part('async function loadWorldReference(', 'async function calculateMaterials('),
       part('async function showDatabaseDetail(', 'function recipeQuantity()'),
       part('async function showEntityChoice(', 'function captureDetailFolds('),
       part('async function refreshLiveNpcDetail()', 'async function refresh('),
@@ -105,6 +109,12 @@ function harness() {
       part('async function openHandbookDetail(', 'function recipeDiscoveryPage('),
       "this.navigate=async(id,target)=>{switch('database-detail'){" +
         part("    case 'database-detail': {", "    case 'database-uses':") +
+        '}};',
+      "this.choose=async(id,target)=>{switch('entity-choice'){" +
+        part("    case 'entity-choice':", "    case 'archive-entity':") +
+        '}};',
+      "this.place=async(id,target)=>{switch('world-place'){" +
+        part("    case 'world-place':", "    case 'world-kind':") +
         '}};',
       'this.back=async(view)=>{' +
         part(backHeader, "      } else if (view.type === 'entity-choice')").slice(backHeader.length) +
@@ -232,3 +242,152 @@ test('skill teacher status follows the live cohort, withdraws and keeps fixed lo
   assert.equal(h.renders.at(-1).reference, h.old);
   assert.equal(h.renders.at(-1).progress, null);
 });
+
+test('item holder lookup directly enters the live cohort, withdraws on disconnect and respects history', async () => {
+  const h = harness(),
+    c = h.context;
+  await c.showDatabaseDetail('item-100034');
+  assert.equal(h.renders.at(-1).progress, h.progress);
+  assert.equal(h.renders.at(-1).live, h.live);
+  assert.equal(h.renders.at(-1).reference.metadata.inventory, undefined);
+  h.setObserved(null);
+  await c.refreshLiveNpcDetail();
+  assert.equal(h.renders.at(-1).progress, null);
+  assert.equal(h.renders.at(-1).reference, h.latest);
+  h.setObserved({ ...h.live, key: 'reconnected-item' });
+  await c.refreshLiveNpcDetail();
+  assert.equal(h.renders.at(-1).progress, h.progress);
+  h.selected.referenceMode = 'slot';
+  h.selected.saveSlot = h.old.name;
+  c.resetPlanningViews();
+  c.referenceSaveName = undefined;
+  await c.showDatabaseDetail('item-100034');
+  assert.equal(h.renders.at(-1).reference, h.old);
+  assert.equal(h.renders.at(-1).progress, null);
+});
+
+test('flow item to map to NPC keeps live reading through disconnect and reconnect', async () => {
+  const h = harness(),
+    c = h.context;
+  await c.navigate('item-100034', { closest: () => ({}) });
+  assert.equal(h.renders.at(-1).reference, h.live);
+  assert.equal(h.renders.at(-1).progress, h.progress);
+  await c.showWorldDetail('place-13', 'place');
+  assert.equal(c.currentDrawer.reference, h.live);
+  assert.equal(c.currentDrawer.flowReference.origin, 'live');
+  await c.navigate('npc-10038', { closest: () => null });
+  assert.equal(h.renders.at(-1).reference, h.live);
+  assert.equal(h.renders.at(-1).progress, h.progress);
+  await c.showWorldDetail('place-13', 'place');
+  h.setObserved(null);
+  await c.loadWorldReference();
+  assert.equal(c.currentDrawer.reference, h.latest);
+  assert.equal(c.currentDrawer.flowReference.origin, 'live');
+  const newer = { ...h.live, key: 'map-reconnected' };
+  h.setObserved(newer);
+  await c.navigate('npc-10038', { closest: () => null });
+  assert.equal(h.renders.at(-1).reference, newer);
+  assert.equal(h.renders.at(-1).progress, h.progress);
+  assert(!h.reads.includes(h.old.name));
+});
+
+test('flow namesake and multi-scene place entries keep live intent through selection, disconnect and fixed mode', async () => {
+  const { encyclopedia } = require('../src/core/game-data.cjs');
+  const { createEntityReferences } = await import('../src/renderer/entity-references.js');
+  const index = encyclopedia();
+  const refs = createEntityReferences({
+    index: () => index,
+    esc: String,
+    picture: () => '',
+    icon: () => '',
+    qualityText: { html: (_id, s) => s },
+  });
+  for (const entry of ['choose', 'place']) {
+    const h = harness(),
+      c = h.context;
+    c.gameIndex = index;
+    c.entityReferences = refs;
+    const point = index.world.mapAtlas.markers
+      .map((m) => `map-point:${m.x}:${m.y}`)
+      .find((id) => refs.choices(id).length > 1);
+    const choiceId = entry === 'choose' ? 'name:武当' : point;
+    assert(refs.choices(choiceId).length > 1);
+    await c[entry](choiceId, { closest: () => ({}) });
+    assert.equal(c.currentDrawer.reference, h.live);
+    assert.equal(c.currentDrawer.liveContext, true);
+    assert.equal(c.currentDrawer.follow, true);
+    const place = refs.choices(choiceId)[0];
+    await c.place(place.id, { closest: () => null });
+    assert.equal(c.currentDrawer.reference, h.live);
+    h.setObserved(null);
+    await c.loadWorldReference();
+    assert.equal(c.currentDrawer.flowReference.origin, 'live');
+    const newer = { ...h.live, key: 'choice-reconnected' };
+    h.setObserved(newer);
+    await c.navigate('npc-10038', { closest: () => null });
+    assert.equal(h.renders.at(-1).reference, newer);
+    assert.equal(h.renders.at(-1).progress, h.progress);
+    h.selected.referenceMode = 'slot';
+    h.selected.saveSlot = h.old.name;
+    c.currentDrawer = null;
+    await c[entry](choiceId, { closest: () => ({}) });
+    assert.equal(c.currentDrawer.reference, h.old);
+    assert.equal(c.currentDrawer.liveContext, false);
+    assert.equal(c.currentDrawer.follow, false);
+  }
+});
+
+for (const [choiceId, id] of [
+  ['name:道通', 'npc-5011'],
+  ['name:亮银甲', 'item-9004'],
+  ['name:武当剑法', 'skill-100'],
+])
+  test(
+    'choosing during a live disconnect resumes on reconnect while fixed reading stays fixed: ' + id,
+    async () => {
+      const { encyclopedia } = require('../src/core/game-data.cjs');
+      const { createEntityReferences } = await import('../src/renderer/entity-references.js');
+      const index = encyclopedia();
+      const refs = createEntityReferences({
+        index: () => index,
+        esc: String,
+        picture: () => '',
+        icon: () => '',
+        qualityText: { html: (_id, s) => s },
+      });
+      assert(refs.choices(choiceId).length > 1);
+      assert(refs.choices(choiceId).some((row) => row.id === id));
+      const h = harness(),
+        c = h.context;
+      c.gameIndex = index;
+      c.entityReferences = refs;
+      await c.choose(choiceId, { closest: () => ({}) });
+      h.setObserved(null);
+      await c.refreshLiveNpcDetail();
+      assert.equal(c.currentDrawer.reference, h.latest);
+      assert.equal(c.currentDrawer.flowReference.origin, 'live');
+      await c.navigate(id, { closest: () => null });
+      assert.equal(h.renders.at(-1).reference, h.latest);
+      assert.equal(h.renders.at(-1).progress, null);
+      assert.equal(c.currentDrawer.liveContext, true);
+      assert.equal(c.currentDrawer.liveNpcContext, true);
+      assert.equal(c.currentDrawer.follow, true);
+      assert.equal(handbookContext(c.handbookReadingContext()).reference.live, true);
+      const newer = { ...h.live, key: 'reconnect-after-offline-selection-' + id };
+      h.setObserved(newer);
+      await c.refreshLiveNpcDetail();
+      assert.equal(h.renders.at(-1).reference, newer);
+      assert.equal(h.renders.at(-1).progress, h.progress);
+      assert(!h.reads.includes(h.old.name));
+      h.selected.referenceMode = 'slot';
+      h.selected.saveSlot = h.old.name;
+      c.currentDrawer = null;
+      await c.choose(choiceId, { closest: () => ({}) });
+      await c.navigate(id, { closest: () => null });
+      h.setObserved({ ...h.live, key: 'must-not-replace-fixed' });
+      await c.refreshLiveNpcDetail();
+      assert.equal(h.renders.at(-1).reference, h.old);
+      assert.equal(c.currentDrawer.liveContext, false);
+      assert.equal(c.currentDrawer.follow, false);
+    },
+  );

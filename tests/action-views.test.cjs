@@ -29,6 +29,11 @@ const current = (materials = []) => ({
           description: '查看药草交付条件',
           people: [{ id: 'npc-3', name: '测试人物', role: '交付' }],
           places: [{ id: 'place-4', name: '测试村', evidence: 'description-mention' }],
+          targets: {
+            people: [{ id: 'npc-3', name: '测试人物', role: '交付' }],
+            places: [{ id: 'place-4', name: '测试村', evidence: '任务目标' }],
+            purpose: 'turn-in',
+          },
           materials,
           requirements: [{ text: '前置待核对', status: 'unknown' }],
         },

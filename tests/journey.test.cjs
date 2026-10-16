@@ -426,6 +426,14 @@ test('itinerary place hints keep independent short names and aliases beside long
     );
     const places = actionForQuest(plan, 11010).places.filter((p) => p.source.type === 'quest');
     assert.deepEqual(places.map((p) => p.name).sort(), expected.sort(), description);
+    if (places.some((p) => p.name === '山洞')) {
+      const cave = places.find((p) => p.name === '山洞');
+      assert(
+        cave.mapIds.length > 2,
+        'a generic cave keeps scene alternatives without adding extra destination groups',
+      );
+      assert.equal(cave.navigation.length, cave.mapIds.length);
+    }
     if (alias) assert.equal(places.find((p) => p.name === '武当派').mention, '武当山');
   }
 });
