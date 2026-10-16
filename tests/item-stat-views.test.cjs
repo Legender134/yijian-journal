@@ -45,7 +45,7 @@ test('medicine, permanent stats, armor and materials render different benefits h
   assert.match(html(139), /经脉点.*\+50 点/s);
   assert.match(html(250), /气血恢复比例.*20%.*真气恢复比例.*20%/s);
   assert.match(html(6000), /装备基础数值.*真气上限.*\+41\.14 点/s);
-  assert.match(html(10220), /无直接属性加成/);
+  assert.equal(html(10220), '', 'inert materials need no empty numeric panel');
   assert.doesNotMatch(html(10220), /数值资料尚未收录/);
   assert.match(html(8094), /随机池在当前原始资料中缺失/);
 });

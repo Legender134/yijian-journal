@@ -7,6 +7,13 @@ const { selectedReference } = require('./goal-progress.cjs');
 const { craftingStages } = require('./crafting-stages.cjs');
 const { validateResourcePriority, orderedOwnerIds } = require('./resource-priority.cjs');
 const gameEntries = require('../data/game-index.json').entries;
+const giftPeople = new Map(
+  [
+    ...gameEntries.filter((entry) => entry.kind === '人物'),
+    ...require('../data/world-index.json').people,
+  ].map((person) => [person.id, person]),
+);
+const giftPersonEntries = [...giftPeople.values()];
 const { giftItemLabel, giftPersonLabel } = require('./gift-labels.cjs');
 const add = (a, b) => {
   const result = a + b;
@@ -163,10 +170,7 @@ function resourceBudget(
   const priorityOwners = [
     ...plans.map((plan) => ({ id: plan.id, name: plan.name, kind: 'craft' })),
     ...giftPlans.map((gift) => {
-      const npcName = giftPersonLabel(
-          gameEntries.find((e) => e.id === gift.npcId),
-          gameEntries,
-        ),
+      const npcName = giftPersonLabel(giftPeople.get(gift.npcId), giftPersonEntries),
         itemName = giftItemLabel(gameEntries.find((e) => e.id === gift.itemId));
       return {
         id: '@gift:' + gift.id,

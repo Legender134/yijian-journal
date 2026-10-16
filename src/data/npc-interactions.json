@@ -236,6 +236,10 @@
       "compareRequirements": [],
       "cannotFight": false
     },
+    "8500": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
     "8506": {
       "compareRequirements": [],
       "cannotFight": false
@@ -257,6 +261,10 @@
       "cannotFight": false
     },
     "9000": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "9001": {
       "compareRequirements": [],
       "cannotFight": false
     },
@@ -293,6 +301,10 @@
       "cannotFight": false
     },
     "10008": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10011": {
       "compareRequirements": [],
       "cannotFight": false
     },
@@ -549,6 +561,10 @@
       "cannotFight": false
     },
     "10305": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "10309": {
       "compareRequirements": [],
       "cannotFight": false
     },
@@ -1293,6 +1309,10 @@
       "cannotFight": false
     },
     "19111": {
+      "compareRequirements": [],
+      "cannotFight": false
+    },
+    "19112": {
       "compareRequirements": [],
       "cannotFight": false
     },

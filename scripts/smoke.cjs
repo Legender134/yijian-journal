@@ -327,8 +327,15 @@ async function taskMaterialReturn(page, title, screenshot) {
     details: [...el.querySelectorAll('details')].map((detail) => detail.open),
   }));
   await material.click();
-  await page.locator('[data-item-statistics]').waitFor();
-  assert.match(await page.locator('.drawer h1').innerText(), /铁矿石/);
+  await page
+    .locator('.drawer h1')
+    .filter({ hasText: /^铁矿石$/ })
+    .waitFor();
+  assert.equal(
+    await page.locator('[data-item-statistics]').count(),
+    0,
+    'inert materials have no empty numeric panel',
+  );
   await page.locator('[data-action="drawer-back"]').click();
   await page.locator('[data-task-relations]').waitFor();
   const after = await page.locator('.drawer-body').evaluate((el) => ({

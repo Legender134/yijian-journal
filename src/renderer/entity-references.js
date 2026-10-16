@@ -1,3 +1,4 @@
+import { npcLearningSummary } from './npc-progress-views.js';
 import { entityCatalog, questStatus } from './entity-catalog.js';
 import { itemNumericSummary } from './item-stat-views.js';
 import { sharedEntityArtwork } from './game-images.js';
@@ -245,17 +246,27 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
         lines.push(
           [
             current.remainingItems.length ? `私物还剩 ${current.remainingItems.length} 种` : '私物已清空',
-            current.learning.length ? `${current.learning.length} 项技艺与功法可提升` : '',
+            npcLearningSummary(current.learning),
           ]
             .filter(Boolean)
             .join(' · '),
         );
         if (current.place) lines.push(current.place.name);
-        const blocked = [
+        const operations = [
           ['比武', current.compare],
           ['赠礼', current.gift],
           ['请教', current.consult],
-        ].find(([, gate]) => gate?.checks?.some((check) => check.status !== 'met'));
+        ];
+        const missing = operations.filter(([, gate]) =>
+          gate?.checks?.some(
+            (check) => check.status !== 'met' && /^暂无常规(?:比武|赠礼|请教)入口$/.test(check.text),
+          ),
+        );
+        if (missing.length) lines.push(missing.map(([label]) => label).join('、') + '：暂无入口');
+        const blocked = operations.find(
+          (operation) =>
+            !missing.includes(operation) && operation[1]?.checks?.some((check) => check.status !== 'met'),
+        );
         if (blocked)
           lines.push(blocked[0] + '：' + blocked[1].checks.find((check) => check.status !== 'met').text);
       } else {
@@ -264,7 +275,17 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
           lines.push(
             `初始等级 ${e.npcFacts.level} · ${new Set((e.npcFacts.fixedItems || []).map((item) => item.id)).size} 种固定私物`,
           );
-        if (e.hobbies?.length) lines.push('赠礼偏好：' + e.hobbies.join('、'));
+        const missing = Array.isArray(e.functions)
+          ? [
+              ['比武', 'Compare'],
+              ['赠礼', 'Gift'],
+              ['请教', 'Consult'],
+            ]
+              .filter(([, key]) => !e.functions.includes(key))
+              .map(([label]) => label)
+          : [];
+        if (missing.length) lines.push(missing.join('、') + '：暂无入口');
+        if (e.hobbies?.length) lines.push('初始偏好：' + e.hobbies.join('、'));
         const place = index().world?.maps?.find((m) => m.key === e.walkMap);
         if (place && !variant) lines.push('行走场景：' + place.name);
       }

@@ -74,11 +74,14 @@ export function giftChoiceLabel(entry, entries, counts) {
     ? `${base} · 资料 ${variants.findIndex((row) => row.id === entry.id) + 1}/${identical}`
     : base;
 }
+export function hasNoGiftEntry(person) {
+  return Array.isArray(person?.functions) && !person.functions.includes('Gift');
+}
 export function giftChoices(index, kind, view = {}) {
   const entries = index.entries || [];
   const counts = new Map();
   for (const entry of entries) counts.set(identityKey(entry), (counts.get(identityKey(entry)) || 0) + 1);
-  const candidates = entries.filter((entry) =>
+  const allCandidates = entries.filter((entry) =>
     kind === 'person' ? entry.kind === '人物' : entry.kind === '物品' && entry.giftable,
   );
   const terms = String(view.query || '')
@@ -86,7 +89,8 @@ export function giftChoices(index, kind, view = {}) {
     .toLocaleLowerCase('zh-CN')
     .split(/\s+/)
     .filter(Boolean);
-  const selected = candidates.find((entry) => entry.id === view.selectedId);
+  const selected = allCandidates.find((entry) => entry.id === view.selectedId);
+  const candidates = allCandidates.filter((entry) => kind !== 'person' || !hasNoGiftEntry(entry));
   const labels = new Map(candidates.map((entry) => [entry.id, giftChoiceLabel(entry, entries, counts)]));
   const person = entries.find((entry) => entry.id === view.personId && entry.kind === '人物');
   const rows = candidates.filter(
@@ -100,6 +104,14 @@ export function giftChoices(index, kind, view = {}) {
           .includes(term),
       ),
   );
+  const excludedMatch =
+    kind === 'person' &&
+    terms.length > 0 &&
+    allCandidates.some(
+      (entry) =>
+        hasNoGiftEntry(entry) &&
+        terms.every((term) => (entry.name + ' ' + entry.id).toLocaleLowerCase('zh-CN').includes(term)),
+    );
   const query = terms.join(' ');
   rows.sort(
     (a, b) =>
@@ -114,6 +126,7 @@ export function giftChoices(index, kind, view = {}) {
   const shown = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   return {
     labels,
+    excludedMatch,
     rows: shown,
     total: rows.length,
     pages,
@@ -134,7 +147,7 @@ export function createGiftPicker({ esc, act, picture, qualityText }) {
     const preview = result.selected
       ? `<div class="detail-block row">${picture(result.selected.id)}<div><strong>${qualityText.name(result.selected.id, giftChoiceLabel(result.selected, index.entries))}</strong><p class="small muted">${esc(result.selected.description || '')}</p>${kind === 'person' && (result.selected.hobbies || []).length ? '<p class="small">偏好：' + esc(result.selected.hobbies.join('、')) + '</p>' : ''}</div></div>`
       : '<p class="save-note">尚未选择，请按名称查找后明确选择。</p>';
-    return `<select id="${target}" required aria-label="${kind === 'person' ? '送给谁' : '准备赠送的物品'}"><option value=""${!result.selected ? ' selected' : ''}>请选择${kind === 'person' ? '人物' : '物品'}</option>${rows.map((entry) => `<option value="${esc(entry.id)}"${entry.id === result.selected?.id ? ' selected' : ''}>${esc(giftChoiceLabel(entry, index.entries))}${result.pinned?.id === entry.id ? ' · 当前已选' : ''}</option>`).join('')}</select><div class="row between small"><span role="status">${result.total} 项匹配 · 第 ${result.page} / ${result.pages} 页${result.pinned ? ' · 当前选择另外保留' : ''}</span><span>${result.page > 1 ? act('journey-gift-page', '上一页', 'text-btn', kind + ':' + (result.page - 1)) : ''}${result.page < result.pages ? act('journey-gift-page', '下一页', 'text-btn', kind + ':' + (result.page + 1)) : ''}</span></div>${preview}${stock}${kind === 'item' ? `<p class="save-note">${view.stock?.known ? `对照 ${esc(view.stock.name)} · ${esc(new Date(view.stock.modifiedAt).toLocaleString('zh-CN'))}；只核对已保存进度，当前赠礼原有分配可继续使用。` : '尚未取得匹配的可读存档库存；全部礼物仍可规划，数量待核对。'}偏好仅是资料线索，可否接受须在游戏内确认。</p>` : ''}${kind === 'person' && result.selected && index.entries.filter((entry) => entry.kind === '人物' && entry.name === result.selected.name).length > 1 ? '<p class="save-note">资料中有同名人物，编号用于区分原始条目；请先在图鉴核对，手札不会合并不同人物。</p>' : ''}`;
+    return `<select id="${target}" required aria-label="${kind === 'person' ? '送给谁' : '准备赠送的物品'}"><option value=""${!result.selected ? ' selected' : ''}>请选择${kind === 'person' ? '人物' : '物品'}</option>${rows.map((entry) => `<option value="${esc(entry.id)}"${entry.id === result.selected?.id ? ' selected' : ''}${kind === 'person' && hasNoGiftEntry(entry) ? ' disabled' : ''}>${esc(giftChoiceLabel(entry, index.entries))}${kind === 'person' && hasNoGiftEntry(entry) ? ' · 暂无赠礼入口' : result.pinned?.id === entry.id ? ' · 当前已选' : ''}</option>`).join('')}</select><div class="row between small"><span role="status">${result.total} 项匹配 · 第 ${result.page} / ${result.pages} 页${result.pinned ? ' · 当前选择另外保留' : ''}</span><span>${result.page > 1 ? act('journey-gift-page', '上一页', 'text-btn', kind + ':' + (result.page - 1)) : ''}${result.page < result.pages ? act('journey-gift-page', '下一页', 'text-btn', kind + ':' + (result.page + 1)) : ''}</span></div>${preview}${kind === 'person' && hasNoGiftEntry(result.selected) ? '<p class="notice">此人物暂无赠礼入口，请改选人物。已有安排仍保留。</p>' : kind === 'person' && result.excludedMatch && !result.total ? '<p class="save-note">匹配的人物暂无赠礼入口。</p>' : ''}${stock}${kind === 'item' ? `<p class="save-note">${view.stock?.known ? `对照 ${esc(view.stock.name)} · ${esc(new Date(view.stock.modifiedAt).toLocaleString('zh-CN'))}；只核对已保存进度，当前赠礼原有分配可继续使用。` : '尚未取得匹配的可读存档库存；全部礼物仍可规划，数量待核对。'}偏好仅是资料线索，可否接受须在游戏内确认。</p>` : ''}${kind === 'person' && result.selected && index.entries.filter((entry) => entry.kind === '人物' && entry.name === result.selected.name).length > 1 ? '<p class="save-note">资料中有同名人物，编号用于区分原始条目；请先在图鉴核对，手札不会合并不同人物。</p>' : ''}`;
   }
   function field(index, kind, view) {
     const target = kind === 'person' ? 'journey-person' : 'journey-item';

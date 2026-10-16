@@ -356,5 +356,5 @@ test('NPC details show shared story blockers once and the locked summary exposes
   assert.equal(row.compare.status, 'met', 'raw affinity may permit compare while gifts are story-capped');
   const card = view.page(data, { tab: 'locked' }).split('</summary>')[0];
   assert.match(card, /npc-progress-blocker.*好感暂时上限/s);
-  assert.match(html, /剩余私物/);
+  assert.match(html, /私物还剩/);
 });

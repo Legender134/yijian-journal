@@ -94,7 +94,8 @@ test('NPC codex renders one live quest cohort and never labels saved holdings as
   assert.doesNotMatch(html, /存档：进行中/);
   assert.match(html, />符合偏好的物品 · \d+ 种 · 金色起</);
   assert.doesNotMatch(html, />背包中的礼物</);
-  assert.match(html, />现场更新</);
+  assert.match(html, /私物已清空/);
+  assert.doesNotMatch(html, />现场更新</, 'per-person details do not repeat the page reading basis');
   const fixed = views.detail(index, wei.id, 1, saved);
   assert.match(fixed, /存档：进行中/);
   assert.doesNotMatch(fixed, /现场：已完成/);
