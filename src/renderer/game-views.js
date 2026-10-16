@@ -202,7 +202,15 @@ export function createGameViews({
       if (e.acquisitionRoutes?.length)
         extra += `<section class="detail-block item-acquisition-routes"><h3>阶段获取线索</h3>${e.acquisitionRoutes.map((route) => `<h4>${esc(route.title)}</h4><p>${richText(route.detail)}</p>${act('world-quest', '查看对应任务步骤', 'text-btn', 'quest-' + route.questId)}<details><summary>资料来源</summary>${route.uncertainty ? `<p class="small">${esc(route.uncertainty)}</p>` : ''}${route.sources.map((source) => `<p>${act('source', esc(source.title), 'text-btn', source.id)}<span class="small muted"> · ${esc(source.date)} · ${esc(source.version)}</span></p>`).join('')}</details>`).join('')}</section>`;
       extra += codexDetails.item(index, e);
-      extra += npcFacts.holders(index, e);
+      const holderProgress =
+        liveReference?.origin === 'live'
+          ? liveNpcProgress?.origin === 'live'
+            ? liveNpcProgress
+            : null
+          : reference?.origin !== 'live' && reference?.metadata?.npcProgress?.origin !== 'live'
+            ? reference?.metadata?.npcProgress
+            : null;
+      extra += npcFacts.holders(index, e, holderProgress);
       extra += `${itemUsage}`;
       extra += `<details class="detail-block reservation-editor"><summary>预留物品</summary><div class="row"><label class="quantity-label">保留<input id="reserve-count" type="number" min="0" max="999999" step="1" value="${reservations[e.gameId] || 0}" aria-label="保留物品数量"></label>${act('reserve-save', '保存预留数量', 'btn', e.id, 'shield')}</div></details>`;
       const produced = index.entries.filter(

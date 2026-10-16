@@ -995,6 +995,7 @@ const worldViews = createWorldViews({
   empty,
   picture,
   richText: entityReferences.text,
+  objectiveText: (value, targets) => entityReferences.text(value, 'world-quest', targets),
   variantSummary: entityReferences.variantSummary,
   taskRelations: (index, quest, reference) => entityDetailViews.task(index, quest, reference),
 });
@@ -1004,7 +1005,7 @@ const flowViews = createFlowViews({
   icon,
   pill,
   when,
-  richText: (value) => entityReferences.text(value, 'flow-quest'),
+  richText: (value, targets) => entityReferences.text(value, 'flow-quest', targets),
 });
 function currentFlow() {
   const flow = compact ? companionData?.flow : environment?.flow;
@@ -1027,7 +1028,13 @@ const entityPreviews = installEntityPreviews({
         followsLiveWorld())
     ) {
       const flow = currentFlow();
-      if (flow?.liveReference) return { reference: flow.liveReference, npcProgress: flow.duels?.progress };
+      if (flow?.liveReference)
+        return {
+          reference: flow.liveReference,
+          npcProgress: flow.duels?.progress,
+          nextSteps: new Map((flow.active || []).map((task) => [task.id, task.steps?.[0]?.nextAction])),
+          currentSteps: new Map((flow.active || []).map((task) => [task.id, task.steps?.[0]?.id])),
+        };
       if (currentDrawer?.type === 'entity-choice') return { reference: currentDrawer.reference };
     }
     if (
@@ -1056,7 +1063,23 @@ const entityPreviews = installEntityPreviews({
           ...(task.steps || []).map((step) => [step.id, '进行中']),
         ]),
       );
-      return { reference, name: identity?.name, statuses };
+      return {
+        reference,
+        name: identity?.name,
+        statuses,
+        nextSteps: new Map(
+          (flow?.reference?.name === identity?.name && flow?.reference?.hash === identity?.hash
+            ? flow.active || []
+            : []
+          ).map((task) => [task.id, task.steps?.[0]?.nextAction]),
+        ),
+        currentSteps: new Map(
+          (flow?.reference?.name === identity?.name && flow?.reference?.hash === identity?.hash
+            ? flow.active || []
+            : []
+          ).map((task) => [task.id, task.steps?.[0]?.id]),
+        ),
+      };
     }
     if (currentDrawer?.type === 'save') return { reference: currentDrawer.data };
     if (currentDrawer?.type === 'entity-choice') return { reference: currentDrawer.reference };
@@ -2059,7 +2082,7 @@ async function loadWorldReference(name) {
         currentDrawer.referenceName = view.referenceName;
         currentDrawer.follow = view.follow;
         currentDrawer.liveContext = view.liveContext;
-        currentDrawer.flowReference = view.reference?.origin === 'live' ? currentFlow()?.reference : null;
+        currentDrawer.flowReference = view.liveContext ? { origin: 'live' } : null;
         const html =
           currentDrawer.type === 'world-quest'
             ? worldViews.questDetail(
@@ -2234,7 +2257,7 @@ async function showWorldDetail(id, type = 'quest', replace = false, flowReferenc
       reference: view.reference,
       error: view.error,
       liveContext: view.liveContext,
-      flowReference: view.liveContext ? currentFlow()?.reference : null,
+      flowReference: view.liveContext ? { origin: 'live' } : null,
     },
     replace,
   );
@@ -2357,8 +2380,8 @@ async function showDatabaseDetail(id, quantity = 1, giftPage, expectedReference 
       (!expectedReference &&
         (referenceFollow ?? defaultFollow()) === true &&
         ((sameDrawer && (currentDrawer.liveContext || currentDrawer.liveNpcContext)) ||
-          ['人物', '武学'].includes(e?.kind))));
-  const liveNpcContext = liveContext && ['人物', '武学'].includes(e?.kind);
+          ['人物', '武学', '物品'].includes(e?.kind))));
+  const liveNpcContext = liveContext && ['人物', '武学', '物品'].includes(e?.kind);
   let referenceError = '';
   let loadedReference = referenceSave;
   if (!e) return;
@@ -3340,7 +3363,7 @@ async function showEntityChoice(id, flowReference = null, opener = null, restore
     sameDrawer,
   );
   showOverlay(
-    `<section class="drawer" role="dialog" aria-modal="true" aria-label="选择同名资料"><div class="drawer-head"><span>选择具体资料</span>${iconButton('close-overlay', 'close', '关闭同名资料')}</div><div class="drawer-body"><h1>${esc(id.startsWith('name:') ? id.slice(5) : '选择地点')}</h1>${rows.map((entry) => `<div class="entity-relation-row">${act(entry.kind === '任务' ? (flowReference ? 'flow-quest' : 'world-quest') : entry.kind === '地点' ? 'world-place' : 'database-detail', esc(entry.name), 'text-btn', entry.id)}<p class="small muted">${esc(entityReferences.choiceSummary(entry, rows, currentReference) || entry.kind)}</p>${entry.description ? `<p class="small">${esc(entry.description.slice(0, 160))}</p>` : ''}</div>`).join('')}</div></section>`,
+    `<section class="drawer" role="dialog" aria-modal="true" aria-label="选择同名资料"><div class="drawer-head"><span>选择具体资料</span>${iconButton('close-overlay', 'close', '关闭同名资料')}</div><div class="drawer-body" data-entity-choice-list><h1>${esc(/^(?:place-)?name:/.test(id) ? id.slice(id.indexOf(':') + 1) : '选择地点')}</h1>${rows.map((entry) => `<div class="entity-relation-row">${act(entry.kind === '任务' ? (flowReference ? 'flow-quest' : 'world-quest') : entry.kind === '地点' ? 'world-place' : 'database-detail', esc(entry.name), 'text-btn', entry.id)}<p class="small muted">${esc(entityReferences.choiceSummary(entry, rows, currentReference) || entry.kind)}</p>${entry.description ? `<p class="small">${esc(entry.description.slice(0, 160))}</p>` : ''}</div>`).join('')}</div></section>`,
     true,
     sameDrawer,
     opener,
@@ -6106,7 +6129,9 @@ async function handle(action, id, target, navigationFocused = false) {
         await showEntityChoice(
           id,
           target.closest('[data-flow], .duel-page')
-            ? currentFlow()?.reference
+            ? defaultFollow()
+              ? { origin: 'live' }
+              : currentFlow()?.reference
             : currentDrawer?.liveNpcContext || currentDrawer?.liveContext || followsLiveWorld()
               ? { origin: 'live' }
               : null,
@@ -6444,7 +6469,9 @@ async function handle(action, id, target, navigationFocused = false) {
       await showEntityChoice(
         id,
         target.closest('[data-flow], .duel-page')
-          ? currentFlow()?.reference
+          ? defaultFollow()
+            ? { origin: 'live' }
+            : currentFlow()?.reference
           : followsLiveWorld()
             ? { origin: 'live' }
             : currentDrawer?.flowReference,
@@ -6490,7 +6517,7 @@ async function handle(action, id, target, navigationFocused = false) {
       }
       let quantity = 1;
       const flowReference = target.closest('[data-flow], .duel-page')
-        ? defaultFollow() && ['人物', '武学'].includes(gameViews.byId(gameIndex, id)?.kind)
+        ? defaultFollow() && ['人物', '武学', '物品'].includes(gameViews.byId(gameIndex, id)?.kind)
           ? { origin: 'live' }
           : currentFlow()?.reference
         : !currentDrawer && route === 'world' && worldView.liveContext
@@ -6498,7 +6525,7 @@ async function handle(action, id, target, navigationFocused = false) {
           : currentDrawer?.type === 'save'
             ? currentDrawer.data
             : currentDrawer?.type === 'entity-choice'
-              ? currentDrawer.reference
+              ? currentDrawer.flowReference || currentDrawer.reference
               : currentDrawer?.flowReference;
       if (flowReference) {
         referenceSaveName = flowReference.name;

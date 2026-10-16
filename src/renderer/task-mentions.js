@@ -1,3 +1,5 @@
+import { entityCatalog } from './entity-catalog.js';
+
 // These are literal mentions in the game's task text, not a claim that a
 // person currently occupies a location or that a task can already be taken.
 // Keep the same occurrence-based rule as core/journey-plan.cjs.
@@ -25,15 +27,9 @@ function literalPlaceMentions(text, phrases) {
 
 export function taskMentions(index, task) {
   const text = task.description || task.name || '';
-  const people = index.entries.filter(
-    (p) =>
-      p.kind === '人物' &&
-      p.name.length >= 2 &&
-      (text.includes(p.name) ||
-        (p.name.includes('-') &&
-          p.name.split('-').at(-1).length >= 2 &&
-          text.includes(p.name.split('-').at(-1)))),
-  );
+  const people = entityCatalog(index)
+    .personMentions(text)
+    .map((row) => row.entity);
   const names = new Set(index.world.maps.map((m) => m.name));
   const mentions = literalPlaceMentions(text, [
     ...names,
@@ -56,7 +52,20 @@ export function taskMentions(index, task) {
   }
   return {
     people,
-    places: [...groups].map(([name, choices]) => ({ name, mention: name, choices })),
+    places: [...groups].map(([name, variants]) => ({
+      name,
+      mention: name,
+      choices: [
+        ...new Map(
+          [
+            ...variants,
+            ...(index.world.placeAliases || [])
+              .filter((alias) => alias.ambiguousMentions?.includes(name))
+              .flatMap((alias) => index.world.maps.filter((m) => m.name === alias.name)),
+          ].map((place) => [place.key, place]),
+        ).values(),
+      ],
+    })),
     aliases,
   };
 }

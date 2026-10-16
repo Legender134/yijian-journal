@@ -62,54 +62,100 @@ export function entityCatalog(index) {
   }
   for (const alias of list(index.world?.placeAliases)) {
     for (const place of maps.filter((place) => place.name === alias.name)) {
-      for (const mention of list(alias.mentions)) addName(mention, entries.get(placeEntityId(place, maps)));
+      for (const mention of [...list(alias.mentions), ...list(alias.ambiguousMentions)])
+        addName(mention, entries.get(placeEntityId(place, maps)));
     }
   }
+  // Named stages and branches explicitly referenced by the shipped flow,
+  // material and duel guides. Read their canonical names from this catalogue;
+  // ordinary instructions such as 赴约 and 休息一晚 remain plain prose.
+  const namedTaskMentions = new Set(
+    [
+      5230, 5543, 5829, 5831, 8865, 11061, 11062, 11301, 12038, 12041, 12881, 12936, 13803, 16169, 16189,
+      20002, 20013, 22010, 22060, 22150, 23062, 23066, 23070, 24062, 24069,
+    ]
+      .map((id) => entries.get('quest-' + id)?.name)
+      .filter(Boolean),
+  );
   // The guide calls the formal 拜师武当 ceremony 拜入武当. Bind this verified
   // wording once, rather than storing entity links in every sentence.
   const initiation = entries.get('quest-5213');
-  if (initiation?.name.replace(/^【[^】]+】/, '') === '拜师武当') addName('拜入武当', initiation);
+  if (initiation?.name.replace(/^【[^】]+】/, '') === '拜师武当') {
+    addName('拜入武当', initiation);
+    namedTaskMentions.add('拜入武当');
+    namedTaskMentions.add('拜师武当');
+  }
+  const ceremony = entries.get('quest-5214');
+  if (ceremony?.name.includes('拜师大典')) {
+    addName('拜师大典', ceremony);
+    namedTaskMentions.add('拜师大典');
+  }
   const investigation = entries.get('quest-11272');
-  if (investigation?.name.replace(/^【[^】]+】/, '') === '灭门之案 - 线索')
+  if (investigation?.name.replace(/^【[^】]+】/, '') === '灭门之案 - 线索') {
     addName('灭门之案线索', investigation);
-  const namedFacts = [...names.keys()].filter((name) =>
-    names.get(name).some((entry) => entry.kind !== '任务'),
+    namedTaskMentions.add('灭门之案线索');
+    namedTaskMentions.add('灭门之案 - 线索');
+  }
+  const literalNames = Object.values(index.world?.objectives || {}).flatMap((target) =>
+    list(target.literalNames),
   );
   const personNames = [...names.keys()].filter((name) =>
     names.get(name).some((entry) => entry.kind === '人物'),
   );
   const personPattern = new RegExp(
-    personNames
+    [...new Set([...personNames, ...literalNames])]
       .sort((a, b) => b.length - a.length)
       .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
       .join('|') || '(?!)',
     'gu',
   );
-  const proseNames = [...names.keys()]
-    // Long step instructions are explicit task links in the task list. In prose
-    // they must not swallow the people and places mentioned inside the sentence.
+  // Current instructions must leave their actors and destinations individually
+  // readable. General reference prose below also retains named child branches.
+  const objectiveNames = [...names.keys()]
     .filter(
       (name) =>
-        !names
-          .get(name)
-          .every(
-            (entry) =>
-              entry.kind === '任务' &&
-              entry.parentId &&
-              (name.length > 12 ||
-                /[，。；]/.test(name) ||
-                namedFacts.some((fact) => fact !== name && name.includes(fact))),
-          ),
+        namedTaskMentions.has(name) ||
+        !names.get(name).every((entry) => entry.kind === '任务' && entry.parentId),
     )
     .sort((a, b) => b.length - a.length || a.localeCompare(b, 'zh-CN'));
+  // A navigation sentence is not a task citation merely because one step has
+  // that exact instruction as its title. Quoted titles remain explicit links.
+  const targetNames = [...names.keys()].filter((name) =>
+    names.get(name).some((entry) => ['人物', '地点'].includes(entry.kind)),
+  );
+  const ordinaryAction = /^(?:赴约|回房休息|回客房休息|休息一晚|休整数日|休整几日|等待明日)$/;
+  const directive = /^(?:前往|去往|返回|回到|赶往|进入|深入|离开|向|与|寻找|找寻|找到|拜见|拜会|探望|看望)/;
+  const proseNames = [...names.keys()].filter((name) => {
+    if (namedTaskMentions.has(name)) return true;
+    if (!names.get(name).every((entry) => entry.kind === '任务' && entry.parentId)) return true;
+    return (
+      !ordinaryAction.test(name) &&
+      !(
+        directive.test(name) &&
+        (/[，,。；;]/.test(name) || targetNames.some((target) => name.includes(target)))
+      )
+    );
+  });
+  const objectivePattern = new RegExp(
+    [...new Set([...objectiveNames, ...literalNames])]
+      .sort((a, b) => b.length - a.length)
+      .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|') || '(?!)',
+    'gu',
+  );
   const pattern = new RegExp(
-    proseNames.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') || '(?!)',
+    [...new Set([...proseNames, ...literalNames])]
+      .sort((a, b) => b.length - a.length)
+      .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|') || '(?!)',
     'gu',
   );
   const resolve = (id) =>
-    id?.startsWith('name:')
-      ? names.get(id.slice(5)) || []
-      : placeChoices.get(id) || (entries.has(id) ? [entries.get(id)] : []);
+    id?.startsWith('place-name:')
+      ? (names.get(id.slice(11)) || []).filter((entry) => entry.kind === '地点')
+      : id?.startsWith('name:')
+        ? names.get(id.slice(5)) || []
+        : placeChoices.get(id) || (entries.has(id) ? [entries.get(id)] : []);
   const root = (q) => {
     const seen = new Set();
     while (q.parentId && questByNumber.has(q.parentId) && !seen.has(q.gameId)) {
@@ -142,6 +188,9 @@ export function entityCatalog(index) {
     }
     return true;
   };
+  const isCurrentQuestStep = (q, status) =>
+    isActiveQuest(q, status) &&
+    !family(q).some((child) => child.gameId !== q.gameId && isActiveQuest(child, status));
   const mentions = (text) => {
     const found = new Map();
     personPattern.lastIndex = 0;
@@ -253,10 +302,13 @@ export function entityCatalog(index) {
     entries,
     names,
     pattern,
+    objectivePattern,
+    personMentions: mentions,
     resolve,
     root,
     family,
     isActiveQuest,
+    isCurrentQuestStep,
     taskRelations,
     personRelations,
   };

@@ -3,6 +3,7 @@ const { createHash } = require('node:crypto');
 const world = require('../data/world-index.json');
 const game = require('../data/game-index.json');
 const placeAliases = require('../data/world-place-aliases.json');
+const taskObjectiveGuide = require('../data/task-objective-guide.json');
 const { createJourneyStateTools, emptyJourneyState } = require('./journey-state.cjs');
 const { giftItemLabel, giftPersonLabel } = require('./gift-labels.cjs');
 const { craftMoneySummary } = require('./resource-budget.cjs');
@@ -161,14 +162,26 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
       ...placeAliases.filter((alias) => placeNames.has(alias.name)).flatMap((alias) => alias.mentions),
     ]);
     for (const [name, variants] of placeNames)
-      if (mentions.has(name))
+      if (mentions.has(name)) {
+        // A generic phrase supplies alternative scenes, not several visits.
+        const choices = [
+          ...new Map(
+            [
+              ...variants,
+              ...placeAliases
+                .filter((alias) => alias.ambiguousMentions?.includes(name))
+                .flatMap((alias) => placeNames.get(alias.name) || []),
+            ].map((p) => [p.key, p]),
+          ).values(),
+        ];
         found.push({
           name,
-          mapIds: variants.map((p) => p.id),
+          mapIds: choices.map((p) => p.id),
           evidence: 'literal-mention',
           source,
-          navigation: variants.map((p) => nav('world-place', p.id)),
+          navigation: choices.map((p) => nav('world-place', p.id)),
         });
+      }
     // Curated aliases are shared with task details. Keep the literal phrase
     // and phase ambiguity; these are text associations, not live locations.
     for (const alias of placeAliases) {
@@ -201,7 +214,10 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
   }
   function questPlaces(q) {
     const source = dataSource('quest', q.id, 'description', q.description || q.name);
-    const locations = mentionPlaces(`${q.name}\n${q.description || ''}`, source);
+    let placeText = `${q.name}\n${q.description || ''}`;
+    for (const [mention, name] of Object.entries(taskObjectiveGuide[q.gameId]?.replacePlaceMentions || {}))
+      placeText = placeText.replaceAll(mention, name);
+    const locations = mentionPlaces(placeText, source);
     for (const p of q.placements || []) {
       const place = byKey.get(p.mapKey);
       if (place)

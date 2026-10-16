@@ -3,6 +3,7 @@ import { createCodexDetailViews } from './codex-detail-views.js';
 import { entityCatalog, placeEntityId } from './entity-catalog.js';
 import { compileSearch } from './search-query.js';
 import { taskMentions } from './task-mentions.js';
+import { allObjectivePlaces, resolveTaskObjectives } from '../shared/task-objectives.mjs';
 export function createWorldViews({
   esc,
   act,
@@ -14,6 +15,7 @@ export function createWorldViews({
   empty,
   picture,
   richText = esc,
+  objectiveText = (value) => richText(value),
   variantSummary = () => '',
   taskRelations = () => '',
   placeMap = () => '',
@@ -62,7 +64,8 @@ export function createWorldViews({
       ? act('database-detail', esc(name), 'text-btn', `npc-${id}`)
       : `<span class="pictured-label">${picture(`npc-${id}`)}<span>${esc(name)}</span></span>`;
   };
-  const questLink = (q, cls = 'text-btn') => act('world-quest', esc(q.name), cls, q.id);
+  const questLink = (q, cls = 'text-btn', label = q.name) =>
+    act('world-quest', esc(label), cls, q.id, '', label === q.name ? '' : `${label} · ${q.name}`);
   const mapLink = (key) =>
     maps.has(key)
       ? act(
@@ -264,13 +267,89 @@ export function createWorldViews({
     const candidates = index.world.maps.filter((m) => placeEntityId(m, index.world.maps) === id);
     const place = candidates.length === 1 ? candidates[0] : null;
     if (!place) return '';
-    const related = index.world.quests.filter((q) => q.placements.some((p) => p.mapKey === place.key));
+    const objectives = index.world.quests.filter((q) =>
+      allObjectivePlaces(index.world.objectives?.[q.id]).some((target) => target.mapKeys.includes(place.key)),
+    );
+    const related = index.world.quests.filter(
+      (q) => q.placements.some((p) => p.mapKey === place.key) || objectives.includes(q),
+    );
+    const saved = records(view);
+    const currentObjectives = new Map(
+      objectives.map((q) => [
+        q.id,
+        resolveTaskObjectives(index.world.objectives[q.id], view.reference?.metadata),
+      ]),
+    );
+    const active = objectives.filter(
+      (q) =>
+        entityCatalog(index).isCurrentQuestStep(q, (task) => labels[saved.get(task.gameId)?.step]) &&
+        currentObjectives.get(q.id).places.some((target) => target.mapKeys.includes(place.key)),
+    );
+    const current = active.length
+      ? `<section class="detail-block place-current-tasks" data-place-current-tasks><h2>进行中的任务</h2>${active
+          .map((q) => {
+            const objective = currentObjectives.get(q.id);
+            const target = objective.places.find((target) => target.mapKeys.includes(place.key));
+            let action = target.hint
+              ? `<p>${objectiveText(target.hint, objective)}${target.conditionHint && !target.hint.includes(target.conditionHint) ? '；' + richText(target.conditionHint) : ''}</p>`
+              : target.conditionHint && !q.name.includes(target.conditionHint)
+                ? `<p>${richText(target.conditionHint)}</p>`
+                : target.purpose === 'material-source'
+                  ? `<p>备料线索：${(q.materials || [])
+                      .filter((m) => target.materialIds.includes(m.id))
+                      .map((m) => act('database-detail', esc(m.name), 'text-btn', 'item-' + m.id))
+                      .join('、')}</p>`
+                  : target.purpose === 'conditional-turn-in'
+                    ? `<p>${target.conditionHint ? richText(target.conditionHint) : target.action === '交谈' ? '备齐材料后交谈' : '集齐材料后交付'}${target.mapKeys.length === 1 && target.personIds.length ? '：' + target.personIds.map((id) => npc(id, index)).join('、') : ''}</p>`
+                    : target.mapKeys.length === 1 && target.personIds.length
+                      ? `<p>${target.action || (target.purpose === 'turn-in' ? '交付' : '交互')}：${target.personIds.map((id) => npc(id, index)).join('、')}</p>`
+                      : '';
+            const nextAction = objective.nextAction || objective.instruction;
+            if (
+              !target.hint &&
+              target.purpose !== 'material-source' &&
+              target.purpose !== 'conditional-turn-in' &&
+              nextAction
+            ) {
+              const missingActors =
+                target.mapKeys.length === 1
+                  ? target.personIds.filter((id) => {
+                      const name = people.get(id)?.name || index.world.npcNames?.[id] || '';
+                      return !name.split(/[-·]/).some((part) => part.length > 1 && nextAction.includes(part));
+                    })
+                  : [];
+              const actors = missingActors.map((id) => npc(id, index)).join('、');
+              const text = objectiveText(nextAction, objective);
+              action = `<p>${actors && /^(?:交付|交还|上交)/.test(nextAction) ? '向' + actors + text : text + (actors ? ' · ' + actors : '')}</p>`;
+            }
+            const heading = action ? entityCatalog(index).root(q) : q;
+            if (
+              heading.name === nextAction &&
+              !target.hint &&
+              !target.personIds.length &&
+              !target.conditionHint &&
+              target.purpose === 'objective'
+            )
+              action = '';
+            return `<div class="world-step" data-current-step="${esc(q.id)}">${questLink(q, 'text-btn', heading.name)}${action}${target.mapKeys.length > 1 ? '<span class="small muted">场景待确认</span>' : ''}</div>`;
+          })
+          .join('')}</section>`
+      : '';
     const npcIds = [
       ...new Set(
-        related.flatMap((q) => q.placements.filter((p) => p.mapKey === place.key).map((p) => p.npcId)),
+        related
+          .flatMap((q) => [
+            ...q.placements.filter((p) => p.mapKey === place.key).map((p) => p.npcId),
+            ...(objectives.includes(q)
+              ? index.world.objectives[q.id].places
+                  .filter((target) => target.mapKeys.length === 1 && target.mapKeys[0] === place.key)
+                  .flatMap((target) => target.personIds)
+              : []),
+          ])
+          .filter((id) => Number.isSafeInteger(id) && id > 0),
       ),
     ];
-    return `<section class="drawer world-drawer" role="dialog" aria-modal="true" aria-label="地点资料"><div class="drawer-head"><span class="small muted">地点图鉴</span>${iconButton('close-overlay', 'close', '关闭地点资料')}</div><div class="drawer-body"><h1>${esc(place.name)}</h1>${placeMap(index, id)}${placeEntityId(place, index.world.maps) === place.id ? act('journey-place-dialog', '记为地点目标', 'btn', place.id, 'pin') : ''}<details class="detail-block"><summary>任务相关人物 · ${npcIds.length}</summary><div class="related-items">${npcIds.map((id) => `<span>${npc(id, index)}</span>`).join('') || '<p class="small muted">暂无关联人物。</p>'}</div></details><details class="detail-block"><summary>关联任务与步骤 · ${related.length}</summary><div class="world-steps">${related.map((q) => `<div class="world-step">${questLink(q)}${pill(status(q, view))}</div>`).join('') || '<p class="small muted">暂无关联任务。</p>'}</div></details></div></section>`;
+    return `<section class="drawer world-drawer" role="dialog" aria-modal="true" aria-label="地点资料"><div class="drawer-head"><span class="small muted">地点图鉴</span>${iconButton('close-overlay', 'close', '关闭地点资料')}</div><div class="drawer-body"><h1>${esc(place.name)}</h1>${current}${placeMap(index, id)}${placeEntityId(place, index.world.maps) === place.id ? act('journey-place-dialog', '记为地点目标', 'btn', place.id, 'pin') : ''}<details class="detail-block"><summary>任务相关人物 · ${npcIds.length}</summary><div class="related-items">${npcIds.map((id) => `<span>${npc(id, index)}</span>`).join('') || '<p class="small muted">暂无关联人物。</p>'}</div></details><details class="detail-block"><summary>关联任务与步骤 · ${related.length}</summary><div class="world-steps">${related.map((q) => `<div class="world-step">${questLink(q)}${pill(status(q, view))}</div>`).join('') || '<p class="small muted">暂无关联任务。</p>'}</div></details></div></section>`;
   }
   return { page, questDetail, placeDetail, requirementRows };
 }

@@ -9,8 +9,9 @@ const dataURL = (source) => 'data:text/javascript;base64,' + Buffer.from(source)
 const moduleURL = (name) =>
   dataURL(
     read(name).replace(
-      /from '(\.\/[^']+)'/g,
-      (_, dependency) => 'from ' + JSON.stringify(moduleURL(dependency.slice(2))),
+      /from '(\.\.?\/[^']+)'/g,
+      (_, dependency) =>
+        'from ' + JSON.stringify(moduleURL(path.posix.join(path.posix.dirname(name), dependency))),
     ),
   );
 const loaded = import(moduleURL('world-views.js'));

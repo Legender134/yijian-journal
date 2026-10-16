@@ -2,6 +2,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   const list = (value) => (Array.isArray(value) ? value : []);
   const text = (value) => esc(String(value ?? ''));
   const prose = (value) => richText(String(value ?? ''));
+  const stepAction = (row) => richText(String(row.nextAction || row.description || ''), row.targets);
   const stateNotice = (flow) =>
     flow?.stateNotice
       ? `<p class="notice info flow-state-notice" role="status">${text(flow.stateNotice)}</p>`
@@ -38,9 +39,11 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     if (!value) return '';
     if (typeof value === 'string') return prose(value);
     const name = value.name || value.label || '';
-    return new RegExp(`^${prefix}-\\d+$`).test(String(value.id || ''))
+    return new RegExp(`^${prefix}-\\d+${prefix === 'place' ? '(?::[A-Za-z0-9_]+)?' : ''}$`).test(
+      String(value.id || ''),
+    )
       ? button(action, name, value.id)
-      : prose(name);
+      : richText(name, prefix === 'place' ? { places: [value] } : undefined);
   }
   function sources(rows) {
     const items = list(rows);
@@ -167,7 +170,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   function materialRows(
     rows,
     sharedMaterials,
-    { details = true, bodyOnly = false, sources: briefs = {}, scope = 'current' } = {},
+    { details = true, bodyOnly = false, sources: briefs = {}, scope = 'current', instruction = '' } = {},
   ) {
     return list(rows)
       .map((material) => {
@@ -191,11 +194,15 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
         const primary = routes.filter((route) => !route.alternative && route.kind !== 'unknown');
         const alternatives = routes.filter((route) => route.alternative);
         const first = primary[0];
-        const brief = briefs[material.id]
-          ? prose(briefs[material.id])
-          : first
-            ? routeHeading(first)
-            : '暂无获取地点';
+        const brief =
+          (instruction && missing === 0 && !(sharedMissing > 0)) ||
+          (instruction && first?.instruction === instruction)
+            ? ''
+            : briefs[material.id]
+              ? prose(briefs[material.id])
+              : first
+                ? routeHeading(first)
+                : '暂无获取地点';
         const evidence = (route) => {
           const efficiency = route.efficiency || '';
           return `${efficiency && !/^(?:效率待核对|暂无效率数据)[。.]*$/.test(efficiency) ? `<p class="small">${prose(efficiency)}</p>` : ''}${sources(route.sources)}`;
@@ -251,29 +258,47 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       : '';
   }
   function compactStepTargets(row) {
-    const action = prose(row.nextAction || row.description);
-    const materialPlaces = new Set(
-      list(row.materials).flatMap((material) =>
-        list(material.routes)
-          .filter((route) => !route.alternative)
-          .map((route) => route.placeId),
-      ),
-    );
+    const action = stepAction(row);
     // Keep an exact target when prose only resolves to a namesake chooser.
-    const unlinked = (entry) => !entry.id || !action.includes(`data-entity-id="${text(entry.id)}"`);
-    const people = list(row.people)
+    const unlinked = (entry) =>
+      entry.id
+        ? !action.includes(`data-entity-id="${text(entry.id)}"`)
+        : !(entry.mentions || [entry.name]).some((name) =>
+            ['name:', 'place-name:'].some((prefix) =>
+              action.includes(`data-entity-id="${prefix}${text(name)}"`),
+            ),
+          );
+    const people = list(row.targets?.people)
       .filter(unlinked)
-      .map((person) => target(person, 'database-detail', 'npc'));
-    const places = list(row.places)
+      .map((person) => `${text(person.role || '交互')} ${target(person, 'database-detail', 'npc')}`);
+    const places = list(row.targets?.places)
       .filter(
         (place) =>
-          !['description-mention', 'literal-mention', '当前任务文字提及'].includes(place.evidence) ||
-          !materialPlaces.has(place.id),
+          place.purpose !== 'material-source' ||
+          !list(row.materials).some((material) =>
+            list(material.routes).some(
+              (route) => route.place === place.name || route.placeName === place.name,
+            ),
+          ),
       )
       .filter(unlinked)
-      .map((place) => target(place, 'world-place', 'place'));
+      .map((place) => ({ ...place, link: target(place, 'world-place', 'place') }));
+    const placeLabel = (purpose, action) =>
+      ({
+        'turn-in': action === '交谈' ? '交谈地点 ' : '交付地点 ',
+        'conditional-turn-in': action === '交谈' ? '备齐后交谈 ' : '集齐后交付 ',
+        'material-source': '获取地点 ',
+        departure: '离开 ',
+      })[purpose] || '前往 ';
+    const samePurpose = places.every(
+      (place) => (place.purpose || row.targets.purpose) === (places[0]?.purpose || row.targets.purpose),
+    );
+    const placeText = samePurpose
+      ? placeLabel(places[0]?.purpose || row.targets?.purpose, places[0]?.action) +
+        places.map((place) => place.link).join(places[0]?.purpose === 'material-source' ? '、' : ' → ')
+      : places.map((place) => placeLabel(place.purpose, place.action) + place.link).join(' → ');
     return people.length || places.length
-      ? `<p class="flow-targets">${people.join('、')}${people.length && places.length ? ' · ' : ''}${places.join('、')}</p>`
+      ? `<p class="flow-targets">${people.join('、')}${people.length && places.length ? ' · ' : ''}${places.length ? placeText : ''}</p>`
       : '';
   }
   function compactMaterials(rows, sharedMaterials = [], options = {}) {
@@ -309,7 +334,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   function step(row, rootId, { summaryInLead = false, sharedMaterials = [] } = {}) {
     const upcoming = list(row.upcoming);
     return persist(
-      `<div class="flow-step">${summaryInLead || row.id === rootId || row.name === row.nextAction ? '' : `<h4>${questButton(row.id, row.name || '当前步骤') || prose(row.name || '当前步骤')}</h4>`}${summaryInLead ? '' : `<p class="flow-next-action"><span class="small muted">当前行动 </span>${prose(row.nextAction || row.description || '请打开任务资料，核对当前要求。')}</p>`}${row.description && row.description !== row.nextAction ? `<details><summary>任务说明 · 可能涉及剧情</summary><p class="preserve-text">${prose(row.description)}</p></details>` : ''}${summaryInLead ? '' : stepPeople(row) + stepPlaces(row)}${conditions(row.requirements)}${summaryInLead ? '' : materials(row.materials, sharedMaterials)}${upcoming.length ? `<details class="flow-upcoming"><summary>后续相关步骤与分支 · 涉及剧情</summary><ul>${upcoming.map((next) => `<li>${questButton(next.id, next.name) || text(next.name)}${next.reason ? `<p class="small muted">${text(next.reason)}</p>` : ''}</li>`).join('')}</ul></details>` : ''}</div>`,
+      `<div class="flow-step">${(summaryInLead && !row.targets?.materialState) || row.id === rootId || row.name === row.nextAction ? '' : `<h4>${questButton(row.id, row.name || '当前步骤') || prose(row.name || '当前步骤')}</h4>`}${summaryInLead ? '' : `<p class="flow-next-action"><span class="small muted">当前行动 </span>${stepAction(row) || prose('请打开任务资料，核对当前要求。')}</p>`}${row.description && row.description !== row.nextAction ? `<details><summary>任务说明 · 可能涉及剧情</summary><p class="preserve-text">${prose(row.description)}</p></details>` : ''}${summaryInLead ? '' : stepPeople(row) + stepPlaces(row)}${conditions(row.requirements)}${summaryInLead ? '' : materials(row.materials, sharedMaterials)}${upcoming.length ? `<details class="flow-upcoming"><summary>后续相关步骤与分支 · 涉及剧情</summary><ul>${upcoming.map((next) => `<li>${questButton(next.id, next.name) || text(next.name)}${next.reason ? `<p class="small muted">${text(next.reason)}</p>` : ''}</li>`).join('')}</ul></details>` : ''}</div>`,
       'step-' + row.id,
     );
   }
@@ -375,9 +400,9 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       'offline',
     );
   }
-  const compactAdvice = (row) =>
+  const compactAdvice = (row, alreadyActive = false) =>
     persist(
-      `<article class="flow-suggestion" data-flow-suggestion="${text(row.id)}"><p>${prose(row.recommendation?.hint || row.recommendation?.action || row.pickup?.action || row.warning)}</p><details><summary>做法与理由</summary>${rule(row, false, 'advice', true)}</details></article>`,
+      `<article class="flow-suggestion" data-flow-suggestion="${text(row.id)}"><p>${prose(row.recommendation?.hint || row.recommendation?.action || (alreadyActive ? row.warning : row.pickup?.action) || row.warning)}</p><details><summary>做法与理由</summary>${rule(row, false, 'advice', true)}</details></article>`,
       `compact-advice-${row.id}`,
     );
   function compactPanel(flow, sections = ['advice', 'opportunities', 'milestones']) {
@@ -386,6 +411,8 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const warnings = list(flow.warnings).filter((row) => !decisionIds.has(row.id));
     const active = list(flow.active);
     const advice = list(flow.advice).filter((row) => !decisionIds.has(row.id));
+    const adviceActive = (row) => active.some((task) => task.gameId === row.questId);
+    const adviceView = (row) => compactAdvice(row, adviceActive(row));
     const warningIds = new Set([...warnings, ...decisions].map((row) => row.id));
     const opportunities = list(flow.opportunities).filter((row) => !warningIds.has(row.id));
     const reference = flow.reference;
@@ -394,7 +421,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const first = active[0];
     const firstStep = first?.steps?.[0];
     const lead = first
-      ? `<section class="flow-now flow-active" data-flow-now data-flow-quest="${text(first.id)}"><h3>${questButton(first.id, first.name)}</h3><p class="flow-next-action">${prose(firstStep?.nextAction || firstStep?.description || '请核对游戏任务栏中的当前要求。')}</p>${firstStep ? compactStepTargets(firstStep) + compactMaterials(firstStep.materials, flow.sharedMaterials, { scope: `${first.id}-${firstStep.id}` }) : ''}<details class="flow-now-details" data-persist-detail="flow-now-${text(first.id)}-${text(firstStep?.id)}"><summary>条件与完整步骤</summary>${firstStep ? stepPeople(firstStep) + stepPlaces(firstStep) : ''}${activeTask(first, { summaryInLead: true, sharedMaterials: flow.sharedMaterials })}</details></section>`
+      ? `<section class="flow-now flow-active" data-flow-now data-flow-quest="${text(first.id)}"><h3>${questButton(first.id, first.name)}</h3><p class="flow-next-action">${firstStep ? stepAction(firstStep) : prose('请核对游戏任务栏中的当前要求。')}</p>${firstStep ? compactStepTargets(firstStep) + compactMaterials(firstStep.materials, flow.sharedMaterials, { scope: `${first.id}-${firstStep.id}`, instruction: firstStep.nextAction }) : ''}<details class="flow-now-details" data-persist-detail="flow-now-${text(first.id)}-${text(firstStep?.id)}"><summary>条件与完整步骤</summary>${firstStep ? stepPeople(firstStep) + stepPlaces(firstStep) : ''}${activeTask(first, { summaryInLead: true, sharedMaterials: flow.sharedMaterials })}</details></section>`
       : `<div class="flow-empty"><p>${text(flow.reason || (flow.available ? '当前步骤待核对，可展开下方流程线索。' : '尚无可读存档，可先查询攻略。'))}</p>${flow.referenceNeedsSelection ? button('navigate', '检查游戏连接', 'settings', 'btn soft') : ''}</div>`;
     const riskGroups = new Map();
     for (const row of warnings) {
@@ -428,7 +455,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
         : ''
       : lead;
     return persist(
-      `<section class="flow-panel flow-compact" data-flow>${stateNotice(flow)}${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${compactDecision(decisions[0])}${decisions.length > 1 ? `<details data-persist-detail="compact-more-choices"><summary>其他关键选择 · ${decisions.length - 1}</summary>${decisions.slice(1).map(compactDecision).join('')}</details>` : ''}</section>` : ''}${urgent}${decisions.length ? '' : current}${visibleSections.has('advice') && advice.length ? `<section class="flow-advice"><h2>顺路可做</h2>${compactAdvice(advice[0])}${advice.length > 1 ? `<details data-persist-detail="compact-more-advice"><summary>更多建议 · ${advice.length - 1}</summary>${advice.slice(1).map(compactAdvice).join('')}</details>` : ''}</section>` : ''}${decisions.length ? current : ''}${
+      `<section class="flow-panel flow-compact" data-flow>${stateNotice(flow)}${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${compactDecision(decisions[0])}${decisions.length > 1 ? `<details data-persist-detail="compact-more-choices"><summary>其他关键选择 · ${decisions.length - 1}</summary>${decisions.slice(1).map(compactDecision).join('')}</details>` : ''}</section>` : ''}${urgent}${decisions.length ? '' : current}${visibleSections.has('advice') && advice.length ? `<section class="flow-advice"><h2>${adviceActive(advice[0]) ? '任务提醒' : '顺路可做'}</h2>${adviceView(advice[0])}${advice.length > 1 ? `<details data-persist-detail="compact-more-advice"><summary>更多建议 · ${advice.length - 1}</summary>${advice.slice(1).map(adviceView).join('')}</details>` : ''}</section>` : ''}${decisions.length ? current : ''}${
         active.length > 1
           ? `<details data-persist-detail="compact-other-active" class="flow-all-active"><summary>其他进行中任务 · ${active.length - 1}</summary>${active
               .slice(1)
@@ -459,7 +486,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const active = list(flow.active);
     const activeCard = (task) => {
       const next = list(task.steps)[0];
-      return `<article class="flow-task flow-task-summary" data-flow-quest="${text(task.id)}"><div class="row between"><h3>${questButton(task.id, task.name)}</h3>${pill(task.kind === 'Primary' ? '主线' : '支线')}</div>${next ? `<p class="flow-next-action">${prose(next.nextAction || next.description)}</p>${compactStepTargets(next)}${compactMaterials(next.materials, flow.sharedMaterials, { scope: 'main-' + task.id })}` : ''}<details data-persist-detail="main-task-${text(task.id)}"><summary>完整步骤</summary>${activeTask(task, { summaryInLead: true, sharedMaterials: flow.sharedMaterials })}</details></article>`;
+      return `<article class="flow-task flow-task-summary" data-flow-quest="${text(task.id)}"><div class="row between"><h3>${questButton(task.id, task.name)}</h3>${pill(task.kind === 'Primary' ? '主线' : '支线')}</div>${next ? `<p class="flow-next-action">${stepAction(next)}</p>${compactStepTargets(next)}${compactMaterials(next.materials, flow.sharedMaterials, { scope: 'main-' + task.id, instruction: next.nextAction })}` : ''}<details data-persist-detail="main-task-${text(task.id)}"><summary>完整步骤</summary>${next ? stepPeople(next) + stepPlaces(next) : ''}${activeTask(task, { summaryInLead: true, sharedMaterials: flow.sharedMaterials })}</details></article>`;
     };
     const unindexed = list(flow.unindexedActive);
     const shared = list(flow.sharedMaterials);

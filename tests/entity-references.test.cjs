@@ -8,8 +8,8 @@ const { flowSnapshot } = require('../src/core/flow.cjs');
 const url = (name) => {
   let source = fs.readFileSync(path.join(__dirname, '../src/renderer', name), 'utf8');
   source = source.replace(
-    /from '(\.\/[^']+)'/g,
-    (_, dependency) => 'from ' + JSON.stringify(url(dependency.slice(2))),
+    /from '(\.\.?\/[^']+)'/g,
+    (_, dependency) => 'from ' + JSON.stringify(url(path.posix.join(path.posix.dirname(name), dependency))),
   );
   return 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
 };
@@ -684,7 +684,14 @@ function previewEvents(context = async () => ({})) {
       },
       closest(selector) {
         for (let node = this; node; node = node.parent) {
-          if (selector === '[inert]' ? node.inert : node.dataset.entityId) return node;
+          if (
+            selector === '[data-entity-choice-list]'
+              ? node.getAttribute('data-entity-choice-list') !== null
+              : selector === '[inert]'
+                ? node.inert
+                : node.dataset.entityId
+          )
+            return node;
         }
         return null;
       },
@@ -838,6 +845,34 @@ function previewEvents(context = async () => ({})) {
 }
 
 for (const intent of ['focus', 'hover']) {
+  test(`expanded namesake choices stay unobstructed during ${intent}, while ordinary previews remain available`, async () => {
+    let reads = 0;
+    const ui = previewEvents(async () => {
+      reads++;
+      return {};
+    });
+    const list = ui.container(ui.overlay, { 'data-entity-choice-list': '' });
+    const choice = ui.entry(list);
+    if (intent === 'focus') ui.document.activeElement = choice;
+    else choice.hovered = true;
+    ui.emit(intent === 'focus' ? 'focusin' : 'pointerover', choice);
+    await ui.tick(500);
+    assert.equal(reads, 0, 'reading choices must not fetch a covering popup');
+    assert.equal(ui.panel.hidden, true);
+    assert.equal(choice.getAttribute('aria-describedby'), null);
+    let intercepted = false;
+    ui.emit('keydown', choice, { key: 'Escape', preventDefault: () => (intercepted = true) });
+    assert.equal(intercepted, false, 'the chooser keeps its normal Escape handler');
+    const ordinary = ui.entry(ui.root);
+    if (intent === 'focus') ui.document.activeElement = ordinary;
+    else ordinary.hovered = true;
+    ui.emit(intent === 'focus' ? 'focusin' : 'pointerover', ordinary);
+    await ui.tick(250);
+    assert.equal(reads, 1);
+    assert.equal(ui.panel.hidden, false);
+    assert.equal(ordinary.getAttribute('aria-describedby'), 'entity-preview');
+  });
+
   test(`background redraw preserves a ${intent} preview outside the replaced surface`, async () => {
     const ui = previewEvents(),
       entry = ui.entry();

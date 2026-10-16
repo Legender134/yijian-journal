@@ -7,9 +7,11 @@ const itemStats = require('../data/item-stats.json');
 const npcFacts = require('../data/npc-facts.json');
 const codex = require('../data/codex-details.json');
 const skillConsultation = require('../data/npc-interactions.json').skills;
+const materialGuide = require('../data/material-guide.cjs');
+const taskTargets = require('./task-targets.cjs').createTaskTargetProjector(world, materialGuide.items);
+const taskObjectives = Object.fromEntries(world.quests.map((q) => [q.id, taskTargets.template(q)]));
 if (String(codex.build) !== String(data.build)) throw Error('图鉴详情版本不一致');
 const flowGuide = require('../data/flow-guide.cjs');
-const materialGuide = require('../data/material-guide.cjs');
 const gatheringRoutes = Object.fromEntries(
   Object.entries(materialGuide.items)
     .map(([id, item]) => [
@@ -159,7 +161,12 @@ function encyclopedia() {
       notice: npcFacts.notice,
       pools: npcFacts.pools,
     },
-    world: { ...world, mapAtlas, placeAliases: require('../data/world-place-aliases.json') },
+    world: {
+      ...world,
+      mapAtlas,
+      placeAliases: require('../data/world-place-aliases.json'),
+      objectives: taskObjectives,
+    },
   };
 }
 function recipePlan(id, quantity, inventory = null) {
