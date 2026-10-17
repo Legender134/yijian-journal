@@ -182,17 +182,38 @@ test('an accepted Qiluo departure step explains the blocked departure without ma
   assert(active.steps.every((row) => !row.blockedWindow && !/暂不能前往/.test(row.nextAction)));
 });
 
-test('saved NoQuest requirements treat explicit zero and not-accepted records as unmet, while absent stays unknown', () => {
+test('saved NoQuest pickup requirements remain conservative without becoming blockers on an accepted step', () => {
   const active = [
     { id: 8499, step: 1 },
     { id: 8536, step: 1 },
     { id: 8537, step: 1 },
   ];
-  const check = (rows) =>
-    flowSnapshot(profile, saved(rows))
-      .active.find((row) => row.gameId === 8499)
-      .steps.find((row) => row.id === 'quest-8537')
-      .requirements.find((row) => row.text.includes('人面蛛毒元'));
-  assert.equal(check(active).status, 'unknown');
-  for (const step of [0, 1, 2, 3, 4]) assert.equal(check([...active, { id: 8538, step }]).status, 'unmet');
+  const world = require('../src/data/world-index.json');
+  const pickup = {
+    ...world.quests.find((row) => row.gameId === 8537),
+    id: 'quest-999991',
+    gameId: 999991,
+    parentId: 0,
+    name: '合成接取测试',
+  };
+  const projection = require('../src/core/flow.cjs').createFlowProjector({
+    world: { ...world, quests: [...world.quests, pickup] },
+    game: require('../src/data/game-index.json'),
+    guide: require('../src/data/flow-guide.cjs'),
+  });
+  const check = (rows) => {
+    const reading = saved(rows);
+    reading.metadata.inventory = [{ id: 10488, count: 1 }];
+    const flow = projection.flowSnapshot(profile, reading);
+    const accepted = flow.active
+      .find((row) => row.gameId === 8499)
+      .steps.find((row) => row.id === 'quest-8537');
+    assert(
+      !accepted.requirements.some((row) => row.text.includes('人面蛛毒元')),
+      'pickup exclusion is not a current completion check',
+    );
+    return flow.opportunities.find((row) => row.id === 'conditions-999991');
+  };
+  assert.equal(check(active).conditions.find((row) => row.text.includes('人面蛛毒元')).status, 'unknown');
+  for (const step of [0, 1, 2, 3, 4]) assert.equal(check([...active, { id: 8538, step }]), undefined);
 });

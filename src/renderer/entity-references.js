@@ -327,7 +327,9 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
             .map((person) => `${person.role || '交互'}：${person.name}`)
             .join('；'),
         );
-      const conditions = (e.requirements || []).filter((condition) => condition.name).slice(0, 2);
+      const conditions = (selected ? [] : e.requirements || [])
+        .filter((condition) => condition.name)
+        .slice(0, 2);
       if (conditions.length) lines.push('条件：' + conditions.map((condition) => condition.name).join('、'));
     } else if (e.kind === '物品') {
       const numeric = itemNumericSummary(e, index());
@@ -335,7 +337,7 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       const inventory = context.reference?.metadata?.inventory;
       if (Array.isArray(inventory))
         lines.push(
-          '保存持有 ' +
+          (context.reference?.origin === 'live' ? '当前持有 ' : '保存持有 ') +
             inventory.reduce(
               (sum, row) =>
                 sum +
