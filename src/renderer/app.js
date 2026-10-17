@@ -1305,13 +1305,15 @@ const timelineViews = createTimelineViews({
   qualityText,
 });
 function backupStatus() {
-  return !state.settings.autoBackup
-    ? '未开启'
-    : environment.health?.backupStatus === 'paused'
-      ? '已暂停 · 时间线正在接管'
-      : environment.autoError
-        ? '已停止 · 请核对错误'
-        : '正在检查变化';
+  return environment.health?.backupUnavailable
+    ? '目录不可用'
+    : !state.settings.autoBackup
+      ? '未开启'
+      : environment.health?.backupStatus === 'paused'
+        ? '已暂停'
+        : environment.autoError
+          ? '已停止 · 请核对错误'
+          : '正在检查变化';
 }
 function shortcutSettings() {
   const s = environment.shortcuts || {
@@ -3072,6 +3074,7 @@ function timelinePanel() {
 function restoreRecoveryBanner() {
   const recovery = environment.recovery;
   if (!recovery) return '';
+  if (recovery.error && environment.backupInventoryError) return '';
   const guidance = recovery.error
     ? `<p class="save-note">请先退出游戏，保留当前存档和全部保护副本。手札无法确认上次覆盖到了哪一步，因此会阻止继续恢复或更换存档目录；资料查询和查看副本仍可使用。</p><p class="save-note">需要核对时，请保留备份目录中的恢复记录及副本，并提供下方诊断文字；无需发送存档文件。不要删除恢复记录来绕过核对。</p><details data-persist-detail="restore-diagnostic"><summary>查看恢复诊断</summary><p class="small mono preserve-text">${esc(recovery.recordPath || '备份目录中的恢复记录')}${recovery.diagnostic ? '\n' + esc(recovery.diagnostic) : ''}</p></details>`
     : '';
@@ -3131,11 +3134,11 @@ function savesPage() {
   const save = environment.saves,
     files = save.files,
     backups = environment.backups;
-  const warnings = `${environment.game.build && environment.game.build !== gameIndex.build ? notice(`游戏已更新到 Build ${environment.game.build}，手札图鉴资料为 Build ${gameIndex.build}；名称与配方请以游戏内为准。`, true) : ''}${save.error ? notice(save.error) : ''}${files.some((f) => /^\d+\.sav$/i.test(f.name) && !f.metadata) ? notice('部分存档暂时无法读取进度，仍可完整备份原文件。请在游戏里重新保存后刷新，或核对存档目录与游戏版本；没有可读进度时，库存与任务状态不会自动填入。', true) : ''}${environment.autoError ? notice(environment.autoError) : ''}`;
+  const warnings = `${environment.game.build && environment.game.build !== gameIndex.build ? notice(`游戏已更新到 Build ${environment.game.build}，手札图鉴资料为 Build ${gameIndex.build}；名称与配方请以游戏内为准。`, true) : ''}${save.error ? notice(save.error) : ''}${files.some((f) => /^\d+\.sav$/i.test(f.name) && !f.metadata) ? notice('部分存档暂时无法读取进度，仍可完整备份原文件。请在游戏里重新保存后刷新，或核对存档目录与游戏版本；没有可读进度时，库存与任务状态不会自动填入。', true) : ''}${environment.autoError && !environment.backupInventoryError ? notice(environment.autoError) : ''}`;
   const connection = `<div class="card mb save-connection"><div class="row between save-connection-header"><div class="row save-connection-description"><div class="save-icon">${icon('folder')}</div><div><h3>${files.length ? '已连接本机存档' : '尚未连接存档'}</h3><p class="small muted">${files.length ? '文件会被只读扫描，备份保存在手札的数据目录。' : '选择游戏的 SaveGames 文件夹即可开始。'}</p></div></div><div class="save-stats"><div><strong>${files.filter((f) => /\.sav$/i.test(f.name)).length}</strong><small>存档文件</small></div><div>${environment.recovery ? '<button class="btn" disabled title="请先核对完整存档恢复">更换目录 · 先核对恢复</button>' : act('choose-saves', '更换目录', 'btn')}</div></div></div><div class="separator"></div><div class="row between save-connection-path"><span class="mono muted">${esc(save.path || '等待选择目录')}</span>${save.path ? act('folder', '打开目录', 'text-btn', 'saves', 'external') : ''}</div></div>`;
   return `${pageHeader('A PLACE TO RETURN TO', '存档匣', '重要选择之前，为这一程留一份退路。', `${act('refresh', '刷新', 'btn', '', 'refresh')}${act('backup', '备份当前存档', 'btn primary', '', 'download')}`)}${restoreRecoveryBanner()}${backupCareBanner()}${warnings}${saveReviewActions()}${timelinePanel()}${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${protectionViews.controls(protectionView)}${activityPanel()}${!save.path || !files.length ? connection : ''}
- <div class="row between mb"><h2>留存的副本 <span class="small muted">${backups.length ? `· ${backups.length} 份` : ''}</span></h2><div class="row"><span class="small muted">完整自动备份 · ${backupStatus()}</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></div>
- ${backupViews.anomalies(environment.backupAnomalies || [])}${backups.length ? backupViews.page(backups, backupView) : `<div class="card">${empty('还没有备份', '先在游戏内保存，再创建第一份副本。每份备份都会保留原始文件并校验完整性。', act('backup', '创建第一份备份', 'btn soft', '', 'download'))}</div>`}<details class="save-backup-help mb" data-persist-detail="backup-help"><summary>备份设置与说明</summary><p class="small">完整自动备份 · ${backupStatus()}</p><p class="save-note">原生游戏连接工作时暂停完整自动备份，避免重复复制其他槽位；等待连接或关闭时间线时仍保护文件。关闭时间线后立即检查，之后每分钟核对文件变化；稳定后复制已保存的文件，不会替游戏执行保存。副本不会自动删除。可按名称、类型和日期整理或分批导出；上方完整换机会自动分卷，请一并带走分卷目录。</p></details>
+ <div class="row between mb"><h2>留存的副本 <span class="small muted">${environment.backupInventoryError ? '· 数量待核对' : backups.length ? `· ${backups.length} 份` : ''}</span></h2><div class="row"><span class="small muted">完整自动备份 · ${backupStatus()}</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></div>
+ ${backupViews.anomalies(environment.backupAnomalies || [])}${environment.backupInventoryError ? backupViews.unavailable(environment.backupInventoryError, environment.backupRoot) : backups.length ? backupViews.page(backups, backupView) : `<div class="card">${empty('还没有备份', '先在游戏内保存，再创建第一份副本。每份备份都会保留原始文件并校验完整性。', act('backup', '创建第一份备份', 'btn soft', '', 'download'))}</div>`}<details class="save-backup-help mb" data-persist-detail="backup-help"><summary>备份设置与说明</summary><p class="small">完整自动备份 · ${backupStatus()}</p><p class="save-note">原生游戏连接工作时暂停完整自动备份，避免重复复制其他槽位；等待连接或关闭时间线时仍保护文件。关闭时间线后立即检查，之后每分钟核对文件变化；稳定后复制已保存的文件，不会替游戏执行保存。副本不会自动删除。可按名称、类型和日期整理或分批导出；上方完整换机会自动分卷，请一并带走分卷目录。</p></details>
  <details class="card save-files" data-persist-detail="save-files"><summary>存档目录与文件</summary>${save.path && files.length ? connection : ''} <div class="section-heading"><h2>当前存档文件</h2><div class="row"><span class="small muted">共 ${files.length} 个文件 · ${bytes(save.total)}</span>${files.some((f) => f.metadata) ? act('save-compare', '比较两份存档', 'btn', '', 'search') : ''}</div></div>${
    files.length
      ? `<div class="table-wrap"><table class="save-table"><thead><tr><th>文件</th><th>保存时间</th><th>游玩时长</th><th>场景 / 队伍</th><th>大小</th></tr></thead><tbody>${files
@@ -3429,7 +3432,7 @@ function compactSavesPage() {
   const backups = environment.backups || [];
   const row = (b) =>
     `<div class="compact-backup-row"><div><strong>${esc(b.label)}</strong><span class="small muted">${when(b.createdAt)}</span></div>${act('backup-preview', '查看副本', 'btn', b.id, 'eye')}</div>`;
-  return `<div class="row between mb"><h2>存档</h2>${act('backup', '备份当前存档', 'btn', '', 'download')}</div>${restoreRecoveryBanner()}${backupCareBanner()}${environment.saves?.error ? notice(environment.saves.error) : ''}${environment.autoError ? notice(environment.autoError) : ''}${saveReviewActions(true)}${timelinePanel()}${backupViews.anomalies(environment.backupAnomalies || [])}<details data-persist-detail="compact-backups"><summary>完整存档副本 · ${backups.length}</summary>${backups.slice(0, 6).map(row).join('') || '<p>暂无副本，先在游戏中保存，再点击备份。</p>'}${backups.length > 6 ? `<details><summary>更早的 ${backups.length - 6} 份</summary>${backups.slice(6).map(row).join('')}</details>` : ''}<div class="row between mt"><span>完整自动备份 · ${backupStatus()}</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></details>${!environment.saves?.path ? act('choose-saves', '连接存档目录', 'btn', '', 'folder') : ''}`;
+  return `<div class="row between mb"><h2>存档</h2>${act('backup', '备份当前存档', 'btn', '', 'download')}</div>${restoreRecoveryBanner()}${backupCareBanner()}${environment.saves?.error ? notice(environment.saves.error) : ''}${environment.autoError && !environment.backupInventoryError ? notice(environment.autoError) : ''}${saveReviewActions(true)}${timelinePanel()}${backupViews.anomalies(environment.backupAnomalies || [])}<details data-persist-detail="compact-backups"${environment.backupInventoryError ? ' open' : ''}><summary>完整存档副本 · ${environment.backupInventoryError ? '数量待核对' : backups.length}</summary>${environment.backupInventoryError ? backupViews.unavailable(environment.backupInventoryError, environment.backupRoot) : backups.slice(0, 6).map(row).join('') || '<p>暂无副本，先在游戏中保存，再点击备份。</p>'}${backups.length > 6 ? `<details><summary>更早的 ${backups.length - 6} 份</summary>${backups.slice(6).map(row).join('')}</details>` : ''}<div class="row between mt"><span>完整自动备份 · ${backupStatus()}</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></details>${!environment.saves?.path ? act('choose-saves', '连接存档目录', 'btn', '', 'folder') : ''}`;
 }
 function compactPage() {
   document.body.classList.add('companion');
@@ -7724,6 +7727,10 @@ async function handle(action, id, target, navigationFocused = false) {
       }
       return !result.cancelled;
     }
+    case 'backup-recheck':
+      await call('recheckBackups');
+      await refresh();
+      break;
     case 'refresh':
       await refresh();
       toast('已刷新本机存档');

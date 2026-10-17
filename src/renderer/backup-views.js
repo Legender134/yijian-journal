@@ -1,4 +1,7 @@
 export function createBackupViews({ esc, act, pill, icon, iconButton, empty, when, bytes }) {
+  function unavailable(error, root) {
+    return `<section class="card mb" aria-label="备份目录暂不可用"><h3>备份目录暂不可用</h3><p>恢复目录连接或权限后重试。</p>${act('backup-recheck', '重试', 'btn', '', 'refresh')}<details class="mt"><summary>查看原因与目录</summary><p class="preserve-text">${esc(error)}</p><p class="mono">${esc(root || '')}</p><p>目录可用前，完整副本的校验与恢复保持暂停。</p>${act('folder', '打开数据目录', 'text-btn', 'data', 'folder')}</details></section>`;
+  }
   function anomalies(rows = []) {
     if (!rows.length) return '';
     return `<section class="card mb backup-anomalies" aria-label="异常副本目录"><h2>异常副本目录 · ${rows.length}</h2><p class="notice">这些目录的清单无法确认，原始文件仍保留。它们不计入完整备份数量，不能恢复、选择导出或清理。请保留原件，从完好的原保护包重新导入或重新备份；不要自行补写清单。</p>${rows.map((row) => `<div class="backup-row" data-abnormal-backup="${esc(row.id)}"><div class="backup-symbol">${icon('archive')}</div><div class="spacer"><h3>副本目录 · 需核对 ${pill('异常')}</h3><p><strong>${esc(row.reason)}</strong><br><span class="mono">${esc(row.id)}</span><br><span class="mono">${esc(row.directory)}</span></p>${row.diagnostic ? `<details><summary>查看诊断原因</summary><p>${esc(row.diagnostic)}</p></details>` : ''}<p class="small muted">保留该目录供核对；重新导入会建立独立副本。</p></div>${act('backup-folder', '打开此目录', 'btn', row.id, 'folder')}</div>`).join('')}</section>`;
@@ -60,5 +63,5 @@ export function createBackupViews({ esc, act, pill, icon, iconButton, empty, whe
       .join('');
     return `${filters}${view.from && view.to && view.from > view.to ? '<p class="notice">开始日期不能晚于结束日期</p>' : ''}<p class="small muted" role="status">筛选到 ${matches.length} / ${backups.length} 份完整备份 · 文件占用 ${bytes(totalBytes)}</p>${selection}<div class="card">${rows || empty('没有符合条件的备份', '调整名称、类型或日期，再重新查找。')}</div>${pages > 1 ? `<div class="pagination">${act(prefix + '-page', '上一页', 'btn', String(Math.max(0, current - 1)))}<span>第 ${current + 1} / ${pages} 页</span>${act(prefix + '-page', '下一页', 'btn', String(Math.min(pages - 1, current + 1)))}</div>` : ''}`;
   }
-  return { page, filtered, anomalies };
+  return { page, filtered, anomalies, unavailable };
 }

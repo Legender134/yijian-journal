@@ -328,6 +328,7 @@ function readProtectionExportResult(dataRoot) {
   }
 }
 module.exports = {
+  realBackupRoot,
   validBackupId,
   backupDirectory,
   backupDirectories,

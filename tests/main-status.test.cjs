@@ -59,6 +59,7 @@ test('overview shares one current timeline snapshot and retains fields and prote
     busy = false,
     selectedSavePath = 'synthetic-SaveGames';
   const context = {
+    fs: { readdirSync: () => [] },
     bridge: {
       get busy() {
         return busy;
@@ -94,7 +95,14 @@ test('overview shares one current timeline snapshot and retains fields and prote
       anomalies: () => [],
       pendingRestore: () => null,
     },
-    autoBackup: { error: '', lastBackup: { at: 1000 } },
+    autoBackup: {
+      error: '',
+      lastBackup: { at: 1000 },
+      reset() {
+        this.error = '';
+        this.lastBackup = null;
+      },
+    },
     activity: { get: () => ({ fault: { message: 'Synthetic retained fault' }, events: [] }) },
     pendingBackupCare: () => [],
     game: { installed: false },
@@ -167,4 +175,33 @@ test('overview shares one current timeline snapshot and retains fields and prote
     true,
     'old native records remain isolated after a new path is explicitly chosen',
   );
+  context.pendingBackupCare = () => {
+    throw Error('Synthetic storage offline');
+  };
+  assert.doesNotThrow(() => vm.runInContext('this.offline = overview();', context));
+  assert.equal(context.offline.backupInventoryError, 'Synthetic storage offline');
+  assert.equal(context.offline.health.backupUnavailable, true);
+  assert.equal(context.offline.health.lastBackup, null);
+  assert.equal(context.offline.health.protection.ready, false);
+  assert.equal(context.offline.health.protection.label, '备份目录暂不可用');
+  assert(context.offline.journey && context.offline.flow, 'Read-only guidance remains available');
+  context.pendingBackupCare = () => [];
+  context.saves.list = () => {
+    throw Error('Synthetic listing denied');
+  };
+  vm.runInContext('this.denied = overview();', context);
+  assert.equal(context.denied.backupInventoryError, 'Synthetic listing denied');
+  context.saves.list = () => [];
+  context.fs.readdirSync = () => {
+    throw Error('Synthetic directory read denied');
+  };
+  vm.runInContext('this.headerDenied = health();', context);
+  assert.equal(context.headerDenied.backupUnavailable, true);
+  assert.equal(context.headerDenied.lastBackup, null);
+  context.fs.readdirSync = () => [];
+  vm.runInContext('this.reconnected = overview();', context);
+  assert.equal(context.reconnected.backupInventoryError, '');
+  assert.equal(context.reconnected.health.backupUnavailable, false);
+  assert.equal(context.reconnected.health.lastBackup, null);
+  assert.equal(!!context.reconnected.health.protection.ready, false);
 });

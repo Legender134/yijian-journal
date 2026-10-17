@@ -8,6 +8,7 @@ const { compareRecords } = require('./save-comparison.cjs');
 const { atomicWrite } = require('./store.cjs');
 const {
   validBackupId,
+  realBackupRoot,
   backupDirectory,
   backupDirectories,
   readBackupManifest,
@@ -62,9 +63,19 @@ function listFiles(root) {
   return files;
 }
 class Saves {
-  constructor(backupRoot) {
-    fs.mkdirSync(backupRoot, { recursive: true });
-    this.root = realDirectory(backupRoot);
+  constructor(backupRoot, { allowUnavailable = false } = {}) {
+    this.root = path.resolve(backupRoot);
+    try {
+      fs.mkdirSync(backupRoot, { recursive: true });
+      this.root = realDirectory(backupRoot);
+    } catch (error) {
+      if (!allowUnavailable) throw error;
+      // Fix the parent identity even when the final directory is unavailable.
+      // Never follow the final leaf: a replacement junction must stay rejected.
+      try {
+        this.root = path.join(fs.realpathSync(path.dirname(this.root)), path.basename(this.root));
+      } catch {}
+    }
     this.busy = false;
     this.cache = new Map();
     this.detailCache = new Map();
@@ -210,7 +221,7 @@ class Saves {
   }
   checkResult(id) {
     if (!validId(id)) throw Error('备份编号无效');
-    const dir = realDirectory(path.join(this.root, id)),
+    const dir = this.directory(id),
       file = path.join(dir, 'verification.json');
     if (!fs.existsSync(file)) return null;
     try {
@@ -231,7 +242,7 @@ class Saves {
   }
   recordCheck(id, error = '') {
     if (!validId(id)) throw Error('备份编号无效');
-    const dir = realDirectory(path.join(this.root, id));
+    const dir = this.directory(id);
     const file = path.join(dir, 'verification.json');
     for (const target of [file, file + '.previous']) {
       try {
@@ -254,7 +265,7 @@ class Saves {
   }
   _capture(source, label, kind) {
     const root = realDirectory(source),
-      backupRoot = fs.realpathSync(this.root);
+      backupRoot = realBackupRoot(this.root);
     if (isWithin(backupRoot, root) || isWithin(root, backupRoot))
       throw new Error('备份目录与游戏存档目录不能重叠');
     if (typeof label !== 'string' || label.length > 100) throw new Error('备份名称最多 100 字');
@@ -499,9 +510,11 @@ class Saves {
     }
   }
   _recordOperation(operation) {
+    realBackupRoot(this.root);
     atomicWrite(this.operationFile, operation);
   }
   _readOperation() {
+    realBackupRoot(this.root);
     if (!fs.existsSync(this.operationFile)) return null;
     const stat = fs.lstatSync(this.operationFile);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 512 * 1024)

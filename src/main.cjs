@@ -224,9 +224,28 @@ function autoBackupBlocked(
     (timeline?.data.enabled && bridge?.connected())
   );
 }
-function health(t = bridge?.summary()) {
+function inspectBackups(includeItems = false) {
+  const result = { care: [], backups: [], anomalies: [], error: '' };
+  if (!saves) return result;
+  try {
+    result.care = pendingBackupCare({ saves });
+    if (includeItems) {
+      result.backups = saves.list();
+      result.anomalies = saves.anomalies();
+    } else fs.readdirSync(saves.root);
+  } catch (error) {
+    // Preserve any records read successfully, but never present a failed
+    // inventory as an authoritative empty list or a verified latest backup.
+    result.error = error.message || '备份目录暂无法读取';
+    // A brief outage observed here must also invalidate the automatic cache;
+    // reconnection cannot restore protection until the copy is verified again.
+    autoBackup?.reset({ keepError: true });
+  }
+  return result;
+}
+function health(t = bridge?.summary(), inspection = inspectBackups()) {
   const fault = activity?.get().fault;
-  const backupCareRecords = saves ? pendingBackupCare({ saves }) : [];
+  const backupCareRecords = inspection.care;
   const backupCare = backupCareRecords.filter((p) => p.blocking !== false);
   if (t && !t.enabled && !t.error && fault) t.error = fault.message;
   const snapshot = {
@@ -249,17 +268,21 @@ function health(t = bridge?.summary()) {
     backupCare,
     backupCareRecords,
     saveConnected: !!store?.get().settings.savePath,
-    backupError: autoBackup?.error || '',
-    lastBackup: backupCare.some((p) => p.ids?.includes(autoBackup?.lastBackup?.id))
-      ? null
-      : autoBackup?.lastBackup || null,
-    backupStatus: !store?.get().settings.autoBackup
-      ? 'disabled'
-      : autoBackupBlocked(backupCare)
-        ? 'paused'
-        : autoBackup?.error
-          ? 'error'
-          : 'watching',
+    backupUnavailable: !!inspection.error,
+    backupError: inspection.error || autoBackup?.error || '',
+    lastBackup:
+      inspection.error || backupCare.some((p) => p.ids?.includes(autoBackup?.lastBackup?.id))
+        ? null
+        : autoBackup?.lastBackup || null,
+    backupStatus: inspection.error
+      ? 'error'
+      : !store?.get().settings.autoBackup
+        ? 'disabled'
+        : autoBackupBlocked(backupCare)
+          ? 'paused'
+          : autoBackup?.error
+            ? 'error'
+            : 'watching',
   };
   snapshot.protection = protectionStatus(snapshot);
   return snapshot;
@@ -686,7 +709,8 @@ function overview() {
       goalError = e.message || '存档进度暂无法读取';
     }
   const timelineStatus = bridge?.summary(),
-    snapshot = health(timelineStatus);
+    backupInspection = inspectBackups(true),
+    snapshot = health(timelineStatus, backupInspection);
   const allocations = resourceBudget(profile, goalReference, { error: goalError });
   const journey = journeyPlan(profile, goalError ? null : goalReference, {
     ...allocations,
@@ -706,8 +730,9 @@ function overview() {
     flow: flowSnapshot(profile, goalReference, goalError, readGuidance(state)),
     preferredSave: preferred,
     preferredSaveMissing: !!preferred && !latest,
-    backups: saves.list(),
-    backupAnomalies: saves.anomalies(),
+    backups: backupInspection.backups,
+    backupAnomalies: backupInspection.anomalies,
+    backupInventoryError: backupInspection.error,
     protectionExportResult: readProtectionExportResult(app.getPath('userData')),
     journalRecovery: {
       isolated: !!recoveredIsolation,
@@ -904,7 +929,7 @@ app.whenReady().then(async () => {
       }
     }
     appUpdates = new UpdateService(updateOptions);
-    saves = new Saves(path.join(app.getPath('userData'), 'save-backups'));
+    saves = new Saves(path.join(app.getPath('userData'), 'save-backups'), { allowUnavailable: true });
     protectionArchives = new ProtectionArchives(app.getPath('userData'), () => store.get().settings.savePath);
     game = isTest ? { installed: false, path: '', build: '' } : detectGame();
     gameCheckedAt = performance.now();
@@ -1143,6 +1168,12 @@ app.whenReady().then(async () => {
     handle('refresh', () => {
       connectDetectedSaves();
       return overview();
+    });
+    handle('backup-recheck', () => {
+      autoBackup?.reset();
+      autoBackup?.check();
+      broadcast('event', { type: 'auto-status', text: '' });
+      return true;
     });
     handle('journey-plan', () => {
       const data = store.get();
