@@ -146,7 +146,10 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
                 ?.checks,
             )
           : reason(row.compare.checks);
-    return `<details class="npc-progress-card" data-npc-progress-card="${text(row.npcId)}" data-persist-detail="npc-progress-${text(scope)}-${text(row.npcId)}"><summary><span class="row between"><strong>${act('database-detail', text(row.name), 'text-btn', row.id)}</strong><small>${row.place ? act('world-place', text(row.place.name), 'text-btn', row.place.id) : '位置待确认'}</small></span><span>${row.collection === 'cleared' && tab !== 'learning' ? '私物已清空' : preview}${row.importantCount && tab !== 'learning' ? ` · 重点 ${row.importantCount} 种` : ''}</span>${blocker ? `<span class="npc-progress-blocker">${blocker}</span>` : ''}</summary><div class="npc-progress-body">${person(row, true)}</div></details>`;
+    const giftPreparation = missingEntry(row.gift)
+      ? ''
+      : `<div class="row mt">${act('journey-gift-dialog', '准备赠礼', 'btn', row.id, 'plus')}</div>`;
+    return `<details class="npc-progress-card" data-npc-progress-card="${text(row.npcId)}" data-persist-detail="npc-progress-${text(scope)}-${text(row.npcId)}"><summary><span class="row between"><strong>${act('database-detail', text(row.name), 'text-btn', row.id)}</strong><small>${row.place ? act('world-place', text(row.place.name), 'text-btn', row.place.id) : '位置待确认'}</small></span><span>${row.collection === 'cleared' && tab !== 'learning' ? '私物已清空' : preview}${row.importantCount && tab !== 'learning' ? ` · 重点 ${row.importantCount} 种` : ''}</span>${blocker ? `<span class="npc-progress-blocker">${blocker}</span>` : ''}</summary><div class="npc-progress-body">${person(row, true)}${giftPreparation}</div></details>`;
   }
   function page(data, { tab = 'remaining', query = '', page = 0, scope = '' } = {}) {
     if (!data?.available) return '';

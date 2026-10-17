@@ -12,6 +12,8 @@ const taskTargets = require('./task-targets.cjs').createTaskTargetProjector(worl
 const taskObjectives = Object.fromEntries(world.quests.map((q) => [q.id, taskTargets.template(q)]));
 if (String(codex.build) !== String(data.build)) throw Error('图鉴详情版本不一致');
 const flowGuide = require('../data/flow-guide.cjs');
+const { giftPersonHint } = require('./gift-labels.cjs');
+const identityEntries = [...new Map([...data.entries, ...world.people].map((row) => [row.id, row])).values()];
 const gatheringRoutes = Object.fromEntries(
   Object.entries(materialGuide.items)
     .map(([id, item]) => [
@@ -139,7 +141,11 @@ function encyclopedia() {
                     : {}),
                 }
               : e.kind === '人物'
-                ? { ...e, npcFacts: npcFacts.people[e.gameId] || null }
+                ? {
+                    ...e,
+                    npcFacts: npcFacts.people[e.gameId] || null,
+                    identityHint: giftPersonHint(e, identityEntries),
+                  }
                 : e,
         ]),
       ).values(),

@@ -219,7 +219,7 @@ test('craft material allocations and manual handled state keep their existing me
   assert.doesNotMatch(stockedView, /已保存持有|仅收藏目标|存档参照：/);
 });
 
-test('gift allocations keep the exact quality and existing allocated quantity text', async () => {
+test('gift allocations keep the exact quality and concise allocated and missing quantities', async () => {
   const journey = emptyJourneyState();
   journey.gifts.push({
     id: 'synthetic-gift',
@@ -240,6 +240,6 @@ test('gift allocations keep the exact quality and existing allocated quantity te
   assert.equal(action.gift.allocationKnown, true);
   assert.equal(action.gift.itemId, 'item-1002');
   assert.match(view, /蓝色品质/);
-  assert.match(view, /为这份赠礼已分配 1 · 还缺 1/);
+  assert.match(view, /已备 1 · 还缺 1/);
   assert.doesNotMatch(view, /已保存持有|仅收藏目标|存档参照：/);
 });

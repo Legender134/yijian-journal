@@ -97,7 +97,7 @@ function currentContext(context) {
     world,
     game,
     tables: {
-      database: map([...(world.people || []), ...(game.entries || [])]),
+      database: map([...(game.entries || []), ...(world.people || [])]),
       quest: map(world.quests),
       place: map(world.maps),
       guide: guides,
@@ -146,7 +146,7 @@ function labelFor(type, row, context) {
     const person =
       context.tables.database.get(row.npcId) || context.world.people?.find((p) => p.id === row.npcId);
     const item = context.tables.database.get(row.itemId);
-    return `${giftPersonLabel(person, context.game.entries || []) || row.npcId} · ${giftItemLabel(item) || row.itemId} × ${row.quantity}`.slice(
+    return `${giftPersonLabel(person, [...context.tables.database.values()]) || row.npcId} · ${giftItemLabel(item) || row.itemId} × ${row.quantity}`.slice(
       0,
       160,
     );

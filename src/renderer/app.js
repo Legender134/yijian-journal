@@ -28,7 +28,7 @@ import {
   writeIntentValues,
   intentTarget,
 } from './intent-draft-views.js';
-import { createGiftPicker, giftStock } from './gift-picker.js';
+import { createGiftPicker, giftStock, hasNoGiftEntry } from './gift-picker.js';
 import { createPlacePicker, placeChoiceLabel } from './place-picker.js';
 import { createGameImages } from './game-images.js';
 import { createQualityText } from './quality.js';
@@ -210,6 +210,19 @@ function activateIntentEditor(kind, targetId, context = {}, row = null) {
         act('intent-draft-recheck', '重新核对原安排…', 'text-btn', activeIntentEditor.id) +
         act('intent-draft-discard', '放弃草稿…', 'text-btn', activeIntentEditor.id),
     );
+  if (kind === 'journey-gift') {
+    const more = document.createElement('details');
+    more.className = 'gift-editor-actions';
+    more.innerHTML = '<summary>更多操作</summary><div class="row wrap"></div>';
+    for (const button of dialog.querySelectorAll(
+      '.modal-footer [data-action="intent-draft-copy"],.modal-footer [data-action="intent-draft-recheck"],.modal-footer [data-action="intent-draft-discard"],.modal-footer [data-action="journey-intent-remove"]',
+    ))
+      more.lastElementChild.append(button);
+    dialog.querySelector('.journey-intent-body').append(more);
+    dialog.querySelector('#intent-draft-status').textContent = row
+      ? '已恢复草稿，保存后加入安排。'
+      : '修改会自动暂存。';
+  }
 }
 function captureIntentEditor(editor, force = false) {
   if (!editor || !editor.scope?.isConnected || editor.submitting || editor.committed) return;
@@ -236,7 +249,7 @@ function captureIntentEditor(editor, force = false) {
   });
   if (editor === activeIntentEditor) {
     const status = overlay.querySelector('#intent-draft-status');
-    if (status) status.textContent = '正在暂存这些编辑…';
+    if (status) status.textContent = editor.kind === 'journey-gift' ? '正在暂存…' : '正在暂存这些编辑…';
   }
   clearTimeout(intentDraftTimer);
   intentDraftTimer = setTimeout(
@@ -281,7 +294,10 @@ function flushIntentDrafts(onlyId = null) {
             if (activeIntentEditor?.id === id) {
               const status = overlay.querySelector('#intent-draft-status');
               if (status && !pendingIntentDrafts.has(id))
-                status.textContent = '这些编辑已暂存在本机，关闭或重启后可继续。';
+                status.textContent =
+                  activeIntentEditor.kind === 'journey-gift'
+                    ? '已暂存，可稍后继续。'
+                    : '这些编辑已暂存在本机，关闭或重启后可继续。';
             }
           }
         } catch (error) {
@@ -3223,16 +3239,55 @@ function refreshGiftPicker(kind, page) {
     view.stockOnly = !!document.querySelector('#journey-item-stock')?.checked;
   }
   view.page = page || 1;
+  const selectedPerson = gameIndex.entries.find(
+    (row) => row.kind === '人物' && row.id === journeyDraft.giftPicker.person.selectedId,
+  );
+  const progress = selectedPerson
+    ? journeyDraft.giftProgress?.people?.find((row) => row.npcId === selectedPerson.gameId)
+    : null;
+  if (kind === 'person') {
+    view.progress = progress;
+    view.progressOrigin = journeyDraft.giftProgress?.origin;
+  } else view.minimumQuality = progress?.gift?.minimumQuality;
   const focusedId = document.activeElement?.id;
   document.querySelector('#' + target + '-options').innerHTML = giftPicker.options(gameIndex, kind, view);
+  document.querySelector('#' + target + '-selection').innerHTML = giftPicker.selection(gameIndex, kind, view);
+  document.querySelector('#' + target + '-picker > summary').innerHTML = giftPicker.choiceSummary(
+    kind,
+    view,
+    !!view.selectedId,
+  );
   writeIntentValues('journey-gift', { [kind === 'person' ? 'npcId' : 'itemId']: view.selectedId }, overlay);
+  refreshGiftQuantityHint();
   if (focusedId === target) document.querySelector('#' + target).focus();
+}
+function refreshGiftQuantityHint() {
+  const status = document.querySelector('#journey-gift-quantity-status'),
+    view = journeyDraft?.giftPicker?.item;
+  if (!status || !view) return;
+  const selected = gameIndex.entries.find((row) => row.id === view.selectedId && row.kind === '物品');
+  const quantity = Number(document.querySelector('#journey-quantity')?.value),
+    available = selected && view.stock?.known ? view.stock.available[selected.gameId] || 0 : null;
+  const missing =
+    selected && Number.isSafeInteger(quantity) && quantity >= 1 && quantity <= 999 && available !== null
+      ? Math.max(0, quantity - available)
+      : null;
+  status.textContent = !selected
+    ? ''
+    : missing === null
+      ? '可用数量待核对'
+      : missing
+        ? '还缺 ' + missing + ' 件'
+        : '';
+  status.className = missing ? 'small gift-quantity-shortage' : 'small muted';
 }
 async function loadGiftStock(draft) {
   if (!document.querySelector('#journey-item-options')) return;
   const request = Symbol('stock');
   draft.stockRequest = request;
+  draft.giftProgress = null;
   draft.giftPicker.item.stock = null;
+  refreshGiftPicker('person', draft.giftPicker.person.page);
   document.querySelector('#journey-item-stock').disabled = true;
   refreshGiftPicker('item', draft.giftPicker.item.page);
   const reference = environment.journey?.profileId === draft.profileId ? environment.journey.reference : null;
@@ -3247,7 +3302,9 @@ async function loadGiftStock(draft) {
     )
       return;
     if (file.hash !== reference.hash || file.modifiedAt !== reference.modifiedAt) return;
+    draft.giftProgress = file.metadata?.npcProgress || null;
     draft.giftPicker.item.stock = giftStock(file, draft.profileId, draft.id);
+    refreshGiftPicker('person', draft.giftPicker.person.page);
     const toggle = document.querySelector('#journey-item-stock');
     if (toggle) toggle.disabled = !draft.giftPicker.item.stock;
     refreshGiftPicker('item', draft.giftPicker.item.page);
@@ -3313,8 +3370,8 @@ function journeyDialog(kind, id = '', savedDraft = null) {
         page: 1,
       },
     };
-    title = record ? '编辑赠礼意图' : '规划一份赠礼';
-    body = `${giftPicker.field(gameIndex, 'person', journeyDraft.giftPicker.person)}${giftPicker.field(gameIndex, 'item', journeyDraft.giftPicker.item)}<div class="field"><label for="journey-quantity">件数</label><input id="journey-quantity" type="number" min="1" max="999" step="1" required value="${record?.quantity || 1}"></div>${placePicker.field(gameIndex, journeyDraft.placePicker, '想在什么地点办理')}<div class="field"><label for="journey-note">备注</label><textarea id="journey-note" maxlength="1000">\n${esc(record?.note || '')}</textarea></div><label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 我已经完成这份赠礼</label><p class="save-note">保存后会与任务、制作计划共同分配已有库存。这里只规划赠礼，人物当前可否接受与好感变化须在游戏内确认。</p>`;
+    title = record ? '调整赠礼' : '准备赠礼';
+    body = `${giftPicker.field(gameIndex, 'person', journeyDraft.giftPicker.person)}${giftPicker.field(gameIndex, 'item', journeyDraft.giftPicker.item)}<div class="field"><label for="journey-quantity">件数</label><input id="journey-quantity" type="number" min="1" max="999" step="1" required value="${record?.quantity || 1}"><p id="journey-gift-quantity-status" class="small" role="status"></p></div><details class="gift-more-details"${record?.placeId || record?.note || record?.done || savedDraft?.values.placeId || savedDraft?.values.note || savedDraft?.values.done ? ' open' : ''}><summary>地点、备注与完成状态</summary>${placePicker.field(gameIndex, journeyDraft.placePicker, '想在什么地点办理')}<div class="field"><label for="journey-note">备注</label><textarea id="journey-note" maxlength="1000">\n${esc(record?.note || '')}</textarea></div><label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 我已经完成这份赠礼</label></details><p class="save-note">赠礼安排会参与库存分配；实际赠送后再标为完成。</p>`;
   }
   modal(
     title,
@@ -3331,7 +3388,19 @@ function journeyDialog(kind, id = '', savedDraft = null) {
     {},
     savedDraft,
   );
-  document.querySelector('#journey-title, #journey-note, #journey-person')?.focus();
+  if (kind === 'gift') {
+    overlay.querySelector('.modal').classList.add('gift-intent-modal');
+    const missing = ['person', 'item'].find((value) => !journeyDraft.giftPicker[value].selectedId);
+    document
+      .querySelector(
+        missing
+          ? missing === 'person'
+            ? '#journey-person-search'
+            : '#journey-item-search'
+          : '#journey-quantity',
+      )
+      ?.focus();
+  } else document.querySelector('#journey-title, #journey-note, #journey-person')?.focus();
   if (kind === 'gift') loadGiftStock(journeyDraft);
 }
 async function loadProtectionList() {
@@ -3678,7 +3747,10 @@ function render(preserve = false, navigationId = null) {
   };
   const active = document.activeElement,
     focusId = preserve ? active?.id : null,
-    selection = active && 'selectionStart' in active ? [active.selectionStart, active.selectionEnd] : null,
+    selection =
+      active && Number.isInteger(active.selectionStart) && Number.isInteger(active.selectionEnd)
+        ? [active.selectionStart, active.selectionEnd]
+        : null,
     fieldValue = active && active.dataset?.persist ? active.value : null;
   const previousDock = preserve ? root.querySelector('.live-choice-dock') : null;
   const dockReading = previousDock
@@ -3771,8 +3843,10 @@ function render(preserve = false, navigationId = null) {
       if (field) {
         if (fieldValue !== null && focusId !== 'note') field.value = fieldValue;
         field.focus();
-        if (selection && field.setSelectionRange && !['number', 'email'].includes(field.type))
-          field.setSelectionRange(...selection);
+        if (selection && typeof field.setSelectionRange === 'function')
+          try {
+            field.setSelectionRange(...selection);
+          } catch {}
       }
     }
     restoreItineraryFocus();
@@ -4698,6 +4772,7 @@ async function handle(action, id, target, navigationFocused = false) {
       values: activeIntentEditor ? readIntentValues(activeIntentEditor.kind, overlay) : null,
       craftPlanDraft,
       journeyDraft,
+      bodyScroll: overlay.querySelector('.journey-intent-body')?.scrollTop || 0,
       scroll: overlay.querySelector('.modal')?.scrollTop || 0,
       opener: { action: target.dataset.action, id: target.dataset.id },
     };
@@ -5700,6 +5775,9 @@ async function handle(action, id, target, navigationFocused = false) {
           writeIntentValues(activeIntentEditor.kind, view.values, overlay);
         }
         overlay.querySelector('.modal').scrollTop = view.scroll;
+        if (overlay.querySelector('.journey-intent-body'))
+          overlay.querySelector('.journey-intent-body').scrollTop = view.bodyScroll || 0;
+        if (journeyDraft?.kind === 'gift') loadGiftStock(journeyDraft);
         [...overlay.querySelectorAll('[data-action]')]
           .find((node) => node.dataset.action === view.opener.action && node.dataset.id === view.opener.id)
           ?.focus({ preventScroll: true });
@@ -6118,13 +6196,65 @@ async function handle(action, id, target, navigationFocused = false) {
       journeyDialog('todo', id);
       break;
     case 'journey-gift-dialog':
-    case 'journey-gift-edit':
+    case 'journey-gift-complete':
+    case 'journey-gift-edit': {
+      const completion = action === 'journey-gift-complete';
       journeyDialog('gift', id);
+      if (completion) {
+        const done = overlay.querySelector('#journey-done');
+        if (done) {
+          done.closest('details').open = true;
+          done.checked = true;
+          done.focus();
+          captureIntentEditor(activeIntentEditor);
+        }
+      }
       break;
+    }
     case 'journey-place-page':
       if (!Number.isSafeInteger(Number(id)) || Number(id) < 1) throw Error('请选择有效的地点查询页');
       refreshPlacePicker(Number(id));
       break;
+    case 'journey-gift-select': {
+      const [kind, selectedId] = id.split(':');
+      const selected = gameIndex.entries.find((row) => row.id === selectedId);
+      if (
+        !journeyDraft?.giftPicker?.[kind] ||
+        !selected ||
+        (kind === 'person'
+          ? selected.kind !== '人物' || hasNoGiftEntry(selected)
+          : kind !== 'item' || selected.kind !== '物品' || !selected.giftable)
+      )
+        throw Error('请重新选择有效的赠礼人物或物品');
+      const control = document.querySelector(kind === 'person' ? '#journey-person' : '#journey-item');
+      if (!control || ![...control.options].some((option) => option.value === selectedId && !option.disabled))
+        throw Error('候选已变化，请重新查询');
+      control.value = selectedId;
+      journeyDraft.giftPicker[kind].selectedId = selectedId;
+      refreshGiftPicker(kind, journeyDraft.giftPicker[kind].page);
+      if (kind === 'person') refreshGiftPicker('item');
+      document.querySelector((kind === 'person' ? '#journey-person' : '#journey-item') + '-picker').open =
+        false;
+      captureIntentEditor(activeIntentEditor);
+      const missingKind = ['person', 'item'].find((value) => !journeyDraft.giftPicker[value].selectedId);
+      if (missingKind) {
+        const next = document.querySelector(
+          (missingKind === 'person' ? '#journey-person' : '#journey-item') + '-picker',
+        );
+        next.open = true;
+        next.querySelector('input[type="search"]').focus();
+      } else document.querySelector('#journey-quantity').focus();
+      break;
+    }
+    case 'journey-gift-filter-clear': {
+      if (!journeyDraft?.giftPicker?.item) throw Error('请先打开赠礼安排');
+      document.querySelector('#journey-item-quality').value = 'all';
+      document.querySelector('#journey-item-preferred').checked = false;
+      document.querySelector('#journey-item-stock').checked = false;
+      refreshGiftPicker('item');
+      captureIntentEditor(activeIntentEditor);
+      break;
+    }
     case 'journey-gift-page': {
       const [kind, page] = id.split(':');
       if (!['person', 'item'].includes(kind) || !Number.isSafeInteger(Number(page)) || Number(page) < 1)
@@ -6160,12 +6290,24 @@ async function handle(action, id, target, navigationFocused = false) {
       if (!draft || draft.profileId !== profile().id) throw Error('周目已变化，请重新打开个人记录');
       if ([...overlay.querySelectorAll('input,select,textarea')].some((n) => !n.checkValidity()))
         throw Error('请填写完整名称、人物、物品与有效数量');
+      const savedGiftId =
+        draft.kind === 'gift' ? activeIntentEditor.targetId || 'draft-' + activeIntentEditor.id : '';
       await commitIntentEditor(activeIntentEditor);
       journeyDraft = null;
       closeOverlay();
       route = 'journey';
+      if (savedGiftId) journeyView = { query: '', place: '', completed: true };
       await refresh();
-      toast('个人打算已加入当前周目的行程');
+      if (savedGiftId && profile().id === draft.profileId) {
+        const action = environment.journey?.actions.find(
+          (row) =>
+            row.kind === 'gift' &&
+            row.sources.some((source) => source.type === 'user' && source.id === savedGiftId),
+        );
+        if (action)
+          revealJourneyEntry(document.querySelector('[data-journey-id="' + CSS.escape(action.id) + '"]'));
+      }
+      toast(draft.kind === 'gift' ? '赠礼安排已保存' : '个人打算已加入当前周目的行程');
       break;
     }
     case 'journey-intent-remove': {
@@ -6635,6 +6777,11 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     }
     case 'database-detail': {
+      if (currentDrawer?.type === 'entity-modal' && currentDrawer.journeyDraft?.kind === 'gift') {
+        referenceSaveName = defaultReference();
+        referenceFollow = defaultFollow();
+        referenceSave = null;
+      }
       if (currentDrawer?.type === 'resource-priority') {
         referenceSaveName =
           resourcePriorityDraft?.preview?.referenceIdentity?.name ??
@@ -8170,6 +8317,10 @@ document.addEventListener('input', (event) => {
     refreshPlacePicker();
     return;
   }
+  if (event.target.id === 'journey-quantity' && journeyDraft?.kind === 'gift') {
+    refreshGiftQuantityHint();
+    return;
+  }
   if (['journey-person-search', 'journey-item-search'].includes(event.target.id)) {
     refreshGiftPicker(event.target.id === 'journey-person-search' ? 'person' : 'item');
     return;
@@ -8385,6 +8536,14 @@ document.addEventListener('change', async (event) => {
       journeyDraft.giftPicker[kind].selectedId = event.target.value;
     refreshGiftPicker(kind, journeyDraft?.giftPicker?.[kind]?.page);
     if (kind === 'person') refreshGiftPicker('item');
+    if (
+      ['journey-person', 'journey-item'].includes(event.target.id) &&
+      journeyDraft.giftPicker[kind].selectedId
+    ) {
+      document.querySelector((kind === 'person' ? '#journey-person' : '#journey-item') + '-picker').open =
+        false;
+      captureIntentEditor(activeIntentEditor);
+    }
     return;
   }
   const backupFilter = /^(historical-backup|backup)-(kind|from|to|lock)$/.exec(event.target.id);

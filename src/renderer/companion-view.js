@@ -78,10 +78,13 @@ export function createCompanionViews({
     }
     if (!data?.nextActions?.length) return '';
     return `<h3 class="companion-section">这一程做什么 · ${data.journeySummary.pending} 件待处理</h3>${data.nextActions
-      .map(
-        (a) =>
-          `<div class="compact-goal"><strong>${summary.actionTitle(a)}</strong>${a.places.length ? `<p class="small muted">地点线索：${summary.places(a)}</p>` : ''}${a.gift ? `<p class="small">${a.gift.allocationKnown ? '此赠礼已分配 ' + a.gift.allocated + ' · 还缺 ' + a.gift.missing : '赠礼库存待核对'}</p>` : ''}<p class="small muted">${a.unknowns ? '含待核对条件，请查看步骤与来源。' : '来自当前周目的记录与计划。'}</p>${act('journey-open', '查看行动与条件', 'text-btn', a.id, 'arrow')}</div>`,
-      )
+      .map((a) => {
+        const title = a.gift ? a.title.replace(/^赠礼意图：/, '赠送：') : a.title;
+        const stock = a.gift
+          ? `<p class="small">${a.gift.allocationKnown ? (a.gift.missing ? '已备 ' + a.gift.allocated + ' · 还缺 ' + a.gift.missing : '已备齐 ' + a.gift.allocated + ' 件') : '赠礼数量待核对'}</p>`
+          : '';
+        return `<div class="compact-goal"><strong>${summary.actionTitle(a, title)}</strong>${a.places.length ? `<p class="small muted">${a.gift ? '' : '地点线索：'}${summary.places(a)}</p>` : ''}${stock}${a.gift ? '' : `<p class="small muted">${a.unknowns ? '含待核对条件，请查看步骤与来源。' : '来自当前周目的记录与计划。'}</p>`}${act('journey-open', a.gift ? '调整与完成' : '查看行动与条件', 'text-btn', a.id, 'arrow')}</div>`;
+      })
       .join('')}${act('navigate', '按地点查看完整行程', 'btn soft', 'journey', 'book')}`;
   }
   return { passive, materials, actions, frame, edge };

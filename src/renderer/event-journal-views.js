@@ -39,7 +39,7 @@ const giftPersonLabel = (person, entries) => {
   if (!person) return '';
   const sameName = entries.filter((row) => row.kind === '人物' && row.name === person.name);
   return sameName.length > 1
-    ? `${person.name}（资料 ${sameName.findIndex((row) => row.id === person.id) + 1}/${sameName.length}）`
+    ? `${person.name}（${person.identityHint || `同名 ${sameName.findIndex((row) => row.id === person.id) + 1}/${sameName.length}`}）`
     : person.name;
 };
 const questLabel = (quest, quests) => {
@@ -55,15 +55,24 @@ const questLabel = (quest, quests) => {
 };
 
 function tables(profile, index = {}) {
+  const canonical = new Map((index.entries || index.game?.entries || []).map((row) => [row.id, row]));
   return {
     database: [
       ...new Map(
-        [...(index.world?.people || []), ...(index.entries || index.game?.entries || [])].map((row) => [
+        [...(index.entries || index.game?.entries || []), ...(index.world?.people || [])].map((row) => [
           row.id,
           row,
         ]),
       ).values(),
-    ],
+    ].map((row) => {
+      const known = canonical.get(row.id);
+      return row.kind === '人物' &&
+        known?.name === row.name &&
+        known.gameId === row.gameId &&
+        typeof known.identityHint === 'string'
+        ? { ...row, identityHint: known.identityHint }
+        : row;
+    }),
     quest: index.world?.quests || index.quests || [],
     place: index.world?.maps || index.maps || [],
     guide: index.guides || index.catalog?.entries || [],
@@ -91,8 +100,7 @@ function rowLabel(type, row, profile, index, sources = tables(profile, index)) {
     return `${row.title || row.name || '未命名目标'} · ${place ? rowLabel('place', place, profile, index, sources) : '地点待核对'}`;
   }
   if (type === 'gift') {
-    const entries = index.entries || index.game?.entries || [];
-    return `${giftPersonLabel(byId(sources.database, row.npcId), entries) || '原人物'} · ${giftItemLabel(byId(sources.database, row.itemId)) || '原物品'} × ${row.quantity}`.slice(
+    return `${giftPersonLabel(byId(sources.database, row.npcId), sources.database) || '原人物'} · ${giftItemLabel(byId(sources.database, row.itemId)) || '原物品'} × ${row.quantity}`.slice(
       0,
       160,
     );

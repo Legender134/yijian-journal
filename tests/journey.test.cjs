@@ -56,7 +56,7 @@ test('gift action identifies the planned quality in text and allocates only that
     });
     const action = journeyPlan(p, r, resourceBudget(p, r)).actions.find((row) => row.kind === 'gift');
     assert.match(action.title, new RegExp(q + '色品质'));
-    assert.match(action.title, /道通（资料 1\/2）/);
+    assert.match(action.title, /道通（初始等级 70）/);
     assert(action.navigation.some((link) => link.id === 'npc-5011'));
     assert.equal(action.gift.itemId, id);
     assert.equal(action.gift.missing, missing);

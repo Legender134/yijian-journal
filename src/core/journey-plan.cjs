@@ -65,6 +65,9 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
   const quests = new Map(worldIndex.quests.map((q) => [q.id, q]));
   const byGameId = new Map(worldIndex.quests.map((q) => [q.gameId, q]));
   const entries = new Map(gameIndex.entries.map((e) => [e.id, e]));
+  const giftPersonEntries = [
+    ...new Map([...gameIndex.entries, ...worldIndex.people].map((row) => [row.id, row])).values(),
+  ];
   function craftTitle(recipe, quantity) {
     const ids = [...new Set((recipe.results || []).map((row) => row.id))];
     const item = ids.length === 1 && entries.get('item-' + ids[0]);
@@ -985,7 +988,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
       );
       const allocated = allocationKnown ? granted.allocated : null;
       addAction('gift', [g.id], {
-        title: `赠礼意图：${giftPersonLabel(person, gameIndex.entries)} · ${giftItemLabel(item)} × ${g.quantity}${noGiftEntry ? ' · 暂无赠礼入口' : ''}`,
+        title: `赠礼意图：${giftPersonLabel(person, giftPersonEntries)} · ${giftItemLabel(item)} × ${g.quantity}${noGiftEntry ? ' · 暂无赠礼入口' : ''}`,
         detail: g.note,
         userDone: g.done,
         gift: {

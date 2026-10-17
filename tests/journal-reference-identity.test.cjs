@@ -11,7 +11,7 @@ const views = import(
   require('node:url').pathToFileURL(path.join(__dirname, '../src/renderer/event-journal-views.js')).href
 );
 const time = '2026-10-09T08:00:00.000Z';
-const index = { entries: game.entries, world };
+const index = require('../src/core/game-data.cjs').encyclopedia();
 const profile = () => ({ id: 'synthetic-profile', goals: [], journey: { gifts: [], todos: [] } });
 const context = (p = profile(), data = game) => ({ profile: p, game: data, world });
 const command = (links, extra = {}) => ({
@@ -468,7 +468,7 @@ test('gift selection, stored user events and legacy display reuse exact gift qua
   const person = game.entries.find((row) => row.id === 'npc-5011');
   const item = game.entries.find((row) => row.id === 'item-1006');
   const expected = `${giftPersonLabel(person, game.entries)} · ${giftItemLabel(item)} × 2`;
-  assert.match(expected, /（资料 [1-9]\d*\/[1-9]\d*）/);
+  assert.match(expected, /道通（初始等级 70）/);
   const choice = journalReferenceChoices(p, index, '长虹剑').find((row) => row.type === 'gift');
   assert.equal(choice.label, expected);
   const entries = appendSystemEvent(
@@ -578,7 +578,7 @@ test('legacy system identity suffixes render human variants while edits preserve
   ]) {
     assert.ok(html.includes('梧桐村 · 场景 3'));
     assert.ok(html.includes('莫问授剑 · 【主线】拜师武当 · 资料 2/3'));
-    assert.match(html, /人物 · .*（资料 [1-9]\d*\/[1-9]\d*）/);
+    assert.match(html, /人物 · 道通（初始等级 70）/);
     assert.doesNotMatch(html, /场景 #|任务 #|资料编号/);
   }
   const updated = applyEntryCommand(
@@ -617,10 +617,10 @@ test('same-name people use exact stable variants in fresh saved links and access
     (row) => row.kind === '人物' && row.name === person.name,
   );
   assert.ok(people.length > 1);
-  const expected = people.map((row, position) => [
-    row.id,
-    `人物 · ${row.name}（资料 ${position + 1}/${people.length}）`,
-  ]);
+  const expected = [
+    ['npc-5011', '人物 · 道通（初始等级 70）'],
+    ['npc-5030', '人物 · 道通（同名 2/2）'],
+  ];
   const choices = journalReferenceChoices(profile(), index, person.name).filter((row) =>
     expected.some(([id]) => row.id === id),
   );

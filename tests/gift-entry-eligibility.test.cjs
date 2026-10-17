@@ -49,7 +49,7 @@ test('old exact selections remain visible and explain the missing Gift entry', a
     act: () => '',
     picture: () => '',
     qualityText: { name: (_, value) => value },
-  }).options;
+  }).field;
   for (const id of missing) {
     const view = { query: 'npc-' + id, selectedId: 'npc-' + id };
     const result = giftChoices(index, 'person', view);
