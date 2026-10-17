@@ -18,9 +18,10 @@ contextBridge.exposeInMainWorld('journal', {
   timelineConfigure: (value) => call('timeline-configure', value),
   timelineSave: () => call('timeline-save'),
   timelineInspect: (id) => call('timeline-inspect', id),
-  timelineUpdate: (id, value) => call('timeline-update', id, value),
+  timelineUpdate: (id, value, expected, expectedDraft) =>
+    call('timeline-update', id, value, expected, expectedDraft),
   timelineRelease: () => call('timeline-release'),
-  nodeDraft: (id, value) => call('node-draft', id, value),
+  nodeDraft: (id, value, expected, expectedDraft) => call('node-draft', id, value, expected, expectedDraft),
   timelineLoad: (id) => call('timeline-load', id),
   timelineRecover: () => call('timeline-recover'),
   help: () => call('help'),

@@ -1,6 +1,8 @@
 'use strict';
 const duelGuide = require('./duel-guide.cjs');
 const materialGuide = require('./material-guide.cjs');
+const flowWindows = require('./flow-window-contracts.json').windows;
+const lotusWindow = flowWindows.lotusMeeting;
 const goldenScorpionRoute = materialGuide.items[10498].routes[0];
 const wudangNightChest = {
   title: '武当夜间 · 祖师殿右侧宝箱',
@@ -57,6 +59,16 @@ const tianshanTravelWindow = {
 };
 // Community flow clues; unknown task records never prove availability.
 module.exports = {
+  stepRequirements: {
+    [flowWindows.qiluoDeparture.conditionQuestId]: {
+      requirements: flowWindows.qiluoDeparture.requirements.values.map((row) => ({
+        ...row,
+        name: { 30148: '道微请托', 5858: '晋升执法剧情', 16107: '抵达霹雳门' }[row.id],
+      })),
+      blockedByAnyRecorded: flowWindows.qiluoDeparture.closedByQuestPresence,
+      blockedAction: '暂不能前往绮罗筵：晋升执法剧情已推进。',
+    },
+  },
   // Item-specific acquisition in the shipped quest-11010 description.
   // The text names the cave area, without identifying one scene variant.
   stepMaterialRoutes: {
@@ -84,6 +96,18 @@ module.exports = {
     10498: [{ ...goldenScorpionRoute, title: goldenScorpionRoute.label, questId: 16000 }],
   },
   sources: {
+    otherWindowsGame: {
+      title: '游戏资料：反攻前奏与绮罗筵的推进条件',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-window-contracts.json',
+      version: 'Build 21798996',
+      confidence: '分别核对接取条件和出发条件，不据此判定整条任务失败。',
+    },
+    lotusWindowGame: {
+      title: '游戏资料：莲心湖会晤的接取窗口',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-window-contracts.json',
+      version: 'Build 21798996',
+      confidence: '莲心湖常驻场景的两处触发器检查武当山门与会晤自身记录；只限定尚未触发的会晤。',
+    },
     jinliCoinStory: {
       title: '详尽图文剧情攻略06：小蝶与司马相之心',
       author: '爱生活（整理发布）',
@@ -2300,19 +2324,20 @@ module.exports = {
     },
     {
       id: 'lotus-meeting',
-      compactWarning: '拜入武当前接莲湖会晤；只限制接取窗口',
-      title: '莲湖会晤：拜师前绕行莲心湖',
+      compactWarning: '莲湖会晤：先去莲心湖，再到武当山门',
+      title: '莲湖会晤：先会晤，再上武当',
       questId: 11942,
       chapterRoots: [5176, 5200, 5213],
       afterAllComplete: [],
       untilAnyStarted: [],
-      deadlineLabel: '拜入武当之前',
+      untilAnyRecorded: lotusWindow.closedByQuestPresence,
+      deadlineLabel: '首次进入武当山门前',
       advanceEffects: [
         {
           questId: 11942,
           scope: 'accept',
-          effect: '正式拜入武当后无法接取；开始拜师任务不等于已经正式拜入。',
-          evidence: '社区流程窗口；开始拜师任务不等于已经正式拜入。',
+          effect: '武当山门剧情推进后，无法再触发湖中会晤。',
+          evidence: '游戏资料中的接取条件；不影响已经接取的任务。',
         },
       ],
       pickup: {
@@ -2320,12 +2345,20 @@ module.exports = {
         person: '两名神秘男子',
         action: '处理水匪后到湖中央查看场景',
       },
-      warning: '拜入武当前接莲湖会晤；只限制接取窗口',
+      warning: '莲湖会晤：先去莲心湖，再到武当山门',
+      closedWindowSummary: '莲湖会晤：接取窗口已关闭',
+      closedWindowMessage: '武当山门剧情已推进，湖中会晤的接取窗口已关闭。',
+      recordedWindowMessages: [
+        {
+          questId: lotusWindow.action.id,
+          summary: '莲湖会晤：已有触发记录',
+          message: '湖中会晤已有触发记录，不必再次前往接取。',
+        },
+      ],
       steps: [],
       choices: [],
-      sourceIds: ['gs04'],
-      uncertainty:
-        '攻略称成就为莲心会晤，索引任务名为莲湖会晤；未确定拜师失效事件的精确步骤，不能把刚开始拜师当作已经拜入武当。',
+      sourceIds: ['lotusWindowGame', 'gs04'],
+      uncertainty: '',
     },
     {
       id: 'medicine-shared-herbs',
@@ -2462,13 +2495,17 @@ module.exports = {
       questId: 12540,
       chapterRoots: [5304, 5330, 5500, 5550, 5580, 5600],
       afterAllComplete: [12500],
-      untilAnyStarted: [5603],
+      untilAnyRecorded: flowWindows.counterattack.closedByQuestPresence,
+      untilAnyStarted: [],
+      closedWindowSummary: '反攻前奏：接取窗口已关闭',
+      closedWindowMessage: '围攻不风山剧情已推进，反攻前奏的接取条件已不满足。',
       deadlineLabel: '开始围攻不风山之前',
       advanceEffects: [
         {
           questId: 12540,
           scope: 'accept',
           effect: '开始围攻不风山的对应剧情后，接取条件不再满足；未接时先到桃花林找冷无情。',
+          closedEffect: '围攻不风山剧情已有记录，当前无法接取；已接任务保留原状态。',
           evidence: '接取步骤12541的条件与社区路线；此限制只证接取窗口。',
         },
       ],
@@ -2484,7 +2521,7 @@ module.exports = {
         '先支援仇无道和斩无刑两路，再汇合冷无情，登顶后回雷家村。',
       ],
       choices: [],
-      sourceIds: ['gs26', 'wiki12541'],
+      sourceIds: ['otherWindowsGame', 'gs26', 'wiki12541'],
       uncertainty:
         '截止条件来自接取步骤，不代表已接任务每一步都在同一点失效。此边界对应未命名的剧情记录，缺记录必须待核对。',
     },
@@ -2560,13 +2597,17 @@ module.exports = {
       chapterRoots: [5755, 5780, 5820, 5850],
       afterAllComplete: [30148, 16107],
       afterLabels: { 30148: '道微请托的隐藏剧情', 16107: '抵达霹雳门' },
-      untilAnyStarted: [5858],
+      untilAnyRecorded: flowWindows.qiluoDeparture.closedByQuestPresence,
+      untilAnyStarted: [],
+      closedWindowSummary: '绮罗筵：出发条件已不满足',
+      closedWindowMessage: '晋升执法剧情已推进，当前不能由道微带队前往绮罗筵。',
       deadlineLabel: '开始晋升执法之前',
       advanceEffects: [
         {
           questId: 30150,
           scope: 'departure',
           effect: '晋升执法开始后，所列出发条件不再满足；先核对道微请托、送药、献礼及参加安排。',
+          closedEffect: '晋升执法剧情已有记录，当前无法完成这一步出发。',
           evidence: '出发步骤30152的条件与社区路线；官方修复过请托触发，未出现不能一概判永久错过。',
         },
       ],
@@ -2593,7 +2634,7 @@ module.exports = {
             '该攻略路线在入庄前移出冷鹰、冷无情、白锦、李元兴。按玉阁→东厢房道微→西厢房瑶姬→校场推进，次日在西厢房左上找羽毛，再去伙房或找慕艾，之后回西厢房见苦老得火云神掌；这条路线没有玄阳离火功奖励。',
         },
       ],
-      sourceIds: ['wiki30152', 'gs38', 'gs42', 'steamV7', 'officialPatches'],
+      sourceIds: ['otherWindowsGame', 'wiki30152', 'gs38', 'gs42', 'steamV7', 'officialPatches'],
       uncertainty:
         '接取与出发涉及未命名的隐藏剧情，缺记录不等于可出发。队伍分支按社区路线整理，不保证列全所有组合。属性奖励来源有+15/+30冲突，未采用数值。官方1.24.26修复过道微请托触发，不把未出现一概判永久漏失。',
     },

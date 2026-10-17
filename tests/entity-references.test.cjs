@@ -1113,3 +1113,83 @@ for (const dismissal of ['removed', 'inert', 'Escape', 'blur']) {
     assert.equal(entry.getAttribute('aria-describedby'), null);
   });
 }
+
+for (const scenario of [
+  {
+    name: 'minimum 150% card',
+    width: 240,
+    height: 240,
+    box: { left: 12, top: 112, bottom: 228, width: 207, height: 116 },
+    panel: { width: 220, height: 210 },
+  },
+  {
+    name: 'minimum 150% middle link',
+    width: 240,
+    height: 240,
+    box: { left: 60, top: 110, bottom: 135, width: 80, height: 25 },
+    panel: { width: 220, height: 220 },
+  },
+  {
+    name: 'minimum 150% bottom link',
+    width: 240,
+    height: 240,
+    box: { left: 70, top: 205, bottom: 230, width: 100, height: 25 },
+    panel: { width: 220, height: 220 },
+  },
+  {
+    name: 'minimum 150% top link',
+    width: 240,
+    height: 240,
+    box: { left: 10, top: 12, bottom: 37, width: 90, height: 25 },
+    panel: { width: 220, height: 220 },
+  },
+  {
+    name: 'default bottom link',
+    width: 460,
+    height: 660,
+    box: { left: 350, top: 620, bottom: 640, width: 100, height: 20 },
+    panel: { width: 326, height: 320 },
+  },
+  {
+    name: 'viewport filling card',
+    width: 240,
+    height: 240,
+    box: { left: 12, top: 20, bottom: 225, width: 216, height: 205 },
+    panel: { width: 220, height: 220 },
+    hidden: true,
+  },
+]) {
+  test(`entity preview preserves the original click target at ${scenario.name}`, async () => {
+    const ui = previewEvents(),
+      entry = ui.entry();
+    ui.document.documentElement.clientWidth = scenario.width;
+    ui.window.innerHeight = scenario.height;
+    entry.getBoundingClientRect = () => scenario.box;
+    ui.panel.getBoundingClientRect = () => ({
+      ...scenario.panel,
+      height: Math.min(scenario.panel.height, parseFloat(ui.panel.style.maxHeight) || Infinity),
+    });
+    ui.document.activeElement = entry;
+    ui.emit('focusin', entry);
+    await ui.tick(0);
+    if (scenario.hidden) {
+      assert.equal(ui.panel.hidden, true);
+      assert.equal(entry.getAttribute('aria-describedby'), null);
+      return;
+    }
+    assert.equal(ui.panel.hidden, false);
+    const box = ui.panel.getBoundingClientRect(),
+      left = parseFloat(ui.panel.style.left),
+      top = parseFloat(ui.panel.style.top);
+    assert(left >= 10 && left + box.width <= scenario.width - 10, 'preview fits viewport horizontally');
+    assert(top >= 10 && top + box.height <= scenario.height - 10, 'preview fits viewport vertically');
+    assert(
+      top + box.height <= scenario.box.top - 4 || top >= scenario.box.bottom + 4,
+      'preview never covers the original entity target',
+    );
+    assert.equal(entry.getAttribute('aria-describedby'), 'entity-preview');
+    ui.emit('keydown', entry, { key: 'Escape' });
+    assert.equal(ui.panel.hidden, true);
+    assert.equal(entry.getAttribute('aria-describedby'), null);
+  });
+}

@@ -2782,7 +2782,8 @@ test('native hidden story gates survive enrichment and close a guide pickup wind
   );
   const notice = after.warnings.find((q) => q.id === 'counterattack-window');
   assert.equal(notice.deadlineReached, true);
-  assert.match(notice.message, /没有任务记录不等于错过/);
+  assert.match(notice.message, /反攻前奏的接取条件已不满足/);
+  assert.equal(notice.failed, false, 'a closed pickup window does not mark the accepted task failed');
   const metadata = enrich(
     readMetadata(
       syntheticSave({

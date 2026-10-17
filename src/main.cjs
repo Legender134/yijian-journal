@@ -1169,7 +1169,10 @@ app.whenReady().then(async () => {
       return companion.collapse();
     });
     handle('health', () => health());
-    handle('node-draft', (_event, id, value) => activity.draft(id, value));
+    handle('node-draft', (_event, id, value, expected, expectedDraft) => {
+      if (value !== null && expected !== undefined) timeline.checkNodeVersion(id, expected);
+      return activity.draft(id, value, expectedDraft);
+    });
     handle('quit-ready', (event, value) => {
       const accepted = quitHandoff.acknowledge(event.sender.id, value);
       if (!value.ready && owner(event) === companion.window) companion.showEdits();
@@ -1330,12 +1333,16 @@ app.whenReady().then(async () => {
         readiness: health().timeline,
       };
     });
-    handle('timeline-update', (_event, id, value) => {
-      const record = timeline.updateNode(id, value);
-      try {
-        activity.draft(id, null);
-      } catch (e) {
-        activity.warning = '节点已正式保存，但旧草稿暂未清除：' + e.message;
+    handle('timeline-update', (_event, id, value, expected, expectedDraft) => {
+      if (Object.hasOwn(value, 'label') || Object.hasOwn(value, 'note'))
+        activity.checkDraftVersion(id, expectedDraft);
+      const record = timeline.updateNode(id, value, expected);
+      if (Object.hasOwn(value, 'label') || Object.hasOwn(value, 'note')) {
+        try {
+          activity.draft(id, null, expectedDraft);
+        } catch (e) {
+          activity.warning = '节点已正式保存，但旧草稿暂未清除：' + e.message;
+        }
       }
       broadcast('event', { type: 'timeline', text: '' });
       return { record, environment: overview() };

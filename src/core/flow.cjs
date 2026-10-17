@@ -301,15 +301,7 @@ function createFlowProjector({
       if (r.type === 'NoQuest')
         return {
           text: `${cleanName(name)}：需尚未触发`,
-          status: live
-            ? records.has(r.id)
-              ? 'unmet'
-              : 'met'
-            : step(r.id) === undefined
-              ? 'unknown'
-              : [1, 2, 4].includes(step(r.id))
-                ? 'unmet'
-                : 'unknown',
+          status: live ? (records.has(r.id) ? 'unmet' : 'met') : records.has(r.id) ? 'unmet' : 'unknown',
         };
       if (r.type === 'Item')
         return {
@@ -335,6 +327,8 @@ function createFlowProjector({
     }
     function projectStep(q) {
       const targets = taskTargets.project(q, metadata);
+      const stepRule = content.stepRequirements?.[q.gameId];
+      const blockedWindow = (stepRule?.blockedByAnyRecorded || []).some((id) => records.has(id));
       const places = textPlaces(q.name + ' ' + q.description).map((p) => ({
         id: p.id,
         name: p.name,
@@ -372,8 +366,10 @@ function createFlowProjector({
         id: q.id,
         name: cleanName(q.name),
         targets,
-        nextAction:
-          !q.parentId && children.get(q.gameId)?.length
+        blockedWindow,
+        nextAction: blockedWindow
+          ? stepRule.blockedAction
+          : !q.parentId && children.get(q.gameId)?.length
             ? targets.conditionHint
               ? `下一步未识别，请查看游戏任务栏；${targets.conditionHint}`
               : '下一步未识别，请查看游戏任务栏。'
@@ -389,7 +385,7 @@ function createFlowProjector({
           missing: inventory ? Math.max(0, m.count - (inventory.get(m.id) || 0)) : null,
           routes: routesFor(m, q, metadata.mapName, targets),
         })),
-        requirements: (q.requirements || []).map(requirement),
+        requirements: [...(q.requirements || []), ...(stepRule?.requirements || [])].map(requirement),
         upcoming: [...quests.values()]
           .filter((next) =>
             next.requirements.some((r) => r.type === 'PreQuest' && r.id === q.gameId && r.value === 4),
@@ -551,9 +547,12 @@ function createFlowProjector({
         locationMatch ||
         (rule.requireStageMatch ? stageMatch && (!anchors.length || anchorsMet) : stageMatch || anchorsMet);
       const deadlineReached =
+        (rule.untilAnyRecorded || []).some((id) => records.has(id)) ||
         (rule.untilAnyStarted || []).some((id) => [1, 2, 4].includes(step(id))) ||
         (rule.untilAnyFailed || []).some((id) => step(id) === 2) ||
         (rule.untilAnyComplete || []).some((id) => step(id) === 4);
+      const recordedWindowMessage =
+        deadlineReached && (rule.recordedWindowMessages || []).find((row) => records.has(row.questId));
       const decisionStepActive = (rule.decisionSteps || []).some((id) => {
         const task = quests.get(id);
         return task && rootOf(task)?.gameId === rule.questId && step(id) === 1 && !blocked(task);
@@ -608,6 +607,12 @@ function createFlowProjector({
       }
       return {
         ...rule,
+        ...(recordedWindowMessage
+          ? {
+              closedWindowSummary: recordedWindowMessage.summary,
+              closedWindowMessage: recordedWindowMessage.message,
+            }
+          : {}),
         ...(checkpointWarning
           ? { severity: 'warning', warning: checkpointWarning, compactWarning: checkpointWarning }
           : {}),
@@ -625,6 +630,9 @@ function createFlowProjector({
           : undefined,
         name: rule.title,
         activeRule,
+        activeWindowBlocked: active.some(
+          (task) => task.gameId === rule.questId && task.steps.some((step) => step.blockedWindow),
+        ),
         done,
         failed,
         relevant,
@@ -780,7 +788,9 @@ function createFlowProjector({
       .filter((r) => r.kind !== 'stage' && r.deadlineReached && !r.activeRule)
       .map((r) => ({
         ...r,
-        message: `已出现窗口边界的剧情记录；请核对「${r.title}」是否仍可接取。没有任务记录不等于错过。`,
+        message:
+          r.closedWindowMessage ||
+          `已出现窗口边界的剧情记录；请核对「${r.title}」是否仍可接取。没有任务记录不等于错过。`,
       }));
     const result = {
       profileId: profile.id,

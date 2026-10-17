@@ -234,7 +234,10 @@ test('timeline preview links exact known team, task and item IDs while preservin
   );
   assert.match(html, /<h3>队伍<\/h3>.*同名队友<\/p>/s);
   assert.match(html, /加入：.*npc-1.*同名队友<br>离队：.*npc-2/s);
-  assert.match(html, /以下方向为“最近留存 → 此节点”，不含尚未保存的游戏进度/);
+  assert.match(
+    html,
+    /方向为“最近保存 → 此节点”，比较铜钱、游玩时长、同行与出战队伍、任务状态、背包数量和已学配方，不含尚未保存的游戏进度/,
+  );
   assert.match(html, /<strong>-20<\/strong>/);
   assert.match(html, /已完成 → 进行中/);
   assert.match(html, /进行中 → 未开始/);
@@ -249,7 +252,7 @@ test('timeline preview links exact known team, task and item IDs while preservin
     /data-action="(?:world-quest|database-detail)"/,
   );
   for (const group of ['team', 'quests', 'inventory']) result.comparison[group].available = false;
-  const unavailable = views.preview(result).split('timeline-differences')[1];
+  const unavailable = views.preview(result).split('timeline-differences')[1].split('</section>')[0];
   assert.match(unavailable, /队伍数据无法比较.*任务数据无法比较.*库存数据无法比较/s);
   assert.doesNotMatch(unavailable, /data-action="(?:world-quest|database-detail)"/);
 });
@@ -301,9 +304,14 @@ test('timeline scenes link by exact saved map key on every surface without guess
     },
     before = structuredClone(timeline),
     html = views.page(timeline);
-  assert.equal(links.length, 4, 'latest, target, history default title and history scene stay accessible');
+  assert.equal(links.length, 3, 'latest, target and history link the exact scene once each');
   assert(links.every((link) => link.id === 'place-7:scene-b' && link.cls === 'text-btn'));
   assert.doesNotMatch(html, /data-id="(?:place-7|place-8|name:[^"]+)"/);
+  links.length = 0;
+  const namedHistory = views.page({ ...timeline, history: [{ ...record, label: '私人起点' }] });
+  assert.equal(links.length, 3, 'a named history entry retains its exact scene in the metadata');
+  assert(links.every((link) => link.id === 'place-7:scene-b'));
+  assert.match(namedHistory, /<h3>私人起点<\/h3>/);
   const result = {
     record: { ...record, label: '私人节点 <原样>' },
     metadata: { map: 'scene-b', mapName: '同名场景' },
@@ -317,7 +325,7 @@ test('timeline scenes link by exact saved map key on every surface without guess
   assert.match(preview, /id="timeline-load-button"[^>]*\bdisabled/);
   links.length = 0;
   views.preview({ ...result, record, metadata: { mapKey: 'scene-c', mapName: '同名场景' } });
-  assert.equal(links.length, 2);
+  assert.equal(links.length, 1, 'the preview heading links the exact scene without a duplicate location row');
   assert(links.every((link) => link.id === 'place-8'));
   for (const metadata of [{ map: 'unknown-scene', mapName: '同名场景' }, { mapName: '同名场景' }]) {
     links.length = 0;
@@ -523,4 +531,57 @@ test('corrupt timeline state is preserved and disables all mutation', (t) => {
   assert.equal(bad.data.enabled, false);
   assert.throws(() => bad.configure(timeline.data.source, true, 10), /记录损坏/);
   assert.equal(fs.readFileSync(timeline.file, 'utf8'), '{broken');
+});
+
+test('rollback selector preserves every supported age, real record precision and protection gates', async () => {
+  const { pathToFileURL } = require('node:url');
+  const { createTimelineViews } = await import(
+    pathToFileURL(path.join(__dirname, '../src/renderer/timeline-views.js')).href
+  );
+  const text = (value) => String(value ?? '');
+  const view = createTimelineViews({
+    esc: text,
+    icon: text,
+    pill: text,
+    notice: text,
+    hours: text,
+    bytes: text,
+    iconButton: () => '',
+    act: (action, label, cls, id) =>
+      '<button data-action="' + action + '" data-id="' + id + '">' + label + '</button>',
+  });
+  const record = { id: 'synthetic-precision', at: Date.now() - 65000, mapName: '梧桐村', playSeconds: 100 };
+  const timeline = {
+    enabled: true,
+    ready: true,
+    connected: true,
+    interval: 10,
+    count: 1,
+    bytes: 10,
+    maxAutomaticRecords: 100,
+    latest: record,
+    history: [record],
+    nodes: AGES.map((seconds) => ({
+      seconds,
+      toleranceSeconds: seconds === 50 ? 15 : 20,
+      record: [50, 60].includes(seconds) ? { ...record, ageSeconds: 65, gapSeconds: 65 - seconds } : null,
+    })),
+  };
+  const before = structuredClone(timeline),
+    html = view.page(timeline, { target: 60 });
+  assert.match(html, /id="timeline-target"[^>]*aria-label="选择回退时间"/);
+  assert.deepEqual(
+    [...html.matchAll(/<option value="(\d+)"[^>]*>(?:\d+ (?:秒|分钟|小时)前)/g)]
+      .map((match) => Number(match[1]))
+      .sort((a, b) => a - b),
+    [...AGES].sort((a, b) => a - b),
+  );
+  assert.match(html, /value="60" selected/);
+  assert.match(html, /实际距今 1 分钟 5 秒/);
+  assert.match(html, /比目标早 5 秒/);
+  assert.match(html, /共用记录/);
+  assert.match(html, /29 号.*请勿/);
+  for (const blocked of [{ ready: false }, { busy: true }, { pending: {} }, { quiescing: true }])
+    assert.match(view.page({ ...timeline, ...blocked }), /data-id="attempt" data-save-ready disabled/);
+  assert.deepEqual(timeline, before);
 });

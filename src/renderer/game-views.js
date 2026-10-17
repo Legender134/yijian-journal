@@ -310,6 +310,10 @@ export function createGameViews({
       )}<div class="material-row total"><span>所需铜钱${reference?.metadata.money !== undefined ? `<small class="material-owned">存档中 ${reference.metadata.money.toLocaleString()} 文</small>` : ''}</span><strong>${(e.money * quantity).toLocaleString()} 文</strong></div>`;
   }
   function saveDetail(file, index) {
+    const trackedName = (quest, id) =>
+      index.world?.quests?.some((entry) => entry.id === 'quest-' + id)
+        ? act('world-quest', esc(quest.name), 'text-btn', 'quest-' + id)
+        : esc(quest.name);
     const m = file.metadata;
     const maps = index.world?.maps || [];
     const places = maps.filter((place) => place.key === m.map);
@@ -322,9 +326,15 @@ export function createGameViews({
       ...(m.alchemyRecipes || []).map((id) => byId(index, `alchemy-${id}`)),
       ...(m.cookingRecipes || []).map((id) => byId(index, `cooking-${id}`)),
     ].filter(Boolean);
-    return `<section class="drawer save-drawer" role="dialog" aria-modal="true" aria-label="${esc(file.name)}存档回顾"><div class="drawer-head"><span class="small muted">存档匣 / 只读回顾</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${pill(file.name)}${pill('只读读取', 'green')}${act('save-compare', '与另一存档比较', 'text-btn', file.name, 'search')}</div><h1>${location}</h1><p class="small muted">${when(file.modifiedAt)} · ${bytes(file.bytes)}</p>${m.thumbnail ? `<div class="save-thumbnail"><img src="${m.thumbnail}" alt="这份存档自带的场景缩略图"><span>存档内的场景缩略图</span></div>` : ''}<div class="detail-stat-grid"><div><small>累计游玩</small><strong>${hours(m.playSeconds)}</strong></div>${m.money !== undefined ? `<div><small>铜钱</small><strong>${m.money.toLocaleString()} 文</strong></div>` : ''}${m.difficultyName ? `<div><small>难度</small><strong>${esc(m.difficultyName)}</strong></div>` : ''}<div><small>队伍人数</small><strong>${m.team?.length || 0} 人</strong></div></div><div class="detail-block"><h3>同行的伙伴</h3><div class="tag-row">${(m.team || []).map((n) => (byId(index, `npc-${n.id}`) ? act('database-detail', esc(n.name), 'btn', `npc-${n.id}`) : `<span class="pictured-label">${picture(`npc-${n.id}`)}${pill(n.name, 'green')}</span>`)).join('')}</div></div>${
+    return `<section class="drawer save-drawer" role="dialog" aria-modal="true" aria-label="${esc(file.name)}存档回顾"><div class="drawer-head"><span>存档回顾</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${pill(file.name)}${act('save-compare', '比较进度', 'text-btn', file.name, 'search')}</div><h1>${location}</h1><p class="small muted">${when(file.modifiedAt)} · 累计游玩 ${hours(m.playSeconds)}</p>${m.money !== undefined ? `<p>铜钱 ${m.money.toLocaleString()} 文</p>` : ''}${m.team?.length ? `<div class="detail-block"><h3>同行伙伴</h3><div class="tag-row">${m.team.map((n) => (byId(index, `npc-${n.id}`) ? act('database-detail', esc(n.name), 'btn', `npc-${n.id}`) : `<span class="pictured-label">${picture(`npc-${n.id}`)}${pill(n.name, 'green')}</span>`)).join('')}</div></div>` : ''}${
       m.mainQuest || m.quest
-        ? `<details class="save-quests"><summary>查看当时追踪的任务</summary>${[
+        ? `<details class="save-quests"><summary>追踪任务 · ${[
+            [m.mainQuest, m.trackingMainQuest],
+            [m.quest, m.trackingQuest],
+          ]
+            .filter(([quest]) => quest)
+            .map(([quest, id]) => trackedName(quest, id))
+            .join('、')}</summary>${[
             [m.mainQuest, m.trackingMainQuest],
             [m.quest, m.trackingQuest],
           ]
@@ -335,7 +345,7 @@ export function createGameViews({
             )
             .join('')}</details>`
         : ''
-    }${Array.isArray(m.quests) ? `<details class="save-quests save-recorded-quests"><summary>这份存档的任务记录 · ${recordedQuestRoots(m.quests).length} 项</summary><div id="save-quest-results">${questList(m.quests, 'active', m.inventory, index)}</div><p class="save-note">只展示游戏资料中可见的任务及其存档状态。未出现在列表中，不等于错过或未完成；失败原因与后续分支需在游戏内确认。</p></details>` : ''}<details class="save-quests"><summary>已记录的制作配方 · ${recipes.length} 条</summary><div class="learned-recipes">${recipes.map((r) => `<button data-action="database-detail" data-id="${r.id}">${picture(r.id)}<span class="spacer">${qualityText.name(r.id, r.name)}</span>${icon('chevron')}</button>`).join('') || '<p class="small muted">这份存档暂未识别到可展示的配方。</p>'}</div></details>${Array.isArray(m.inventory) ? `<details class="save-quests"><summary>物品记录 · ${m.inventory.length} 种</summary><label class="search-input inventory-search">${icon('search')}<input id="save-inventory-search" placeholder="查找这份存档里的物品" aria-label="搜索存档物品" maxlength="100"></label><div id="save-inventory-results">${inventoryList(m.inventory, '', index)}</div></details>` : ''}</div><div class="drawer-actions">${act('backup', '备份当前整个存档目录', 'btn primary', '', 'archive')}${act('save-recap-goal', '记下这次出发', 'btn', file.name, 'feather')}</div></section>`;
+    }${Array.isArray(m.quests) ? `<details class="save-quests save-recorded-quests"><summary>这份存档的任务记录 · ${recordedQuestRoots(m.quests).length} 项</summary><div id="save-quest-results">${questList(m.quests, 'active', m.inventory, index)}</div><p class="save-note">只展示游戏资料中可见的任务及其存档状态。未出现在列表中，不等于错过或未完成；失败原因与后续分支需在游戏内确认。</p></details>` : ''}<details class="save-quests"><summary>已记录的制作配方 · ${recipes.length} 条</summary><div class="learned-recipes">${recipes.map((r) => `<button data-action="database-detail" data-id="${r.id}">${picture(r.id)}<span class="spacer">${qualityText.name(r.id, r.name)}</span>${icon('chevron')}</button>`).join('') || '<p class="small muted">这份存档暂未识别到可展示的配方。</p>'}</div></details>${Array.isArray(m.inventory) ? `<details class="save-quests"><summary>物品记录 · ${m.inventory.length} 种</summary><label class="search-input inventory-search">${icon('search')}<input id="save-inventory-search" placeholder="查找这份存档里的物品" aria-label="搜索存档物品" maxlength="100"></label><div id="save-inventory-results">${inventoryList(m.inventory, '', index)}</div></details>` : ''}${m.thumbnail || m.difficultyName ? `<details class="save-quests"><summary>当时画面与难度</summary>${m.thumbnail ? `<div class="save-thumbnail"><img src="${m.thumbnail}" alt="这份存档自带的场景缩略图"></div>` : ''}${m.difficultyName ? `<p>难度：${esc(m.difficultyName)}</p>` : ''}</details>` : ''}</div><div class="drawer-actions">${act('backup', '备份当前整个存档目录', 'btn primary', '', 'archive')}${act('save-recap-goal', '记下这次出发', 'btn', file.name, 'feather')}</div></section>`;
   }
   function questList(quests, filter, inventory = null, index = null) {
     const byQuestId = new Map(quests.map((q) => [q.id, q])),

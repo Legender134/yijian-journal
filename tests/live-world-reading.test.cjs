@@ -127,7 +127,7 @@ test('initial NPC previews and the related-task list retain the live cohort thro
     overlay: { querySelector: () => null },
     captureJournalDraft() {},
     captureIntentDrafts() {},
-    captureNodeDraft() {},
+    async captureNodeDraft() {},
     flushNodeDrafts() {},
     saveNote() {},
     flushJournalDrafts() {},

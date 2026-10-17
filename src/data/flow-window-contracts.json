@@ -1,0 +1,106 @@
+{
+  "schema": 1,
+  "build": "21798996",
+  "programSha256": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c",
+  "sourceKind": "owned-installed-game-static-rules",
+  "assets": [
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/JiangNan/Map55_Lianxinhu/LV_55Lianxinhu_S1.umap",
+      "sha256": "c423088b6bfcc83be537dd93c0f77eb34f938e41469657758309fa18b211f39e"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/JiangNan/Map55_Lianxinhu/LV_55Lianxinhu_S1.uexp",
+      "sha256": "4dbe42ac33c72e2a5d2f8736cc2671d1a2ecc759ec69a279c0c6f7d7da8e22a9"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/JiangNan/Map55_Lianxinhu/LV_55_P.umap",
+      "sha256": "f5c4617af39c69a6ebc270315d737343ed585c6d6c77493b948733c97f39005f"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/JiangNan/Map55_Lianxinhu/LV_55_P.uexp",
+      "sha256": "062eda634ea37ff10625e680976de372117cdbc843ed4e9e45555b9593284852"
+    }
+  ],
+  "questTable": {
+    "uassetSha256": "ca4fb2762930e4473fa10301678874e9ebbe4d0ee97b4a193b6ae71badcf3e41",
+    "uexpSha256": "2d84daae1fc93fc6f098fd5897091704960581d305adffd2f42a26315a881a86"
+  },
+  "windows": {
+    "lotusMeeting": {
+      "questId": 11942,
+      "closedByQuestPresence": [5202, 11943],
+      "scope": "untriggered lake encounter only",
+      "mapKey": "LV_55_P",
+      "alwaysLoadedMap": "LV_55Lianxinhu_S1",
+      "actors": ["JHTriggerBox3", "JHTriggerBox_2"],
+      "requirements": {
+        "operator": "all",
+        "values": [
+          {
+            "type": "NoQuest",
+            "id": 5202
+          },
+          {
+            "type": "NoQuest",
+            "id": 11943
+          }
+        ]
+      },
+      "action": {
+        "type": "JumpStep",
+        "id": 11943,
+        "value": 4
+      },
+      "completion": {
+        "type": "CQuestStep",
+        "id": 11942,
+        "value": 4
+      },
+      "entryTransition": {
+        "fromQuestId": 5201,
+        "type": "JumpStep",
+        "id": 5202,
+        "value": 0
+      },
+      "formalInduction": {
+        "questId": 5214,
+        "type": "CGuild",
+        "value": 1
+      }
+    },
+    "counterattack": {
+      "questId": 12540,
+      "conditionQuestId": 12541,
+      "conditionField": "RequestRequirements",
+      "scope": "pickup only; an accepted quest is not declared failed",
+      "closedByQuestPresence": [5603],
+      "requirements": {
+        "operator": "all",
+        "values": [
+          { "type": "PreQuest", "id": 12500, "value": 4 },
+          { "type": "NoQuest", "id": 5603, "value": 0 }
+        ]
+      }
+    },
+    "qiluoDeparture": {
+      "questId": 30150,
+      "conditionQuestId": 30152,
+      "conditionField": "FinishingRequirements",
+      "scope": "departure step only; no claim about an already departed route",
+      "closedByQuestPresence": [5858],
+      "requirements": {
+        "operator": "all",
+        "values": [
+          { "type": "PreQuest", "id": 30148, "value": 4 },
+          { "type": "NoQuest", "id": 5858, "value": 0 },
+          { "type": "PreQuest", "id": 16107, "value": 4 }
+        ]
+      },
+      "action": { "type": "JumpStep", "id": 30153, "value": 0 }
+    }
+  },
+  "semantics": {
+    "NoQuest": "QuestManager.HasQuest is false; Num does not change this predicate. Any explicitly recorded state, including 0 or 3, fails NoQuest.",
+    "limits": "Only the specified acceptance/departure predicates; no claim that an accepted quest fails or that absent/incomplete save data proves availability. Static rules for the pinned build; no real-game test claimed."
+  }
+}

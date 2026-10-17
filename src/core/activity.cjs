@@ -97,7 +97,25 @@ class Activity {
     text(value.note, 500);
     if (value.at !== undefined && !Number.isSafeInteger(value.at)) throw Error('草稿时间无效');
   }
-  draft(id, value) {
+  checkDraftVersion(id, expected) {
+    if (expected === undefined) return;
+    if (expected !== null) {
+      this.validateDraft(id, expected);
+      if (Object.keys(expected).length !== 3 || !Object.hasOwn(expected, 'at'))
+        throw Error('节点草稿版本无效');
+    }
+    const current = this.data.drafts[id] || null;
+    if (
+      JSON.stringify(current && { label: current.label, note: current.note, at: current.at }) !==
+      JSON.stringify(expected && { label: expected.label, note: expected.note, at: expected.at })
+    ) {
+      const error = Error('节点草稿已在另一窗口更新，请先核对输入。');
+      error.code = 'TIMELINE_DRAFT_CHANGED';
+      throw error;
+    }
+  }
+  draft(id, value, expected) {
+    this.checkDraftVersion(id, expected);
     if (value !== null) this.validateDraft(id, value);
     else if (typeof id !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(id)) throw Error('节点草稿编号无效');
     const next = JSON.parse(JSON.stringify(this.data));

@@ -1082,15 +1082,123 @@ test('the shipped Lotus warning expands directly to actions without repeating it
   const html = (await views).panel(flow, { compact: true });
   const window = detailsWithClass(html, 'flow-risk-window').find((row) => row.summary.includes('莲湖会晤'));
   assert(window);
-  assert.match(window.summary, /拜入武当前.*莲湖会晤.*只限制接取窗口/);
+  assert.match(window.summary, /莲湖会晤.*莲心湖.*武当山门/);
   assert.doesNotMatch(
     window.body,
-    /flow-warning-message|flow-warning-detail|flow-guide-steps|截止：|莲湖会晤：拜师前绕行|<summary>做法与影响/,
+    /flow-warning-message|flow-warning-detail|flow-guide-steps|截止：|莲湖会晤：先会晤|<summary>做法与影响/,
   );
   assert.match(window.body, /处理水匪后到湖中央查看场景/);
   assert.match(window.body, /data-id="quest-11942"/);
-  assert.match(window.body, /正式拜入武当后无法接取；开始拜师任务不等于已经正式拜入/);
+  assert.match(window.body, /武当山门剧情推进后，无法再触发湖中会晤/);
   assert.doesNotMatch(html, /精确触发步骤待核对/);
+});
+
+test('the crossed Lotus window gives its confirmed boundary without repeating the earlier pickup advice', async () => {
+  const { flowSnapshot } = require('../src/core/flow.cjs');
+  const flow = flowSnapshot(
+    { id: 'synthetic', referenceMode: 'latest' },
+    {
+      name: '1.sav',
+      metadata: {
+        questStates: [
+          { id: 5200, step: 1 },
+          { id: 5202, step: 0 },
+        ],
+        inventory: [],
+      },
+    },
+  );
+  const html = (await views).panel(flow, { compact: true });
+  const window = detailsWithClass(html, 'flow-risk-window').find((row) => row.summary.includes('莲湖会晤'));
+  assert(window);
+  assert.match(window.summary, /莲湖会晤.*接取窗口已关闭/);
+  assert.doesNotMatch(window.summary, /先去|能否继续须核对/);
+  assert.match(window.body, /接取条件/);
+  assert.match(window.body, /data-id="quest-11942"/);
+  assert.match(window.body, /武当山门剧情推进后，无法再触发湖中会晤/);
+  assert.doesNotMatch(window.body, /处理水匪后到湖中央查看场景|flow-pickup|已越过提示节点|先去莲心湖/);
+  const main = (await views).panel(flow);
+  assert.match(main, /class="flow-warning-message">莲湖会晤：接取窗口已关闭<\/p>/);
+  assert.match(html, /流程提醒 · 1 项/);
+  assert.doesNotMatch(html, /推进前确认/);
+  assert.match(main, /流程提醒/);
+});
+
+test('a blocked accepted Qiluo departure gives one current instruction without a contradictory travel target', async () => {
+  const { flowSnapshot } = require('../src/core/flow.cjs');
+  const flow = flowSnapshot(
+    { id: 'synthetic', referenceMode: 'latest' },
+    {
+      name: 'Synthetic.sav',
+      metadata: {
+        questStates: [
+          { id: 30150, step: 1 },
+          { id: 30152, step: 1 },
+          { id: 30148, step: 4 },
+          { id: 16107, step: 4 },
+          { id: 5858, step: 0 },
+        ],
+        inventory: [],
+      },
+    },
+  );
+  for (const compact of [false, true]) {
+    const html = (await views).panel(flow, { compact });
+    const instruction = html.match(/<p class="flow-next-action">([\s\S]*?)<\/p>/)?.[1];
+    assert.match(instruction, /暂不能前往绮罗筵.*晋升执法/);
+    const lead = html.slice(
+      html.indexOf('data-flow-quest="quest-30150"'),
+      html.indexOf('data-persist-detail="' + (compact ? 'flow-now-' : 'main-task-')),
+    );
+    assert.doesNotMatch(lead, /class="flow-targets"/);
+    assert.match(html, /data-id="quest-30150"/);
+    assert.match(html, /条件与完整步骤|完整步骤/);
+  }
+});
+
+test('closed Qiluo guidance keeps prior preparation and choices behind an explicitly historical disclosure', async () => {
+  const { flowSnapshot } = require('../src/core/flow.cjs');
+  for (const accepted of [false, true]) {
+    const flow = flowSnapshot(
+      { id: 'synthetic', referenceMode: 'latest' },
+      {
+        name: 'Synthetic.sav',
+        metadata: {
+          questStates: [
+            { id: 30148, step: 4 },
+            { id: 16107, step: 4 },
+            { id: 5858, step: 0 },
+            ...(accepted
+              ? [
+                  { id: 30150, step: 1 },
+                  { id: 30152, step: 1 },
+                ]
+              : [{ id: 5850, step: 1 }]),
+          ],
+          inventory: [],
+        },
+      },
+    );
+    for (const compact of [false, true]) {
+      const html = (await views).panel(flow, { compact });
+      const previous = detailsWithClass(html, 'flow-previous-route').find((row) =>
+        row.body.includes('出发前另存一份'),
+      );
+      assert(previous);
+      assert.equal(previous.summary, '此前做法与分支');
+      assert.doesNotMatch(previous.opening, /\bopen\b/);
+      assert.match(previous.body, /推荐做法.*选参加.*火云神掌/s);
+      const groups = detailsWithClass(html, compact && !accepted ? 'flow-risk-window' : 'flow-rule-details');
+      const current = groups.find((row) => row.body.includes('当前无法完成这一步出发'));
+      assert(current);
+      const outside = current.body.replace(
+        previous.opening + '<summary>' + previous.summary + '</summary>' + previous.body + '</details>',
+        '',
+      );
+      assert.match(outside, /出发条件/);
+      assert.doesNotMatch(outside, /推荐做法|选参加|先核对道微|截止：/);
+    }
+  }
 });
 
 test('the shipped herb task shows one item quantity and one linked acquisition location per summary', async () => {

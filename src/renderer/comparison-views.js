@@ -22,14 +22,18 @@ export function createComparisonViews({
     );
   };
   function shell(files, view) {
+    const unavailable = !files.some((f) => f.name === view.left) || !files.some((f) => f.name === view.right);
     const options = (selected) =>
+      (files.some((f) => f.name === selected)
+        ? ''
+        : `<option value="${esc(selected || '')}" selected disabled>${selected ? esc(selected) + ' · 暂不可读' : '请选择存档'}</option>`) +
       files
         .map(
           (f) =>
             `<option value="${esc(f.name)}" ${f.name === selected ? 'selected' : ''}>${esc(f.name)} · ${esc(f.metadata.mapName)} · ${hours(f.metadata.playSeconds)}</option>`,
         )
         .join('');
-    return `<section class="drawer comparison-drawer" role="dialog" aria-modal="true" aria-label="两份存档对比"><div class="drawer-head"><span class="small muted">存档匣 / 只读对比</span>${iconButton('close-overlay', 'close', '关闭存档对比')}</div><div class="drawer-body"><h1>两份存档，哪里不同？</h1><p class="save-note">差值为右侧减左侧。所选槽位可以来自不同周目；这里比较的是已保存的记录。</p><div class="compare-selectors"><div class="field"><label for="compare-left">左侧存档</label><select id="compare-left">${options(view.left)}</select></div>${iconButton('compare-swap', 'refresh', '交换左右存档')}<div class="field"><label for="compare-right">右侧存档</label><select id="compare-right">${options(view.right)}</select></div></div><div class="row compare-controls">${act('compare-run', '比较记录', 'btn primary', '', 'search')}${act('compare-refresh', '刷新槽位', 'btn', '', 'refresh')}<span id="compare-status" class="small muted" role="status"></span></div><div id="comparison-result">${view.result ? result(view.result, view) : '<div class="compare-empty">' + icon('scroll') + '<p>选好左右槽位，点击「比较记录」。</p></div>'}</div></div></section>`;
+    return `<section class="drawer comparison-drawer" role="dialog" aria-modal="true" aria-label="两份存档对比"><div class="drawer-head"><span>进度比较</span>${iconButton('close-overlay', 'close', '关闭存档对比')}</div><div class="drawer-body"><p class="small muted">左侧 → 右侧 · 已保存进度</p><details class="compare-source-selection"${view.result ? '' : ' open'}><summary>${view.result ? esc(view.result.left.name) + ' → ' + esc(view.result.right.name) : '选择比较进度'}</summary><div class="compare-selectors"><div class="field"><label for="compare-left">左侧存档</label><select id="compare-left">${options(view.left)}</select></div>${iconButton('compare-swap', 'refresh', '交换左右存档')}<div class="field"><label for="compare-right">右侧存档</label><select id="compare-right">${options(view.right)}</select></div></div><div class="row compare-controls">${act('compare-run', '比较记录', 'btn primary', '', 'search')}${act('compare-refresh', '刷新槽位', 'btn', '', 'refresh')}</div></details><span id="compare-status" class="small muted" role="status"></span><div id="comparison-result" role="region" aria-label="进度变化">${view.result ? result(view.result, view) : '<div class="compare-empty">' + icon('scroll') + '<p>' + (unavailable ? '所选进度暂不可读，请刷新或重新选择。' : '选好左右槽位，点击「比较记录」。') + '</p></div>'}</div></div></section>`;
   }
   function recap(file, side) {
     const index = getIndex(),
@@ -104,23 +108,131 @@ export function createComparisonViews({
       )
       .join('');
   }
+
+  function changeSummary(diff) {
+    const metrics = [],
+      unknown = [];
+    const measure = (label, known, value) => {
+      if (!known) unknown.push(label);
+      else if (value) metrics.push({ label, value });
+    };
+    const count = (group) => (group.available ? group.leftOnly.length + group.rightOnly.length : 0);
+    const teamCount = count(diff.team) + count(diff.fightTeam);
+    const recipeCount = diff.recipes.reduce((sum, family) => sum + count(family), 0);
+    measure('铜钱', diff.moneyDelta !== null, diff.moneyDelta ? signed(diff.moneyDelta) + ' 文' : '');
+    measure(
+      '累计时长',
+      diff.playSecondsDelta !== null,
+      diff.playSecondsDelta ? timeDelta(diff.playSecondsDelta) : '',
+    );
+    measure(
+      '背包',
+      diff.inventory.available,
+      diff.inventory.changes.length ? diff.inventory.changes.length + ' 种变化' : '',
+    );
+    measure(
+      '任务',
+      diff.quests.available,
+      diff.quests.changes.length ? diff.quests.changes.length + ' 条变化' : '',
+    );
+    measure('同行队伍', diff.team.available, count(diff.team) ? count(diff.team) + ' 位变化' : '');
+    measure(
+      '出战队伍',
+      diff.fightTeam.available,
+      count(diff.fightTeam) ? count(diff.fightTeam) + ' 位变化' : '',
+    );
+    for (const family of diff.recipes)
+      measure(family.name + '配方', family.available, count(family) ? count(family) + ' 项变化' : '');
+    const groups = {
+      inventory: { count: diff.inventory.changes.length, unknown: !diff.inventory.available },
+      quests: { count: diff.quests.changes.length, unknown: !diff.quests.available },
+      team: { count: teamCount, unknown: !diff.team.available || !diff.fightTeam.available },
+      recipes: { count: recipeCount, unknown: diff.recipes.some((f) => !f.available) },
+    };
+    const first =
+      Object.keys(groups).find((key) => groups[key].count > 0) ||
+      Object.keys(groups).find((key) => groups[key].unknown);
+    const groupLabel = (total, missing, unit) =>
+      [total ? total + unit : '', ...missing].filter(Boolean).join(' · ') || '0' + unit;
+    const teamLabel = groupLabel(
+      teamCount,
+      [!diff.team.available ? '同行未读取' : '', !diff.fightTeam.available ? '出战未读取' : ''].filter(
+        Boolean,
+      ),
+      ' 位',
+    );
+    const recipeLabel = groupLabel(
+      recipeCount,
+      diff.recipes.filter((f) => !f.available).map((f) => f.name + '未读取'),
+      ' 项',
+    );
+    const html =
+      (metrics.length
+        ? '<div class="compare-summary compare-change-summary">' +
+          metrics
+            .map((m) => '<div><small>' + esc(m.label) + '</small><strong>' + esc(m.value) + '</strong></div>')
+            .join('') +
+          '</div>'
+        : '') +
+      (unknown.length
+        ? '<details class="compare-unknown"><summary>未读取的记录 · ' +
+          unknown.length +
+          ' 项</summary><p class="save-note">' +
+          unknown.map(esc).join('、') +
+          '</p></details>'
+        : !metrics.length
+          ? '<p class="save-note compare-unchanged-message">已比较的铜钱、时长、队伍、任务、物品与配方无变化。</p>'
+          : '');
+    return { html, groups, first, teamLabel, recipeLabel };
+  }
   function result(diff, view) {
-    return `<div class="compare-recaps">${recap(diff.left, '左侧')}${recap(diff.right, '右侧')}</div><div class="compare-summary"><div><small>铜钱差值</small><strong>${diff.moneyDelta === null ? '未读取' : signed(diff.moneyDelta) + ' 文'}</strong></div><div><small>累计时长差值</small><strong>${diff.playSecondsDelta === null ? '未读取' : timeDelta(diff.playSecondsDelta)}</strong></div><div><small>物品数量不同</small><strong>${diff.inventory.available ? diff.inventory.changes.length + ' 种' : '未读取'}</strong></div><div><small>任务状态不同</small><strong>${diff.quests.available ? diff.quests.changes.length + ' 条' : '未读取'}</strong></div></div><p class="save-note">比较于 ${when(diff.comparedAt)} · 新保存后请再次点击「比较记录」。</p><details class="save-quests compare-inventory" open><summary>背包数量差异</summary>${
+    const summary = changeSummary(diff),
+      open = (key) => (summary.first === key ? ' open' : '');
+    const inventoryBlock = `<details class="save-quests compare-inventory"${open('inventory')}><summary>背包数量差异 · ${diff.inventory.available ? diff.inventory.changes.length + ' 种' : '未读取'}</summary>${
       diff.inventory.available
-        ? `<div class="compare-filter-row">${[
+        ? '<div class="compare-filter-row">' +
+          [
             ['all', '全部'],
             ['more', '右侧更多'],
             ['less', '右侧更少'],
           ]
             .map(
               ([id, label]) =>
-                `<button class="chip ${view.filter === id ? 'active' : ''}" data-action="compare-filter" data-id="${id}">${label}</button>`,
+                '<button class="chip ' +
+                (view.filter === id ? 'active' : '') +
+                '" data-action="compare-filter" data-id="' +
+                id +
+                '">' +
+                label +
+                '</button>',
             )
-            .join(
-              '',
-            )}</div><label class="search-input inventory-search">${icon('search')}<input id="compare-inventory-search" value="${esc(view.query || '')}" aria-label="搜索对比物品" placeholder="搜索物品名称或类别" maxlength="100"></label>`
+            .join('') +
+          '</div><label class="search-input inventory-search">' +
+          icon('search') +
+          '<input id="compare-inventory-search" value="' +
+          esc(view.query || '') +
+          '" aria-label="搜索对比物品" placeholder="搜索物品名称或类别" maxlength="100"></label>'
         : ''
-    }<div id="compare-inventory-results"></div></details><details class="save-quests compare-quests"><summary>任务状态差异 · ${diff.quests.available ? diff.quests.changes.length : '未读取'}</summary>${diff.quests.available ? `<label class="search-input inventory-search">${icon('search')}<input id="compare-quest-search" value="${esc(view.questQuery || '')}" aria-label="搜索对比任务" placeholder="搜索任务名称" maxlength="100"></label>` : ''}<div id="compare-quest-results">${quests(diff, view.questQuery)}</div></details><details class="save-quests"><summary>队伍成员差异</summary><h3 class="mt">同行队伍</h3><div id="compare-team-results"></div><h3 class="mt">出战队伍</h3><div id="compare-fight-results"></div></details><details class="save-quests"><summary>已学配方差异</summary>${recipes(diff)}</details>`;
+    }<div id="compare-inventory-results"></div></details>`;
+    const questBlock = `<details class="save-quests compare-quests"${open('quests')}><summary>任务状态差异 · ${diff.quests.available ? diff.quests.changes.length + ' 条' : '未读取'}</summary>${diff.quests.available ? '<label class="search-input inventory-search">' + icon('search') + '<input id="compare-quest-search" value="' + esc(view.questQuery || '') + '" aria-label="搜索对比任务" placeholder="搜索任务名称" maxlength="100"></label>' : ''}<div id="compare-quest-results">${quests(diff, view.questQuery)}</div></details>`;
+    const teamBlock = `<details class="save-quests compare-team"${open('team')}><summary>队伍成员差异 · ${esc(summary.teamLabel)}</summary><h3 class="mt">同行队伍</h3><div id="compare-team-results"></div><h3 class="mt">出战队伍</h3><div id="compare-fight-results"></div></details>`;
+    const recipeBlock = `<details class="save-quests compare-recipes"${open('recipes')}><summary>已学配方差异 · ${esc(summary.recipeLabel)}</summary>${recipes(diff)}</details>`;
+    const blocks = { inventory: inventoryBlock, quests: questBlock, team: teamBlock, recipes: recipeBlock };
+    const active = Object.keys(blocks).filter(
+      (key) => summary.groups[key].count > 0 || summary.groups[key].unknown,
+    );
+    const unchanged = Object.keys(blocks).filter((key) => !active.includes(key));
+    return (
+      `<p class="compare-direction">${esc(diff.left.name)} → ${esc(diff.right.name)}</p>` +
+      summary.html +
+      active.map((key) => blocks[key]).join('') +
+      (unchanged.length
+        ? '<details class="compare-unchanged"><summary>其他已比较内容 · 无变化</summary>' +
+          unchanged.map((key) => blocks[key]).join('') +
+          '</details>'
+        : '') +
+      `<details class="compare-snapshots"><summary>两份进度的详细记录</summary><div class="compare-recaps">${recap(diff.left, '左侧')}${recap(diff.right, '右侧')}</div><p class="small muted">比较于 ${when(diff.comparedAt)}。新保存后请重新比较；槽位可以来自不同周目。</p></details>`
+    );
   }
   function populate(diff, index, view) {
     const set = (id, html) => {

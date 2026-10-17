@@ -114,6 +114,9 @@ let companionData = null,
 let handbookSuspended = false;
 let handbookRequest = 0;
 const pendingNodeDrafts = new Map();
+const pendingNodeDraftBases = new Map();
+const pendingNodeDraftOwners = new Map();
+const refreshingTimelineNodes = new Set();
 const pendingJournalDrafts = new Map();
 const pendingIntentDrafts = new Map(),
   intentDraftVersions = new Map(),
@@ -405,18 +408,61 @@ function openJournalEditor(entry = null, draft = null) {
 }
 const submittingNodes = new Set();
 let timelineLoadInFlight = false;
+function removePendingNodeDraft(id) {
+  pendingNodeDrafts.delete(id);
+  pendingNodeDraftBases.delete(id);
+  pendingNodeDraftOwners.delete(id);
+}
 function nodeControlsDisabled(id, disabled) {
   if (currentDrawer?.type !== 'timeline' || currentDrawer.data.record.id !== id) return;
   for (const control of overlay.querySelectorAll(
     '#timeline-label,#timeline-note,[data-action="timeline-edit-save"],[data-action="timeline-bookmark"],[data-action="timeline-draft-discard"]',
   ))
-    control.disabled = disabled;
+    control.disabled =
+      disabled ||
+      !!(
+        currentDrawer.data.draftConflict &&
+        control.matches(
+          '#timeline-label,#timeline-note,[data-action="timeline-edit-save"],[data-action="timeline-draft-discard"]',
+        )
+      );
+}
+async function reloadTimelineDrawer(drawer = currentDrawer) {
+  if (drawer?.type !== 'timeline') return;
+  const id = drawer.data.record.id;
+  refreshingTimelineNodes.add(id);
+  nodeControlsDisabled(id, true);
+  try {
+    const result = await call('timelineInspect', id);
+    if (currentDrawer !== drawer) return;
+    currentDrawer = null;
+    rememberDrawer({ type: 'timeline', data: result }, true);
+    showOverlay(timelineViews.preview(result), true);
+  } finally {
+    refreshingTimelineNodes.delete(id);
+    nodeControlsDisabled(id, false);
+  }
+}
+function sameNodeDraft(left, right) {
+  if (!left || !right) return !left && !right;
+  return left.label === right.label && left.note === right.note && left.at === right.at;
+}
+function isNodeEditConflict(error) {
+  return ['TIMELINE_NODE_CHANGED', 'TIMELINE_DRAFT_CHANGED'].includes(error.code);
 }
 async function flushNodeDrafts() {
   await nodeDraftQueue.catch(() => {});
   for (const [id, value] of pendingNodeDrafts) {
-    environment.activity = await call('nodeDraft', id, value);
-    if (pendingNodeDrafts.get(id) === value) pendingNodeDrafts.delete(id);
+    const owner = pendingNodeDraftOwners.get(id);
+    environment.activity = await call(
+      'nodeDraft',
+      id,
+      value,
+      pendingNodeDraftBases.get(id),
+      owner?.observedDraft,
+    );
+    if (owner) owner.observedDraft = environment.activity.drafts[id] || null;
+    if (pendingNodeDrafts.get(id) === value) removePendingNodeDraft(id);
   }
 }
 async function prepareQuit() {
@@ -441,18 +487,26 @@ async function prepareQuit() {
       esc(error.message),
       '<p>请先保留并处理未保存的编辑。已有磁盘草稿会保留；只有明确放弃后才会退出。</p>',
       pendingNodeDrafts.size || pendingJournalDrafts.size || pendingIntentDrafts.size
-        ? `${pendingIntentDrafts.size ? act('intent-drafts', '保留并查看安排草稿', 'btn primary') : ''}${pendingJournalDrafts.size ? act('journal-drafts', '保留并查看记录草稿', 'btn primary') : ''}<button class="btn danger" data-action="window-quit-discard"${quitIntent ? ' disabled' : ''}>放弃未保存的编辑并退出</button>`
+        ? `${pendingIntentDrafts.size ? act('intent-drafts', '保留并查看安排草稿', 'btn primary') : ''}${pendingJournalDrafts.size ? act('journal-drafts', '保留并查看记录草稿', 'btn primary') : ''}${pendingNodeDrafts.size ? act('node-pending-review', '查看未保存的节点输入', 'btn primary', pendingNodeDrafts.keys().next().value) : ''}<button class="btn danger" data-action="window-quit-discard"${quitIntent ? ' disabled' : ''}>放弃未保存的编辑并退出</button>`
         : '',
     );
     return false;
   }
 }
 function captureNodeDraft() {
-  if (currentDrawer?.type !== 'timeline') return nodeDraftQueue;
+  if (
+    currentDrawer?.type !== 'timeline' ||
+    (compact && handbookSuspended) ||
+    refreshingTimelineNodes.has(currentDrawer.data.record.id) ||
+    currentDrawer.data.draftConflict
+  )
+    return nodeDraftQueue;
   const label = document.querySelector('#timeline-label'),
     note = document.querySelector('#timeline-note');
   if (!label || !note) return nodeDraftQueue;
-  const { record } = currentDrawer.data;
+  const draftOwner = currentDrawer.data;
+  const { record } = draftOwner;
+  const expected = { label: record.label || '', note: record.note || '' };
   const value = { label: label.value, note: note.value };
   const existing = pendingNodeDrafts.get(record.id) || environment.activity?.drafts[record.id];
   if (existing?.label === value.label && existing?.note === value.note) return nodeDraftQueue;
@@ -460,17 +514,26 @@ function captureNodeDraft() {
     return nodeDraftQueue;
   currentDrawer.data.draft = value;
   pendingNodeDrafts.set(record.id, value);
+  pendingNodeDraftBases.set(record.id, expected);
+  pendingNodeDraftOwners.set(record.id, draftOwner);
   nodeDraftQueue = nodeDraftQueue
     .catch(() => {})
-    .then(() => call('nodeDraft', record.id, value))
+    .then(() => call('nodeDraft', record.id, value, expected, draftOwner.observedDraft))
     .then((data) => {
       environment.activity = data;
-      if (pendingNodeDrafts.get(record.id) === value) pendingNodeDrafts.delete(record.id);
+      draftOwner.observedDraft = data.drafts[record.id] || null;
+      if (pendingNodeDrafts.get(record.id) === value) removePendingNodeDraft(record.id);
       const status = document.querySelector('#node-draft-status');
       if (currentDrawer?.data?.record?.id === record.id && status)
         status.textContent = '草稿已保存在本机；正式保存后才会更新节点。';
     });
-  nodeDraftQueue.catch((e) => toast('节点草稿未保存：' + e.message, true));
+  nodeDraftQueue.catch((e) => {
+    const status = document.querySelector('#node-draft-status');
+    if (isNodeEditConflict(e) && currentDrawer?.data?.record?.id === record.id && status)
+      status.innerHTML =
+        '另一窗口已更新。' + act('timeline-reload', '核对并保留输入', 'text-btn', record.id, 'refresh');
+    else toast('节点草稿未保存：' + e.message, true);
+  });
   return nodeDraftQueue;
 }
 const orderedGoals = () =>
@@ -1263,12 +1326,14 @@ function updateHealth(h) {
   for (const el of document.querySelectorAll('[data-save-ready], #timeline-load-button'))
     el.disabled = !ready;
   const loadReason = document.querySelector('#timeline-load-readiness');
-  if (loadReason)
+  if (loadReason) {
+    loadReason.className = timelineLoadInFlight || ready ? 'small muted' : 'notice';
     loadReason.textContent = timelineLoadInFlight
       ? '正在确认或执行读档。确认后会等待当前保存结束，再保护进度并读档；关闭预览不会取消已确认的读档。'
       : ready
-        ? '游戏当前可保存，可保护进度后读档。'
+        ? '可保护当前进度后读档。'
         : '暂不可读档：' + (h.timeline?.reason || '请等待游戏连接并回到可保存状态');
+  }
   const loadButton = document.querySelector('#timeline-load-button');
   if (loadButton)
     loadButton.innerHTML =
@@ -1617,7 +1682,7 @@ async function receiveHandbookContext(context) {
     request === handbookRequest && context.profileId === profile().id && detailToken === detailRequest;
   captureJournalDraft();
   captureIntentDrafts();
-  await captureNodeDraft();
+  await captureNodeDraft().catch(() => {});
   await flushNodeDrafts();
   await saveNote();
   await flushJournalDrafts();
@@ -2310,26 +2375,22 @@ async function calculateMaterials() {
 }
 function showComparison(rightName = '', previous = null) {
   const files = environment.saves.files.filter((f) => f.metadata);
-  if (!files.length) throw Error('请先连接至少一份可读取的游戏存档');
-  comparisonState = previous || {
-    left: files.find((f) => f.name !== (rightName || files[0].name))?.name || files[0].name,
-    right: rightName || files[0].name,
-    result: null,
-    query: '',
-    questQuery: '',
-    filter: 'all',
-  };
+  if (!files.length && !previous) throw Error('请先连接至少一份可读取的游戏存档');
+  comparisonState = previous
+    ? { ...previous }
+    : {
+        left: files.find((f) => f.name !== (rightName || files[0].name))?.name || files[0].name,
+        right: rightName || files[0].name,
+        result: null,
+        query: '',
+        questQuery: '',
+        filter: 'all',
+      };
   if (
     !files.some((f) => f.name === comparisonState.left) ||
     !files.some((f) => f.name === comparisonState.right)
-  ) {
-    comparisonState = {
-      ...comparisonState,
-      left: files[1]?.name || files[0].name,
-      right: files[0].name,
-      result: null,
-    };
-  }
+  )
+    comparisonState.result = null;
   rememberDrawer({ type: 'comparison', data: comparisonState }, currentDrawer?.type === 'comparison');
   showOverlay(comparisonViews.shell(files, comparisonState), true);
   if (comparisonState.result) comparisonViews.populate(comparisonState.result, gameIndex, comparisonState);
@@ -2352,7 +2413,13 @@ async function readComparison() {
     view.result = result;
     container.innerHTML = comparisonViews.result(result, view);
     comparisonViews.populate(result, gameIndex, view);
-    status.textContent = '已完成只读对比';
+    status.textContent = '';
+    const source = overlay.querySelector('.compare-source-selection');
+    source.querySelector('summary').textContent = result.left.name + ' → ' + result.right.name;
+    source.open = false;
+    container.tabIndex = -1;
+    container.focus({ preventScroll: true });
+    container.scrollIntoView({ block: 'start' });
   } catch (error) {
     if (token === detailRequest && comparisonState === view) {
       status.textContent = '比较未完成';
@@ -2618,8 +2685,21 @@ async function call(method, ...args) {
     if (method === 'exportProtection' && result.exportResult) error.exportResult = result.exportResult;
     throw error;
   }
-  if (method === 'timelineInspect' && pendingNodeDrafts.has(args[0]))
-    result.data.draft = pendingNodeDrafts.get(args[0]);
+  if (method === 'timelineInspect') {
+    result.data.observedDraft = result.data.draft || null;
+    if (pendingNodeDrafts.has(args[0])) {
+      const pending = pendingNodeDrafts.get(args[0]),
+        base = pendingNodeDraftBases.get(args[0]),
+        owner = pendingNodeDraftOwners.get(args[0]),
+        record = result.data.record;
+      if (
+        (base && ((record.label || '') !== base.label || (record.note || '') !== base.note)) ||
+        (owner && !sameNodeDraft(owner.observedDraft, result.data.observedDraft))
+      )
+        result.data.draftConflict = { ...pending };
+      else result.data.draft = pending;
+    }
+  }
   return result.data;
 }
 function toast(text, error = false, recoveryAction = '') {
@@ -2927,40 +3007,34 @@ function nodeDraftPanel() {
     : '';
 }
 function activityPanel() {
-  const log = environment.activity;
+  const log = environment.activity,
+    events = log?.events || [];
+  const latestError = events[0]?.level === 'error' ? events[0] : null;
+  const title = latestError
+    ? '最近操作失败 · ' + latestError.message.slice(0, 80) + (latestError.message.length > 80 ? '…' : '')
+    : '操作记录 · ' + events.length + ' 条';
   return (
     nodeDraftPanel() +
     (log?.warning ? notice(log.warning) : '') +
-    (log?.events.length
-      ? '<section class="card mb operation-history"><div class="card-header"><h2>' +
-        icon('shield') +
-        ' 最近操作结果</h2><span class="small muted">保留最近 30 条 · 重启后仍可查看</span></div>' +
-        log.events
-          .slice(0, 3)
+    (events.length
+      ? '<details class="card mb operation-history" data-persist-detail="save-operation-history"><summary>' +
+        esc(title) +
+        '</summary>' +
+        events
           .map(
-            (e) =>
+            (event) =>
               '<div class="operation-row ' +
-              e.level +
+              event.level +
               '"><span>' +
-              icon(e.level === 'error' ? 'info' : e.level === 'success' ? 'check' : 'clock') +
+              icon(event.level === 'error' ? 'info' : event.level === 'success' ? 'check' : 'clock') +
               '</span><div><strong>' +
-              esc(e.message) +
+              esc(event.message) +
               '</strong><small>' +
-              when(e.at) +
+              when(event.at) +
               '</small></div></div>',
           )
           .join('') +
-        (log.events.length > 3
-          ? '<details data-persist-detail="save-operation-history"><summary>其余 ' +
-            (log.events.length - 3) +
-            ' 条</summary>' +
-            log.events
-              .slice(3)
-              .map((e) => '<p class="small">' + when(e.at) + ' · ' + esc(e.message) + '</p>')
-              .join('') +
-            '</details>'
-          : '') +
-        '</section>'
+        '</details>'
       : '')
   );
 }
@@ -2995,14 +3069,58 @@ function backupCareBanner() {
     )
     .join('');
 }
+function saveReviewActions(compact = false) {
+  const files = readableSaves();
+  const selected = defaultReference();
+  if (!files.length)
+    return selected
+      ? '<p class="small muted">所选进度暂不可读。</p>'
+      : compact && environment.saves.files.some((file) => /^\d+\.sav$/i.test(file.name))
+        ? '<p class="small muted">进度暂不可读，可先备份原文件。</p>'
+        : '';
+  const current = selected ? files.find((file) => file.name === selected) : files[0];
+  const others = files.filter((file) => file !== current);
+  const actions =
+    '<div class="row wrap save-progress-actions mb">' +
+    (current
+      ? act('save-detail', '进度回顾', 'btn', current.name, 'book')
+      : '<span class="small muted">所选进度暂不可读，可查看其他进度。</span>') +
+    (files.length > 1 ? act('save-compare', '比较进度', 'btn', current?.name || '', 'search') : '') +
+    '</div>';
+  return (
+    actions +
+    (compact && others.length
+      ? '<details class="mb save-history-list" data-persist-detail="compact-save-history"><summary>其他保存进度 · ' +
+        others.length +
+        '</summary>' +
+        others
+          .map(
+            (file) =>
+              '<div class="compact-backup-row"><div><strong>' +
+              esc(file.metadata.mapName || file.name) +
+              '</strong><span class="small muted">' +
+              when(file.modifiedAt) +
+              ' · ' +
+              esc(file.name) +
+              '</span></div>' +
+              act('save-detail', '回顾', 'btn', file.name, 'eye') +
+              '</div>',
+          )
+          .join('') +
+        '</details>'
+      : '')
+  );
+}
 function savesPage() {
   const save = environment.saves,
     files = save.files,
     backups = environment.backups;
-  return `${pageHeader('A PLACE TO RETURN TO', '存档匣', '重要选择之前，为这一程留一份退路。', `${act('refresh', '刷新', 'btn', '', 'refresh')}${act('backup', '备份当前存档', 'btn primary', '', 'download')}`)}${restoreRecoveryBanner()}${backupCareBanner()}${timelinePanel()}${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${protectionViews.controls(protectionView)}${activityPanel()}${environment.game.build && environment.game.build !== gameIndex.build ? notice(`游戏已更新到 Build ${environment.game.build}，手札图鉴资料为 Build ${gameIndex.build}；名称与配方请以游戏内为准。`, true) : ''}${save.error ? notice(save.error) : ''}${files.some((f) => /^\d+\.sav$/i.test(f.name) && !f.metadata) ? notice('部分存档暂时无法读取进度，仍可完整备份原文件。请在游戏里重新保存后刷新，或核对存档目录与游戏版本；没有可读进度时，库存与任务状态不会自动填入。', true) : ''}${environment.autoError ? notice(environment.autoError) : ''}<div class="card mb save-connection"><div class="row between save-connection-header"><div class="row save-connection-description"><div class="save-icon">${icon('folder')}</div><div><h3>${files.length ? '已连接本机存档' : '尚未连接存档'}</h3><p class="small muted">${files.length ? '文件会被只读扫描，备份保存在手札的数据目录。' : '选择游戏的 SaveGames 文件夹即可开始。'}</p></div></div><div class="save-stats"><div><strong>${files.filter((f) => /\.sav$/i.test(f.name)).length}</strong><small>存档文件</small></div><div>${environment.recovery ? '<button class="btn" disabled title="请先核对完整存档恢复">更换目录 · 先核对恢复</button>' : act('choose-saves', '更换目录', 'btn')}</div></div></div><div class="separator"></div><div class="row between save-connection-path"><span class="mono muted">${esc(save.path || '等待选择目录')}</span>${save.path ? act('folder', '打开目录', 'text-btn', 'saves', 'external') : ''}</div></div>
- <div class="row between mb"><h2>留存的副本 <span class="small muted">${backups.length ? `· ${backups.length} 份` : ''}</span></h2><div class="row"><span class="small muted">存档变化时自动备份</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></div>
- ${backupViews.anomalies(environment.backupAnomalies || [])}${backups.length ? backupViews.page(backups, backupView) : `<div class="card">${empty('还没有备份', '先在游戏内保存，再创建第一份副本。每份备份都会保留原始文件并校验完整性。', act('backup', '创建第一份备份', 'btn soft', '', 'download'))}</div>`}<p class="save-note">原生游戏连接工作时暂停完整自动备份，避免重复复制其他槽位；等待连接或关闭时间线时仍保护文件。关闭时间线后立即检查，之后每分钟核对文件变化；稳定后复制已保存的文件，不会替游戏执行保存。副本不会自动删除。可按名称、类型和日期整理或分批导出；上方完整换机会自动分卷，请一并带走分卷目录。</p>
- <div class="section-heading"><h2>当前存档文件</h2><div class="row"><span class="small muted">共 ${files.length} 个文件 · ${bytes(save.total)}</span>${files.some((f) => f.metadata) ? act('save-compare', '比较两份存档', 'btn', '', 'search') : ''}</div></div>${
+  const warnings = `${environment.game.build && environment.game.build !== gameIndex.build ? notice(`游戏已更新到 Build ${environment.game.build}，手札图鉴资料为 Build ${gameIndex.build}；名称与配方请以游戏内为准。`, true) : ''}${save.error ? notice(save.error) : ''}${files.some((f) => /^\d+\.sav$/i.test(f.name) && !f.metadata) ? notice('部分存档暂时无法读取进度，仍可完整备份原文件。请在游戏里重新保存后刷新，或核对存档目录与游戏版本；没有可读进度时，库存与任务状态不会自动填入。', true) : ''}${environment.autoError ? notice(environment.autoError) : ''}`;
+  const connection = `<div class="card mb save-connection"><div class="row between save-connection-header"><div class="row save-connection-description"><div class="save-icon">${icon('folder')}</div><div><h3>${files.length ? '已连接本机存档' : '尚未连接存档'}</h3><p class="small muted">${files.length ? '文件会被只读扫描，备份保存在手札的数据目录。' : '选择游戏的 SaveGames 文件夹即可开始。'}</p></div></div><div class="save-stats"><div><strong>${files.filter((f) => /\.sav$/i.test(f.name)).length}</strong><small>存档文件</small></div><div>${environment.recovery ? '<button class="btn" disabled title="请先核对完整存档恢复">更换目录 · 先核对恢复</button>' : act('choose-saves', '更换目录', 'btn')}</div></div></div><div class="separator"></div><div class="row between save-connection-path"><span class="mono muted">${esc(save.path || '等待选择目录')}</span>${save.path ? act('folder', '打开目录', 'text-btn', 'saves', 'external') : ''}</div></div>`;
+  return `${pageHeader('A PLACE TO RETURN TO', '存档匣', '重要选择之前，为这一程留一份退路。', `${act('refresh', '刷新', 'btn', '', 'refresh')}${act('backup', '备份当前存档', 'btn primary', '', 'download')}`)}${restoreRecoveryBanner()}${backupCareBanner()}${warnings}${saveReviewActions()}${timelinePanel()}${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${protectionViews.controls(protectionView)}${activityPanel()}${!save.path || !files.length ? connection : ''}
+ <div class="row between mb"><h2>留存的副本 <span class="small muted">${backups.length ? `· ${backups.length} 份` : ''}</span></h2><div class="row"><span class="small muted">完整自动备份 · ${backupStatus()}</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></div>
+ ${backupViews.anomalies(environment.backupAnomalies || [])}${backups.length ? backupViews.page(backups, backupView) : `<div class="card">${empty('还没有备份', '先在游戏内保存，再创建第一份副本。每份备份都会保留原始文件并校验完整性。', act('backup', '创建第一份备份', 'btn soft', '', 'download'))}</div>`}<details class="save-backup-help mb" data-persist-detail="backup-help"><summary>备份设置与说明</summary><p class="small">完整自动备份 · ${backupStatus()}</p><p class="save-note">原生游戏连接工作时暂停完整自动备份，避免重复复制其他槽位；等待连接或关闭时间线时仍保护文件。关闭时间线后立即检查，之后每分钟核对文件变化；稳定后复制已保存的文件，不会替游戏执行保存。副本不会自动删除。可按名称、类型和日期整理或分批导出；上方完整换机会自动分卷，请一并带走分卷目录。</p></details>
+ <details class="card save-files" data-persist-detail="save-files"><summary>存档目录与文件</summary>${save.path && files.length ? connection : ''} <div class="section-heading"><h2>当前存档文件</h2><div class="row"><span class="small muted">共 ${files.length} 个文件 · ${bytes(save.total)}</span>${files.some((f) => f.metadata) ? act('save-compare', '比较两份存档', 'btn', '', 'search') : ''}</div></div>${
    files.length
      ? `<div class="table-wrap"><table class="save-table"><thead><tr><th>文件</th><th>保存时间</th><th>游玩时长</th><th>场景 / 队伍</th><th>大小</th></tr></thead><tbody>${files
          .map(
@@ -3023,7 +3141,7 @@ function savesPage() {
          .join('')}</tbody></table></div>`
      : empty('还没有读取到文件', '如果游戏已有存档，请在上方连接目录。')
  }
- <p class="save-note">场景、时长和队伍来自存档本身。点击「查看存档回顾」可看缩略图、追踪任务与已学配方。无法解析的版本仍可备份；保存时间取自文件时间。</p>`;
+ </details>`;
 }
 function windowLayoutSettings() {
   return `<section class="card"><h2 class="mb">窗口布局</h2><p class="small muted">拖动标题栏移动，拖动边缘缩放；自动记住布局。</p><div class="row wrap mt">${act('window-layout-reset', '恢复主窗口默认位置与大小', 'btn', '', 'reset')}${act('compact', '打开随行调整布局', 'btn', '', 'pin')}</div></section>`;
@@ -3200,7 +3318,7 @@ function journeyDialog(kind, id = '', savedDraft = null) {
   }
   modal(
     title,
-    '保存在当前周目，游戏文件和物品不会改变。',
+    '',
     '<div class="journey-intent-body">' + body + '</div>',
     (record ? act('journey-intent-remove', '移除这项个人记录', 'btn danger') : '') +
       act('journey-intent-save', '保存', 'btn primary', '', 'check'),
@@ -3242,7 +3360,7 @@ function compactSavesPage() {
   const backups = environment.backups || [];
   const row = (b) =>
     `<div class="compact-backup-row"><div><strong>${esc(b.label)}</strong><span class="small muted">${when(b.createdAt)}</span></div>${act('backup-preview', '查看副本', 'btn', b.id, 'eye')}</div>`;
-  return `<div class="row between mb"><h2>存档</h2>${act('backup', '备份当前存档', 'btn', '', 'download')}</div>${restoreRecoveryBanner()}${backupCareBanner()}${environment.saves?.error ? notice(environment.saves.error) : ''}${environment.autoError ? notice(environment.autoError) : ''}${timelinePanel()}${backupViews.anomalies(environment.backupAnomalies || [])}<details data-persist-detail="compact-backups"><summary>完整存档副本 · ${backups.length}</summary>${backups.slice(0, 6).map(row).join('') || '<p>暂无副本，先在游戏中保存，再点击备份。</p>'}${backups.length > 6 ? `<details><summary>更早的 ${backups.length - 6} 份</summary>${backups.slice(6).map(row).join('')}</details>` : ''}<div class="row between mt"><span>存档变化时自动备份</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></details>${!environment.saves?.path ? act('choose-saves', '连接存档目录', 'btn', '', 'folder') : ''}`;
+  return `<div class="row between mb"><h2>存档</h2>${act('backup', '备份当前存档', 'btn', '', 'download')}</div>${restoreRecoveryBanner()}${backupCareBanner()}${environment.saves?.error ? notice(environment.saves.error) : ''}${environment.autoError ? notice(environment.autoError) : ''}${saveReviewActions(true)}${timelinePanel()}${backupViews.anomalies(environment.backupAnomalies || [])}<details data-persist-detail="compact-backups"><summary>完整存档副本 · ${backups.length}</summary>${backups.slice(0, 6).map(row).join('') || '<p>暂无副本，先在游戏中保存，再点击备份。</p>'}${backups.length > 6 ? `<details><summary>更早的 ${backups.length - 6} 份</summary>${backups.slice(6).map(row).join('')}</details>` : ''}<div class="row between mt"><span>完整自动备份 · ${backupStatus()}</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></details>${!environment.saves?.path ? act('choose-saves', '连接存档目录', 'btn', '', 'folder') : ''}`;
 }
 function compactPage() {
   document.body.classList.add('companion');
@@ -3783,8 +3901,12 @@ function showOverlay(html, drawer = false, preserve = false, opener = null, reta
     entityPreviews.restoreFocusWithin(overlay, referenceFocus);
     entityPreviews.restoreWithin(overlay, previewReading);
   }
-  if (currentDrawer?.type === 'timeline' && submittingNodes.has(currentDrawer.data.record.id))
-    nodeControlsDisabled(currentDrawer.data.record.id, true);
+  if (currentDrawer?.type === 'timeline')
+    nodeControlsDisabled(
+      currentDrawer.data.record.id,
+      submittingNodes.has(currentDrawer.data.record.id) ||
+        refreshingTimelineNodes.has(currentDrawer.data.record.id),
+    );
   if (currentDrawer?.type === 'timeline') updateHealth(environment.health);
 }
 function dismissOverlay() {
@@ -4002,9 +4124,9 @@ function profilesModal() {
     act('profile-create', '新建周目', 'btn primary'),
   );
 }
-function saveSlotModal() {
+function saveSlotModal(sourceFiles = environment.saves.files) {
   const current = profile().referenceMode === 'none' ? '@none' : profile().saveSlot || '@latest';
-  const files = environment.saves.files.filter((f) => f.metadata);
+  const files = sourceFiles.filter((f) => f.metadata);
   modal(
     '游戏进度',
     '供流程、图鉴和备料共同使用。',
@@ -4534,6 +4656,7 @@ async function handle(action, id, target, navigationFocused = false) {
       'flow-quest',
       'world-place',
       'save-detail',
+      'save-slot',
       'save-quest-jump',
       'timeline-preview',
       'backup-preview',
@@ -5523,10 +5646,25 @@ async function handle(action, id, target, navigationFocused = false) {
         true,
       );
       break;
-    case 'save-slot':
-      await refresh();
-      saveSlotModal();
+    case 'save-slot': {
+      const profileId = profile().id,
+        previousOverlay = overlay.firstChild;
+      const stillCurrent = () =>
+        readingRequest === handbookRequest &&
+        profileId === profile().id &&
+        overlay.firstChild === previousOverlay &&
+        !handbookSuspended;
+      let fresh;
+      try {
+        fresh = await call('refresh');
+      } catch (error) {
+        if (stillCurrent()) throw error;
+        break;
+      }
+      if (!stillCurrent()) break;
+      saveSlotModal(fresh.saves.files);
       break;
+    }
     case 'save-slot-save':
       {
         const value = document.querySelector('#save-slot-select').value;
@@ -6609,9 +6747,12 @@ async function handle(action, id, target, navigationFocused = false) {
       break;
     }
     case 'compare-refresh': {
-      const token = ++detailRequest;
+      const view = comparisonState,
+        drawer = currentDrawer,
+        token = ++detailRequest;
       await refresh();
-      if (token === detailRequest && currentDrawer?.type === 'comparison') showComparison();
+      if (token === detailRequest && currentDrawer === drawer && comparisonState === view)
+        showComparison('', { ...view, result: null });
       break;
     }
     case 'compare-filter':
@@ -7076,6 +7217,75 @@ async function handle(action, id, target, navigationFocused = false) {
       timelineView.target = Number(id);
       render(true);
       break;
+    case 'timeline-reload': {
+      if (currentDrawer?.type !== 'timeline' || currentDrawer.data.record.id !== id)
+        throw Error('节点预览已变更，请重新选择');
+      await captureNodeDraft().catch(() => {});
+      await reloadTimelineDrawer();
+      break;
+    }
+    case 'node-pending-review': {
+      const value = pendingNodeDrafts.get(id);
+      if (!value) throw Error('这份输入已不在待保存列表');
+      const request = handbookRequest,
+        token = ++detailRequest,
+        profileId = profile().id,
+        drawer = currentDrawer,
+        presentation = overlay.firstElementChild;
+      const stillCurrent = () =>
+        request === handbookRequest &&
+        token === detailRequest &&
+        profileId === profile().id &&
+        currentDrawer === drawer &&
+        overlay.firstElementChild === presentation &&
+        pendingNodeDrafts.get(id) === value;
+      let result;
+      try {
+        result = await call('timelineInspect', id);
+      } catch {
+        if (!stillCurrent()) break;
+        modal(
+          '未保存的节点输入',
+          '原节点暂不可读，输入仍保留。',
+          '<p class="preserve-text">' + esc(value.label + String.fromCharCode(10) + value.note) + '</p>',
+          act('node-pending-to-note', '转存到随手记', 'btn primary', id),
+        );
+        break;
+      }
+      if (!stillCurrent()) break;
+      currentDrawer = null;
+      rememberDrawer({ type: 'timeline', data: result });
+      showOverlay(timelineViews.preview(result), true);
+      break;
+    }
+    case 'node-pending-discard': {
+      await nodeDraftQueue.catch(() => {});
+      removePendingNodeDraft(id);
+      if (currentDrawer?.type === 'timeline' && currentDrawer.data.record.id === id)
+        await reloadTimelineDrawer();
+      toast('已放弃这份未保存输入');
+      break;
+    }
+    case 'node-pending-to-note': {
+      await nodeDraftQueue.catch(() => {});
+      const value = pendingNodeDrafts.get(id),
+        drawer = currentDrawer,
+        profileId = profile().id;
+      if (!value) throw Error('这份输入已不在待保存列表');
+      await saveNote(profileId);
+      const owner = state.profiles.find((p) => p.id === profileId);
+      if (!owner) throw Error('原周目已不存在，输入仍然保留');
+      await mutation({
+        type: 'note',
+        profileId,
+        value: owner.notes + '\n\n节点未保存输入\n' + value.label + '\n' + value.note,
+      });
+      if (pendingNodeDrafts.get(id) === value) removePendingNodeDraft(id);
+      if (currentDrawer === drawer && drawer?.type === 'timeline' && drawer.data.record.id === id)
+        await reloadTimelineDrawer(drawer);
+      toast('输入已转存到随手记');
+      break;
+    }
     case 'node-draft-review': {
       const draft = environment.activity?.drafts[id];
       if (!draft) throw Error('草稿已不存在，请刷新');
@@ -7100,8 +7310,14 @@ async function handle(action, id, target, navigationFocused = false) {
     }
     case 'node-draft-remove':
       await nodeDraftQueue.catch(() => {});
-      environment.activity = await call('nodeDraft', id, null);
-      pendingNodeDrafts.delete(id);
+      environment.activity = await call(
+        'nodeDraft',
+        id,
+        null,
+        undefined,
+        environment.activity?.drafts[id] || null,
+      );
+      removePendingNodeDraft(id);
       await flushNodeDrafts().catch((e) => toast('仍有草稿未保存：' + e.message, true));
       render(true);
       toast('这份草稿已放弃');
@@ -7109,17 +7325,18 @@ async function handle(action, id, target, navigationFocused = false) {
     case 'timeline-draft-discard': {
       const drawer = currentDrawer;
       await nodeDraftQueue.catch(() => {});
-      pendingNodeDrafts.delete(id);
-      drawer.data.draft = null;
-      environment.activity = await call('nodeDraft', id, null);
-      if (currentDrawer === drawer) {
-        const result = await call('timelineInspect', id);
-        if (currentDrawer === drawer) {
-          currentDrawer = null;
-          rememberDrawer({ type: 'timeline', data: result });
-          showOverlay(timelineViews.preview(result), true);
-        }
+      try {
+        environment.activity = await call('nodeDraft', id, null, undefined, drawer.data.observedDraft);
+      } catch (error) {
+        if (!isNodeEditConflict(error)) throw error;
+        removePendingNodeDraft(id);
+        await reloadTimelineDrawer(drawer);
+        toast('另一窗口已更新，较新的草稿仍保留', true);
+        break;
       }
+      removePendingNodeDraft(id);
+      drawer.data.draft = null;
+      if (currentDrawer === drawer) await reloadTimelineDrawer(drawer);
       toast('已放弃这份草稿');
       break;
     }
@@ -7151,13 +7368,16 @@ async function handle(action, id, target, navigationFocused = false) {
       if (drawer?.type !== 'timeline' || drawer.data.record.id !== id)
         throw Error('节点预览已变更，请重新选择');
       if (submittingNodes.has(id)) throw Error('这个节点正在保存，请稍候');
+      if (action === 'timeline-edit-save' && drawer.data.draftConflict)
+        throw Error('请先转存保留的输入，再继续编辑');
       const r = drawer.data.record;
-      const value = {
-        label: document.querySelector('#timeline-label').value,
-        note: document.querySelector('#timeline-note').value,
-      };
-      if (action === 'timeline-bookmark')
-        value.bookmarked = !(r.bookmarked === true || (r.kind === 'manual' && r.bookmarked !== false));
+      const value =
+        action === 'timeline-bookmark'
+          ? { bookmarked: !(r.bookmarked === true || (r.kind === 'manual' && r.bookmarked !== false)) }
+          : {
+              label: document.querySelector('#timeline-label').value,
+              note: document.querySelector('#timeline-note').value,
+            };
       if (target?.dataset.retain === 'true') value.bookmarked = true;
       const controls = [
         ...overlay.querySelectorAll(
@@ -7168,9 +7388,16 @@ async function handle(action, id, target, navigationFocused = false) {
       for (const control of controls) control.disabled = true;
       try {
         await captureNodeDraft().catch(() => {});
-        const result = await call('timelineUpdate', id, value);
+        const result = await call(
+          'timelineUpdate',
+          id,
+          value,
+          { label: r.label || '', note: r.note || '' },
+          drawer.data.observedDraft,
+        );
         const pending = pendingNodeDrafts.get(id);
-        if (pending?.label === value.label && pending?.note === value.note) pendingNodeDrafts.delete(id);
+        if (action === 'timeline-edit-save' && pending?.label === value.label && pending?.note === value.note)
+          removePendingNodeDraft(id);
         environment = result.environment;
         render(true);
         const completedDrawer = currentDrawer;
@@ -7189,6 +7416,22 @@ async function handle(action, id, target, navigationFocused = false) {
               : '已取消收藏，后续参与轮换'
             : '名称与备注已保存',
         );
+      } catch (error) {
+        if (!isNodeEditConflict(error)) throw error;
+        if (action === 'timeline-edit-save' || drawer.data.draft) {
+          const local =
+            action === 'timeline-edit-save'
+              ? value
+              : {
+                  label: document.querySelector('#timeline-label')?.value ?? drawer.data.draft.label,
+                  note: document.querySelector('#timeline-note')?.value ?? drawer.data.draft.note,
+                };
+          pendingNodeDrafts.set(id, { label: local.label, note: local.note });
+          pendingNodeDraftBases.set(id, { label: r.label || '', note: r.note || '' });
+          pendingNodeDraftOwners.set(id, drawer.data);
+        }
+        await reloadTimelineDrawer(drawer);
+        toast('另一窗口已更新，未保存的输入仍保留', true);
       } finally {
         submittingNodes.delete(id);
         for (const control of controls) if (control.isConnected) control.disabled = false;
@@ -7226,6 +7469,8 @@ async function handle(action, id, target, navigationFocused = false) {
       pendingIntentDrafts.clear();
       pendingJournalDrafts.clear();
       pendingNodeDrafts.clear();
+      pendingNodeDraftBases.clear();
+      pendingNodeDraftOwners.clear();
       await Promise.all([...drafts.keys()].map(saveNote));
       await call('window', 'quit');
       break;
@@ -7743,7 +7988,7 @@ async function handle(action, id, target, navigationFocused = false) {
       const detailToken = detailRequest;
       const profileId = profile().id;
       const sourceRoute = route;
-      await captureNodeDraft();
+      await captureNodeDraft().catch(() => {});
       await flushNodeDrafts();
       await saveNote();
       await flushJournalDrafts();
@@ -8173,6 +8418,10 @@ document.addEventListener('change', async (event) => {
     }
     return;
   }
+  if (event.target.id === 'timeline-target') {
+    await handle('timeline-target', event.target.value);
+    return;
+  }
   if (event.target.id === 'timeline-filter') {
     timelineView.kind = event.target.value;
     timelineView.page = 0;
@@ -8222,6 +8471,7 @@ document.addEventListener('change', async (event) => {
     detailRequest++;
     comparisonState[event.target.id === 'compare-left' ? 'left' : 'right'] = event.target.value;
     comparisonState.result = null;
+    overlay.querySelector('.compare-source-selection > summary').textContent = '选择比较进度';
     document.querySelector('#compare-status').textContent = '';
     document.querySelector('#comparison-result').innerHTML =
       '<p class="save-note">所选槽位已改变，请点击「比较记录」。</p>';
@@ -8413,6 +8663,8 @@ try {
         handbookSuspended = false;
         document.body.classList.remove('handbook-away');
         document.querySelector('#handbook-hint')?.remove();
+        if (currentDrawer?.type === 'timeline')
+          reloadTimelineDrawer().catch((error) => toast('未能重新读取节点：' + error.message, true));
         render(true);
         const body = root.querySelector('.compact-body');
         if (body) body.scrollTop = companionTuckedScroll;
