@@ -15,13 +15,13 @@ fs.mkdirSync(source, { recursive: true });
 let expected, app, main, compact;
 const errors = [],
   checks = [];
-function save(id, parent, money, inventory) {
+function save(id, parent, money, inventory, progress) {
   expected = syntheticSave({
     full: true,
     seconds: Date.now() % 100000,
     quests: [
       { id: parent, step: 1 },
-      { id, step: 1 },
+      { id, step: 1, ...(progress ? { progress } : {}) },
     ],
     money,
     inventory,
@@ -137,6 +137,35 @@ async function capture(page, name) {
     save(12407, 12400, 0, []);
     await compact.locator('.flow-now .flow-next-action').filter({ hasText: '平康城' }).waitFor();
     checks.push('An owned permitted gift switches to its recipient; using it restores the acquisition clue');
+    const hunt = require('../src/data/world-index.json').quests.find((q) => q.gameId === 14066);
+    save(14066, hunt.parentId, 0, [], [{ type: 22, id: 45045, value: 3 }]);
+    await waitForStep(14066);
+    await compact.locator('.flow-now .flow-next-action').filter({ hasText: '3/5' }).waitFor();
+    assert.doesNotMatch(await compact.locator('.flow-now .flow-next-action').innerText(), /回报/);
+    await expand(compact, '.flow-now-details');
+    await compact.locator('.flow-conditions').getByText('3 / 5', { exact: true }).waitFor();
+    await capture(compact, '05-sidecar-kill-progress');
+    await compact
+      .locator(`.flow-now [data-action="flow-quest"][data-id="quest-${hunt.parentId || hunt.gameId}"]`)
+      .first()
+      .click();
+    if (hunt.parentId)
+      await compact.locator(`.drawer [data-action="world-quest"][data-id="${hunt.id}"]`).first().click();
+    await expand(compact, '[data-quest-completion]');
+    await compact.locator('[data-quest-completion]').getByText('3 / 5', { exact: true }).waitFor();
+    save(14066, hunt.parentId, 0, [], [{ type: 22, id: 45045, value: 5 }]);
+    await compact.locator('[data-quest-completion]').getByText('5 / 5', { exact: true }).waitFor();
+    assert(await compact.locator('[data-quest-completion]').evaluate((node) => node.open));
+    await capture(compact, '06-codex-kill-progress');
+    checks.push('Sidecar and open codex share refreshed quest-local counters and retain disclosure state');
+    await compact.locator('[data-action="close-overlay"]').first().click();
+    await compact.locator('.flow-now .flow-next-action').filter({ hasText: '回报' }).waitFor();
+    save(14066, hunt.parentId, 0, [], []);
+    await compact.locator('.flow-now .flow-next-action').filter({ hasText: '击败野猪' }).waitFor();
+    assert.doesNotMatch(await compact.locator('.flow-now .flow-next-action').innerText(), /回报|0\/5|5\/5/);
+    checks.push(
+      'Completed hunt directs to its recipient; absent counters withdraw readiness without becoming zero',
+    );
     assert.deepEqual(fs.readFileSync(file), expected);
     assert.deepEqual(errors, []);
   } catch (error) {

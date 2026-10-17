@@ -35,7 +35,28 @@ function readNpcObservation(value, { world, pawn, now = Date.now() } = {}) {
       if (!row || !integer(row.id, 1, 10000000) || !integer(row.step, 0, 4) || seenQuests.has(row.id))
         return null;
       seenQuests.add(row.id);
-      quests.push({ id: row.id, step: row.step });
+      let progress;
+      if (row.progress !== undefined) {
+        if (!Array.isArray(row.progress) || row.progress.length > 1000) return null;
+        progress = [];
+        const keys = new Set();
+        for (const counter of row.progress) {
+          if (
+            !counter ||
+            !integer(counter.type, 0, 67) ||
+            !integer(counter.id, 0, 10000000) ||
+            !Number.isFinite(counter.value) ||
+            counter.value < 0 ||
+            counter.value > 100000000 ||
+            keys.has(`${counter.type}:${counter.id}`) ||
+            --budget < 0
+          )
+            return null;
+          keys.add(`${counter.type}:${counter.id}`);
+          progress.push({ type: counter.type, id: counter.id, value: counter.value });
+        }
+      }
+      quests.push({ id: row.id, step: row.step, ...(progress ? { progress } : {}) });
     }
     const npcs = [];
     for (const row of value.npcs) {

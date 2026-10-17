@@ -185,6 +185,25 @@ const sample = () => ({
   quests: [{ id: 12071, step: 4 }],
   npcs: [npc(0), npc(10016)],
 });
+
+test('quest counters stay MAC-bound and fresh changes replace, rather than merge, earlier progress', () => {
+  const c = channel();
+  const quests = [{ id: 14066, step: 1, progress: [{ type: 22, id: 45045, value: 3 }] }];
+  const old = c.state({}, { quests });
+  assert.equal(c.reader.sample(old).questStates[0].progress[0].value, 3);
+  c.advance();
+  let fresh = c.state({ sequence: 2 }, { version: 2, quests: [{ ...quests[0], progress: [] }] });
+  assert.deepEqual(c.reader.sample(fresh).questStates[0].progress, []);
+  assert.equal(c.reader.sample(old), null, 'an older successful count cannot return after withdrawal');
+  c.advance();
+  fresh = c.state({ sequence: 3 }, { version: 3, quests });
+  assert.equal(c.reader.sample(fresh).questStates[0].progress[0].value, 3);
+  const forged = structuredClone(fresh);
+  c.body().quests[0].progress[0].value = 5;
+  c.corrupt();
+  forged.npcObservation.version++;
+  assert.equal(c.reader.sample(forged), null, 'counter edits without both signed bindings are rejected');
+});
 test('a complete live NPC observation is bound to its current world, pawn and sampling time', () => {
   const packet = sample(),
     before = structuredClone(packet);

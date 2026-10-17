@@ -3,7 +3,7 @@ const questLabels = ['尚未开始', '进行中', '已失败', '尚未接取', '
 
 // Only evaluate fields supplied by this reading. Missing native counters,
 // contribution and effective friendship never become fabricated zeroes.
-export function completionChecks(requirements = [], reading = {}) {
+export function completionChecks(requirements = [], reading = {}, questId) {
   const inventory = Array.isArray(reading.inventory) ? new Map() : null;
   for (const item of inventory ? reading.inventory : [])
     if (Number.isSafeInteger(item.count) && item.count >= 0)
@@ -12,12 +12,14 @@ export function completionChecks(requirements = [], reading = {}) {
     ? new Map((reading.questStates || reading.quests).map((row) => [row.id, row.step]))
     : null;
   const live = reading.questsComplete === true;
+  const quest = (reading.questStates || reading.quests)?.find?.((row) => row.id === questId);
   return requirements.map((requirement) => {
     const { type, id, value, name } = requirement;
     let text = name || '剧情要求',
       status = 'unknown',
       hint = '',
-      partyName = '';
+      partyName = '',
+      progress = null;
     if (type === 'Item') {
       text = `${name} × ${countText(value)}`;
       if (inventory) status = (inventory.get(id) || 0) >= value ? 'met' : 'unmet';
@@ -50,14 +52,37 @@ export function completionChecks(requirements = [], reading = {}) {
           : 'unmet';
       hint = status === 'unmet' ? `先准备${name}中的任一种` : text;
     } else if (type === 'GuildHonor') text = `${name}至少 ${countText(value)}`;
-    else if (type === 'KillMonster' || type === 'KillMonsterAggre')
+    else if (type === 'KillMonster' || type === 'KillMonsterAggre') {
       text = `击败${name} × ${countText(value)}`;
-    else if (type === 'Friendliness') text = `${name}好感至少 ${countText(value)}`;
+      // The pinned quest completion predicate matches BOTH requirement type
+      // and Id inside THIS quest's tracked array, then compares Num >= target.
+      // Absence is unknown, never zero; group IDs are not member NPC IDs.
+      const enumType = type === 'KillMonster' ? 22 : 25;
+      const matches =
+        quest?.step === 1 && Array.isArray(quest.progress)
+          ? quest.progress.filter((row) => row.type === enumType && row.id === id)
+          : [];
+      if (
+        matches.length === 1 &&
+        Number.isSafeInteger(matches[0].value) &&
+        matches[0].value >= 0 &&
+        matches[0].value <= 100000000 &&
+        Number.isSafeInteger(value) &&
+        value > 0
+      ) {
+        const current = matches[0].value;
+        status = current >= value ? 'met' : 'unmet';
+        text = `击败${name}`;
+        progress = { current, total: value, remaining: Math.max(0, value - current) };
+        hint = `击败${name}（${countText(current)}/${countText(value)}）`;
+      }
+    } else if (type === 'Friendliness') text = `${name}好感至少 ${countText(value)}`;
     return {
       ...requirement,
       text,
       status,
       hint: hint || text,
+      ...(progress ? { progress } : {}),
       ...(partyName ? { partyName } : {}),
       ...(requirement.alternatives
         ? {

@@ -35,7 +35,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       ? `<ul class="flow-conditions">${items
           .map(
             (row) =>
-              `<li><span>${row.entityId && row.text?.startsWith(row.name) ? questButton(row.entityId, row.name) + text(row.text.slice(row.name.length)) : prose(row.text)}</span>${statusPill(row.status)}${list(row.alternatives).length ? `<div class="related-items">${row.alternatives.map((item) => `${button('database-detail', item.name + (item.quality ? ' · ' + item.quality : ''), 'item-' + item.id)}${item.owned === null ? '' : pill('持有 ' + item.owned)}`).join('')}</div>` : ''}</li>`,
+              `<li><span>${row.entityId && row.text?.startsWith(row.name) ? questButton(row.entityId, row.name) + text(row.text.slice(row.name.length)) : prose(row.text)}</span>${row.progress ? pill(`${row.progress.current} / ${row.progress.total}`, row.status === 'met' ? 'green' : 'orange') : statusPill(row.status)}${list(row.alternatives).length ? `<div class="related-items">${row.alternatives.map((item) => `${button('database-detail', item.name + (item.quality ? ' · ' + item.quality : ''), 'item-' + item.id)}${item.owned === null ? '' : pill('持有 ' + item.owned)}`).join('')}</div>` : ''}</li>`,
           )
           .join('')}</ul>`
       : '';

@@ -147,7 +147,22 @@ function syntheticSave({
 }
 function questSection(quests) {
   const records = Buffer.concat(
-    quests.map((q, i) => Buffer.concat([n(q.id), Buffer.from([q.step]), n(0), n(i + 1), n(q.finished || 0)])),
+    quests.map((q, i) =>
+      Buffer.concat([
+        n(q.id),
+        Buffer.from([q.step]),
+        n(q.progress?.length || 0),
+        ...(q.progress || []).map((row) => {
+          const bytes = Buffer.alloc(9);
+          bytes.writeUInt8(row.type);
+          bytes.writeInt32LE(row.id, 1);
+          bytes.writeFloatLE(row.value, 5);
+          return bytes;
+        }),
+        n(i + 1),
+        n(q.finished || 0),
+      ]),
+    ),
   );
   return Buffer.concat([
     n(quests.length),
