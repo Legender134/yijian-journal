@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Normal foreground refresh, isolated synthetic saves, no injected refresh events.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -80,7 +81,7 @@ const errors = [],
     page = await app.firstWindow();
     page.on('pageerror', (e) => errors.push(e.message));
     await page.locator('.layout').waitFor();
-    await page.locator('.nav-btn[data-id="journey"]').click();
+    await openMainPage(page, 'journey');
     const result = await page.evaluate(() => window.journal.journeyPlan());
     assert.equal(result.ok, true, result.error);
     const action = result.data.actions.find((a) => a.questId === 'quest-14082');
@@ -102,7 +103,7 @@ const errors = [],
     );
     checks.push('关闭自动备份时，当前行程仍会自然读取新存档并投射任务完成');
     await page.screenshot({ path: path.join(results, 'natural-planning-journey.png') });
-    await page.locator('.nav-btn[data-id="home"]').click();
+    await openMainPage(page, 'home');
     await page.locator('.home-optional > summary').click();
     await page.locator('[data-action="recipe-discovery-open"]').first().click();
     await page.locator('[data-recipe-discovery-id="fusion-1000"]').waitFor();
@@ -148,7 +149,7 @@ const errors = [],
       return true;
     });
     assert(setup);
-    await page.locator('.nav-btn[data-id="home"]').click();
+    await openMainPage(page, 'home');
     await page.waitForFunction(
       () => document.querySelector('.home-journey')?.textContent.includes('真正待处理的个人事项'),
       null,
@@ -184,7 +185,7 @@ const errors = [],
     assert.match(await page.locator('.game-detail-title').innerText(), /纯钢剑/);
     await page.keyboard.press('Escape');
     checks.push('首页制作行动使用真实产物与品质，完整行程保留原配方、次数和产出提示，并能打开精确产物详情');
-    await page.locator('.nav-btn[data-id="home"]').click();
+    await openMainPage(page, 'home');
     checks.push('首页下一步优先显示尚需行动的制作与个人事项，已备齐材料留在完整行程统计，不占摘要三个位置');
     await page.screenshot({
       path: path.join(results, 'natural-planning-home-next.png'),

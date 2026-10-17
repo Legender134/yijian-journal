@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -286,7 +287,7 @@ async function capture(win, name) {
       'journey',
       'journal',
     ]) {
-      await page.locator(`.sidebar-nav [data-action="navigate"][data-id="${route}"]`).click();
+      await openMainPage(page, route);
       await page.waitForFunction(
         (id) => document.querySelector('.sidebar-nav [aria-current="page"]')?.dataset.id === id,
         route,

@@ -22,6 +22,7 @@ async function catalogueView() {
   const view = createGameViews({
     esc,
     icon: () => '',
+    iconButton: () => '',
     act: () => '',
     pill: esc,
     empty: esc,

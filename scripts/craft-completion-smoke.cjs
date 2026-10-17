@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Complete/reopen a real assistant plan; all save files and state are synthetic.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -87,7 +88,7 @@ const current = async () => {
   return response.state.profiles.find((p) => p.id === response.state.activeProfileId);
 };
 const readPlan = async () => (await current()).craftPlans.find((p) => p.id === b);
-const nav = (id) => page.locator(`.nav-btn[data-id="${id}"]`).click();
+const nav = (id) => openMainPage(page, id);
 async function until(fn, predicate, message) {
   const end = Date.now() + 12000;
   while (Date.now() < end) {

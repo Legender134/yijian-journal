@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Recoverable records in real main/compact windows. All data and saves are synthetic.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -91,7 +92,7 @@ async function until(predicate) {
   throw Error('记录操作未保存');
 }
 async function nav(id) {
-  await page.locator('.nav-btn[data-id="' + id + '"]').click();
+  await openMainPage(page, id);
 }
 async function remove(target, id, confirm = true) {
   if (!(await target.locator('.drawer-body[data-journal-id="' + id + '"]').count()))

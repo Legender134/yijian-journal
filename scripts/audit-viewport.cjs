@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -36,7 +37,7 @@ let app;
         'saves',
         'settings',
       ]) {
-        await win.locator(`.nav-btn[data-id="${page}"]`).click();
+        await openMainPage(win, page);
         const layout = await win.evaluate(() => {
           const box = (selector) => {
             const r = document.querySelector(selector).getBoundingClientRect();

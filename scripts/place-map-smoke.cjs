@@ -1,4 +1,5 @@
 'use strict';
+const { chooseCodexKind } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -49,7 +50,7 @@ delete env.ELECTRON_RUN_AS_NODE;
     await small.waitForSelector('.compact-shell');
     small.on('pageerror', (e) => errors.push(e.message));
     await small.locator('.companion-tabs [data-id="database"]').click();
-    await small.locator('[data-action="database-kind"][data-id="地点"]').click();
+    await chooseCodexKind(small, '地点');
     await small.locator('.place-map-frame').waitFor();
     assert.ok(
       (await small.locator('.place-map-frame').boundingBox()).height > 100,

@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
 // Synthetic-only user workflows. Never launches, attaches to, or commands the real game.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -59,7 +60,7 @@ async function broadcast() {
   );
 }
 async function route(id) {
-  await win.locator('.nav-btn[data-id="' + id + '"]').click();
+  await openMainPage(win, id);
 }
 async function close() {
   await win.keyboard.press('Escape');
@@ -273,7 +274,7 @@ async function shot(name) {
       }),
     );
     await route('database');
-    await win.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await chooseCodexKind(win, '人物');
     await win.locator('#list-search').fill(person.name);
     await win.locator('[data-action="database-detail"][data-id="' + person.id + '"]').click();
     await selectProgress(win, '2.sav');

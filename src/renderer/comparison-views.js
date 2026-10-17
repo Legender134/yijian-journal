@@ -89,24 +89,27 @@ export function createComparisonViews({
     return `<div class="compare-member-grid">${list(group.leftOnly, '仅在左侧')}${list(group.rightOnly, '仅在右侧')}</div>`;
   }
   function recipes(diff) {
-    return diff.recipes
-      .map(
-        (f) =>
-          `<div class="compare-recipe-family"><h3>${esc(f.name)}</h3>${
-            f.available
-              ? `<div class="compare-member-grid">${[
-                  ['仅在左侧', f.leftOnly],
-                  ['仅在右侧', f.rightOnly],
-                ]
-                  .map(
-                    ([label, list]) =>
-                      `<div class="compare-member-column"><small>${label}</small>${list.map((r) => (r.known ? act('database-detail', esc(r.name), 'text-btn', r.id) : `<span class="small">${esc(r.name)}</span>`)).join('') || '<p class="small muted">无</p>'}</div>`,
-                  )
-                  .join('')}</div>`
-              : '<p class="save-note">至少一份存档未读取到此类配方。</p>'
-          }</div>`,
-      )
-      .join('');
+    const changed = diff.recipes.filter((family) =>
+      !family.available || family.leftOnly.length || family.rightOnly.length,
+    );
+    const unchanged = diff.recipes.filter((family) => !changed.includes(family));
+    const render = (family) => {
+      if (!family.available)
+        return '<div class="compare-recipe-family"><h3>' + esc(family.name) + '</h3><p class="save-note">至少一份存档未读取到此类配方。</p></div>';
+      const sides = [['仅在左侧', family.leftOnly], ['仅在右侧', family.rightOnly]]
+        .filter(([, rows]) => rows.length);
+      return '<div class="compare-recipe-family"><h3>' + esc(family.name) + '</h3><div class="compare-member-grid">' +
+        sides.map(([label, rows]) => '<div class="compare-member-column"><small>' + label + '</small>' +
+          rows.map((row) => row.known
+            ? act('database-detail', esc(row.name), 'text-btn', row.id)
+            : '<span class="small">' + esc(row.name) + '</span>').join('') + '</div>').join('') +
+        '</div></div>';
+    };
+    if (!changed.length)
+      return '<p class="small muted">' + unchanged.map((family) => esc(family.name)).join('、') + '配方无变化。</p>';
+    return changed.map(render).join('') +
+      (unchanged.length ? '<details class="compare-recipe-unchanged"><summary>其他配方 · 无变化</summary><p class="small muted">' +
+        unchanged.map((family) => esc(family.name)).join('、') + '</p></details>' : '');
   }
 
   function changeSummary(diff) {

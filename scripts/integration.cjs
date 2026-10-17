@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Exercise the actual Electron IPC and dialog decisions against synthetic files.
 // Dialog stubs live only inside this test process; production code is unchanged.
 const { _electron: electron } = require(
@@ -168,7 +169,7 @@ async function firstBackupFlow() {
         return { canceled: true };
       };
     }, firstData);
-    await firstWin.locator('.nav-btn[data-id="saves"]').click();
+    await openMainPage(firstWin, 'saves');
     const beforeCancel = fs.readFileSync(path.join(firstData, 'journal.json'));
     await firstWin.locator('.page-header [data-action="backup"]').click();
     await firstWin.waitForFunction(() => !document.querySelector('.page-header [data-action="backup"]').disabled);
@@ -417,7 +418,7 @@ async function firstBackupFlow() {
     assert.equal((await ok('importJournal')).state.profiles[0].goals.length, 300);
     report.checks.push('5 MB+ multi-profile journal round-trips through real export/import IPC');
 
-    await win.locator('.nav-btn[data-id="goals"]').click();
+    await openMainPage(win, 'goals');
     assert.equal(await win.locator('.goal-row').count(), 300);
     await win.locator('.goal-row').last().locator('[data-action="goal-source"]').click();
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');

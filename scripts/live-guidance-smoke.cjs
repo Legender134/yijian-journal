@@ -1,4 +1,5 @@
 'use strict';
+const { chooseCodexKind } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -484,7 +485,7 @@ const pulse = () =>
       await surface.locator('#overlay [data-action="close-overlay"]').first().click();
       if (index) {
         await surface.locator('.companion-tabs [data-id="database"]').click();
-        await surface.locator('[data-action="database-kind"][data-id="地点"]').click();
+        await chooseCodexKind(surface, '地点');
       } else await surface.locator('.sidebar-nav [data-id="world"]').click();
       if (await surface.locator('[data-action="world-kind"][data-id="places"]').count())
         await surface.locator('[data-action="world-kind"][data-id="places"]').click();

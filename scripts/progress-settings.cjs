@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 const assert = require('node:assert/strict');
 
 async function progressValue(page) {
@@ -35,13 +36,13 @@ async function selectProgress(page, value, { reopen = true } = {}) {
   });
   const close = page.locator('#overlay [data-action="close-overlay"]');
   if (await close.count()) await close.first().click();
-  await page.locator('.nav-btn[data-id="settings"]').click();
+  await openMainPage(page, 'settings');
   await page.locator('[data-action="save-slot"]').click();
   await page.locator('#save-slot-select').selectOption(value || '@none');
   await page.locator('[data-action="save-slot-save"]').click();
   await page.locator('#save-slot-select').waitFor({ state: 'detached' });
   assert.equal(await progressValue(page), value === '@none' ? '' : value);
-  await page.locator(`.nav-btn[data-id="${reading.route}"]`).click();
+  await openMainPage(page, reading.route);
   for (const field of reading.fields) {
     const control = page.locator('#' + field.id);
     if (!(await control.count())) continue;

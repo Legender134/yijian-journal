@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Real source / exact packaged assistant UI, isolated synthetic saves only.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -107,7 +108,7 @@ async function until(fn, predicate, message) {
   }
   throw Error(message);
 }
-const nav = (id) => page.locator(`.nav-btn[data-id="${id}"]`).click();
+const nav = (id) => openMainPage(page, id);
 const row = (id) => page.locator(`[data-itinerary-step="${id}"]`);
 async function launch() {
   const env = { ...process.env, YIJIAN_TEST_DATA: userData };

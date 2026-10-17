@@ -4604,3 +4604,184 @@ kbd {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+
+/* A smaller main window should keep space for its actual page. */
+@media (max-width: 700px) {
+  .layout {
+    grid-template-columns: 128px minmax(0, 1fr);
+  }
+  .layout .sidebar {
+    padding: 16px 8px 12px;
+  }
+  .layout .brand {
+    padding: 0 6px 16px;
+  }
+  .layout .brand .app-mark {
+    display: none;
+  }
+  .layout .brand-name {
+    font-size: 18px;
+    letter-spacing: 0;
+  }
+  .layout .nav-btn {
+    gap: 8px;
+    padding: 9px 8px;
+    white-space: nowrap;
+  }
+  .layout .nav-btn > svg {
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+  }
+  .layout .profile-box {
+    gap: 6px;
+    padding: 10px 2px 0;
+  }
+  .layout .profile-box .avatar {
+    display: none;
+  }
+  .layout .topbar {
+    padding: 8px 12px;
+    min-height: 48px;
+  }
+  .layout .topbar > .row {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .layout .topbar .search-trigger {
+    font-size: 0;
+    gap: 0;
+    padding: 8px;
+  }
+  .layout .topbar .search-trigger kbd {
+    display: none;
+  }
+  .layout .content {
+    padding: 14px 12px 24px;
+  }
+  .layout .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .layout .page-header > div {
+    min-width: 0;
+  }
+  .layout .page-header > .row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .layout .page-header h1 {
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Keep global actions available above the page content. */
+.layout .topbar {
+  min-height: 48px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.layout .topbar > .row {
+  width: 100%;
+  justify-content: flex-end;
+}
+.layout .nav-more {
+  margin-top: 8px;
+}
+.layout .nav-more > summary {
+  padding: 9px 14px;
+  color: #c9d6cb;
+  cursor: pointer;
+}
+.layout .nav-more > summary:hover {
+  color: white;
+}
+.layout .nav-more[open] > summary {
+  margin-bottom: 4px;
+}
+
+/* Keep change counts compact so a small window can show actual differences. */
+.compare-change-summary > div {
+  background: transparent;
+  padding: 2px 0;
+  border-radius: 0;
+}
+.companion .compare-change-summary {
+  margin: 8px 0;
+  gap: 2px 12px;
+}
+.companion .compare-change-summary > div {
+  min-height: 0;
+  line-height: 1.5;
+}
+.compare-recipe-unchanged {
+  margin-top: 12px;
+}
+.compare-recipe-family .compare-member-grid:has(> .compare-member-column:only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Let a location hover card show its map before repeated identity artwork. */
+.entity-preview:has(.entity-preview-place) {
+  padding: 10px;
+}
+.entity-preview-place .place-map-preview {
+  margin: 0 0 6px;
+}
+.entity-preview-place .place-map-heading {
+  margin-bottom: 4px;
+}
+.entity-preview-place-heading {
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+
+.database-kind-picker {
+  display: none;
+}
+.database-search .icon-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 3px;
+}
+@media (max-width: 700px) {
+  .codex-browser > .page-header,
+  .companion .codex-browser > .page-header,
+  .codex-browser > .database-tabs {
+    display: none;
+  }
+  .codex-browser .database-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .codex-browser .database-search {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .codex-browser .database-toolbar select {
+    display: block;
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+  .companion .codex-browser .database-toolbar {
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .companion .codex-browser .database-toolbar select {
+    padding: 5px 8px;
+  }
+  .companion .codex-browser .database-search {
+    padding: 5px 8px;
+  }
+  .companion .codex-browser .codex-result-count {
+    margin-top: 4px;
+  }
+}

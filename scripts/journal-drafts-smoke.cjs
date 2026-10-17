@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -39,7 +40,7 @@ async function saved(title, body) {
   throw Error('draft did not persist: ' + title);
 }
 async function journal() {
-  await page.locator('.nav-btn[data-id="journal"]').click();
+  await openMainPage(page, 'journal');
 }
 async function write(title, body) {
   await page.locator('[data-action="journal-entry-new"]').click();

@@ -712,3 +712,32 @@
     line-height: 1.5;
   }
 }
+
+/* Let all four game-side routes stay on one line at minimum 150% scale. */
+@media (max-width: 320px) {
+  .companion-tabs {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .companion-tabs .text-btn {
+    white-space: nowrap;
+    gap: 3px;
+  }
+  .companion-tabs .text-btn > svg {
+    flex: 0 0 14px;
+    width: 14px;
+    height: 14px;
+  }
+  .companion .codex-browser .codex-result-count {
+    margin: 2px 0 4px;
+    line-height: 1.4;
+  }
+  .companion .codex-browser .codex-result {
+    padding: 8px 2px;
+    gap: 8px;
+  }
+  .companion .codex-browser .codex-result > .game-picture {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+  }
+}

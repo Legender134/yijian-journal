@@ -95,7 +95,10 @@ export function createGameViews({
     };
     return `<section class="codex-browser"><div class="page-header"><h1 class="serif">图鉴</h1></div>
       <div class="database-tabs" role="group" aria-label="图鉴种类">${categories.map((k) => `<button class="database-tab ${kind === k ? 'active' : ''}" data-action="database-kind" data-id="${k}" aria-pressed="${kind === k}">${icon(categoryIcon(k))}<strong>${k}</strong></button>`).join('')}</div>
-      <div class="toolbar"><label class="search-input database-search">${icon('search')}<input id="list-search" data-persist="list-search" value="${esc(query)}" placeholder="名称、人物、任务或效果" aria-label="搜索百物图鉴" maxlength="100"></label><select id="database-type" aria-label="图鉴分类"><option value="全部">全部分类</option>${types.map((t) => `<option value="${esc(t)}" ${t === type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>${query || type !== '全部' ? act('database-reset', '清除', 'text-btn', '', 'refresh') : ''}</div>
+      <div class="toolbar database-toolbar"><div class="search-input database-search">
+        ${icon('search')}<input id="list-search" data-persist="list-search" value="${esc(query)}" placeholder="名称、人物、任务或效果" aria-label="搜索百物图鉴" maxlength="100">
+        ${query || type !== '全部' ? iconButton('database-reset', 'close', '清除筛选') : ''}
+      </div><select id="database-kind-picker" class="database-kind-picker" aria-label="图鉴种类">${categories.map((k) => `<option value="${esc(k)}"${kind === k ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select><select id="database-type" aria-label="图鉴分类"><option value="全部">全部分类</option>${types.map((t) => `<option value="${esc(t)}" ${t === type ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
       ${searchError ? notice(searchError, true) : ''}${kind === '地点' && !query.trim() ? placeMap(index, '', { scope: 'world' }) : ''}
       <div class="codex-result-count" role="status">${filtered.length} 项</div>${
         filtered.length

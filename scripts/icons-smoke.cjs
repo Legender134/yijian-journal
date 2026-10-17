@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -48,7 +49,7 @@ async function launch() {
     BrowserWindow.getAllWindows()[0].webContents.setBackgroundThrottling(false),
   );
 }
-const nav = (name) => win.locator(`.nav-btn[data-id="${name}"]`).click();
+const nav = (name) => openMainPage(win, name);
 async function loaded(selector) {
   await win.locator(selector).first().waitFor();
   // Off-screen cards are intentionally lazy; eagerly load them in this check.
@@ -128,11 +129,11 @@ async function shot(name) {
     await loaded('.game-detail-title .game-image');
     assert.equal(await win.locator('.game-detail-title h1').innerText(), '白光剑');
     await win.keyboard.press('Escape');
-    await win.locator('[data-action="database-kind"][data-id="武学"]').click();
+    await chooseCodexKind(win, '武学');
     await win.locator('#list-search').fill('');
     await loaded('.database-card .game-image');
     await shot('21-skill-pictures');
-    await win.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await chooseCodexKind(win, '人物');
     await win.locator('#list-search').fill('卫霍');
     await loaded('.database-card .game-image');
     await win.locator('.database-card[data-id="npc-10047"]').click();
@@ -182,7 +183,7 @@ async function shot(name) {
     await win.keyboard.press('Escape');
     report.checks.push('saved inventory, guide portraits and global search retain text and display artwork');
     await nav('database');
-    await win.locator('[data-action="database-kind"][data-id="物品"]').click();
+    await chooseCodexKind(win, '物品');
     await win.locator('#list-search').fill('四品武器图册');
     assert.equal(await win.locator('.database-card .image-unavailable').count(), 1);
     await win.locator('#list-search').fill('白光剑');

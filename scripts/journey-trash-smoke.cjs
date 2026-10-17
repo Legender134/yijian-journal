@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Single personal-arrangement recovery in real windows; synthetic journal/saves only.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -131,7 +132,7 @@ async function until(predicate) {
   throw Error('个人安排操作未完成');
 }
 async function nav(route) {
-  await page.locator('.nav-btn[data-id="' + route + '"]').click();
+  await openMainPage(page, route);
 }
 async function editor(kind, target = page) {
   const selector =

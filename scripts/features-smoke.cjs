@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -79,7 +80,7 @@ async function launch() {
   await win.locator('.layout').waitFor();
   await win.emulateMedia({ reducedMotion: 'reduce' });
 }
-const nav = async (route) => win.locator(`.nav-btn[data-id="${route}"]`).click();
+const nav = async (route) => openMainPage(win, route);
 const state = async () => (await win.evaluate(() => window.journal.bootstrap())).data.state;
 const close = async () => win.keyboard.press('Escape');
 const shot = async (name) => {
@@ -159,7 +160,7 @@ const shot = async (name) => {
       'unrecorded quests remain unknown; material inventory, item navigation and source-qualified scene relations',
     );
     await nav('database');
-    await win.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await chooseCodexKind(win, '人物');
     await win.locator('#list-search').fill('卫霍');
     await shot('codex-main-list');
     await win.locator('.database-card[data-id="npc-10047"]').click();
@@ -471,7 +472,7 @@ const shot = async (name) => {
       await small.locator('.database-card[data-action="world-quest"]').count(),
       Math.min(activeCount, 24),
     );
-    await small.locator('[data-action="database-kind"][data-id="任务"]').click();
+    await chooseCodexKind(small, '任务');
     await small.locator('#list-search').fill('养生秘术');
     await small.locator('.database-card[data-id="quest-11077"]').click();
     await small.locator('.codex-outcomes > summary').click();
@@ -482,7 +483,7 @@ const shot = async (name) => {
     await small.locator('.item-quest-sources [data-id="quest-11078"]').click();
     await small.locator('.drawer h1').filter({ hasText: '收集药材' }).waitFor();
     await small.locator('.drawer [data-action="close-overlay"]').click();
-    await small.locator('[data-action="database-kind"][data-id="武学"]').click();
+    await chooseCodexKind(small, '武学');
     await small.locator('#list-search').fill('两仪连华剑');
     await small.locator('.database-card[data-id="skill-101"]').click();
     await small.locator('.skill-consult > summary').click();
@@ -492,16 +493,13 @@ const shot = async (name) => {
     await small.locator('.skill-teachers [data-action="database-detail"]').first().click();
     await small.locator('[data-npc-progress]').waitFor();
     await small.locator('.drawer [data-action="close-overlay"]').click();
-    await small.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await chooseCodexKind(small, '人物');
     await small.locator('#list-search').fill('卫霍');
     await small.locator('.database-card[data-id="npc-10047"]').click();
     await small.locator('[data-action="database-gifts"]').click();
     await small.locator('.codex-browser').waitFor();
-    assert.equal(
-      await small.locator('[data-action="database-kind"][data-id="物品"]').getAttribute('aria-pressed'),
-      'true',
-    );
-    await small.locator('[data-action="database-kind"][data-id="地点"]').click();
+    assert.equal(await small.locator('#database-kind-picker').inputValue(), '物品');
+    await chooseCodexKind(small, '地点');
     await small.locator('#database-type').selectOption('全部');
     await small.locator('#list-search').fill('');
     await small.locator('.codex-browser .place-map-frame').waitFor();

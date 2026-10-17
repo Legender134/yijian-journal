@@ -3393,7 +3393,7 @@ function compactPage() {
       )
       .join('') || '<p class="small muted">在图鉴或完整手札中添加目标，游玩时会优先提示置顶目标。</p>'
   }${!companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${companionViews.materials(companionData)}<h3 class="companion-section">${esc(stageTitle())}</h3><p class="small muted">手动阶段的精选清单</p>${list.map(checkRow).join('')}${profile().notes ? `<details class="compact-note" data-compact-detail="note"><summary>江湖随手记</summary><p class="preserve-text">${esc(profile().notes)}</p></details>` : ''}</details>`;
-  return companionViews.frame(body, `<span data-save-health>${healthAlert()}</span>`);
+  return companionViews.frame(body, healthAlert());
 }
 async function showEntityChoice(id, flowReference = null, opener = null, restored = null) {
   const rows = entityReferences.choices(id);
@@ -3784,7 +3784,7 @@ function render(preserve = false, navigationId = null) {
   }
   const sidebarScroll = root.querySelector('.sidebar-nav')?.scrollTop || 0;
   replaceRoot(
-    `<div class="layout"><aside class="sidebar"><div class="brand"><img class="app-mark" src="../assets/icon-48.png" alt=""><div><div class="brand-name">逸剑手札</div><div class="brand-sub">《逸剑风云决》流程助手</div></div></div><nav class="sidebar-nav" aria-label="手札页面">${navigationView({ route, headings, icon, goalCount: profile().goals.filter((g) => !goalDone(g)).length })}</nav><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong></div>${iconButton('profiles', 'person', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑手札 · 流程助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="breadcrumb">我的江湖 ${icon('chevron')}<b>${headings[route]}</b></div><div class="row"><span data-save-health>${healthAlert()}</span><span data-update-badge>${appUpdateViews.badge(environment.updates)}</span><button id="global-search-trigger" class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${act('compact', '打开随行', 'btn soft', '', 'pin')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, duels: duelsPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`,
+    `<div class="layout"><aside class="sidebar"><div class="brand"><img class="app-mark" src="../assets/icon.svg" alt=""><div><div class="brand-name">逸剑手札</div></div></div><nav class="sidebar-nav" aria-label="手札页面">${navigationView({ route, headings, icon, goalCount: profile().goals.filter((g) => !goalDone(g)).length })}</nav><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong></div>${iconButton('profiles', 'person', '管理周目')}</div></aside><div class="workspace"><div class="titlebar"><span class="window-name">逸剑手札 · 流程助手</span><span class="spacer"></span><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></div><header class="topbar"><div class="row"><span data-save-health>${healthAlert()}</span><span data-update-badge>${appUpdateViews.badge(environment.updates)}</span><button id="global-search-trigger" class="search-trigger" data-action="search">${icon('search')}找一个人，一件事<kbd>Ctrl K</kbd></button>${act('compact', '打开随行', 'btn soft', '', 'pin')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, duels: duelsPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`,
   );
   root.querySelector('.sidebar-nav').scrollTop = sidebarScroll;
   if (availableIntentDrafts().length && !['home', 'journey'].includes(route))
@@ -8343,6 +8343,10 @@ document.addEventListener('compositionend', (event) => {
   render(true);
 });
 document.addEventListener('change', async (event) => {
+  if (event.target.id === 'database-kind-picker') {
+    await handle('database-kind', event.target.value, event.target);
+    return;
+  }
   if (event.target.closest('.personal-intent-editor')) captureIntentEditor(activeIntentEditor);
   if (event.target.hasAttribute('data-itinerary-draft')) {
     itineraryFormDrafts.set(itineraryDraftKey(event.target.id), event.target.value);

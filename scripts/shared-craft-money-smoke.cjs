@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Electron UI regression; all saves and application state are synthetic.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -81,7 +82,7 @@ const current = async () => {
   const state = (await api('bootstrap')).state;
   return state.profiles.find((p) => p.id === state.activeProfileId);
 };
-const nav = (id) => page.locator(`.nav-btn[data-id="${id}"]`).click();
+const nav = (id) => openMainPage(page, id);
 async function calculate(name) {
   if (name !== undefined) await selectProgress(page, name);
   await page.locator('[data-action="craft-calculate"]').click();

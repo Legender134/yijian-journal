@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Real Electron UI regression. Every save and machine below is synthetic and isolated.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -156,7 +157,7 @@ async function close() {
   active = undefined;
 }
 async function nav(id) {
-  await active.page.locator('.nav-btn[data-id="' + id + '"]').click();
+  await openMainPage(active.page, id);
 }
 async function saveDialog(file) {
   await active.app.evaluate(({ dialog }, target) => {

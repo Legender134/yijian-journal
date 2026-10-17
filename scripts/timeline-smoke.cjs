@@ -1,4 +1,5 @@
 'use strict';
+const { chooseCodexKind } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -126,7 +127,7 @@ let app;
     }
     await win.locator('#list-search').fill('白光剑');
     await win.screenshot({ path: path.join(base, 'test-results', 'quality-colored-items.png') });
-    await win.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await chooseCodexKind(win, '人物');
     await win.locator('#list-search').fill('卫霍');
     assert.equal(await win.locator('.database-card .codex-result-copy > strong .quality-text').count(), 0);
     assert.equal(sha(fs.readFileSync(path.join(source, '29.sav'))), before);

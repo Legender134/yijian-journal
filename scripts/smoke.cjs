@@ -1,8 +1,10 @@
 'use strict';
+const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
 const { _electron: electron } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
+const { createHash } = require('node:crypto');
 const { Store } = require('../src/core/store.cjs');
 const { Timeline } = require('../src/core/timeline.cjs');
 const catalog = require('../src/data/catalog.cjs');
@@ -74,23 +76,54 @@ async function attach() {
   await win.waitForSelector('.layout');
   return win;
 }
+async function captureNative(page, { path: file }) {
+  const native = await app.browserWindow(page);
+  try {
+    // Read the actual Electron surface. Chromium page screenshots can stall
+    // after native focus changes and crop fractional-zoom windows incorrectly.
+    await native.evaluate((win) => {
+      win.show();
+      win.focus();
+    });
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+    await page.evaluate(() =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter(
+            (animation) =>
+              animation.playState === 'running' &&
+              Number.isFinite(animation.effect?.getComputedTiming().endTime),
+          )
+          .map((animation) => animation.finished.catch(() => {})),
+      ),
+    );
+    const png = await native.evaluate(async (win) =>
+      (await win.webContents.capturePage()).toPNG().toString('base64'),
+    );
+    assert(png.length > 0, 'Native screenshot must contain image data');
+    fs.writeFileSync(file, Buffer.from(png, 'base64'));
+  } finally {
+    await native.dispose();
+  }
+}
 async function revealAncestors(trigger) {
-  await trigger.evaluate((node) => {
-    for (let parent = node.parentElement; parent; parent = parent.parentElement) {
-      if (parent.tagName === 'DETAILS') parent.open = true;
-    }
-  });
+  await trigger.waitFor({ state: 'attached' });
+  const ancestors = trigger.locator('xpath=ancestor::details');
+  for (let i = 0; i < (await ancestors.count()); i++) {
+    const detail = ancestors.nth(i);
+    if (!(await detail.evaluate((node) => node.open))) await detail.locator(':scope > summary').click();
+  }
 }
 async function navigatePage(page, route) {
-  const compact = (await page.locator('.compact-shell').count()) > 0;
-  await page
-    .locator(
-      compact
-        ? `.companion-tabs [data-action="navigate"][data-id="${route}"]`
-        : `.nav-btn[data-id="${route}"]`,
-    )
-    .click();
+  if (await page.locator('.compact-shell').count())
+    await page.locator(`.companion-tabs [data-action="navigate"][data-id="${route}"]`).click();
+  else await openMainPage(page, route);
 }
+
 async function openProgressSettings(page) {
   const close = page.locator('#overlay [data-action="close-overlay"]');
   if (await close.count()) await close.first().click();
@@ -134,7 +167,6 @@ async function refreshProgress(page, returnRoute = 'home') {
   await navigatePage(page, returnRoute);
 }
 async function entityPreview(page, trigger, expected, name, throughRefresh = false) {
-  await revealAncestors(trigger);
   const native = await app.browserWindow(page);
   await native.evaluate((win) => {
     win.show();
@@ -143,11 +175,12 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
   await native.dispose();
   await page.bringToFront();
   await page.waitForFunction(() => document.hasFocus());
+  await revealAncestors(trigger);
   // Start outside the entry so a native focus change cannot leave the pointer
   // stationary over an already dismissed tooltip trigger.
   await page.mouse.move(2, 2);
-  // Keyboard focus keeps the preview intentional if the user's desktop pointer
-  // moves during the polling check. Hover and transfer are checked below too.
+  // Keep the pointer outside the body while checking keyboard reading through
+  // polling. Actual hover and pointer transfer are checked separately below.
   if (throughRefresh) await trigger.focus();
   const preview = page.locator('#entity-preview');
   const hoverEntry = async () => {
@@ -169,7 +202,13 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
       }
     }
   };
-  await hoverEntry();
+  if (throughRefresh) {
+    await page.waitForFunction(
+      (node) => node.isConnected && node.getAttribute('aria-describedby') === 'entity-preview',
+      await trigger.elementHandle(),
+    );
+    await preview.waitFor({ state: 'visible' });
+  } else await hoverEntry();
   const previewText = await preview.innerText();
   assert.match(previewText, expected);
   assert.doesNotMatch(previewText, /\.sav\b|SHA-256|\bBuild \d+|(?:物品|任务|人物|场景)编号/);
@@ -253,13 +292,13 @@ async function entityPreview(page, trigger, expected, name, throughRefresh = fal
         })),
       }),
     );
-    await page.screenshot({
+    await captureNative(page, {
       animations: 'disabled',
       path: path.join(results, name + '-transfer-failure.png'),
     });
     throw error;
   }
-  await page.screenshot({ animations: 'disabled', path: path.join(results, name + '.png') });
+  await captureNative(page, { animations: 'disabled', path: path.join(results, name + '.png') });
   // Capture can yield to native window events; send Esc only to a visible preview.
   await hoverEntry();
   await preview.waitFor({ state: 'visible' });
@@ -303,7 +342,10 @@ async function taskMaterialReturn(page, title, screenshot) {
   await page.locator('#entity-preview').waitFor({ state: 'visible' });
   assert.equal(await person.getAttribute('aria-describedby'), 'entity-preview');
   assert.match(await page.locator('#entity-preview').innerText(), /张樵夫/);
-  await page.screenshot({ animations: 'disabled', path: path.join(results, screenshot + '-keyboard.png') });
+  await captureNative(page, {
+    animations: 'disabled',
+    path: path.join(results, screenshot + '-keyboard.png'),
+  });
   await page.keyboard.press('Escape');
   await page.locator('.drawer-body').evaluate((el) => (el.scrollTop += 10));
   await page.waitForTimeout(300);
@@ -347,7 +389,7 @@ async function taskMaterialReturn(page, title, screenshot) {
   assert.equal(await material.evaluate((el) => document.activeElement === el), true);
   await page.waitForTimeout(300);
   assert.equal(await page.locator('#entity-preview').isVisible(), false);
-  await page.screenshot({ animations: 'disabled', path: path.join(results, screenshot + '.png') });
+  await captureNative(page, { animations: 'disabled', path: path.join(results, screenshot + '.png') });
   await page.locator('[data-action="close-overlay"]').click();
 }
 async function referenceFocusContinuity(page, trigger, surface) {
@@ -383,7 +425,7 @@ async function referenceFocusContinuity(page, trigger, surface) {
   assert.equal(await trigger.evaluate((el) => document.activeElement === el), true);
   assert.equal(await body.evaluate((el) => el.scrollTop), scroll);
   assert.equal(await page.locator('#entity-preview').isVisible(), false);
-  await page.screenshot({
+  await captureNative(page, {
     animations: 'disabled',
     path: path.join(results, '01-' + surface + '-reference-focus-update.png'),
   });
@@ -397,7 +439,7 @@ async function privateItemConnections(page, surface) {
     assert.match(await result.innerText(), /莫弃/);
     assert.doesNotMatch(await result.innerText(), new RegExp('#' + id));
   }
-  await page.screenshot({
+  await captureNative(page, {
     animations: 'disabled',
     path: path.join(results, '01-' + surface + '-same-name-search.png'),
   });
@@ -418,7 +460,7 @@ async function privateItemConnections(page, surface) {
   await holders.locator(':scope > summary').click();
   const qin = holders.locator('[data-id="npc-10023"]');
   await qin.scrollIntoViewIfNeeded();
-  await page.screenshot({
+  await captureNative(page, {
     animations: 'disabled',
     path: path.join(results, '01-' + surface + '-private-holders.png'),
   });
@@ -430,7 +472,7 @@ async function privateItemConnections(page, surface) {
   assert.equal(await fixed.evaluate((el) => el.open), true);
   assert(Math.abs((await page.locator('.drawer-body').evaluate((el) => el.scrollTop)) - before) <= 1);
   assert.equal(await formula.evaluate((el) => document.activeElement === el), true);
-  await page.screenshot({
+  await captureNative(page, {
     animations: 'disabled',
     path: path.join(results, '01-' + surface + '-private-back.png'),
   });
@@ -498,7 +540,7 @@ async function companionReferenceSync(page) {
     await page.locator('[data-action="drawer-back"]').click();
     await preview(12);
     assert.match(await page.locator('[data-task-relations]').innerText(), /采矿.*需 4 件 进行中/s);
-    await page.screenshot({
+    await captureNative(page, {
       animations: 'disabled',
       path: path.join(results, '01-companion-reference-synchronized.png'),
     });
@@ -541,7 +583,10 @@ async function guideAndSearchHandoff(main, compact) {
       .evaluate((el) => el.open),
   );
   assert((await main.locator('.drawer-body').evaluate((el) => el.scrollTop)) > 0);
-  await main.screenshot({ animations: 'disabled', path: path.join(results, '01-guide-history-handoff.png') });
+  await captureNative(main, {
+    animations: 'disabled',
+    path: path.join(results, '01-guide-history-handoff.png'),
+  });
   await main.locator('[data-action="close-overlay"]').click();
   await app.evaluate(({ BrowserWindow }, bounds) => {
     BrowserWindow.getAllWindows()
@@ -573,7 +618,7 @@ async function guideAndSearchHandoff(main, compact) {
   await compact.locator('.search-modal [data-action="main"]').click();
   await main.locator('[data-action="search-personal-short"]').waitFor();
   assert.equal(await main.locator('.search-result[data-action="search-goal"]').count(), 9);
-  await main.screenshot({
+  await captureNative(main, {
     animations: 'disabled',
     path: path.join(results, '01-all-personal-search-handoff.png'),
   });
@@ -630,11 +675,12 @@ async function companionHomeInventorySync(page) {
       );
       assert.match(await material.innerText(), /后山山洞.*铁匠/);
       assert.match(await page.locator('.flow-choice-location').first().textContent(), /梧桐村.*樵夫.*铁匠/);
+      await page.mouse.move(2, 2);
       await item.focus();
       await preview.waitFor({ state: 'visible' });
       assert.match(await preview.innerText(), new RegExp('保存持有 ' + count));
       assert.equal(await page.locator('.drawer').count(), 0, 'home preview sync needs no detail navigation');
-      await page.screenshot({
+      await captureNative(page, {
         animations: 'disabled',
         path: path.join(results, '01-companion-home-inventory-' + count + '.png'),
       });
@@ -750,7 +796,7 @@ async function companionHomeInventorySync(page) {
         .evaluate((el) => el.open),
       true,
     );
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '01-home.png') });
+    await captureNative(win, { animations: 'disabled', path: path.join(results, '01-home.png') });
     await entityPreview(
       win,
       win.locator('[data-flow] [data-id="npc-5003"]').first(),
@@ -862,7 +908,7 @@ async function companionHomeInventorySync(page) {
       ),
       taskMaterialText,
     );
-    await win.screenshot({
+    await captureNative(win, {
       animations: 'disabled',
       path: path.join(results, '01-task-materials-handoff.png'),
     });
@@ -897,7 +943,10 @@ async function companionHomeInventorySync(page) {
       targetDuelPosition.top < targetDuelPosition.viewport && targetDuelPosition.bottom > 0,
       JSON.stringify(targetDuelPosition),
     );
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '01-duel-reading-handoff.png') });
+    await captureNative(win, {
+      animations: 'disabled',
+      path: path.join(results, '01-duel-reading-handoff.png'),
+    });
     await win.locator('[data-action="compact"]').first().click();
     assert.equal(await sourceDuel.evaluate((el) => el.open), true);
     await choiceCompact.locator('.companion-tabs [data-id="home"]').click();
@@ -922,7 +971,7 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="drawer-back"]').click();
     await win.locator('[aria-label="选择同名资料"]').waitFor();
     assert.equal(await win.locator('.entity-relation-row').count(), 3);
-    await win.screenshot({
+    await captureNative(win, {
       animations: 'disabled',
       path: path.join(results, '01-same-name-history-handoff.png'),
     });
@@ -946,7 +995,10 @@ async function companionHomeInventorySync(page) {
       .waitFor();
     await choiceCompact.locator('.drawer [data-action="main"]').click();
     await win.locator('.person-gifts .history-pagination').getByText('共 69 种 · 第 3 / 3 页').waitFor();
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '01-gift-page-handoff.png') });
+    await captureNative(win, {
+      animations: 'disabled',
+      path: path.join(results, '01-gift-page-handoff.png'),
+    });
     await win.locator('[data-action="close-overlay"]').first().click();
     await win.locator('[data-action="compact"]').first().click();
     await choiceCompact.locator('[data-action="close-overlay"]').first().click();
@@ -1097,7 +1149,7 @@ async function companionHomeInventorySync(page) {
     await sameAlternatives.waitFor();
     assert.equal(await sameAlternatives.evaluate((el) => el.open), true);
     assert.equal(await sameAlternatives.locator('[data-action="database-detail"]').count(), 5);
-    await choiceCompact.screenshot({
+    await captureNative(choiceCompact, {
       animations: 'disabled',
       path: path.join(results, '01-companion-material-alternatives.png'),
     });
@@ -1181,14 +1233,14 @@ async function companionHomeInventorySync(page) {
       assert(density.cardHeight < 220, JSON.stringify({ width, ...density }));
       assert(density.riskBottom < density.bodyBottom, JSON.stringify({ width, ...density }));
       assert.equal(density.overflow, false);
-      await choiceCompact.screenshot({
+      await captureNative(choiceCompact, {
         animations: 'disabled',
         path: path.join(results, `01-compact-width-${width}.png`),
       });
     }
     await compactNative.evaluate((win, bounds) => win.setBounds(bounds), compactBounds);
     await compactNative.dispose();
-    await choiceCompact.screenshot({
+    await captureNative(choiceCompact, {
       animations: 'disabled',
       path: path.join(results, '01-compact-first-screen.png'),
     });
@@ -1202,7 +1254,7 @@ async function companionHomeInventorySync(page) {
     await choiceCompact.locator('.compact-body').evaluate((el) => {
       el.scrollTop = 0;
     });
-    await choiceCompact.screenshot({
+    await captureNative(choiceCompact, {
       animations: 'disabled',
       path: path.join(results, '01-compact-current-choice.png'),
     });
@@ -1285,7 +1337,7 @@ async function companionHomeInventorySync(page) {
       assert((await choiceCompact.locator('.compact-body').evaluate((body) => body.scrollTop)) > 0);
     await choiceCompact.locator('.companion-tabs [data-action="navigate"][data-id="duels"]').click();
     assert.equal(await choiceCompact.locator('.compact-body').evaluate((body) => body.scrollTop), 0);
-    await choiceCompact.screenshot({
+    await captureNative(choiceCompact, {
       animations: 'disabled',
       path: path.join(results, '01-compact-duels.png'),
     });
@@ -1357,7 +1409,7 @@ async function companionHomeInventorySync(page) {
     await baiReward.focus();
     await choiceCompact.locator('#entity-preview').waitFor({ state: 'visible' });
     assert.equal(await baiReward.getAttribute('aria-describedby'), 'entity-preview');
-    await choiceCompact.screenshot({
+    await captureNative(choiceCompact, {
       animations: 'disabled',
       path: path.join(results, '01-compact-duel-reward-preview.png'),
     });
@@ -1456,16 +1508,16 @@ async function companionHomeInventorySync(page) {
         { id: scenario.anchor, step: scenario.anchorStep },
         ...(scenario.main ? [{ id: scenario.main, step: 1 }] : []),
       ];
-      const writeChoice = (quests) =>
-        fs.writeFileSync(
-          path.join(fakeSaves, '2.sav'),
-          syntheticSave({
-            full: true,
-            trackingMainQuest: scenario.main || scenario.root,
-            trackingQuest: scenario.anchor,
-            quests,
-          }),
-        );
+      const writeChoice = (quests) => {
+        const bytes = syntheticSave({
+          full: true,
+          trackingMainQuest: scenario.main || scenario.root,
+          trackingQuest: scenario.anchor,
+          quests,
+        });
+        fs.writeFileSync(path.join(fakeSaves, '2.sav'), bytes);
+        return createHash('sha256').update(bytes).digest('hex');
+      };
       writeChoice(records);
       const card = choiceCompact.locator(`[data-flow-decision="${scenario.id}"]`);
       await card.waitFor({ timeout: 18000 });
@@ -1482,7 +1534,7 @@ async function companionHomeInventorySync(page) {
       }));
       assert.equal(position.folded, false);
       assert(position.bottom <= position.height, scenario.id + ' recommendation stays on the first screen');
-      await choiceCompact.screenshot({
+      await captureNative(choiceCompact, {
         animations: 'disabled',
         path: path.join(results, `01-${scenario.id}.png`),
       });
@@ -1520,14 +1572,25 @@ async function companionHomeInventorySync(page) {
           Math.abs((await choiceCompact.locator('.drawer-body').evaluate((el) => el.scrollTop)) - scroll) <=
             1,
         );
-        await choiceCompact.screenshot({
+        await captureNative(choiceCompact, {
           animations: 'disabled',
           path: path.join(results, '01-codex-advice-back.png'),
         });
         await choiceCompact.locator('[data-action="close-overlay"]').click();
       }
-      writeChoice([...records, { id: scenario.exit, step: scenario.exitStep }]);
+      const exitHash = writeChoice([...records, { id: scenario.exit, step: scenario.exitStep }]);
       await card.waitFor({ state: 'detached', timeout: 18000 });
+      // A settling snapshot also removes a choice. Confirm that the same reader
+      // used by the companion accepts the exact exit bytes before writing again.
+      // This only reads; it does not refresh or inject state into the renderer.
+      await choiceCompact.waitForFunction(
+        async (expected) => {
+          const result = await window.journal.companionSnapshot();
+          return result.ok && result.data.flow?.available && result.data.flow.reference?.hash === expected;
+        },
+        exitHash,
+        { timeout: 18000, polling: 1000 },
+      );
       assert.equal(await choiceCompact.locator(`[data-flow-warning="${scenario.id}"]`).count(), 0);
     }
     for (const main of [20000, 5980]) {
@@ -1569,7 +1632,7 @@ async function companionHomeInventorySync(page) {
       await choiceCompact.locator('.compact-body').evaluate((el) => {
         el.scrollTop = 0;
       });
-      await choiceCompact.screenshot({
+      await captureNative(choiceCompact, {
         animations: 'disabled',
         path: path.join(results, `01-stage-${main}-risk-summary.png`),
       });
@@ -1651,7 +1714,7 @@ async function companionHomeInventorySync(page) {
       .evaluateAll((rows) => rows.forEach((row) => (row.open = true)));
     assert.match(await rosterWarning.innerText(), /v1\.23\.24.*不能保证当前版本/s);
     assert.match(await rosterWarning.innerText(), /商葶苧.*叶飞.*冷无情/s);
-    await win.screenshot({
+    await captureNative(win, {
       animations: 'disabled',
       path: path.join(results, '01-late-roster-preparation.png'),
     });
@@ -1741,7 +1804,7 @@ async function companionHomeInventorySync(page) {
     await win.locator('#goal-title').fill('测试目标 <script>你好</script>');
     await win.locator('#goal-detail').fill('目标说明 & 特殊字符');
     await win.locator('[data-action="goal-save"]').click();
-    await win.locator('.nav-btn[data-id="checklist"]').click();
+    await openMainPage(win, 'checklist');
     const medicineConditions = win.locator('[data-flow-rule="conditions-13408"] .flow-conditions');
     await revealAncestors(medicineConditions);
     assert.match(await medicineConditions.innerText(), /已满足/);
@@ -1759,7 +1822,7 @@ async function companionHomeInventorySync(page) {
     await win.locator('#stage-select').waitFor();
     await win.keyboard.press('Escape');
     await win.locator('[data-action="check"]').first().click();
-    await win.locator('.nav-btn[data-id="library"]').click();
+    await openMainPage(win, 'library');
     await win.locator('#list-search').fill('上官虹');
     await win.locator('.entry-card [data-action="detail"]').first().click();
     assert.equal(await win.locator('.spoiler-box').count(), 1);
@@ -1767,20 +1830,20 @@ async function companionHomeInventorySync(page) {
     assert.ok((await win.locator('.steps li').count()) > 0);
     await win.locator('.drawer-actions [data-action="favorite"]').click();
     await win.waitForTimeout(250);
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '02-detail.png') });
+    await captureNative(win, { animations: 'disabled', path: path.join(results, '02-detail.png') });
     await win.locator('[data-action="close-overlay"]').click();
-    await win.locator('.nav-btn[data-id="goals"]').click();
+    await openMainPage(win, 'goals');
     await win.locator('[data-action="entry-goal"]').first().click();
-    await win.locator('.nav-btn[data-id="database"]').click();
-    await win.locator('[data-action="database-kind"][data-id="配方"]').click();
+    await openMainPage(win, 'database');
+    await chooseCodexKind(win, '配方');
     await win.locator('#list-search').fill('清灵丹');
-    await win.locator('[data-action="database-kind"][data-id="武学"]').click();
+    await chooseCodexKind(win, '武学');
     assert.equal(await win.locator('.database-card').count(), 0);
     await win.locator('[data-action="database-reset"]').click();
     assert.equal(await win.locator('#list-search').inputValue(), '');
     assert.equal(await win.locator('#list-search').evaluate((e) => e === document.activeElement), true);
     assert.ok(await win.locator('.database-card').count());
-    await win.locator('[data-action="database-kind"][data-id="物品"]').click();
+    await chooseCodexKind(win, '物品');
     await win.locator('#list-search').fill('腾空剑');
     const swordCard = win.locator('.database-card[data-id="item-1029"]');
     assert.match(await swordCard.locator('.database-numeric').innerText(), /攻击力.*637\.89.*暴击率.*15%/);
@@ -1788,7 +1851,7 @@ async function companionHomeInventorySync(page) {
     const swordStats = win.locator('[data-item-statistics]');
     assert.match(await swordStats.innerText(), /装备基础数值.*637\.89.*15%/s);
     assert.equal(await swordStats.locator('.item-random-stats').evaluate((el) => el.open), false);
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '10-item-base-stats.png') });
+    await captureNative(win, { animations: 'disabled', path: path.join(results, '10-item-base-stats.png') });
     await swordStats.locator('.item-random-stats > summary').click();
     assert.match(await swordStats.locator('.item-random-stats').innerText(), /172.*4\.5%/s);
     await win.locator('[data-action="close-overlay"]').click();
@@ -1804,7 +1867,10 @@ async function companionHomeInventorySync(page) {
       await boneConditions.locator('[data-action="database-detail"][data-id="item-10486"]').count(),
       1,
     );
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '10-item-use-conditions.png') });
+    await captureNative(win, {
+      animations: 'disabled',
+      path: path.join(results, '10-item-use-conditions.png'),
+    });
     await boneConditions.locator('[data-id="item-10486"]').click();
     assert.match(await win.locator('.drawer .game-detail-title h1').innerText(), /惔神秘鉴/);
     await win.locator('[data-action="close-overlay"]').click();
@@ -1824,11 +1890,11 @@ async function companionHomeInventorySync(page) {
     await win.locator('.shop-stock summary').click();
     await win.locator('.shop-stock [data-id="item-100304"]').click();
     assert.ok((await win.locator('.item-teaches').innerText()).includes('下品清灵丹'));
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '10-recipe-learning.png') });
+    await captureNative(win, { animations: 'disabled', path: path.join(results, '10-recipe-learning.png') });
     await win.locator('[data-action="close-overlay"]').click();
     await win.waitForTimeout(300);
     assert.equal(await win.locator('#entity-preview').isVisible(), false);
-    await win.locator('[data-action="database-kind"][data-id="配方"]').click();
+    await chooseCodexKind(win, '配方');
     await win.locator('#list-search').fill('长虹剑精良图纸');
     await win.locator('.database-card').click();
     await win.locator('#recipe-quantity').fill('3');
@@ -1841,7 +1907,7 @@ async function companionHomeInventorySync(page) {
     await assertSharedProgressUi(win);
     await win.locator('[data-action="recipe-goal"]').click();
     await win.waitForTimeout(250);
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '07-recipe.png') });
+    await captureNative(win, { animations: 'disabled', path: path.join(results, '07-recipe.png') });
     await win.locator('[data-action="close-overlay"]').click();
     await win.locator('#list-search').fill('水煮鱼');
     await win.locator('.database-card[data-id="cooking-102"]').click();
@@ -1873,15 +1939,15 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="drawer-back"]').click();
     await win.locator('[data-action="drawer-back"]').click();
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '09-cooking.png') });
+    await captureNative(win, { animations: 'disabled', path: path.join(results, '09-cooking.png') });
     await win.locator('[data-action="close-overlay"]').click();
     await selectProgressReference(win, '@latest', 'database');
-    await win.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await chooseCodexKind(win, '人物');
     await win.locator('#list-search').fill('上官虹');
     await win.locator('.database-card').first().click();
     assert.ok((await win.locator('.drawer').innerText()).includes('茶具'));
     await win.locator('[data-action="close-overlay"]').click();
-    await win.locator('.nav-btn[data-id="saves"]').click();
+    await openMainPage(win, 'saves');
     assert.equal(await win.locator('[data-persist-detail="unused-timeline"]').evaluate((e) => e.open), false);
     await win.locator('[data-persist-detail="unused-timeline"] > summary').click();
     await win.locator('[data-action="refresh"]').click();
@@ -1892,7 +1958,7 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="backup-confirm"]').click();
     await win.waitForSelector('.backup-row');
     await win.locator('[data-action="verify"]').first().click();
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '03-saves.png') });
+    await captureNative(win, { animations: 'disabled', path: path.join(results, '03-saves.png') });
     await win.locator('[data-action="backup-preview"]').first().click();
     await win.locator('.comparison-grid').waitFor();
     assert.ok((await win.locator('.drawer').innerText()).includes('完全一致'));
@@ -1920,21 +1986,21 @@ async function companionHomeInventorySync(page) {
     await win.locator('#save-inventory-search').fill('精钢');
     assert.ok((await win.locator('#save-inventory-results').innerText()).includes('× 3'));
     await win.waitForTimeout(250);
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '08-save-recap.png') });
+    await captureNative(win, { animations: 'disabled', path: path.join(results, '08-save-recap.png') });
     await win.locator('[data-action="close-overlay"]').click();
-    await win.locator('.nav-btn[data-id="settings"]').click();
+    await openMainPage(win, 'settings');
     await win.locator('[data-action="help"]').click();
     const helpCopy = await win.locator('.help-copy').innerText();
     assert.ok(helpCopy.includes('流程任务'));
     assert.ok(helpCopy.includes('恢复完整备份前必须退出游戏'));
     await win.locator('[data-action="close-overlay"]').click();
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '04-settings.png') });
+    await captureNative(win, { animations: 'disabled', path: path.join(results, '04-settings.png') });
     await win.locator('[data-action="compact"]').first().click();
     await win.waitForTimeout(500);
     const windows = app.windows();
     assert.equal(windows.length, 2);
     await windows[1].waitForSelector('.compact-shell');
-    await windows[1].screenshot({ animations: 'disabled', path: path.join(results, '05-compact.png') });
+    await captureNative(windows[1], { animations: 'disabled', path: path.join(results, '05-compact.png') });
     const quick = windows[1];
     quick.on('pageerror', (e) => errors.push(e.message));
     await quick.locator('[data-action="search"]').click();
@@ -1942,7 +2008,7 @@ async function companionHomeInventorySync(page) {
     await quick.locator('.search-result').first().click();
     await quick.locator('.drawer').waitFor();
     assert.ok((await quick.locator('.drawer h1').innerText()).includes('司马铃'));
-    await quick.screenshot({ animations: 'disabled', path: path.join(results, '05-compact-search.png') });
+    await captureNative(quick, { animations: 'disabled', path: path.join(results, '05-compact-search.png') });
     await quick.keyboard.press('Escape');
     assert.equal(await quick.locator('.drawer').count(), 0);
     await quick.locator('.companion-tabs [data-action="navigate"][data-id="saves"]').click();
@@ -1952,7 +2018,10 @@ async function companionHomeInventorySync(page) {
     assert.equal(await unusedTimeline.evaluate((el) => el.open), false);
     await unusedTimeline.locator(':scope > summary').click();
     await quick.locator('.timeline-card').first().waitFor();
-    await quick.screenshot({ animations: 'disabled', path: path.join(results, '05-compact-history.png') });
+    await captureNative(quick, {
+      animations: 'disabled',
+      path: path.join(results, '05-compact-history.png'),
+    });
     await quick.locator('[data-action="navigate"][data-id="home"]').click();
     const automaticTasks = await quick.evaluate(
       async () => (await window.journal.companionSnapshot()).data.quests,
@@ -1985,7 +2054,7 @@ async function companionHomeInventorySync(page) {
       ),
       false,
     );
-    await quick.screenshot({ animations: 'disabled', path: path.join(results, '05-passive-hints.png') });
+    await captureNative(quick, { animations: 'disabled', path: path.join(results, '05-passive-hints.png') });
     await app.evaluate(({ BrowserWindow }) => {
       const w = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));
       w.setMinimumSize(360, 360);
@@ -2030,7 +2099,7 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="profiles"]').first().click();
     await win.locator('#profile-name').fill('测试二周目');
     await win.locator('[data-action="profile-create"]').click();
-    await win.locator('.nav-btn[data-id="home"]').click();
+    await openMainPage(win, 'home');
     assert.equal(await win.locator('#note').inputValue(), '');
     await win.locator('[data-action="profiles"]').first().click();
     await win.locator('#profile-select').selectOption({ label: '我的江湖' });
@@ -2152,7 +2221,7 @@ async function companionHomeInventorySync(page) {
     assert(Math.abs(edgeState.bounds.height - 88) <= 1);
     assert.equal(edgeState.focusable, false);
     assert.equal(edgeState.resizable, false);
-    await restoredCompanion.screenshot({ path: path.join(results, '05-companion-edge.png') });
+    await captureNative(restoredCompanion, { path: path.join(results, '05-companion-edge.png') });
     await restoredCompanion.locator('[data-action="companion-untuck"]').click();
     await restoredCompanion.locator('.compact-shell').waitFor();
     const untuckedBounds = await app.evaluate(({ BrowserWindow }) =>
@@ -2199,7 +2268,7 @@ async function companionHomeInventorySync(page) {
     );
     assert(Math.abs(resetCompanion.bounds.y - (resetCompanion.area.y + 12)) <= 1);
     await restoredCompanion.keyboard.press('Escape');
-    await win.locator('.nav-btn[data-id="settings"]').click();
+    await openMainPage(win, 'settings');
     await win.locator('[data-action="window-layout-reset"]').click();
     const resetMain = await app.evaluate(({ BrowserWindow, screen }) => ({
       bounds: BrowserWindow.getAllWindows()
@@ -2209,7 +2278,7 @@ async function companionHomeInventorySync(page) {
     }));
     assert(Math.abs(resetMain.bounds.width - Math.min(1340, resetMain.area.width)) <= 1);
     assert(Math.abs(resetMain.bounds.height - Math.min(880, resetMain.area.height)) <= 1);
-    await win.locator('.nav-btn[data-id="goals"]').click();
+    await openMainPage(win, 'goals');
     assert.ok(
       (await win.locator('.goal-row').allInnerTexts()).some((s) => s.includes('<script>你好</script>')),
     );
@@ -2289,10 +2358,10 @@ async function companionHomeInventorySync(page) {
     await win.keyboard.press('Escape');
     // Compact-width and minimum-window layout checks.
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 700));
-    await win.screenshot({ animations: 'disabled', path: path.join(results, '06-small-window.png') });
+    await captureNative(win, { animations: 'disabled', path: path.join(results, '06-small-window.png') });
     const overflow = await win.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     assert.equal(overflow, false);
-    await win.locator('.nav-btn[data-id="home"]').click();
+    await openMainPage(win, 'home');
     // Supply a supported-game display fixture; native IPC remains blocked by the isolated test mode.
     const launchDisplay = (await win.evaluate(() => window.journal.bootstrap())).data;
     launchDisplay.environment.game = { installed: true, build: launchDisplay.gameIndex.build };
