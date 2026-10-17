@@ -6,7 +6,7 @@
 
 《逸剑风云决》的 Windows 随行助手。查任务下一步、看关键选择的影响、找值得比武和请教的人，把图鉴与存档放在伸手可及的小窗口里。
 
-[**下载 Windows 版**](https://github.com/Legender134/yijian-journal/releases/latest) · [**备用下载**](https://data.riftbuddy.dpdns.org/yijian-journal/YijianJournal-1.20.0-windows-x64.zip) · [观看功能演示](https://github.com/Legender134/yijian-journal/releases/download/v1.19.0/YijianJournal-1.19.0-introduction.mp4) · [使用说明](使用说明.txt)
+[**下载 Windows 版**](https://github.com/Legender134/yijian-journal/releases/latest) · [**备用下载**](https://data.riftbuddy.dpdns.org/yijian-journal/YijianJournal-1.21.0-windows-x64.zip) · [观看功能演示](https://github.com/Legender134/yijian-journal/releases/download/v1.19.0/YijianJournal-1.19.0-introduction.mp4) · [使用说明](使用说明.txt)
 
 ![逸剑手札：在游戏旁查看流程、比武请教、图鉴与存档](docs/screenshots/hero.webp)
 
@@ -18,13 +18,13 @@
 
 ### 流程：下一步做什么，推进前别漏什么
 
-当前任务要找谁、去哪里、还缺哪些材料，集中显示。推进前提醒列出已整理的任务窗口与具体影响；关键选择给出推荐、理由和取舍。想走另一条路线，也能展开比较。
+当前任务要找谁、去哪里、还缺哪些材料，集中显示。接取与完成条件分别判断；已支持的击败目标显示当前数量，达标后提示找谁回报。推进前提醒列出已整理的任务窗口与具体影响；关键选择给出推荐、理由和取舍。想走另一条路线，也能展开比较。
 
 <p><img src="docs/screenshots/companion-flow.webp" width="390" alt="随行流程：当前任务、推进前提醒与下一步"><img src="docs/screenshots/companion-flow-detail.webp" width="390" alt="展开一条推进提醒查看受影响任务与条件"></p>
 
 ### 比武请教：先找还有收获的人
 
-按当前人物记录整理剩余私物、重点物品、更高生活技艺与未学武学。送礼限制、好感上限和剧情解锁条件放在同一处，少跑一趟白路。
+按当前人物记录整理剩余私物、重点物品、更高生活技艺与未学武学。送礼限制、好感上限和剧情解锁条件放在同一处，少跑一趟白路。需要先送礼时，可直接准备礼物、查看获取线索，再回到原来的人物。
 
 <p><img src="docs/screenshots/companion-duels.webp" width="390" alt="待比武人物和剩余私物"><img src="docs/screenshots/companion-learning.webp" width="390" alt="请教对象、可学内容与交互条件"></p>
 
