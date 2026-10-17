@@ -83,8 +83,8 @@ test('nonlinear future checkpoint uses actual same-cohort affinity and active af
     assert.equal(chen.friendship.value, friend);
     assert.equal(
       chen.remainingItems[0].owned,
-      null,
-      'saved player holdings cannot masquerade as live holdings',
+      1,
+      'fresh observed holdings are used, never the saved quantity of 99',
     );
   }
   const branched = flowSnapshot(profile, saved, '', { npcState: observation(90, [{ id: 12095, step: 1 }]) });

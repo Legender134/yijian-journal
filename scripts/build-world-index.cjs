@@ -3,6 +3,7 @@
 // from quest interaction targets; a scene rearrangement is not a destination.
 const fs = require('node:fs');
 const path = require('node:path');
+const { projectCompletionRequirements } = require('./quest-completion-data.cjs');
 const base = path.resolve(__dirname, '..');
 const read = (name) =>
   JSON.parse(fs.readFileSync(path.join(base, '.downloads/game-json', `${name}-simple.json`), 'utf8'));
@@ -23,6 +24,15 @@ const originalItems = new Map(data.entries.filter((e) => e.kind === '物品').ma
 const itemTypes = new Map(data.entries.filter((e) => e.kind === '物品').map((e) => [e.typeKey, e.type]));
 const rawPeople = read('NPCs');
 const npcById = new Map(rawPeople.map((n) => [n.Id, n]));
+const completionContext = {
+  quests: allQuests,
+  npcNames: new Map(rawPeople.map((n) => [n.Id, clean(n.Name)])),
+  items: originalItems,
+  itemGroups: new Map(read('Aggregation').map((row) => [row.Id, row])),
+  npcGroups: new Map(read('NPCAggregation').map((row) => [row.Id, row])),
+  guilds: new Map(read('Guilds').map((row) => [row.Id, row])),
+  published: new Set(Object.keys(data.quests).map(Number)),
+};
 const maps = read('Maps')
   .filter((m) => data.maps[m.MapName])
   .map((m) => ({
@@ -98,6 +108,9 @@ const quests = Object.entries(data.quests).map(([id, q]) => {
     requestNPCs: names(raw.RequestNPCIds),
     finishNPCs: names(raw.FinishNPCIds),
     requirements: requirements(raw.RequestRequirements),
+    ...(raw.FinishingRequirements?.some((row) => enumName(row.Type) !== 'None')
+      ? { finishingRequirements: projectCompletionRequirements(raw.FinishingRequirements, completionContext) }
+      : {}),
     placements,
   };
 });

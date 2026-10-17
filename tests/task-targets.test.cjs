@@ -726,7 +726,7 @@ test('non-item completion conditions remain visible and govern current handover 
   const { createEntityReferences } = await import('../src/renderer/entity-references.js');
   const refs = createEntityReferences({ ...helpers, index: () => index });
   for (const [id, readings, hint] of [
-    [17009, [{ money: 0 }, { money: 99999 }, {}, { money: 100000 }], /(?:100,000|1) 文/],
+    [17009, [{ money: 0 }, { money: 100000 }, {}, { money: 100001 }], /(?:100,001|1) 文/],
     [11878, [{ teamIds: [] }, { teamIds: [0] }, {}, { teamIds: [0, 10047] }], /卫霍在队/],
   ]) {
     const task = quest(id);
@@ -894,11 +894,15 @@ test('all explicit game party annotations resolve against this reading including
       assert(target.places.every((place) => place.conditionHint));
     }
     const teamIds = required.map((r) => (r.ids || [r.id])[0]);
-    assert(!projector.project(task, { teamIds }).conditionHint, String(task.gameId));
+    assert.doesNotMatch(
+      projector.project(task, { teamIds }).conditionHint || '',
+      /在队/,
+      String(task.gameId),
+    );
   }
   for (const id of [8001, 17109]) assert(!projector.project(quest(13250), { teamIds: [id] }).conditionHint);
-  assert.match(projector.project(quest(12412), { money: 2000 }).nextAction, /还需 1,000 文/);
-  assert.match(projector.project(quest(12412), {}).nextAction, /需 3,000 文/);
+  assert.match(projector.project(quest(12412), { money: 2000 }).nextAction, /还需 1,001 文/);
+  assert.match(projector.project(quest(12412), {}).nextAction, /需 3,001 文/);
 });
 
 test('an explicit handover retains its bound actor and sole completion scene even when the title omits the name', async () => {
@@ -1144,7 +1148,8 @@ test('reviewed description instructions restore current destinations and exclude
     ['五仙教禁地'],
   );
   assert.match(projector.project(quest(12412), { money: 3000 }).nextAction, /程家村.*陆博枭.*比棋/);
-  assert(!projector.project(quest(12412), { money: 3000 }).conditionHint);
+  assert.match(projector.project(quest(12412), { money: 3000 }).conditionHint, /还需 1 文/);
+  assert(!projector.project(quest(12412), { money: 3001 }).conditionHint);
   assert.match(project(quest(5068)).nextAction, /好感提升至20以上/);
   assert.match(project(quest(11279)).nextAction, /若他已在队伍.*离队/);
   assert.match(project(quest(21282)).nextAction, /入夜后.*知客僧/);

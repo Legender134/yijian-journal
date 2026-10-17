@@ -248,6 +248,8 @@ function createFlowProjector({
     const metadata = live
       ? {
           questStates: live.questStates,
+          questsComplete: true,
+          ...(Array.isArray(live.player.inventory) ? { inventory: live.player.inventory } : {}),
           map: liveMap?.key || '',
           mapName: liveMap?.name || '',
           combat: { origin: 'live', player: live.player, npcStates: live.npcStates },
@@ -385,7 +387,9 @@ function createFlowProjector({
           missing: inventory ? Math.max(0, m.count - (inventory.get(m.id) || 0)) : null,
           routes: routesFor(m, q, metadata.mapName, targets),
         })),
-        requirements: [...(q.requirements || []), ...(stepRule?.requirements || [])].map(requirement),
+        // Pickup requirements are historical once this step is active.
+        requirements: (stepRule?.requirements || []).map(requirement),
+        completionRequirements: (targets.completionChecks || []).filter((row) => row.type !== 'Item'),
         upcoming: [...quests.values()]
           .filter((next) =>
             next.requirements.some((r) => r.type === 'PreQuest' && r.id === q.gameId && r.value === 4),
@@ -833,7 +837,13 @@ function createFlowProjector({
         ? {
             origin: 'live',
             key: live.key,
-            metadata: { quests: live.questStates, map: metadata.map, mapName: metadata.mapName },
+            metadata: {
+              quests: live.questStates,
+              questsComplete: true,
+              ...(Array.isArray(metadata.inventory) ? { inventory: metadata.inventory } : {}),
+              map: metadata.map,
+              mapName: metadata.mapName,
+            },
           }
         : null,
       changes,

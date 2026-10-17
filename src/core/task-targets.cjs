@@ -362,6 +362,10 @@ function createTaskTargetProjector(world, materialItems = {}) {
       people,
       instruction: !task.parentId && parents.has(task.gameId) ? '下一步未识别，请查看游戏任务栏。' : title,
       actionRequirements: requirements,
+      ...(task.finishingRequirements?.length ? { finishingRequirements: task.finishingRequirements } : {}),
+      ...(recipientIds.length && task.finishingRequirements?.some((row) => row.type === 'AggregationItem')
+        ? { alternativeHandIn: { recipientIds, action: finishAction } }
+        : {}),
       ...(guide?.nonDestinationPlaces ? { nonDestinationPlaces: guide.nonDestinationPlaces } : {}),
       ...(guide?.literalNames ? { literalNames: guide.literalNames } : {}),
       materialHints: guide?.collectionHints || [],

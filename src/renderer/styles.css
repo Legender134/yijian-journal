@@ -106,6 +106,12 @@
 .flow-progress-list .pill {
   flex-shrink: 0;
 }
+.flow-conditions li {
+  flex-wrap: wrap;
+}
+.flow-conditions li > .related-items {
+  flex-basis: 100%;
+}
 .flow-panel .row {
   flex-wrap: wrap;
 }

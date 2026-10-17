@@ -21,6 +21,10 @@ test('offline world projection includes public social variants without gift hobb
     path.join(__dirname, '../scripts/build-world-index.cjs'),
     path.join(temporary, 'scripts/build-world-index.cjs'),
   );
+  fs.copyFileSync(
+    path.join(__dirname, '../scripts/quest-completion-data.cjs'),
+    path.join(temporary, 'scripts/quest-completion-data.cjs'),
+  );
   const write = (file, value) => fs.writeFileSync(path.join(temporary, file), JSON.stringify(value));
   write('src/data/game-index.json', {
     build: 'synthetic',
@@ -30,6 +34,8 @@ test('offline world projection includes public social variants without gift hobb
     quests: { 1000: { name: '【支线】合成剧情', parentId: 0, kind: 'Branch', description: '' } },
   });
   write('.downloads/game-json/Maps-simple.json', [{ MapId: 1, MapName: 'lv' }]);
+  for (const table of ['Aggregation', 'NPCAggregation', 'Guilds'])
+    write(`.downloads/game-json/${table}-simple.json`, []);
   const quest = (QuestId, OwnerQuestId, Name) => ({
     QuestId,
     OwnerQuestId,
@@ -39,9 +45,13 @@ test('offline world projection includes public social variants without gift hobb
     RequestNPCIds: [],
     FinishNPCIds: [],
     RequestRequirements: [],
+    FinishingRequirements: [],
   });
   write('.downloads/game-json/Quests-simple.json', [
-    quest(1000, 0, '【支线】合成剧情'),
+    {
+      ...quest(1000, 0, '【支线】合成剧情'),
+      FinishingRequirements: [{ Type: 'ERequirementType::PreQuest', Id: 1001, Num: 4 }],
+    },
     quest(1001, 1000, null),
     quest(1002, 0, null),
   ]);
@@ -83,6 +93,17 @@ test('offline world projection includes public social variants without gift hobb
   ]);
   execFileSync(process.execPath, [path.join(temporary, 'scripts/build-world-index.cjs')], { stdio: 'pipe' });
   const result = JSON.parse(fs.readFileSync(path.join(temporary, 'src/data/world-index.json')));
+  assert.deepEqual(result.quests[0].requirements, []);
+  assert.deepEqual(result.quests[0].finishingRequirements, [
+    {
+      type: 'PreQuest',
+      id: 1001,
+      value: 4,
+      name: '合成剧情相关进度',
+      relatedQuestId: 1000,
+      entityId: 'quest-1000',
+    },
+  ]);
   assert.deepEqual(
     result.people.map((p) => p.gameId),
     [1, 2, 3, 4, 8],

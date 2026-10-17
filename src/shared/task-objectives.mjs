@@ -1,3 +1,5 @@
+import { completionChecks } from './task-completion.mjs';
+
 export const isGenericPlaceName = (name) => /^(?:客房|客栈|弟子房|民居|房间|大殿|院落|地牢|山洞)$/.test(name);
 
 // An organisation qualifying a person or a temporary force is not its HQ.
@@ -13,27 +15,41 @@ export const placeMentionIsQualifier = (name, after) =>
 export function resolveTaskObjectives(template, reading = {}) {
   if (!template) return template;
   const { inventory, money, teamIds } = reading;
-  const requirements = (template.actionRequirements || []).map((requirement) => {
-    if (requirement.type === 'Money')
-      return {
-        status: !Number.isFinite(money) ? 'unknown' : money < requirement.value ? 'unmet' : 'met',
-        hint:
-          Number.isFinite(money) && money < requirement.value
-            ? `还需 ${(requirement.value - money).toLocaleString('zh-CN')} 文`
-            : `需 ${requirement.value.toLocaleString('zh-CN')} 文`,
-      };
-    if (requirement.type === 'TeamMember')
-      return {
-        status: !Array.isArray(teamIds)
-          ? 'unknown'
-          : (requirement.ids || [requirement.id]).some((id) => teamIds.includes(id))
-            ? 'met'
-            : 'unmet',
-        hint: requirement.hint || `需${requirement.name}在队`,
-        partyName: requirement.hint ? '' : requirement.name,
-      };
-    return { status: 'unknown', hint: requirement.name || '完成条件待确认' };
-  });
+  const finishing = completionChecks(template.finishingRequirements, reading);
+  const additional = (template.actionRequirements || []).filter(
+    (requirement) =>
+      !finishing.some(
+        (row) =>
+          row.type === requirement.type &&
+          (row.type === 'Money' ||
+            (row.type === 'TeamMember' && (requirement.ids || [requirement.id]).includes(row.id))),
+      ),
+  );
+  const requirements = [
+    ...finishing.filter((row) => row.type !== 'Item'),
+    ...additional.map((requirement) => {
+      if (requirement.type === 'Money')
+        return {
+          status: !Number.isFinite(money) ? 'unknown' : money < requirement.value ? 'unmet' : 'met',
+          hint:
+            Number.isFinite(money) && money < requirement.value
+              ? `还需 ${(requirement.value - money).toLocaleString('zh-CN')} 文`
+              : `需 ${requirement.value.toLocaleString('zh-CN')} 文`,
+        };
+      if (requirement.type === 'TeamMember')
+        return {
+          status: !Array.isArray(teamIds)
+            ? 'unknown'
+            : (requirement.ids || [requirement.id]).some((id) => teamIds.includes(id))
+              ? 'met'
+              : 'unmet',
+          hint: requirement.hint || `需${requirement.name}在队`,
+          partyName: requirement.hint ? '' : requirement.name,
+        };
+      return { status: 'unknown', hint: requirement.name || '完成条件待确认' };
+    }),
+  ];
+  if (finishing.length) template = { ...template, completionChecks: finishing };
   const pending = requirements.filter((requirement) => requirement.status !== 'met');
   const party = pending
     .filter((requirement) => requirement.partyName)
@@ -42,6 +58,21 @@ export function resolveTaskObjectives(template, reading = {}) {
     ...(party.length ? [`需${party.join('、')}在队`] : []),
     ...pending.filter((requirement) => !requirement.partyName).map((requirement) => requirement.hint),
   ].join('；');
+  if (!template.materialGate && !pending.length && template.alternativeHandIn) {
+    const { recipientIds, action } = template.alternativeHandIn;
+    const recipients = template.people.filter((person) =>
+      (person.ids || []).some((id) => recipientIds.includes(id)),
+    );
+    if (recipients.length)
+      return {
+        ...template,
+        nextAction: `向${recipients.map((person) => person.name).join('、')}${action}`,
+        people: recipients,
+        // An acquisition clue is no longer the current destination. Only an
+        // independently bound turn-in place can survive the hand-in switch.
+        places: template.places.filter((place) => place.purpose === 'turn-in'),
+      };
+  }
   if (!template.materialGate)
     return pending.length
       ? {
