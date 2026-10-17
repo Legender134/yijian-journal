@@ -521,20 +521,26 @@ export function installEntityPreviews({ document, window, references, context })
   const position = () => {
     if (!trigger?.isConnected) return close();
     const bounds = trigger.getBoundingClientRect(),
-      rect = panel.getBoundingClientRect(),
-      margin = 10;
+      margin = 10,
+      gap = 4;
     const width = document.documentElement.clientWidth,
       height = window.innerHeight;
+    panel.style.maxHeight = '';
+    const natural = panel.getBoundingClientRect();
+    const below = Math.max(0, height - margin - Math.max(margin, bounds.bottom + gap));
+    const above = Math.max(0, Math.min(height - margin, bounds.top - gap) - margin);
+    const useBelow = natural.height <= below || (natural.height > above && below >= above);
+    const available = useBelow ? below : above;
+    // If a whole card occupies the viewport, it already carries its summary.
+    // Preserve the original click target rather than cover it with a tiny popup.
+    if (available < 48) return close();
+    panel.style.maxHeight = available + 'px';
+    const rect = panel.getBoundingClientRect();
     panel.style.left = Math.max(margin, Math.min(bounds.left, width - rect.width - margin)) + 'px';
-    const below = bounds.bottom + 4;
     panel.style.top =
-      Math.max(
-        margin,
-        Math.min(
-          below + rect.height <= height - margin ? below : bounds.top - rect.height - 4,
-          height - rect.height - margin,
-        ),
-      ) + 'px';
+      (useBelow
+        ? Math.max(margin, bounds.bottom + gap)
+        : Math.min(height - margin, bounds.top - gap) - rect.height) + 'px';
   };
   const readContext = (node, delay = 0) => {
     const current = ++request;

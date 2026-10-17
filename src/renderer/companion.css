@@ -614,3 +614,101 @@
   font-weight: 400;
   margin-top: 5px;
 }
+
+/* Keep narrow-window actions in readable rows, leaving room for the preview. */
+.companion .drawer-actions {
+  padding: 8px 12px;
+  gap: 4px;
+}
+.companion .drawer-actions .btn {
+  flex: 1 0 auto;
+}
+.companion .drawer-body {
+  min-height: 0;
+}
+.companion .compare-summary {
+  margin-top: 16px;
+}
+.compare-snapshots {
+  margin: 12px 0;
+}
+
+@media (max-width: 400px) {
+  .companion .drawer-actions:has(> .btn:nth-child(3):last-child) {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .companion .drawer-actions:has(> .btn:nth-child(2):last-child) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .companion
+    .drawer-actions:is(:has(> .btn:nth-child(2):last-child), :has(> .btn:nth-child(3):last-child))
+    > .btn {
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+    padding: 7px 4px;
+    font-size: 12px;
+  }
+}
+
+/* Share a short companion between the live choice and the reading surface. */
+@media (max-height: 420px) {
+  .companion .compact-shell:has(> .live-choice-dock) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 2fr) auto;
+  }
+  .companion .compact-shell > .compact-title {
+    grid-row: 1;
+  }
+  .companion .compact-shell > .companion-tabs {
+    grid-row: 2;
+  }
+  .companion .compact-shell > .live-choice-dock {
+    grid-row: 3;
+    max-height: none;
+    min-height: 0;
+  }
+  .companion .compact-shell > .compact-body {
+    grid-row: 4;
+  }
+  .companion .compact-shell > .compact-foot {
+    grid-row: 5;
+  }
+  .companion .drawer-head {
+    padding: 6px 12px;
+  }
+  .companion .drawer-body {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .companion .drawer:has(> .live-choice-dock) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) minmax(0, 2fr) auto;
+  }
+  .companion .drawer:has(> .live-choice-dock) > .drawer-head {
+    grid-row: 1;
+  }
+  .companion .drawer:has(> .live-choice-dock) > .live-choice-dock {
+    grid-row: 2;
+    max-height: none;
+    min-height: 0;
+    padding-top: 0;
+  }
+  .companion .drawer:has(> .live-choice-dock) > .drawer-body {
+    grid-row: 3;
+  }
+  .companion .drawer:has(> .live-choice-dock) > .drawer-actions {
+    grid-row: 4;
+  }
+  .companion .live-choice-dock .flow-decision {
+    padding: 5px 8px;
+  }
+  .companion .live-choice-dock .flow-recommended-action {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}

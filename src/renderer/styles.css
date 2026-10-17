@@ -4406,3 +4406,201 @@ kbd {
   flex-wrap: wrap;
   gap: 12px;
 }
+
+/* Save actions precede configuration and snapshot editing. */
+.timeline-primary-actions {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+.timeline-target-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 8px;
+  font-size: 13px;
+}
+.timeline-target-field select {
+  flex: 1;
+  min-width: 0;
+}
+.timeline-settings,
+.timeline-history-disclosure,
+.timeline-snapshot-details,
+.timeline-comparison-basis {
+  margin: 16px 0;
+}
+.timeline-settings > .timeline-controls {
+  margin-top: 12px;
+}
+.timeline-history-disclosure > .timeline-history {
+  margin-top: 10px;
+  padding-top: 0;
+  border: 0;
+}
+.timeline-node-editor > summary {
+  font-size: 14px;
+}
+.timeline-bookmark-action {
+  margin-top: 16px;
+}
+.timeline-card .timeline-return {
+  background: transparent;
+  padding: 8px 0;
+  margin: 10px 0;
+}
+.compact-target .timeline-node {
+  display: block;
+  min-height: 0;
+}
+.timeline-card .timeline-node p {
+  margin: 6px 0;
+}
+.timeline-card .timeline-node .timeline-location {
+  margin: 0;
+}
+.timeline-target-precision {
+  margin-top: 8px;
+}
+.save-drawer .comparison-grid {
+  display: flex;
+  gap: 24px;
+  margin: 12px 0;
+}
+.save-drawer .comparison-grid > div {
+  background: transparent;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+}
+.save-drawer .comparison-grid strong {
+  font-size: 18px;
+}
+.save-drawer .comparison-grid span {
+  font-size: 12px;
+}
+.save-drawer .timeline-differences {
+  margin: 16px 0;
+}
+
+.save-files > .save-connection {
+  margin-top: 16px;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+.save-files > .section-heading {
+  margin-top: 24px;
+}
+.save-history-list > .compact-backup-row {
+  margin-top: 10px;
+}
+.save-progress-actions {
+  gap: 8px;
+}
+.save-drawer h1 .text-btn {
+  font: inherit;
+  line-height: inherit;
+}
+.timeline-differences > h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.operation-history > summary {
+  font-size: 14px;
+  font-weight: 600;
+}
+.operation-history > .operation-row:first-of-type {
+  margin-top: 12px;
+}
+.timeline-node > .row.between {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.timeline-node > .row.between > .btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+.timeline-node .timeline-location {
+  flex: 1;
+  min-width: 0;
+}
+.companion .timeline-node > .row.between {
+  display: block;
+}
+.companion .timeline-node > .row.between > .btn {
+  width: 100%;
+  margin-top: 12px;
+}
+.companion .timeline-history > .row.between,
+.companion .history-toolbar {
+  flex-wrap: wrap;
+}
+.companion .history-toolbar .search-field {
+  min-width: 0;
+  flex-basis: 100%;
+}
+.companion .history-toolbar select.input {
+  width: 100%;
+}
+.companion .history-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px 12px;
+}
+.companion .history-row .backup-symbol {
+  width: 28px;
+  height: 28px;
+}
+.companion .history-row > .spacer,
+.companion .history-row > .pill,
+.companion .history-row > .btn {
+  grid-column: 2;
+  min-width: 0;
+}
+.companion .history-row > .pill {
+  justify-self: start;
+}
+.companion .history-row > .btn {
+  width: 100%;
+}
+.compare-source-selection > summary {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 0;
+}
+.compare-source-selection .compare-selectors {
+  margin-top: 12px;
+}
+
+.compare-change-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.compare-change-summary > div {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+}
+.compare-change-summary small {
+  margin: 0;
+}
+.compare-change-summary strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.compare-unknown,
+.compare-unchanged {
+  margin-top: 12px;
+}
+
+.compare-direction {
+  margin: 0 0 8px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}

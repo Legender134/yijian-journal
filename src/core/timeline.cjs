@@ -274,8 +274,30 @@ class Timeline {
     for (const id of protections.values()) ids.add(id);
     return all.filter((r) => ids.has(r.id));
   }
-  updateNode(id, value) {
-    this.inspect(id);
+  checkNodeVersion(id, expected) {
+    const record = this.inspect(id).record;
+    if (expected === undefined) return record;
+    if (
+      !expected ||
+      typeof expected !== 'object' ||
+      Array.isArray(expected) ||
+      Object.keys(expected).length !== 2 ||
+      Object.keys(expected).some((key) => !['label', 'note'].includes(key)) ||
+      typeof expected.label !== 'string' ||
+      expected.label.length > 80 ||
+      typeof expected.note !== 'string' ||
+      expected.note.length > 500
+    )
+      throw Error('节点版本信息无效');
+    if ((record.label || '') !== expected.label || (record.note || '') !== expected.note) {
+      const error = Error('节点已在另一窗口更新，请重新查看后再保存。');
+      error.code = 'TIMELINE_NODE_CHANGED';
+      throw error;
+    }
+    return record;
+  }
+  updateNode(id, value, expected) {
+    this.checkNodeVersion(id, expected);
     if (
       !value ||
       Object.keys(value).some((k) => !['bookmarked', 'label', 'note'].includes(k)) ||

@@ -73,7 +73,13 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   function advancement(row) {
     const affected = list(row.affectedTasks);
     if (!affected.length) return '';
-    return `<div class="flow-affected" data-flow-affected><h4>推进后影响</h4><ul>${affected.map((task) => `<li>${questButton(task.questId, task.name) || prose(task.name)}：${prose(task.effect)}</li>`).join('')}</ul></div>`;
+    const closedWindow = row.deadlineReached && row.closedWindowMessage;
+    const heading = closedWindow
+      ? affected.every((task) => task.scope === 'departure')
+        ? '出发条件'
+        : '接取条件'
+      : '推进后影响';
+    return `<div class="flow-affected" data-flow-affected><h4>${heading}</h4><ul>${affected.map((task) => `<li>${questButton(task.questId, task.name) || prose(task.name)}：${prose(closedWindow ? task.closedEffect || task.effect : task.effect)}</li>`).join('')}</ul></div>`;
   }
   function rule(row, warning = false, scope = 'rule', previewShown = false) {
     const stage = row.kind === 'stage';
@@ -84,20 +90,32 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const pickup = row.pickup || {};
     const location = target(pickup.place, 'world-place', 'place');
     const person = target(pickup.person, 'database-detail', 'npc');
+    const closedWindow =
+      row.deadlineReached &&
+      !row.done &&
+      !row.failed &&
+      (!row.activeRule || row.activeWindowBlocked) &&
+      row.closedWindowMessage;
     const message =
-      row.deadlineReached && !row.done && !row.failed
+      (closedWindow ? row.closedWindowSummary || closedWindow : '') ||
+      (row.deadlineReached && !row.done && !row.failed
         ? '已越过提示节点，请确认任务是否仍可继续。'
-        : row.compactWarning || row.message || row.warning || pickup.action;
+        : row.compactWarning || row.message || row.warning || pickup.action);
     const fullWarning =
-      row.warning && row.warning !== message
+      !closedWindow && row.warning && row.warning !== message
         ? `<p class="flow-warning-detail">${prose(row.warning)}</p>`
         : '';
     const pickupBody =
-      location || person || pickup.action
+      !closedWindow && (location || person || pickup.action)
         ? `<div class="flow-pickup">${location || person ? `<p>${location}${location && person ? ' · ' : ''}${person}</p>` : ''}${pickup.action ? `<p>${prose(pickup.action)}</p>` : ''}${pickup.executionPlace ? `<p class="small">前往 ${prose(pickup.executionPlace)}</p>` : ''}</div>`
         : '';
     const affected = list(row.affectedTasks);
-    const body = `${fullWarning}${pickupBody}${!previewShown && (row.deadlineLabel || row.triggerName) ? `<p>截止：${prose(row.deadlineLabel || row.triggerName)}</p>` : ''}${affected.length ? advancement(row) : ''}${recommendation(row, { actionShown: previewShown && !warning && (row.recommendation?.hint || row.recommendation?.action) === row.recommendation?.action })}${delivery(row)}${conditions(conditionRows)}${steps.length ? `<ol class="flow-guide-steps">${steps.map((step) => `<li>${prose(step)}</li>`).join('')}</ol>` : ''}${choices.length ? `<div class="flow-choices"><h4>选择与影响</h4><dl>${choices.map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响未知')}</dd>`).join('')}</dl></div>` : ''}${affected.some((task) => questId(task.questId) === questId(row.questId || row.id)) ? '' : questButton(row.questId || row.id)}${row.uncertainty ? `<details><summary>资料说明</summary><p class="small">${text(row.uncertainty)}</p></details>` : ''}${sources(row.sources)}`;
+    const routeBody = `${recommendation(row, { actionShown: previewShown && !warning && (row.recommendation?.hint || row.recommendation?.action) === row.recommendation?.action })}${delivery(row)}${steps.length ? `<ol class="flow-guide-steps">${steps.map((step) => `<li>${prose(step)}</li>`).join('')}</ol>` : ''}${choices.length ? `<div class="flow-choices"><h4>选择与影响</h4><dl>${choices.map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响未知')}</dd>`).join('')}</dl></div>` : ''}`;
+    const routeDetails =
+      closedWindow && routeBody
+        ? `<details class="flow-previous-route"><summary>此前做法与分支</summary>${routeBody}</details>`
+        : routeBody;
+    const body = `${fullWarning}${pickupBody}${!closedWindow && !previewShown && (row.deadlineLabel || row.triggerName) ? `<p>截止：${prose(row.deadlineLabel || row.triggerName)}</p>` : ''}${affected.length ? advancement(row) : ''}${conditions(conditionRows)}${routeDetails}${affected.some((task) => questId(task.questId) === questId(row.questId || row.id)) ? '' : questButton(row.questId || row.id)}${row.uncertainty ? `<details><summary>资料说明</summary><p class="small">${text(row.uncertainty)}</p></details>` : ''}${sources(row.sources)}`;
     return persist(
       `<article class="flow-rule${warning ? ' flow-risk' : ''}" data-flow-rule="${text(row.id || '')}"${warning ? ` data-flow-warning="${text(row.id || row.questId || '')}"` : ''}>${previewShown ? `<div class="flow-rule-details">${body}</div>` : `${warning ? '' : `<div class="row between"><h3>${prose(row.name || row.title || '任务线索')}</h3>${stateLabel ? pill(stateLabel, row.state === 'done' ? 'green' : row.state === 'failed' ? 'orange' : '') : ''}</div>`}${message ? `<p class="flow-warning-message">${prose(message)}</p>` : ''}<details class="flow-rule-details"><summary>做法与影响</summary>${body}</details>`}</article>`,
       'rule-' + scope + '-' + row.id,
@@ -258,6 +276,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       : '';
   }
   function compactStepTargets(row) {
+    if (row.blockedWindow) return '';
     const action = stepAction(row);
     // Keep an exact target when prose only resolves to a namesake chooser.
     const unlinked = (entry) =>
@@ -433,7 +452,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const groups = [...riskGroups.values()];
     const riskPreview = (row) =>
       row.deadlineReached
-        ? `${row.name || '任务'}：窗口已推进，能否继续须核对`
+        ? row.closedWindowSummary || `${row.name || '任务'}：窗口已推进，能否继续须核对`
         : row.compactWarning ||
           row.message ||
           row.warning ||
@@ -447,7 +466,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
             .map((row) => row.id)
             .sort()
             .join('-'),
-        )}" open><summary><strong>推进前确认 · ${warnings.length} 项</strong></summary>${groups.map(({ deadline, rows }) => `<details class="flow-risk-window" data-persist-detail="flow-risk-window-${text(rows[0].id)}"><summary>${deadline && rows.some((row) => !row.compactWarning && !String(riskPreview(row)).includes(deadline.replace(/(?:之前|前)$/, ''))) ? `<span class="flow-risk-deadline">${prose(deadline)}</span>` : ''}${rows.map((row) => `<span class="flow-risk-preview">${prose(riskPreview(row))}</span>`).join('')}</summary>${rows.map((row) => `<div data-flow-impact="${text(row.id)}">${rule(row, true, 'risk', true)}</div>`).join('')}</details>`).join('')}</details></section>`
+        )}" open><summary><strong>${warnings.every((row) => row.deadlineReached) ? '流程提醒' : '推进前确认'} · ${warnings.length} 项</strong></summary>${groups.map(({ deadline, rows }) => `<details class="flow-risk-window" data-persist-detail="flow-risk-window-${text(rows[0].id)}"><summary>${deadline && rows.some((row) => !row.compactWarning && !String(riskPreview(row)).includes(deadline.replace(/(?:之前|前)$/, ''))) ? `<span class="flow-risk-deadline">${prose(deadline)}</span>` : ''}${rows.map((row) => `<span class="flow-risk-preview">${prose(riskPreview(row))}</span>`).join('')}</summary>${rows.map((row) => `<div data-flow-impact="${text(row.id)}">${rule(row, true, 'risk', true)}</div>`).join('')}</details>`).join('')}</details></section>`
       : '';
     const current = decisions.length
       ? first
@@ -501,7 +520,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       : `${active.slice(0, 3).map(activeCard).join('')}${remaining ? `<details class="flow-all-active"><summary>其余 ${remaining} 项进行中任务</summary>${active.slice(3).map(activeCard).join('')}</details>` : ''}`;
     const riskContent = warnings.map((warning) => rule(warning, true, 'risk')).join('');
     return persist(
-      `<section class="flow-panel${compact ? ' flow-compact' : ''}${summary ? ' flow-summary' : ''}${warnings.length ? ' flow-has-risks' : ''}" data-flow>${stateNotice(flow)}${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${decisions.map(decision).join('')}</section>` : ''}${warnings.length ? `<section class="flow-risks"><h2>${icon('pin')} 推进前确认</h2>${riskContent}</section>` : ''}<section class="flow-active"><h2>当前任务与下一行动${active.length ? ` · ${active.length} 项` : ''}</h2>${sharedMaterialSummary(
+      `<section class="flow-panel${compact ? ' flow-compact' : ''}${summary ? ' flow-summary' : ''}${warnings.length ? ' flow-has-risks' : ''}" data-flow>${stateNotice(flow)}${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${decisions.map(decision).join('')}</section>` : ''}${warnings.length ? `<section class="flow-risks"><h2>${icon('pin')} ${warnings.every((row) => row.deadlineReached) ? '流程提醒' : '推进前确认'}</h2>${riskContent}</section>` : ''}<section class="flow-active"><h2>当前任务与下一行动${active.length ? ` · ${active.length} 项` : ''}</h2>${sharedMaterialSummary(
         shared,
       )}${unindexed.length ? `<aside class="flow-unindexed" data-flow-unindexed><details><summary>另有 ${unindexed.length} 条进行中记录待识别</summary><p class="small save-note">这些记录尚未收录在任务资料中，可能是隐藏剧情或版本新增任务。请核对游戏任务栏中额外进行中的任务；这里暂不能判断名称与下一步。</p></details></aside>` : ''}${activeBody || `<p class="small muted">${flow.available ? '暂无进行中步骤，可在下方查找任务。' : '连接游戏进度后显示当前行动。'}</p>`}</section>${
         advice.length

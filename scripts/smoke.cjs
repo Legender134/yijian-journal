@@ -1235,17 +1235,23 @@ async function companionHomeInventorySync(page) {
     );
     await openProgressSettings(choiceCompact);
     await choiceCompact.locator('[data-action="save-slot"]').click();
+    await choiceCompact.locator('#save-slot-select').waitFor();
     assert.equal(await choiceCompact.locator('#save-slot-select option[value="3.sav"]').count(), 1);
     assert.equal(await choiceCompact.locator('#save-slot-select').inputValue(), '2.sav');
     await choiceCompact.locator('[data-action="close-overlay"]').first().click();
+    await choiceCompact.locator('#save-slot-select').waitFor({ state: 'detached' });
     fs.unlinkSync(newSlot);
     await choiceCompact.locator('[data-action="save-slot"]').click();
+    await choiceCompact.locator('#save-slot-select').waitFor();
     assert.equal(await choiceCompact.locator('#save-slot-select option[value="3.sav"]').count(), 0);
     await choiceCompact.locator('[data-action="close-overlay"]').first().click();
+    await choiceCompact.locator('#save-slot-select').waitFor({ state: 'detached' });
     fs.writeFileSync(newSlot, 'synthetic unreadable slot');
     await choiceCompact.locator('[data-action="save-slot"]').click();
+    await choiceCompact.locator('#save-slot-select').waitFor();
     assert.equal(await choiceCompact.locator('#save-slot-select option[value="3.sav"]').count(), 0);
     await choiceCompact.locator('[data-action="close-overlay"]').first().click();
+    await choiceCompact.locator('#save-slot-select').waitFor({ state: 'detached' });
     fs.unlinkSync(newSlot);
     await choiceCompact.locator('.companion-tabs [data-action="navigate"][data-id="duels"]').click();
     fs.writeFileSync(
@@ -1721,7 +1727,7 @@ async function companionHomeInventorySync(page) {
     await refreshProgress(win);
     await selectProgressReference(win, '@latest');
     await navigatePage(win, 'saves');
-    await win.locator('[data-action="save-detail"][data-id="1.sav"]').click();
+    await win.locator('.save-progress-actions [data-action="save-detail"][data-id="1.sav"]').click();
     await win.locator('.save-recorded-quests > summary').click();
     await win.locator('[data-quest-id="5200"] details > summary').click();
     assert.equal(await win.locator('.save-recorded-quests').evaluate((e) => e.open), true);
@@ -1894,10 +1900,17 @@ async function companionHomeInventorySync(page) {
     await win.locator('#rename-backup').fill('改名后的测试副本');
     await win.locator('[data-action="backup-rename-save"]').click();
     assert.equal(await win.locator('.backup-row').filter({ hasText: '改名后的测试副本' }).count(), 1);
-    await win.locator('[data-action="save-detail"]').first().click();
+    await win.locator('.save-progress-actions [data-action="save-detail"]').click();
     await win.locator('.save-drawer').waitFor();
     assert.ok((await win.locator('.save-drawer').innerText()).includes('卫霍'));
-    await win.locator('.save-quests summary').first().click();
+    await win.locator('.save-quests > summary').first().press('Enter');
+    assert.equal(
+      await win
+        .locator('.save-quests')
+        .first()
+        .evaluate((element) => element.open),
+      true,
+    );
     assert.ok((await win.locator('.save-drawer').innerText()).includes('武当求助'));
     await win.locator('.save-quests > summary').filter({ hasText: '这份存档的任务记录' }).click();
     await win.locator('[data-action="save-quest-goal"]').first().click();
@@ -2068,6 +2081,17 @@ async function companionHomeInventorySync(page) {
     app = await launch();
     win = await attach();
     assert.equal(await win.locator('#note').inputValue(), '测试随手记：下次去青木舫。');
+    await app.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().includes('compact=1'));
+      if (main.isVisible()) return;
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(Error('Restored main window did not show')), 10000);
+        main.once('show', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+    });
     const reopenedMain = await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()
         .find((w) => !w.webContents.getURL().includes('compact=1'))
@@ -2097,6 +2121,12 @@ async function companionHomeInventorySync(page) {
       .locator(`[data-action="timeline-preview"][data-id="${handoffNode.id}"]`)
       .first()
       .click();
+    assert.equal(
+      await restoredCompanion.locator('.timeline-node-editor').evaluate((element) => element.open),
+      false,
+      'new node editor starts folded',
+    );
+    await restoredCompanion.locator('.timeline-node-editor > summary').click();
     await restoredCompanion.locator('#timeline-note').fill('随行历史备注草稿');
     await restoredCompanion.locator('.drawer [data-action="main"]').click();
     await win.locator('#timeline-note').waitFor();
