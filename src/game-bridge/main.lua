@@ -204,7 +204,21 @@ local function npcObservation(s, source, token)
                 localSeen[id]=true
                 structure(q,'/Script/JH.QuestSpec',{{'QuestId','IntProperty',0},{'Step','EnumProperty',4}})
                 if q.QuestId ~= id or not integer(q.Step,0,4) then error('quest_value') end
-                if primary or not seen[id] then quests[id]='{"id":'..id..',"step":'..q.Step..'}'; seen[id]=true end
+                -- Same-build reflected RequirementSetting: enum byte at 0,
+                -- int32 Id at 4 and float Num at 8. Read existing elements only;
+                -- these counters belong to this QuestSpec, never to an NPC bag.
+                field(q,'QuestProgracessData','ArrayProperty',8,'StructProperty:/Script/JH.RequirementSetting')
+                local progressKeys={}
+                local progress=array(q.QuestProgracessData,1000,function(r)
+                    structure(r,'/Script/JH.RequirementSetting',{{'Type','EnumProperty',0},{'Id','IntProperty',4},{'Num','FloatProperty',8}})
+                    if not integer(r.Type,0,67) or not integer(r.Id,0,10000000) or
+                        type(r.Num)~='number' or r.Num~=r.Num or r.Num<0 or r.Num>100000000 then error('quest_progress_value') end
+                    local key=r.Type..':'..r.Id
+                    if progressKeys[key] then error('quest_progress_duplicate') end
+                    progressKeys[key]=true
+                    return '{"type":'..r.Type..',"id":'..r.Id..',"value":'..string.format('%.9g',r.Num)..'}'
+                end)
+                if primary or not seen[id] then quests[id]='{"id":'..id..',"step":'..q.Step..',"progress":'..progress..'}'; seen[id]=true end
             end)
         end
         questMap(qm.QuestProcesses,true); questMap(qm.FinishQuests,false)

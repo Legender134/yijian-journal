@@ -75,7 +75,12 @@ function enrich(metadata) {
   // Keep validated native states, including hidden story gates. The named
   // quest list remains filtered for presentation; absence there is not absence
   // in the save and must not leave a known deadline window open.
-  if (metadata.quests) result.questStates = metadata.quests.map(({ id, step }) => ({ id, step }));
+  if (metadata.quests)
+    result.questStates = metadata.quests.map(({ id, step, progress }) => ({
+      id,
+      step,
+      ...(Array.isArray(progress) ? { progress: progress.map((row) => ({ ...row })) } : {}),
+    }));
   if (metadata.quests)
     result.quests = metadata.quests
       .filter((q) => data.quests[q.id])

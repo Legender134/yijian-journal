@@ -15,7 +15,7 @@ export const placeMentionIsQualifier = (name, after) =>
 export function resolveTaskObjectives(template, reading = {}) {
   if (!template) return template;
   const { inventory, money, teamIds } = reading;
-  const finishing = completionChecks(template.finishingRequirements, reading);
+  const finishing = completionChecks(template.finishingRequirements, reading, template.questId);
   const additional = (template.actionRequirements || []).filter(
     (requirement) =>
       !finishing.some(
@@ -58,6 +58,26 @@ export function resolveTaskObjectives(template, reading = {}) {
     ...(party.length ? [`需${party.join('、')}在队`] : []),
     ...pending.filter((requirement) => !requirement.partyName).map((requirement) => requirement.hint),
   ].join('；');
+  if (!template.materialGate && template.counterGate) {
+    const recipients = template.counterGate.recipients.map((person) => ({ ...person, role: '回报' }));
+    const ready = !pending.length;
+    return {
+      ...template,
+      actionState: ready ? 'ready' : pending.some((row) => row.status === 'unmet') ? 'missing' : 'unknown',
+      conditionHint: ready ? '' : preparation,
+      nextAction: ready
+        ? recipients.length
+          ? `找${recipients.map((person) => person.name).join('、')}回报`
+          : '目标已达成，继续任务'
+        : preparation,
+      people: ready ? recipients : template.people,
+      // A completed hunt no longer points back to its hunting grounds. A
+      // return destination is retained only when independently bound as such.
+      places: ready
+        ? template.places.filter((place) => place.purpose === 'turn-in')
+        : template.places.map((place) => ({ ...place, conditionHint: preparation })),
+    };
+  }
   if (!template.materialGate && !pending.length && template.alternativeHandIn) {
     const { recipientIds, action } = template.alternativeHandIn;
     const recipients = template.people.filter((person) =>

@@ -359,10 +359,14 @@ function createTaskTargetProjector(world, materialItems = {}) {
     const collectionAction = collecting && collectionPrefix ? collectionPrefix : '';
     const readyAction = handInAt < 0 ? '' : clauses.slice(handInAt).join('，');
     return {
+      questId: task.gameId,
       people,
       instruction: !task.parentId && parents.has(task.gameId) ? '下一步未识别，请查看游戏任务栏。' : title,
       actionRequirements: requirements,
       ...(task.finishingRequirements?.length ? { finishingRequirements: task.finishingRequirements } : {}),
+      ...(task.finishingRequirements?.some((row) => ['KillMonster', 'KillMonsterAggre'].includes(row.type))
+        ? { counterGate: { recipients: recipientIds.map((id) => ({ ...personFor(id), ids: [id] })) } }
+        : {}),
       ...(recipientIds.length && task.finishingRequirements?.some((row) => row.type === 'AggregationItem')
         ? { alternativeHandIn: { recipientIds, action: finishAction } }
         : {}),

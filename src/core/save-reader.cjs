@@ -32,6 +32,7 @@ function readQuestSpecs(data, start, size) {
     if (payloadSize !== end - offset) return null;
     const quests = [],
       seen = new Set();
+    let progressBudget = 100000;
     for (let i = 0; i < count; i++) {
       const id = u32(),
         step = data.readUInt8(take(1)),
@@ -40,10 +41,38 @@ function readQuestSpecs(data, start, size) {
       // These two native integers are not treated as portable wall-clock
       // timestamps: historical saves can encode the machine's local clock.
       seen.add(id);
-      take(progressCount * 9);
+      const progress = [],
+        keys = new Set();
+      let validProgress = progressCount <= progressBudget;
+      progressBudget -= progressCount;
+      // QuestSpec CppStructOps serializer -> 0x141225d90 -> array
+      // 0x1411fc940 -> RequirementSetting 0x1411fc580 in the pinned build.
+      // Packed rows are enum uint8, Id int32, Num float32 (9 bytes), distinct
+      // from the reflected 12-byte memory structure used by the live bridge.
+      const progressStart = take(progressCount * 9);
+      if (validProgress)
+        for (let p = 0; p < progressCount; p++) {
+          const at = progressStart + p * 9;
+          const type = data.readUInt8(at),
+            target = data.readInt32LE(at + 1),
+            value = data.readFloatLE(at + 5);
+          const key = `${type}:${target}`;
+          if (
+            type > 67 ||
+            target < 0 ||
+            target > 10000000 ||
+            !Number.isFinite(value) ||
+            value < 0 ||
+            value > 100000000 ||
+            keys.has(key)
+          )
+            validProgress = false;
+          keys.add(key);
+          progress.push({ type, id: target, value });
+        }
       u32();
       u32();
-      quests.push({ id, step });
+      quests.push({ id, step, ...(validProgress && progress.length ? { progress } : {}) });
     }
     return offset === end ? quests : null;
   } catch {

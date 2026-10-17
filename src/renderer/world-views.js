@@ -229,7 +229,7 @@ export function createWorldViews({
           related && row.text.startsWith(row.name)
             ? questLink(related, 'text-btn', row.name) + esc(row.text.slice(row.name.length))
             : richText(row.text);
-        return `<div class="row between mt"><span>${label}</span>${current ? pill(row.status === 'met' ? '已满足' : row.status === 'unmet' ? '未满足' : '未确认', row.status === 'met' ? 'green' : row.status === 'unmet' ? 'orange' : '') : ''}</div>${row.alternatives?.length ? `<div class="related-items mt">${row.alternatives.map((item) => act('database-detail', esc(item.name + (item.quality ? ' · ' + item.quality : '')), 'text-btn', 'item-' + item.id) + (current && item.owned !== null ? pill('持有 ' + item.owned) : '')).join('')}</div>` : ''}`;
+        return `<div class="row between mt"><span>${label}</span>${current ? pill(row.progress ? `${row.progress.current} / ${row.progress.total}` : row.status === 'met' ? '已满足' : row.status === 'unmet' ? '未满足' : '未确认', row.status === 'met' ? 'green' : row.status === 'unmet' ? 'orange' : '') : ''}</div>${row.alternatives?.length ? `<div class="related-items mt">${row.alternatives.map((item) => act('database-detail', esc(item.name + (item.quality ? ' · ' + item.quality : '')), 'text-btn', 'item-' + item.id) + (current && item.owned !== null ? pill('持有 ' + item.owned) : '')).join('')}</div>` : ''}`;
       })
       .join('')}</details>`;
   }

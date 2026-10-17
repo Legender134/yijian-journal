@@ -56,13 +56,14 @@ end
 local function structure(class,values,spec)
     local m=metadata[class]
     if not m then m=object('/Script/CoreUObject.ScriptStruct','ScriptStruct '..class,{},fields(spec)); metadata[class]=m end
-    local v,d=object('/Script/CoreUObject.ScriptStruct','ScriptStruct '..class,values,fields(spec))
+    local v,d,p=object('/Script/CoreUObject.ScriptStruct','ScriptStruct '..class,values,fields(spec))
     d.IsMappedToObject=function() return true end
-    return v,d
+    return v,d,p
 end
 structure('/Script/GameplayAbilities.GameplayAttributeData',{},{{'CurrentValue','FloatProperty',0xc}})
 structure('/Script/JH.SkillSpec',{},{{'Id','IntProperty',0},{'Level','IntProperty',4}})
 structure('/Script/JH.NPCLocation',{},{{'MapName','NameProperty',0xc},{'IsVisible','BoolProperty',0x14}})
+structure('/Script/JH.RequirementSetting',{},{{'Type','EnumProperty',0},{'Id','IntProperty',4},{'Num','FloatProperty',8}})
 local function array(rows)
     local d={GetArrayNum=function() return #rows end}
     return setmetatable({}, {__index=function(_,k)
@@ -115,7 +116,11 @@ local player,playerData,playerFields=npc(0,gi)
 local teacher,teacherData,teacherFields=npc(10038,nm)
 local npcRows={{0,player},{10038,teacher}}
 nmData.NPCInfos=map(npcRows)
-local function quest(id,step) return structure('/Script/JH.QuestSpec',{QuestId=id,Step=step},{{'QuestId','IntProperty',0},{'Step','EnumProperty',4}}) end
+local function counter(kind,id,value) return structure('/Script/JH.RequirementSetting',{Type=kind,Id=id,Num=value},
+    {{'Type','EnumProperty',0},{'Id','IntProperty',4},{'Num','FloatProperty',8}}) end
+local function quest(id,step,progress) return structure('/Script/JH.QuestSpec',{QuestId=id,Step=step,QuestProgracessData=array(progress or {})},
+    {{'QuestId','IntProperty',0},{'Step','EnumProperty',4},
+    {'QuestProgracessData','ArrayProperty',8,nil,property('StructProperty',0,'/Script/JH.RequirementSetting')}}) end
 local activeRows={{12071,quest(12071,1)},{12094,quest(12094,1)}}
 qmData.QuestProcesses=map(activeRows)
 qmData.FinishQuests=map({{12071,quest(12071,4)}})
@@ -199,6 +204,19 @@ run(
     assert.deepEqual(f.get('empty-blob').npcs[1].inventory, []);
   },
 );
+run(
+  'quest-local float counters refresh the signed blob and keep current-map priority',
+  'local p,pData=counter(25,3,2); activeRows[1][2]=quest(12071,1,{p}); qmData.FinishQuests=map({{12071,quest(12071,4,{(counter(25,3,99))})}}); pulse("first"); pData.Num=3; now=now+1; pulse("changed"); assert(blobWrites==2)',
+  (f) => {
+    assert.deepEqual(f.get('first-blob').quests.find((q) => q.id === 12071).progress, [
+      { type: 25, id: 3, value: 2 },
+    ]);
+    assert.deepEqual(f.get('changed-blob').quests.find((q) => q.id === 12071).progress, [
+      { type: 25, id: 3, value: 3 },
+    ]);
+    assert(f.get('changed').npcObservation.version > f.get('first').npcObservation.version);
+  },
+);
 for (const [name, change] of [
   ['load byte', 'smData.YijianJournalLoadBusy=1'],
   ['pending save object', 'smData.LastLoadSaveData=object("/Script/JH.JHSaveGame")'],
@@ -217,6 +235,22 @@ for (const [name, change] of [
   ],
   ['array count overflow', 'teacherData.ItemSpecs={GetArrayNum=function() return 10001 end}'],
   ['fractional NPC ID', 'nmData.NPCInfos=map({{0,player},{10038.5,teacher}})'],
+  ['progress NaN', 'activeRows[1][2]=quest(12071,1,{(counter(22,45045,0/0))})'],
+  ['progress infinity', 'activeRows[1][2]=quest(12071,1,{(counter(22,45045,math.huge))})'],
+  ['progress negative', 'activeRows[1][2]=quest(12071,1,{(counter(22,45045,-1))})'],
+  ['progress duplicate', 'activeRows[1][2]=quest(12071,1,{(counter(22,45045,1)),(counter(22,45045,5))})'],
+  [
+    'progress wrong layout',
+    'local p,d,props=counter(22,45045,2); props.Num=property("IntProperty",8); activeRows[1][2]=quest(12071,1,{p})',
+  ],
+  [
+    'progress wrong inner',
+    'local q,d,props=quest(12071,1); props.QuestProgracessData=property("ArrayProperty",8,nil,property("StructProperty",0,"/Script/JH.SkillSpec")); activeRows[1][2]=q',
+  ],
+  [
+    'progress count overflow',
+    'local q,d=quest(12071,1); d.QuestProgracessData={GetArrayNum=function() return 1001 end}; activeRows[1][2]=q',
+  ],
 ]) {
   const actual =
     name === 'malformed private bag' ? 'teacherData.ItemSpecs=array({object("WrongItem")})' : change;

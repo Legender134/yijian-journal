@@ -817,7 +817,23 @@ function createFlowProjector({
       sharedMaterials,
       opportunities,
       warnings: [...warnings, ...windowChecks],
-      advice: relevantRules.filter((r) => r.warning && r.severity === 'reminder' && !r.deadlineReached),
+      advice: relevantRules.filter(
+        (r) =>
+          r.warning &&
+          r.severity === 'reminder' &&
+          !r.deadlineReached &&
+          // The current hunt already has an actionable counter. Keep the full
+          // guide searchable, without repeating its old pickup-only reminder.
+          !(
+            r.activeRule &&
+            r.pickup?.action === r.warning &&
+            !r.recommendation &&
+            !r.choices?.length &&
+            active.some(
+              (task) => task.gameId === r.questId && task.steps.some((step) => step.targets?.counterGate),
+            )
+          ),
+      ),
       decisions: relevantRules
         .filter((r) => r.decisionActive && !r.deadlineReached && r.choices?.length)
         .sort(
