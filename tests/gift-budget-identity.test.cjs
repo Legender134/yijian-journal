@@ -80,3 +80,48 @@ test('shared-stock reordering preserves named recipient links and exact quantiti
   assert.doesNotMatch(html, /data-id="npc-9001"><\/button>|赠予 ·/);
   assert.deepEqual({ input, saved }, before);
 });
+
+test('same-name and world-only people keep one identity through saved plans, new history and journal choices', async () => {
+  const { journeyPlan } = require('../src/core/journey-plan.cjs');
+  const { appendSystemEvent } = require('../src/core/event-journal.cjs');
+  const { journalReferenceChoices } = await import(
+    pathToFileURL(path.join(root, 'src/renderer/event-journal-views.js')).href
+  );
+  const people = index.entries.filter((row) => row.kind === '人物');
+  const originalIds = new Set(require('../src/data/game-index.json').entries.map((row) => row.id));
+  const selected = people.filter(
+    (row) =>
+      !originalIds.has(row.id) || people.some((other) => other.id !== row.id && other.name === row.name),
+  );
+  assert(selected.length >= 50);
+  for (const person of selected) {
+    const input = profile([gift(person.id, 'exact-person')]);
+    const before = structuredClone(input);
+    const saved = reference(1),
+      expected = giftPersonLabel(person, index.entries);
+    const action = journeyPlan(input, saved, resourceBudget(input, saved)).actions.find(
+      (row) => row.kind === 'gift',
+    );
+    assert(action.title.startsWith('赠礼意图：' + expected + ' · '), person.id);
+    assert.equal(
+      journalReferenceChoices(input, index, 'exact-person').find((row) => row.type === 'gift').label,
+      expected + ' · 武学笔记（绿色品质） × 1',
+      person.id,
+    );
+    const completed = structuredClone(input);
+    completed.journey.gifts[0].done = true;
+    const history = appendSystemEvent(
+      [],
+      { type: 'gift', id: 'exact-person', beforeDone: false, afterDone: true },
+      { profile: completed, game: index, world: index.world },
+      { now: '2026-10-18T00:00:00Z', id: 'identity-event' },
+    );
+    assert(history[0].title.includes(expected), person.id);
+    assert.equal(
+      history[0].links.find((row) => row.type === 'gift').label,
+      expected + ' · 武学笔记（绿色品质） × 1',
+      person.id,
+    );
+    assert.deepEqual(input, before);
+  }
+});

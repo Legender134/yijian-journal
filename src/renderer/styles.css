@@ -4785,3 +4785,146 @@ kbd {
     margin-top: 4px;
   }
 }
+
+.gift-field > h3 {
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+.gift-selected {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+}
+.gift-selected-link {
+  display: inline-flex;
+  max-width: 100%;
+  text-align: left;
+  font-size: 14px;
+}
+.gift-selected-link .game-picture {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+}
+.gift-selected-link .entity-link-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.gift-selected-facts {
+  margin-top: 8px;
+}
+.gift-stock {
+  margin: 8px 0 0 !important;
+}
+.gift-choice-editor {
+  margin-top: 8px;
+}
+.gift-choice-editor > summary {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.gift-choice-editor > input {
+  margin-top: 10px;
+}
+.gift-choice-filters {
+  margin: 10px 0;
+}
+.gift-choice-filters label {
+  margin: 8px 0;
+}
+.gift-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+.gift-choice-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  min-width: 0;
+  padding: 10px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+}
+.gift-choice-card:hover,
+.gift-choice-card:focus-visible {
+  border-color: var(--green);
+  background: #edf3ec;
+}
+.gift-choice-card.selected {
+  border-color: var(--green);
+}
+.gift-choice-card > .game-picture {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+}
+.gift-choice-card > span:not(.game-picture) {
+  min-width: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.gift-choice-pagination {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.gift-choice-pagination > span:last-child {
+  display: flex;
+  gap: 14px;
+}
+.gift-more-details {
+  margin: 16px 0;
+}
+.gift-more-details > .field {
+  margin-top: 14px;
+}
+.gift-editor-actions {
+  margin: 18px 0 0;
+}
+.gift-editor-actions .row {
+  margin-top: 10px;
+  gap: 14px;
+}
+.gift-intent-modal .modal-footer > .btn {
+  flex: 1;
+}
+@media (max-width: 400px) {
+  .gift-choice-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.gift-exact-select {
+  position: absolute;
+  width: 1px !important;
+  height: 1px !important;
+  clip-path: inset(50%);
+  overflow: hidden;
+  padding: 0 !important;
+  border: 0;
+}
+.gift-choice-editor .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.gift-quantity-shortage {
+  color: var(--warning, #8b4b27) !important;
+  font-weight: 600;
+}
+.gift-condition-warning {
+  color: var(--warning, #8b4b27) !important;
+  font-weight: 600;
+  margin: 8px 0 0 !important;
+}
