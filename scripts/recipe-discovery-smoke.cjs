@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 const { _electron: electron } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -525,7 +526,7 @@ async function staleAdd(scopeToken, quantity = 1) {
     checks.push(
       'reference-mode reset while staying on discovery automatically rereads and disables unbound old results',
     );
-    await win.locator('[data-action="navigate"][data-id="materials"]').first().click();
+    await openMainPage(win, 'materials');
     assert.equal(await win.locator('[data-action="recipe-discovery-open"]').count(), 1);
     checks.push('unknown inventory and learning remain unknown; materials page also has the entry');
     await app.close();

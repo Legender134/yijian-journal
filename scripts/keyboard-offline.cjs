@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -133,8 +134,8 @@ async function allPersonal(win) {
     await win.locator('.layout').waitFor();
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.showInactive()));
     for (const page of ['checklist', 'library', 'database', 'goals', 'saves', 'settings', 'home'])
-      await win.locator(`.nav-btn[data-id="${page}"]`).click();
-    await win.locator('.nav-btn[data-id="materials"]').click();
+      await openMainPage(win, page);
+    await openMainPage(win, 'materials');
     await win.locator(`[data-action="craft-plan-open"][data-id="${planId}"]`).click();
     await win.locator('#craft-search').fill('');
     const recipes = await win.locator('.craft-suggestions [data-action="craft-add"]').evaluateAll((buttons) =>
@@ -197,7 +198,7 @@ async function allPersonal(win) {
         );
     }
     await win.locator(`[data-action="craft-plan-open"][data-id="${completedPlan.id}"]`).click();
-    await win.locator('.nav-btn[data-id="home"]').click();
+    await openMainPage(win, 'home');
     report.checks.push(
       'recipe-specific accessible add/remove names select the intended recipe by keyboard and preserve other quantities',
     );
@@ -666,7 +667,7 @@ async function allPersonal(win) {
     await win.locator('#profile-name').dispatchEvent('compositionend');
     await win.keyboard.press('Escape');
     report.checks.push('IME composition does not trigger search shortcut');
-    await win.locator('.nav-btn[data-id="settings"]').click();
+    await openMainPage(win, 'settings');
     await win.locator('[data-action="help"]').click();
     const helpCopy = await win.locator('.help-copy').innerText();
     assert.ok(helpCopy.includes('Ctrl + K'));

@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -265,7 +266,7 @@ async function pendingClearChecks(companion) {
     checks.push('另一窗口明确改写随手记时同步新正文，不用旧焦点文字覆盖已保存内容');
     const old = (await current()).noteRevisions.find((row) => row.body === original);
     assert(old);
-    await page.locator('.nav-btn[data-id="journal"]').click();
+    await openMainPage(page, 'journal');
     await preview(old.id);
     await page.getByRole('button', { name: '取消', exact: true }).click();
     assert.equal((await current()).notes, '');

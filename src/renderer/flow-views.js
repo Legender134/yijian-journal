@@ -1,6 +1,8 @@
 export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) {
   const list = (value) => (Array.isArray(value) ? value : []);
   const text = (value) => esc(String(value ?? ''));
+  const roleText = (role) =>
+    !role || ['交互配置', '任务文字提及', '交互'].includes(role) ? '' : text(role) + ' ';
   const prose = (value) => richText(String(value ?? ''));
   const stepAction = (row) => richText(String(row.nextAction || row.description || ''), row.targets);
   const stateNotice = (flow) =>
@@ -135,22 +137,23 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     '获取线索';
   const placeEvidence = (value) =>
     ({
-      'description-mention': '任务说明中的地点线索',
-      'literal-mention': '任务说明中的地点线索',
-      'scene-placement': '场景布置线索',
-      'interaction-target': '交互人物的场景线索',
-    })[value] ||
+      'description-mention': '',
+      'literal-mention': '',
+      'scene-placement': '',
+      'interaction-target': '',
+      当前任务文字提及: '',
+    })[value] ??
     (typeof value === 'string' && /[\u3400-\u9fff]/.test(value) ? value : '资料线索，当前位置待核对');
   function stepPeople(row) {
     const people = list(row.people);
     return people.length
-      ? `<div class="flow-people">${people.map((person) => `<span>${person.role ? `<span class="small muted">${text(person.role)} </span>` : ''}${target(person, 'database-detail', 'npc')}</span>`).join(' · ')}</div>`
+      ? `<div class="flow-people">${people.map((person) => `<span>${roleText(person.role)}${target(person, 'database-detail', 'npc')}</span>`).join(' · ')}</div>`
       : '';
   }
   function stepPlaces(row) {
     const places = list(row.places);
     return places.length
-      ? `<div class="flow-places">${places.map((place) => `<p><span class="small muted">地点线索 </span>${target(place, 'world-place', 'place')}${place.evidence ? `<span class="small muted"> · ${text(placeEvidence(place.evidence))}</span>` : ''}</p>`).join('')}</div>`
+      ? `<div class="flow-places">${places.map((place) => `<p><span class="small muted">地点线索 </span>${target(place, 'world-place', 'place')}${place.evidence && placeEvidence(place.evidence) ? `<span class="small muted"> · ${text(placeEvidence(place.evidence))}</span>` : ''}</p>`).join('')}</div>`
       : '';
   }
   function routeHeading(route) {
@@ -289,7 +292,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
           );
     const people = list(row.targets?.people)
       .filter(unlinked)
-      .map((person) => `${text(person.role || '交互')} ${target(person, 'database-detail', 'npc')}`);
+      .map((person) => `${roleText(person.role)}${target(person, 'database-detail', 'npc')}`);
     const places = list(row.targets?.places)
       .filter(
         (place) =>

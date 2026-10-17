@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -56,7 +57,7 @@ async function waitGift(id, missing) {
   throw Error('gift plan did not reflect exact item: ' + id);
 }
 async function editGift() {
-  await page.locator('.nav-btn[data-id="journey"]').click();
+  await openMainPage(page, 'journey');
   if (!(await page.locator('[data-action="journey-gift-edit"]').count()))
     await page.locator('[data-action="journey-show-completed"]').click();
   await page.locator('[data-action="journey-gift-edit"]').first().click();
@@ -201,7 +202,7 @@ async function editGift() {
       /白色品质/,
     );
     checks.push('重启、编辑预览和完成操作的历史记录都保留精确的物品品质');
-    await page.locator('.nav-btn[data-id="journey"]').click();
+    await openMainPage(page, 'journey');
     await page.locator('[data-action="journey-todo-dialog"]').first().click();
     await page.locator('#journey-title').fill('地点搜索的合成待办');
     await page.locator('#journey-note').fill('先核对剧情场景，搜索不能清掉说明');
@@ -234,7 +235,7 @@ async function editGift() {
       undefined,
     );
     checks.push('地点搜索支持武当山别名和同名场景编号；空结果不改变已选地点，明确改为地点未定才清除关联');
-    await page.locator('.nav-btn[data-id="journal"]').click();
+    await openMainPage(page, 'journal');
     await page.locator('[data-action="journal-entry-new"]').click();
     await page.locator('#journal-body').fill('还没有标题的换机草稿');
     await page.locator('[data-action="close-overlay"]').click();
@@ -264,7 +265,7 @@ async function editGift() {
       },
       { bad },
     );
-    await page.locator('.nav-btn[data-id="settings"]').click();
+    await openMainPage(page, 'settings');
     if (await page.locator('[data-protection-controls]:not([open])').count())
       await page.locator('[data-protection-controls] > summary').click();
     await page.locator('[data-action="protection-open"]').first().click();

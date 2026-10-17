@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Short real Electron UI acceptance; only isolated synthetic saves are used.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -85,7 +86,7 @@ async function until(predicate) {
   throw Error('操作未保存');
 }
 async function journal() {
-  await page.locator('.nav-btn[data-id="journal"]').click();
+  await openMainPage(page, 'journal');
 }
 async function openEntry(id) {
   await page

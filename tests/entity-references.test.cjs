@@ -666,6 +666,10 @@ function previewEvents(context = async () => ({})) {
       hovered: false,
       inert: false,
       hidden: true,
+      scrollTop: 0,
+      querySelector() {
+        return null;
+      },
       setAttribute(name, value) {
         this.attributes.set(name, value);
       },
@@ -1193,3 +1197,127 @@ for (const scenario of [
     assert.equal(entry.getAttribute('aria-describedby'), null);
   });
 }
+
+test('a minimum 150% location search preview initially includes its exact marker and label without covering its trigger', async () => {
+  const ui = previewEvents(),
+    entry = ui.entry();
+  entry.dataset.entityId = 'place-synthetic';
+  ui.document.documentElement.clientWidth = 240;
+  ui.window.innerHeight = 240;
+  entry.getBoundingClientRect = () => ({ left: 5, top: 105.76, bottom: 177, width: 220, height: 71.24 });
+  ui.panel.getBoundingClientRect = () => {
+    const top = parseFloat(ui.panel.style.top) || 0,
+      height = Math.min(242, parseFloat(ui.panel.style.maxHeight) || Infinity);
+    return { left: 10, top, bottom: top + height, width: 220, height };
+  };
+  const point = {
+    getBoundingClientRect: () => ({
+      top: parseFloat(ui.panel.style.top) + 92.5 - ui.panel.scrollTop,
+      bottom: parseFloat(ui.panel.style.top) + 100.5 - ui.panel.scrollTop,
+    }),
+  };
+  const label = {
+    getBoundingClientRect: () => ({
+      top: parseFloat(ui.panel.style.top) + 65 - ui.panel.scrollTop,
+      bottom: parseFloat(ui.panel.style.top) + 78 - ui.panel.scrollTop,
+    }),
+  };
+  ui.panel.querySelector = (selector) =>
+    selector.endsWith('dot.is-selected')
+      ? point
+      : selector.endsWith('place-map-selected-label')
+        ? label
+        : null;
+  ui.document.activeElement = entry;
+  ui.emit('focusin', entry);
+  await ui.tick(0);
+  assert.equal(ui.panel.hidden, false);
+  let box = ui.panel.getBoundingClientRect(),
+    marker = point.getBoundingClientRect(),
+    name = label.getBoundingClientRect();
+  assert(box.bottom <= entry.getBoundingClientRect().top - 4, 'Original named target must stay clickable');
+  assert(
+    marker.top >= box.top + 8 && marker.bottom <= box.bottom - 8,
+    'Exact map marker is visible immediately',
+  );
+  assert(
+    name.top >= box.top + 8 && name.bottom <= box.bottom - 8,
+    'Selected location label is visible with the marker',
+  );
+  // Reading other map/fact rows is intentional. Ordinary context refresh must
+  // retain that scroll; it must not jump back to the marker on every poll.
+  ui.panel.scrollTop = 85;
+  ui.previews.refreshOutside(ui.root);
+  await ui.tick(0);
+  assert.equal(ui.panel.scrollTop, 85);
+  const next = ui.entry();
+  next.dataset.entityId = 'place-next';
+  next.getBoundingClientRect = entry.getBoundingClientRect;
+  ui.document.activeElement = next;
+  ui.emit('focusin', next);
+  await ui.tick(0);
+  box = ui.panel.getBoundingClientRect();
+  marker = point.getBoundingClientRect();
+  assert(
+    marker.top >= box.top + 8 && marker.bottom <= box.bottom - 8,
+    'A new location resets the previous reading scroll and reveals its own marker',
+  );
+  assert(ui.panel.scrollTop < 85);
+});
+
+for (const intent of ['focus', 'panel hover']) {
+  test(`background source replacement preserves the reading position of a ${intent} preview`, async () => {
+    let label = 'old';
+    const ui = previewEvents(async () => ({ label }));
+    const entry = ui.entry(ui.root);
+    if (intent === 'focus') ui.document.activeElement = entry;
+    else entry.hovered = true;
+    ui.emit(intent === 'focus' ? 'focusin' : 'pointerover', entry);
+    await ui.tick(240);
+    assert.equal(ui.panel.hidden, false);
+    ui.panel.scrollTop = 85;
+    entry.hovered = false;
+    ui.panel.hovered = true;
+    label = 'updated';
+    let replacement;
+    ui.redraw(() => {
+      replacement = ui.entry(ui.root);
+    });
+    assert.equal(entry.isConnected, false);
+    assert.equal(ui.panel.hidden, false, 'The reading surface stays visible during context refresh');
+    assert.equal(replacement.getAttribute('aria-describedby'), 'entity-preview');
+    await ui.tick(0);
+    assert.equal(ui.panel.innerHTML, 'npc-1 updated', 'The replacement resolves current data');
+    assert.equal(ui.panel.scrollTop, 85, 'Reading continues at the same position');
+    ui.emit('scroll', ui.root);
+    await ui.tick(0);
+    assert.equal(ui.panel.hidden, false);
+    assert.equal(replacement.getAttribute('aria-describedby'), 'entity-preview');
+    assert.equal(ui.panel.scrollTop, 85, 'Deferred container restoration retains the reading position');
+    let dismissed = false;
+    ui.emit('keydown', replacement, { key: 'Escape', preventDefault: () => (dismissed = true) });
+    await ui.tick(500);
+    assert.equal(dismissed, true);
+    assert.equal(ui.panel.hidden, true);
+    assert.equal(replacement.getAttribute('aria-describedby'), null);
+  });
+}
+
+test('scrolling an outside surface that moves the focused entry repositions its preview', async () => {
+  const ui = previewEvents(),
+    entry = ui.entry(ui.root);
+  let top = 120;
+  entry.getBoundingClientRect = () => ({ left: 20, top, bottom: top + 20, width: 100, height: 20 });
+  ui.document.activeElement = entry;
+  ui.emit('focusin', entry);
+  await ui.tick(0);
+  const originalTop = ui.panel.style.top;
+  ui.panel.scrollTop = 85;
+  top = 80;
+  ui.emit('scroll', ui.root);
+  await ui.tick(0);
+  assert.equal(ui.panel.hidden, false);
+  assert.equal(entry.getAttribute('aria-describedby'), 'entity-preview');
+  assert.notEqual(ui.panel.style.top, originalTop, 'A genuinely moved entry has a new preview position');
+  assert.equal(ui.panel.scrollTop, 0, 'A newly positioned preview begins at its initial content');
+});

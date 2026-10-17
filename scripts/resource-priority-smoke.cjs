@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -119,7 +120,7 @@ const grant = (data, id) =>
 (async () => {
   try {
     await launch();
-    await page.locator('.nav-btn[data-id="materials"]').click();
+    await openMainPage(page, 'materials');
     await openDialog();
     await page.locator('[data-action="resource-priority-move"][data-id="b"][data-direction="up"]').click();
     await page.waitForFunction(() =>
@@ -172,7 +173,7 @@ const grant = (data, id) =>
     assert.deepEqual((await current()).resourcePriority, ['b', 'a']);
     assert.equal(grant(await overview(), 'b'), 5);
     checks.push('真实退出重启保留所属周目的明确资源顺序');
-    await page.locator('.nav-btn[data-id="materials"]').click();
+    await openMainPage(page, 'materials');
     await openDialog();
     await page.locator('[data-action="resource-priority-reset"]').click();
     await page.locator('[data-action="resource-priority-save"]').waitFor();
@@ -196,8 +197,8 @@ const grant = (data, id) =>
       });
       assert(gift.ok, gift.error);
     }
-    await page.locator('.nav-btn[data-id="home"]').click();
-    await page.locator('.nav-btn[data-id="materials"]').click();
+    await openMainPage(page, 'home');
+    await openMainPage(page, 'materials');
     await openDialog();
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()

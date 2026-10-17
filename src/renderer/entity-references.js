@@ -430,6 +430,25 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       (choices.length === 1 || (placePositions.every(Boolean) && new Set(placePositions).size === 1))
         ? placeMaps.render(index(), e.id, { compact: true, interactive: false })
         : '';
+    if (map) {
+      // The selected map already names an exact known location. Keep explicit
+      // names for grouped/unknown positions; never invent a marker for them.
+      const heading =
+        choices.length === 1 && placePositions.every(Boolean)
+          ? ''
+          : '<div class="entity-preview-place-heading"><strong>' + esc(name) + '</strong></div>';
+      const facts = lines
+        .filter((line) => line !== '游戏场景')
+        .map((line) => '<p>' + esc(line) + '</p>')
+        .join('');
+      return (
+        '<div class="entity-preview-place">' +
+        heading +
+        map +
+        facts +
+        '</div><small class="entity-preview-hint">点击查看详情 · Esc 收起</small>'
+      );
+    }
     return `<div class="entity-preview-heading">${artwork(id, 'card')}<div><small>${esc(choices.length > 1 ? groupLabel : e.kind)}${choices.length === 1 && e.quality ? ' · ' + esc(e.quality) + '色' : ''}</small><strong>${esc(name)}</strong></div></div>${description ? `<p class="entity-preview-description">${esc(description)}</p>` : ''}${lines
       .map((line) => `<p>${esc(line)}</p>`)
       .join('')}${map}<small class="entity-preview-hint">点击查看详情 · Esc 收起</small>`;
@@ -450,7 +469,8 @@ export function installEntityPreviews({ document, window, references, context })
     timer,
     hideTimer,
     request = 0,
-    dismissed = null;
+    dismissed = null,
+    positioned = null;
   const selector =
     '[data-entity-id], [data-action="database-detail"][data-id], [data-action="world-quest"][data-id], [data-action="flow-quest"][data-id], [data-action="world-place"][data-id]';
   const eligible = (node) => {
@@ -516,6 +536,7 @@ export function installEntityPreviews({ document, window, references, context })
     clearTimeout(hideTimer);
     trigger?.removeAttribute('aria-describedby');
     trigger = pending = null;
+    positioned = null;
     panel.hidden = true;
   };
   const position = () => {
@@ -541,6 +562,29 @@ export function installEntityPreviews({ document, window, references, context })
       (useBelow
         ? Math.max(margin, bounds.bottom + gap)
         : Math.min(height - margin, bounds.top - gap) - rect.height) + 'px';
+    positioned = { node: trigger, bounds };
+  };
+  const revealMapTarget = () => {
+    if (panel.hidden) return;
+    const marker = panel.querySelector('.entity-preview-place .place-map-dot.is-selected');
+    if (!marker) return;
+    const bounds = panel.getBoundingClientRect(),
+      point = marker.getBoundingClientRect();
+    const label = panel
+      .querySelector('.entity-preview-place .place-map-selected-label')
+      ?.getBoundingClientRect();
+    const top = bounds.top + 8,
+      bottom = bounds.bottom - 8;
+    const whole = {
+      top: Math.min(point.top, label?.top ?? point.top),
+      bottom: Math.max(point.bottom, label?.bottom ?? point.bottom),
+    };
+    // Keep the exact marker and its label in the initial reading area. If the
+    // available side is too short for both, prioritize the marker; its original
+    // named click target stays unobstructed and the whole map remains scrollable.
+    const target = whole.bottom - whole.top <= bottom - top ? whole : point;
+    if (target.bottom > bottom) panel.scrollTop += target.bottom - bottom;
+    else if (target.top < top) panel.scrollTop -= top - target.top;
   };
   const readContext = (node, delay = 0) => {
     const current = ++request;
@@ -563,12 +607,18 @@ export function installEntityPreviews({ document, window, references, context })
         return;
       const html = references.preview(node.dataset.entityId || node.dataset.id, details);
       if (!html) return close();
+      const fresh = panel.hidden || trigger !== node;
+      const readingScroll = panel.scrollTop;
       trigger = node;
       pending = null;
       if (panel.innerHTML !== html) panel.innerHTML = html;
+      if (fresh) panel.scrollTop = 0;
       panel.hidden = false;
       node.setAttribute('aria-describedby', panel.id);
+      const scroll = fresh ? panel.scrollTop : readingScroll;
       position();
+      panel.scrollTop = scroll;
+      if (fresh) revealMapTarget();
     }, delay);
   };
   const show = (node, immediate = false) => {
@@ -628,6 +678,17 @@ export function installEntityPreviews({ document, window, references, context })
     'scroll',
     (event) => {
       if (panel.contains(event.target)) return;
+      // Restoring a refreshed surface can queue a scroll event even though
+      // its entry is already back at the same position. Keep the reader there.
+      if (!panel.hidden && trigger?.isConnected && positioned?.node === trigger) {
+        const bounds = trigger.getBoundingClientRect();
+        if (
+          ['left', 'top', 'bottom', 'width'].every(
+            (key) => Math.abs(bounds[key] - positioned.bounds[key]) < 0.5,
+          )
+        )
+          return;
+      }
       const node = pending || trigger;
       close();
       // Pointer and keyboard navigation can scroll an entry into view after
@@ -693,6 +754,8 @@ export function installEntityPreviews({ document, window, references, context })
         ...locate(scope, node),
         focused,
         panelHovered,
+        reading: !panel.hidden && trigger === node,
+        scrollTop: panel.scrollTop,
       };
     },
     restoreWithin(scope, saved) {
@@ -705,6 +768,22 @@ export function installEntityPreviews({ document, window, references, context })
       if (!node || node.disabled || node.closest('[inert]')) return;
       if (saved.focused && document.activeElement !== node) return;
       dismissed = null;
+      if (saved.reading) {
+        // Rebind before the browser paints the replaced page. Keeping the same
+        // visible preview prevents the pointer from landing on a different
+        // underlying entry while fresh context is resolved.
+        clearTimeout(timer);
+        clearTimeout(hideTimer);
+        trigger?.removeAttribute('aria-describedby');
+        trigger = node;
+        pending = null;
+        panel.hidden = false;
+        node.setAttribute('aria-describedby', panel.id);
+        position();
+        if (panel.hidden) return;
+        panel.scrollTop = saved.scrollTop;
+        return readContext(node);
+      }
       // Resolve fresh context on the replacement; never reuse old inventory or tooltip HTML.
       show(node, true);
     },

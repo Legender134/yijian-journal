@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -74,7 +75,7 @@ async function written(file, parse = false) {
   throw Error('export did not finish: ' + file);
 }
 async function nav(page, id) {
-  await page.locator('.nav-btn[data-id="' + id + '"]').click();
+  await openMainPage(page, id);
 }
 (async () => {
   try {

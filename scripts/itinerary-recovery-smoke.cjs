@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Bounded source/candidate GUI check. Only isolated synthetic notes and saves.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -83,7 +84,7 @@ async function until(predicate) {
 }
 const bytes = () =>
   ['journal.json', 'journal.json.previous'].map((name) => fs.readFileSync(path.join(userData, name)));
-const nav = (route) => page.locator('.nav-btn[data-id="' + route + '"]').click();
+const nav = (route) => openMainPage(page, route);
 const tripRow = (id) => page.locator('[data-itinerary-step="' + id + '"]');
 const archived = (id) => page.locator('[data-journey-trash-id="' + id + '"]');
 async function launch() {

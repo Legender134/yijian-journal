@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
 // Independent synthetic user-flow regression. YIJIAN_TEST_DATA blocks all native game commands.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -89,7 +90,7 @@ const launch = async (data, tray = false) => {
   await win.locator('.layout').waitFor();
   return { app, win };
 };
-const nav = (win, id) => win.locator(`.nav-btn[data-id="${id}"]`).click();
+const nav = (win, id) => openMainPage(win, id);
 const close = async (win) => {
   await win.keyboard.press('Escape');
   await win.locator('.drawer').waitFor({ state: 'detached' });
@@ -211,7 +212,7 @@ async function recipeReservationConsistency() {
   try {
     await app.context().setOffline(true);
     await nav(win, 'database');
-    await win.locator('[data-action="database-kind"][data-id="配方"]').click();
+    await chooseCodexKind(win, '配方');
     await win.locator('#list-search').fill(gameIndex.entries.find((e) => e.id === 'fusion-1000').name);
     await win.locator('.database-card[data-id="fusion-1000"]').click();
     await win.locator('#recipe-quantity').waitFor();
@@ -842,7 +843,7 @@ async function referenceAndPolling() {
     await close(win);
 
     await nav(win, 'database');
-    await win.locator('[data-action="database-kind"][data-id="配方"]').click();
+    await chooseCodexKind(win, '配方');
     await win.locator('#list-search').fill('布锦鞋精良图纸');
     await win.locator('[data-action="database-detail"][data-id="fusion-7000"]').click();
     await selectProgress(win, '1.sav');
@@ -898,7 +899,7 @@ async function referenceAndPolling() {
     });
     await close(win);
 
-    await win.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await chooseCodexKind(win, '人物');
     await win.locator('#list-search').fill('余裁缝');
     await win.locator('[data-action="database-detail"][data-id="npc-10802"]').click();
     await selectProgress(win, '1.sav');
@@ -1025,7 +1026,7 @@ async function firstSaveAppears() {
   const { app, win } = running;
   try {
     await nav(win, 'database');
-    await win.locator('[data-action="database-kind"][data-id="配方"]').click();
+    await chooseCodexKind(win, '配方');
     await win.locator('#list-search').fill('布锦鞋精良图纸');
     await win.locator('[data-action="database-detail"][data-id="fusion-7000"]').click();
     assert.equal(await progressValue(win), '@latest');
@@ -1123,7 +1124,7 @@ async function recipeOutputUnits() {
       assert.equal(journal(data).settings.readingScale || 100, value);
     };
     await nav(win, 'database');
-    await win.locator('[data-action="database-kind"][data-id="配方"]').click();
+    await chooseCodexKind(win, '配方');
     await win.locator('#list-search').fill('铜锭');
     await win.locator('[data-action="database-detail"][data-id="fusion-9501"]').click();
     await selectProgress(win, '1.sav');
@@ -1359,7 +1360,7 @@ async function referenceRefreshEdges() {
   const { app, win } = running;
   try {
     await nav(win, 'database');
-    await win.locator('[data-action="database-kind"][data-id="配方"]').click();
+    await chooseCodexKind(win, '配方');
     await win.locator('#list-search').fill('布锦鞋精良图纸');
     await win.locator('[data-action="database-detail"][data-id="fusion-7000"]').click();
     await selectProgress(win, '1.sav');
@@ -1422,7 +1423,7 @@ async function referenceRefreshEdges() {
     });
     await close(win);
 
-    await win.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await chooseCodexKind(win, '人物');
     await win.locator('#list-search').fill(person.name);
     await win.locator(`[data-action="database-detail"][data-id="${person.id}"]`).click();
     await selectProgress(win, '2.sav');
@@ -2414,7 +2415,7 @@ async function importedReferences() {
   const { app, win } = (running = await launch(data));
   try {
     await nav(win, 'database');
-    await win.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await chooseCodexKind(win, '人物');
     await win.locator('#list-search').fill('道玄');
     const person = gameIndex.entries.find((e) => e.kind === '人物' && e.name === '道玄');
     await win.locator(`.database-card[data-id="${person.id}"]`).click();

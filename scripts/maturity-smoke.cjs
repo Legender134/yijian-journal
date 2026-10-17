@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict'),
@@ -91,7 +92,7 @@ const checks = [],
   errors = [];
 let app, pid;
 async function nav(page, id) {
-  await page.locator('.nav-btn[data-id="' + id + '"]').click();
+  await openMainPage(page, id);
 }
 async function dialogAnswer(value) {
   await app.evaluate(({ dialog }, response) => {

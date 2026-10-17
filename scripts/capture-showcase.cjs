@@ -1,4 +1,5 @@
 'use strict';
+const { chooseCodexKind } = require('./ui-smoke-actions.cjs');
 // Public screenshots use reproducible example progress, never personal saves.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -113,7 +114,7 @@ async function size(page, width, height) {
     await shot(small, 'companion-person');
     await small.locator('#overlay [data-action="close-overlay"]').first().click();
     await small.locator('.companion-tabs [data-id="database"]').click();
-    await small.locator('[data-action="database-kind"][data-id="地点"]').click();
+    await chooseCodexKind(small, '地点');
     await small.locator('.place-map-pin[aria-label="查看梧桐村"]').click();
     await small.locator('.drawer .place-map-frame').waitFor();
     await shot(small, 'companion-map');
@@ -124,7 +125,7 @@ async function size(page, width, height) {
     if (!(await backups.evaluate((el) => el.open))) await backups.locator(':scope > summary').click();
     await shot(small, 'companion-saves');
     await main.locator('.nav-btn[data-id="database"]').click();
-    await main.locator('[data-action="database-kind"][data-id="物品"]').click();
+    await chooseCodexKind(main, '物品');
     const search = main.locator('#list-search');
     await search.fill('一转血气丹');
     await main.locator('[data-action="database-detail"][data-id="item-100"]').first().click();

@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Real main/compact windows with isolated synthetic saves; no real game integration.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -121,7 +122,7 @@ async function until(predicate) {
   throw Error('安排操作未完成');
 }
 async function nav(route) {
-  await page.locator('.nav-btn[data-id="' + route + '"]').click();
+  await openMainPage(page, route);
 }
 async function resume(id, target = page) {
   const button = target.locator('[data-action="intent-draft-resume"][data-id="' + id + '"]').first();

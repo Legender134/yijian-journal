@@ -1,4 +1,5 @@
 'use strict';
+const { revealMainPage } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -64,7 +65,9 @@ async function launch() {
 }
 async function navigate(win, id, compact = false) {
   const scope = compact ? '.companion-tabs' : '.sidebar-nav';
-  const button = win.locator(`${scope} [data-action="navigate"][data-id="${id}"]`);
+  const button = compact
+    ? win.locator(`${scope} [data-action="navigate"][data-id="${id}"]`)
+    : await revealMainPage(win, id);
   await button.focus();
   await win.keyboard.press('Enter');
   await win.waitForFunction(

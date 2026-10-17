@@ -1,4 +1,5 @@
 'use strict';
+const { chooseCodexKind } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -294,7 +295,7 @@ const pulse = () => {
     assert.match(await small.locator('[data-npc-progress-card="10016"] > summary').innerText(), /×2/);
     // Direct codex entries and both search surfaces share the same live task cohort.
     await small.locator('.companion-tabs [data-id="database"]').click();
-    await small.locator('[data-action="database-kind"][data-id="任务"]').click();
+    await chooseCodexKind(small, '任务');
     await small.locator('#list-search').fill('种类:任务 状态:已完成');
     const directTask = small.locator('.database-card[data-id="quest-5062"]');
     await directTask.waitFor();
@@ -330,7 +331,7 @@ const pulse = () => {
     // An ordinary codex list must use the same current NPC state before a
     // detail has ever been opened; the saved fixture says this bag is empty.
     await main.locator('.sidebar-nav [data-id="database"]').click();
-    await main.locator('[data-action="database-kind"][data-id="人物"]').click();
+    await chooseCodexKind(main, '人物');
     await main.locator('#list-search').fill('江吟风');
     const initialPerson = main.locator('[data-action="database-detail"][data-id="npc-10016"]').first();
     await initialPerson.focus();

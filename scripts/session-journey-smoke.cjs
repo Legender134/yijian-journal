@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Actual assistant source/packaged Electron, isolated synthetic saves only.
 // Only the exact candidate assistant EXE may override source Electron.
 const fs = require('node:fs');
@@ -91,7 +92,7 @@ async function launch() {
   await page.locator('.layout').waitFor();
 }
 async function nav(id) {
-  await page.locator('.nav-btn[data-id="' + id + '"]').click();
+  await openMainPage(page, id);
   if (id === 'home') await expandHome();
 }
 async function expandHome() {

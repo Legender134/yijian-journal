@@ -1,4 +1,5 @@
 'use strict';
+const { openMainPage } = require('./ui-smoke-actions.cjs');
 // Real assistant windows; isolated synthetic saves and journal only.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -85,7 +86,7 @@ async function current() {
   return result.data.state.profiles.find((row) => row.id === result.data.state.activeProfileId);
 }
 async function nav(id) {
-  await page.locator('.nav-btn[data-id="' + id + '"]').click();
+  await openMainPage(page, id);
 }
 async function waitState(predicate) {
   const end = Date.now() + 12000;
