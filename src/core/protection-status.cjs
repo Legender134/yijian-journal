@@ -15,6 +15,14 @@ function protectionStatus(health) {
   if (t.error) return { ...native('自动保存已停止', true), reason: t.error };
   if (t.busy) return native('正在存读档');
   if (t.pending) return { ...native('上次存读档待核对', true), reason: '请到存档匣核对中断记录' };
+  if (health.backupUnavailable)
+    return {
+      label: '备份目录暂不可用',
+      warning: true,
+      ready: false,
+      detail: '请到存档查看',
+      reason: health.backupError,
+    };
   if (health.recovery)
     return {
       label: '存档恢复待核对',

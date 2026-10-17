@@ -241,6 +241,59 @@ test('repeated failures are reported once and retried after the problem is fixed
   auto.reset();
   assert.equal(auto.lastBackup, null);
 });
+
+test('unavailable backup storage is caught before writes and revalidated after reconnection', (t) => {
+  const { auto, saves, source, base, settle, events } = setup(t);
+  auto.isBlocked = () =>
+    require('../src/core/backup-care.cjs')
+      .listPending({ saves })
+      .some((row) => row.blocking !== false);
+  auto.check();
+  settle();
+  const original = auto.lastBackup.id;
+  const bytes = fs.readFileSync(path.join(source, '1.sav'));
+  const retained = path.join(base, 'retained-backups');
+  fs.renameSync(saves.root, retained);
+  fs.writeFileSync(saves.root, 'synthetic unavailable storage');
+  assert.doesNotThrow(() => auto.check());
+  assert.equal(auto.lastBackup, null);
+  assert(auto.error);
+  assert.equal(fs.readFileSync(saves.root, 'utf8'), 'synthetic unavailable storage');
+  auto.check();
+  assert.equal(events.filter((row) => row.type === 'error').length, 1);
+  fs.unlinkSync(saves.root);
+  fs.renameSync(retained, saves.root);
+  let verified = 0;
+  const verify = saves.verify.bind(saves);
+  saves.verify = (...args) => {
+    verified++;
+    return verify(...args);
+  };
+  auto.check();
+  settle();
+  assert(verified > 0, 'A remembered copy must be reverified after storage returns');
+  assert.equal(auto.lastBackup.id, original);
+  assert.equal(auto.error, '');
+  assert.equal(saves.list().length, 1);
+  assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), bytes);
+});
+
+test('a failed blocker inspection after the settle wait is caught and retried without a write', (t) => {
+  const { auto, saves, settle } = setup(t);
+  auto.check();
+  auto.isBlocked = () => {
+    throw Error('Synthetic backup root unavailable');
+  };
+  assert.doesNotThrow(settle);
+  assert.match(auto.error, /root unavailable/);
+  assert.equal(auto.pending, null);
+  assert.equal(saves.list().length, 0);
+  auto.isBlocked = () => false;
+  auto.check();
+  settle();
+  assert.equal(auto.error, '');
+  assert.equal(saves.list().length, 1);
+});
 test('unresolved restore and disposal prevent pending automatic writes', (t) => {
   const { auto, saves, settle } = setup(t);
   auto.check();

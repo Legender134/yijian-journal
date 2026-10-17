@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('journal', {
   bootstrap: () => call('bootstrap'),
   mutate: (command) => call('mutate', command),
   refresh: () => call('refresh'),
+  recheckBackups: () => call('backup-recheck'),
   health: () => call('health'),
   ready: () => call('ready'),
   checkUpdates: () => call('update-check'),

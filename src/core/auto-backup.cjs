@@ -27,13 +27,13 @@ class AutoBackup {
       this.check();
     }
   }
-  reset() {
+  reset({ keepError = false } = {}) {
     if (this.pending) this.cancel(this.pending.timer);
     this.pending = null;
     this.lastKey = '';
     this.seededSource = '';
     this.lastBackup = null;
-    this.error = '';
+    if (!keepError) this.error = '';
   }
   dispose() {
     this.disposed = true;
@@ -41,6 +41,9 @@ class AutoBackup {
     this.reset();
   }
   fail(error) {
+    this.seededSource = '';
+    this.lastKey = '';
+    this.lastBackup = null;
     const text = error.message || '未知错误';
     if (this.error !== text) {
       this.error = text;
@@ -72,10 +75,11 @@ class AutoBackup {
     this.error = '';
   }
   check() {
-    if (this.disposed || this.pending || this.isBlocked()) return;
+    if (this.disposed || this.pending) return;
     const settings = this.store.get().settings;
-    if (!settings.autoBackup || !settings.savePath || this.saves.busy || this.saves.pendingRestore()) return;
+    if (!settings.autoBackup || !settings.savePath) return;
     try {
+      if (this.isBlocked() || this.saves.busy || this.saves.pendingRestore()) return;
       const source = settings.savePath,
         key = sourceKey(source),
         fingerprint = this.saves.fingerprint(source);
@@ -111,16 +115,9 @@ class AutoBackup {
     if (this.disposed || this.pending !== pending) return;
     this.pending = null;
     const settings = this.store.get().settings;
-    if (
-      !settings.autoBackup ||
-      !settings.savePath ||
-      sourceKey(settings.savePath) !== pending.key ||
-      this.saves.busy ||
-      this.isBlocked() ||
-      this.saves.pendingRestore()
-    )
-      return;
+    if (!settings.autoBackup || !settings.savePath || sourceKey(settings.savePath) !== pending.key) return;
     try {
+      if (this.saves.busy || this.isBlocked() || this.saves.pendingRestore()) return;
       if (this.saves.fingerprint(pending.source) !== pending.fingerprint) return;
       const result = this.saves.capture(pending.source, '自动备份', 'auto');
       this.accept(result);
