@@ -139,6 +139,7 @@ function rendererHarness() {
     protectionView: { omittedArchives: [{ id: 'retained-warning' }] },
     environment: { saves: { files: [] }, protectionExportResult: { status: 'success', message: '旧成功' } },
     refreshRequest: 0,
+    refreshReadingsPending: false,
     recipeDiscoveryRequest: 0,
     recipeDiscoveryTimer: undefined,
     recipeDiscoveryNeedsRefresh: false,

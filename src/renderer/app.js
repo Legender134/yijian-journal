@@ -95,6 +95,7 @@ let databaseKind = '物品',
   referenceSave = null,
   detailRequest = 0;
 let refreshRequest = 0;
+let refreshReadingsPending = false;
 let backupPreviewRequest = 0,
   backupRestorePending = false;
 let protectionExportRequest = 0;
@@ -4627,6 +4628,8 @@ async function refresh(background = false) {
     recipeDiscoverySourceSignature(environment) !== recipeDiscoverySourceSignature(next);
   const changed = JSON.stringify(environment) !== JSON.stringify(next);
   environment = next;
+  // A superseding poll must finish the reading update accepted by an older poll.
+  refreshReadingsPending ||= !background || changed;
   if (discoverySourceChanged) invalidateRecipeDiscovery();
   // Keep the hovered entry and keyboard focus connected during an unchanged poll.
   // Explicit refreshes still render route changes and locally updated views.
@@ -4714,9 +4717,11 @@ async function refresh(background = false) {
     (referenceSaveName === undefined || currentDrawer.planningSignature !== planningIntentSignature())
   )
     await showDatabaseDetail(currentDrawer.id, currentDrawer.quantity || 1, currentDrawer.giftPage);
-  if ((!background || changed) && currentDrawer?.type === 'search' && !composing)
-    showSearchResults(currentDrawer.query);
-  if (token === refreshRequest && (!background || changed)) entityPreviews.refreshOutside(root);
+  if (token === refreshRequest && refreshReadingsPending) {
+    if (currentDrawer?.type === 'search' && !composing) showSearchResults(currentDrawer.query);
+    entityPreviews.refreshOutside(root);
+    refreshReadingsPending = false;
+  }
   if (token === refreshRequest) await refreshLiveNpcDetail();
 }
 async function handle(action, id, target, navigationFocused = false) {

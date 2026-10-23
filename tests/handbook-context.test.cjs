@@ -1664,6 +1664,7 @@ test('latest and fixed-slot choosers refresh while explicit snapshots keep their
       referenceSaveName: old.name,
       referenceFollow: follow,
       refreshRequest: 0,
+      refreshReadingsPending: false,
       root: {},
       entityPreviews: { refreshOutside() {} },
       handbookRequest: 0,
@@ -1794,6 +1795,7 @@ test('new searches reject late historical refreshes and preview the Settings ref
       materialView: {},
       journeyDraft: null,
       refreshRequest: 0,
+      refreshReadingsPending: false,
       recipeDiscoverySourceSignature: () => '',
       recipeDiscoveryNeedsRefresh: false,
       composing: false,
@@ -1880,6 +1882,7 @@ test('Settings updates from another window reload an open item or chooser and in
       worldRequest: 0,
       materialRequest: 0,
       refreshRequest: 0,
+      refreshReadingsPending: false,
       handbookRequest: 0,
       detailRequest: 40,
       root: {},
@@ -2119,4 +2122,64 @@ test('typed place choices survive handoff and history without accepting paths or
     assert.throws(() =>
       handbookContext({ profileId: 'p', detail: { type: 'entity-choice', id: 'place-name:' + suffix } }),
     );
+});
+
+test('overlapping polls refresh open search previews after the latest save read wins', async () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  const start = source.indexOf('async function refreshLiveNpcDetail(');
+  const end = source.indexOf('async function handle(', start);
+  for (const follow of [true, false]) {
+    const old = { name: '1.sav', hash: 'old', count: 5 };
+    const latest = { name: old.name, hash: 'new', count: 9 };
+    const reads = [],
+      previews = [],
+      searches = [];
+    let renders = 0;
+    const context = {
+      refreshRequest: 0,
+      refreshReadingsPending: false,
+      environment: { saves: { files: [old] } },
+      referenceSaveName: old.name,
+      referenceSave: old,
+      referenceFollow: follow,
+      handbookRequest: 0,
+      detailRequest: 0,
+      root: {},
+      currentDrawer: { type: 'search', query: '铁矿石' },
+      route: 'home',
+      worldView: {},
+      materialView: {},
+      journeyDraft: null,
+      composing: false,
+      profile: () => ({ id: 'synthetic-profile' }),
+      latestReference: () => latest.name,
+      recipeDiscoverySourceSignature: () => '',
+      render: () => renders++,
+      showSearchResults: (query) => searches.push([query, context.referenceSave.count]),
+      entityPreviews: { refreshOutside: () => previews.push(context.referenceSave.count) },
+      call: async (method) =>
+        method === 'refresh' ? { saves: { files: [latest] } } : new Promise((resolve) => reads.push(resolve)),
+    };
+    vm.createContext(context);
+    vm.runInContext(source.slice(start, end) + '\nthis.poll = refresh;', context);
+    const first = context.poll(true);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(reads.length, 1);
+    const second = context.poll(true);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(reads.length, 2, 'both polls are waiting on the same changed save');
+    reads[1](latest);
+    await second;
+    assert.equal(context.referenceSave, latest);
+    assert.deepEqual(previews, [9], 'the winning poll must replace the open preview quantity');
+    assert.deepEqual(searches, [['铁矿石', 9]]);
+    reads[0](old);
+    await first;
+    assert.equal(context.referenceSave, latest, 'the late superseded read cannot restore old stock');
+    await context.poll(true);
+    assert.deepEqual(previews, [9], 'unchanged polls leave the current preview intact');
+    assert.equal(searches.length, 1);
+    assert.equal(reads.length, 2);
+    assert.equal(renders, 1, 'only the poll that accepted the changed environment renders the page');
+  }
 });

@@ -74,6 +74,7 @@ function harness() {
       currentDrawer: null,
       handbookRequest: 0,
       refreshRequest: 0,
+      refreshReadingsPending: false,
       handbookSuspended: false,
       overlay: { firstChild: null },
       profileValue: { id: 'one', saveSlot: '2.sav' },
