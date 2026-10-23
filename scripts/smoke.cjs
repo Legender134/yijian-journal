@@ -1068,13 +1068,13 @@ async function companionHomeInventorySync(page) {
       await choiceCompact.locator('#recipe-quantity').fill('3');
       await choiceCompact.locator('#recipe-materials [data-action="database-detail"]').first().click();
       await choiceCompact.locator('.item-usage').waitFor();
-      const stock = choiceCompact.locator('.item-usage .detail-stat-grid > div').first().locator('strong');
+      const stock = choiceCompact.locator('.item-usage-stock > div').first().locator('dd');
       if (sourceReference === '@none') assert.equal(await stock.innerText(), '—');
       else assert.match(await stock.innerText(), /^\d[\d,]*$/);
       await choiceCompact.locator('.drawer [data-action="main"]').click();
       await win.locator('.item-usage').waitFor();
       assert.equal(
-        await win.locator('.item-usage .detail-stat-grid > div').first().locator('strong').innerText(),
+        await win.locator('.item-usage-stock > div').first().locator('dd').innerText(),
         await stock.innerText(),
       );
       await assertProgressReference(win, sourceReference);

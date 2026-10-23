@@ -124,16 +124,12 @@ delete env.ELECTRON_RUN_AS_NODE;
     await small.keyboard.press('Control+k');
     await small.locator('#global-search').fill('种类:物品 名称:金疮药');
     await small.locator('.search-result[data-id="item-133"]').click();
-    const stock = small.locator('.item-usage .detail-stat-grid > div').first().locator('strong');
+    const stock = small.locator('.item-usage-stock > div').first().locator('dd');
     assert.equal(await stock.innerText(), '3');
     await selectProgress(win, '@none', { reopen: false });
-    await small.waitForFunction(
-      () => document.querySelector('.item-usage .detail-stat-grid strong')?.textContent === '—',
-    );
+    await small.waitForFunction(() => document.querySelector('.item-usage-stock dd')?.textContent === '—');
     await selectProgress(win, '1.sav', { reopen: false });
-    await small.waitForFunction(
-      () => document.querySelector('.item-usage .detail-stat-grid strong')?.textContent === '3',
-    );
+    await small.waitForFunction(() => document.querySelector('.item-usage-stock dd')?.textContent === '3');
     await small.locator('[data-action="close-overlay"]').click();
     await small.keyboard.press('Control+k');
     await small.locator('#global-search').fill('卫霍');
