@@ -188,6 +188,8 @@ let app, child;
     assert.equal(sha(fs.readFileSync(path.join(source, '29.sav'))), before);
     assert.equal(new Timeline(timeline.root).inspect(first.id).record.note, '新的备注');
     await win.locator('.nav-btn[data-id="settings"]').click();
+    const shortcuts = win.locator('[data-persist-detail="settings-shortcuts"]');
+    if (!(await shortcuts.evaluate((node) => node.open))) await shortcuts.locator(':scope > summary').click();
     await win.locator('[data-action="window-quit"]').click();
     await new Promise((resolve, reject) => {
       const p = child;

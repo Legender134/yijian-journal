@@ -2113,6 +2113,7 @@ async function interruptedRestoreReceipt() {
     assert.match(receipt.message, /已回退 1 个文件/);
     assert(receipt.message.includes(source.slice(0, 220)));
     assert(receipt.message.includes(pending.safetyId));
+    await win.locator('.operation-history > summary').click();
     assert((await win.locator('.operation-history').innerText()).includes(receipt.message));
     for (const copy of [originalCopy, safety]) {
       const verified = backups.verify(copy.manifest.id);
@@ -2123,6 +2124,7 @@ async function interruptedRestoreReceipt() {
     ({ app, win } = running = await launch(data));
     await nav(win, 'saves');
     assert.equal(await banner().count(), 0);
+    await win.locator('.operation-history > summary').click();
     assert((await win.locator('.operation-history').innerText()).includes(receipt.message));
     assert.equal(operations().filter((event) => event.message === receipt.message).length, 1);
     assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), current);
@@ -2381,6 +2383,7 @@ async function unreadableProgressAndImport() {
     assert.doesNotMatch(await win.locator('.start-panel').innerText(), /存档回顾.*现在就能使用/);
     await nav(win, 'saves');
     await win.locator('.backup-row').first().waitFor();
+    await win.locator('.save-files > summary').click();
     assert.match(await win.locator('.content').innerText(), /进度暂无法读取/);
     const copies = new Saves(path.join(data, 'save-backups'));
     assert.deepEqual(copies.verify(copies.list()[0].id).buffers.get('1.sav'), invalid);
@@ -2436,7 +2439,8 @@ async function importedReferences() {
     await win.locator(`.database-card[data-id="${person.id}"]`).click();
     await selectProgress(win, '');
     assert.equal(await progressValue(win), '');
-    assert.match(await win.locator('.person-gifts > summary').innerText(), /符合偏好的物品/);
+    await win.locator('.person-gifts > summary').click();
+    assert.match(await win.locator('.person-gifts > p').first().innerText(), /符合偏好的物品/);
     assert.doesNotMatch(await win.locator('.person-gifts').innerText(), /仅列可用库存/);
     await close(win);
     // Shared Settings changed the profile itself; restore the pinned import fixture.
@@ -2497,8 +2501,13 @@ async function customOpacityImport() {
     JSON.stringify({ ...store.get(), settings: { ...store.get().settings, compactOpacity: 0.9 } }),
   );
   let launched = (running = await launch(data));
-  try {
+  async function openCompanionSettings() {
     await nav(launched.win, 'settings');
+    const settings = launched.win.locator('[data-persist-detail="settings-companion"]');
+    if (!(await settings.evaluate((node) => node.open))) await settings.locator(':scope > summary').click();
+  }
+  try {
+    await openCompanionSettings();
     assert.equal(await launched.win.locator('#companion-opacity').inputValue(), '0.82');
     assert.equal(await launched.win.locator('#companion-opacity option:checked').innerText(), '82%（当前）');
     assert.equal(journal(data).settings.compactOpacity, 0.82);
@@ -2517,16 +2526,15 @@ async function customOpacityImport() {
     await launched.app.close();
     running = null;
     launched = running = await launch(data);
-    await nav(launched.win, 'settings');
+    await openCompanionSettings();
     assert.equal(await launched.win.locator('#companion-opacity').inputValue(), '0.82');
     await launched.app.close();
     running = null;
     new Store(data, catalog).mutate({ type: 'settings', value: { compactOpacity: 0.9 } });
     launched = running = await launch(data);
-    await nav(launched.win, 'settings');
+    await openCompanionSettings();
     assert.equal(await launched.win.locator('#companion-opacity').inputValue(), '0.9');
     assert.equal(await launched.win.locator('#companion-opacity option:checked').innerText(), '90%（当前）');
-    await launched.win.locator('[data-persist-detail="settings-companion"] > summary').click();
     await launched.win.locator('#companion-opacity').selectOption('0.85');
     await launched.win.waitForFunction(() => document.querySelector('#companion-opacity')?.value === '0.85');
     assert.equal(journal(data).settings.compactOpacity, 0.85);

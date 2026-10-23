@@ -76,6 +76,10 @@ let app;
       env: { ...process.env, YIJIAN_TEST_DATA: data },
     });
     const win = await app.firstWindow();
+    async function openComparisonControls() {
+      const controls = win.locator('.compare-source-selection');
+      if (!(await controls.evaluate((node) => node.open))) await controls.locator(':scope > summary').click();
+    }
     win.on('pageerror', (e) => report.errors.push(e.message));
     await win.locator('.layout').waitFor();
     await win.bringToFront();
@@ -132,7 +136,7 @@ let app;
     await win.locator('#compare-left').selectOption('1.sav');
     await win.locator('#compare-right').selectOption('2.sav');
     await win.locator('[data-action="compare-run"]').click();
-    await win.locator('#compare-status').filter({ hasText: '已完成只读对比' }).waitFor();
+    await win.locator('#comparison-result:not([aria-busy]) .compare-direction').waitFor();
     assert.ok((await win.locator('.compare-summary').innerText()).includes('+250 文'));
     assert.ok((await win.locator('.compare-summary').innerText()).includes('45 秒'));
     const answer = await win.evaluate(() => window.journal.compareSaves('1.sav', '2.sav'));
@@ -140,6 +144,7 @@ let app;
     assert.equal(answer.data.inventory.changes.length, 75);
     assert.equal(answer.data.quests.changes.length, 2);
     report.checks.push('real IPC and visible signed quantities, money, time and task differences');
+    await win.locator('.compare-snapshots > summary').click();
     const recap = win.locator('.compare-recap').first();
     for (const id of ['place-22', 'quest-5200', 'quest-5201'])
       assert.equal(await recap.locator(`[data-entity-id="${id}"]`).count(), 1);
@@ -207,16 +212,20 @@ let app;
     await win.locator('.save-quests > summary').filter({ hasText: '已学配方差异' }).click();
     assert.ok((await win.locator('.compare-recipe-family').last().innerText()).includes('水煮肉片'));
     report.checks.push('task search, unknown team identity and learned-recipe differences');
+    await openComparisonControls();
     await win.locator('[data-action="compare-swap"]').click();
-    await win.locator('#compare-status').filter({ hasText: '已完成只读对比' }).waitFor();
+    await win.locator('#comparison-result:not([aria-busy]) .compare-direction').waitFor();
     assert.equal(await win.locator('#compare-left').inputValue(), '2.sav');
     assert.ok((await win.locator('.compare-summary').innerText()).includes('-250 文'));
     assert.ok((await win.locator('.compare-item').innerText()).includes('-5'));
     report.checks.push('swapping left/right reverses signed differences');
+    await openComparisonControls();
     await win.locator('#compare-right').selectOption('3.sav');
     assert.equal(await win.locator('.compare-summary').count(), 0);
     await win.locator('[data-action="compare-run"]').click();
-    await win.locator('#compare-status').filter({ hasText: '已完成只读对比' }).waitFor();
+    await win.locator('#comparison-result:not([aria-busy]) .compare-direction').waitFor();
+    const inventory = win.locator('.compare-inventory');
+    if (!(await inventory.evaluate((node) => node.open))) await inventory.locator(':scope > summary').click();
     assert.ok((await win.locator('#compare-inventory-results').innerText()).includes('未能读取'));
     report.checks.push('selection changes discard obsolete result; partial format is not counted as zero');
     for (const name of ['../1.sav', 'JHSaveConfig.sav', '99.sav'])
@@ -224,10 +233,11 @@ let app;
         (await win.evaluate((name) => window.journal.compareSaves(name, '1.sav'), name)).ok,
         false,
       );
+    await openComparisonControls();
     await win.locator('#compare-left').selectOption('1.sav');
     await win.locator('#compare-right').selectOption('1.sav');
     await win.locator('[data-action="compare-run"]').click();
-    await win.locator('#compare-status').filter({ hasText: '已完成只读对比' }).waitFor();
+    await win.locator('#comparison-result:not([aria-busy]) .compare-direction').waitFor();
     assert.equal(await win.locator('.compare-item').count(), 0);
     report.checks.push('invalid IPC filenames refused and identical slot comparison is empty');
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(980, 660));
@@ -252,7 +262,9 @@ let app;
       assert.equal(sha(fs.readFileSync(path.join(source, f.name))), f.hash);
       assert.equal(fs.statSync(path.join(source, f.name), { bigint: true }).mtimeNs.toString(), f.mtime);
     }
-    await win.locator('[data-action="save-compare"]').click();
+    if (!(await files.evaluate((node) => node.open))) await files.locator(':scope > summary').click();
+    await files.locator('[data-action="save-compare"]').click();
+    await openComparisonControls();
     await win.locator('#compare-left').selectOption('2.sav');
     await win.locator('#compare-right').selectOption('1.sav');
     fs.unlinkSync(path.join(source, '2.sav'));
@@ -260,8 +272,11 @@ let app;
     await win.locator('#compare-status').filter({ hasText: '比较未完成' }).waitFor();
     assert.ok((await win.locator('#comparison-result').innerText()).includes('已不存在'));
     await win.locator('[data-action="compare-refresh"]').click();
-    assert.equal(await win.locator('#compare-left option[value="2.sav"]').count(), 0);
-    report.checks.push('deleted synthetic slot produces an explicit error and refresh removes stale choices');
+    assert.equal(await win.locator('#compare-left option[value="2.sav"]:not(:disabled)').count(), 0);
+    assert.match(await win.locator('#compare-left option:checked').innerText(), /暂不可读/);
+    report.checks.push(
+      'deleted synthetic slot produces an explicit error and refresh disables its stale choice',
+    );
     await app.evaluate(
       ({ ipcMain }, { source, root, modulePath }) => {
         const load = process.getBuiltinModule('node:module').createRequire(modulePath);
