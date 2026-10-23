@@ -163,6 +163,9 @@ let app, child;
       w.show();
       w.webContents.send('journal:action', { action: 'history' });
     });
+    await win.locator('.timeline-history-disclosure > summary').waitFor();
+    const history = win.locator('.timeline-history-disclosure');
+    if (!(await history.evaluate((node) => node.open))) await history.locator(':scope > summary').click();
     await win.locator('.timeline-history').waitFor();
     for (const size of [
       [980, 660],

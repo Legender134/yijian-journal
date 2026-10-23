@@ -49,7 +49,9 @@ async function openRecordedQuest(id, slot) {
   await page.locator('.nav-btn[data-id="home"]').click();
   await page.locator('[data-flow-quest="quest-14073"]').waitFor();
   await page.locator('.nav-btn[data-id="saves"]').click();
-  await page.locator(`[data-action="save-detail"][data-id="${slot}"]`).click();
+  const files = page.locator('.save-files');
+  if (!(await files.evaluate((node) => node.open))) await files.locator(':scope > summary').click();
+  await files.locator(`[data-action="save-detail"][data-id="${slot}"]`).click();
   const section = page.locator('.save-recorded-quests');
   await section.locator(':scope > summary').click();
   await section.locator(`[data-quest-id="${id}"] details > summary`).click();

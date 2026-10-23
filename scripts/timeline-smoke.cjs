@@ -77,7 +77,11 @@ let app;
       await win.screenshot({ path: path.join(base, 'test-results', `timeline-${size[0]}.png`) });
     }
     await win.locator('.timeline-node [data-action="timeline-preview"]').last().click();
-    assert.ok((await win.locator('.drawer').innerText()).includes('副本校验通过'));
+    await win.locator('.drawer[aria-label="时间线节点预览"]').waitFor();
+    const previewId = await win.locator('[data-action="timeline-load"]').getAttribute('data-id');
+    const inspected = await win.evaluate((id) => window.journal.timelineInspect(id), previewId);
+    assert.equal(inspected.ok, true, 'the opened node passes checksum and metadata validation');
+    assert.equal(inspected.data.record.hash, sha(timeline.inspect(previewId).bytes));
     assert.equal(await win.locator('[data-action="timeline-load"]').isDisabled(), true);
     const blockedLoad = await win.evaluate(
       (id) => window.journal.timelineLoad(id),

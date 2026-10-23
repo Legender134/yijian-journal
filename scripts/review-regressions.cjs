@@ -694,8 +694,9 @@ async function searchReadability() {
     });
     await win.locator('.search-result[data-id="item-1002"]').focus();
     await win.keyboard.press('Enter');
-    await win.locator('.drawer .tag-row .quality-label').waitFor();
-    assert.equal(await win.locator('.drawer .tag-row .quality-label').innerText(), '蓝色品质');
+    await win.locator('.drawer .game-detail-meta').waitFor();
+    assert.match(await win.locator('.drawer .game-detail-meta').innerText(), /蓝色/);
+    assert.equal(await win.locator('.drawer h1 .quality-text').getAttribute('data-quality'), '蓝');
     await win.locator('[data-action="drawer-back"]').click();
     await win.locator('#global-search').waitFor();
     assert.equal(await win.locator('#global-search').inputValue(), '纯钢剑');

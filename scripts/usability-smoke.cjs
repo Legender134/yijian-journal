@@ -154,7 +154,7 @@ async function shot(name) {
     assert(!home.flow.active.some((task) => task.id === 'quest-5200'));
     assert.equal(await win.locator('.flow-active [data-id="quest-5200"]').count(), 0);
     await route('saves');
-    await win.locator('[data-action="save-detail"][data-id="2.sav"]').click();
+    await win.locator('.save-progress-actions [data-action="save-detail"][data-id="2.sav"]').click();
     await win.locator('.save-recorded-quests > summary').click();
     const recorded = win.locator('.saved-quest[data-quest-id="5200"]');
     await recorded.locator('details > summary').click();

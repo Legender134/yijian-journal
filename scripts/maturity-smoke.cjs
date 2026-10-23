@@ -470,6 +470,8 @@ async function multiPlanFlow(page) {
     await restarted.waitForSelector('.layout');
     await nav(restarted, 'saves');
     const operationHistory = restarted.locator('.operation-history');
+    if (!(await operationHistory.evaluate((node) => node.open)))
+      await operationHistory.locator(':scope > summary').click();
     assert((await operationHistory.innerText()).includes(restoreReceipt.message));
     assert((await operationHistory.innerText()).includes(localReceipt.message));
     assert(

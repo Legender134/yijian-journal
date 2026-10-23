@@ -1,5 +1,5 @@
 'use strict';
-const { chooseCodexKind } = require('./ui-smoke-actions.cjs');
+const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -84,7 +84,7 @@ delete env.ELECTRON_RUN_AS_NODE;
     await small.locator('#entity-preview').waitFor({ state: 'hidden' });
     assert.equal(await small.locator('.drawer h1').innerText(), '梧桐村');
     await win.bringToFront();
-    await win.locator('.sidebar [data-id="world"]').click();
+    await openMainPage(win, 'world');
     await win.locator('[data-action="world-kind"][data-id="places"]').click();
     await win.locator('#world-search').fill('仙人渡');
     await win.waitForTimeout(180);

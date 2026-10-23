@@ -104,7 +104,8 @@ let app;
       'global quest status filters and opened detail honor fixed settings and no-reference mode',
     );
     await win.locator('.nav-btn[data-id="saves"]').click();
-    await win.locator('[data-action="save-detail"][data-id="2.sav"]').click();
+    await win.locator('.save-files > summary').click();
+    await win.locator('.save-files [data-action="save-detail"][data-id="2.sav"]').click();
     await win.locator('.save-recorded-quests > summary').click();
     await win.locator('[data-action="save-quest-filter"][data-id="done"]').click();
     const inventoryFold = win.locator('details').filter({ has: win.locator('#save-inventory-search') });
