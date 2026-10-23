@@ -511,8 +511,9 @@ const pulse = () => {
       .first()
       .click();
     await small.locator('#overlay [data-npc-progress="10047"]').waitFor();
-    await small.locator('#overlay [data-persist-detail="npc-private-10047"] > summary').click();
-    await small.locator('#overlay [data-action="database-detail"][data-id="item-100073"]').first().click();
+    await small
+      .locator('#overlay .npc-private-preview [data-action="database-detail"][data-id="item-100073"]')
+      .click();
     await small.waitForFunction(() =>
       document.querySelector('#overlay .drawer h1')?.textContent.includes('碧玉扳指精良图纸'),
     );
@@ -605,7 +606,8 @@ const pulse = () => {
     await main.waitForFunction(() =>
       document.querySelector('#overlay [data-npc-progress="10016"]')?.textContent.includes('私物已清空'),
     );
-    assert.match(await main.locator('#overlay').innerText(), /保存后更新/);
+    assert.equal(await main.locator('#overlay [data-npc-progress-origin="saved"]').innerText(), '保存时');
+    await main.screenshot({ animations: 'disabled', path: path.join(output, 'saved-person-source.png') });
     await main.keyboard.press('Escape');
     if (await small.locator('#overlay .drawer').isVisible()) await small.keyboard.press('Escape');
     await assertNpcHover(main, 10016, /私物已清空/);

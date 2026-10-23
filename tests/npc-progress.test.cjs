@@ -507,6 +507,7 @@ test('three action filters intersect and saved/live labels follow the actual dat
     [10016],
   );
   assert.match(saved, /data-npc-progress-origin="saved"/);
+  assert.match(view.person(project(input).people[0], false, 'saved'), /data-npc-progress-origin="saved"/);
   assert.match(saved, /保存时可比武|保存时的场景/);
   assert.doesNotMatch(saved, /现在可比武|现在可请教/);
   assert.deepEqual(input, before);
@@ -514,6 +515,10 @@ test('three action filters intersect and saved/live labels follow the actual dat
   const live = view.page(project(input), options);
   assert.doesNotMatch(live, /data-npc-progress-origin="saved"|保存时可比武|保存时的场景/);
   assert.match(live, /当前场景/);
+  assert.doesNotMatch(
+    view.person(project(input).people[0], false, 'live'),
+    /data-npc-progress-origin="saved"/,
+  );
   delete input.combat.origin;
   assert.match(view.page(project(input), options), /data-npc-progress-origin="saved"/);
 });

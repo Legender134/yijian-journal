@@ -159,9 +159,9 @@ export function createGameViews({
         : '';
       const qualities = ['白', '绿', '蓝', '金', '暗金', '红'];
       const minimumQuality = qualities.indexOf(giftGate?.minimumQuality);
-      const inventory = Array.isArray(statusReference?.metadata.inventory)
-        ? new Map(statusReference.metadata.inventory.map((i) => [i.id, i.count]))
-        : null;
+      const inventory = Array.isArray(statusReference?.metadata.inventory) ? new Map() : null;
+      for (const item of inventory ? statusReference.metadata.inventory : [])
+        inventory.set(item.id, (inventory.get(item.id) || 0) + item.count);
       const gifts = index.entries
         .filter((x) => x.kind === '物品' && x.giftable && e.hobbyKeys.includes(x.typeKey))
         .filter((x) => minimumQuality < 0 || qualities.indexOf(x.quality) >= minimumQuality)

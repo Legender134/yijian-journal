@@ -100,7 +100,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
       return `<section class="detail-block" data-npc-progress><h3>比武与请教</h3><p>还没有此人物的状态，${origin === 'live' ? '遇见后再查看' : '遇见并保存后再查看'}。</p></section>`;
     const heading = embedded
       ? ''
-      : `<h3>比武与请教</h3><p>${row.remainingItems.length ? `私物还剩 ${row.remainingItems.length} 种${row.importantCount && row.importantCount < row.remainingItems.length ? ` · 重点 ${row.importantCount} 种` : ''}` : '私物已清空'}${row.learning.length ? ' · ' + text(npcLearningSummary(row.learning)) : ''}</p>`;
+      : `<h3>比武与请教${origin === 'live' ? '' : ' <span class="pill" data-npc-progress-origin="saved">保存时</span>'}</h3><p>${row.remainingItems.length ? `私物还剩 ${row.remainingItems.length} 种${row.importantCount && row.importantCount < row.remainingItems.length ? ` · 重点 ${row.importantCount} 种` : ''}` : '私物已清空'}${row.learning.length ? ' · ' + text(npcLearningSummary(row.learning)) : ''}</p>`;
     const orderedItems = [...row.remainingItems].sort((a, b) => Number(b.important) - Number(a.important));
     const visibleItems = items({ remainingItems: orderedItems.slice(0, 3) });
     const privatePreview = visibleItems
