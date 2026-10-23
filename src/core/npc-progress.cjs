@@ -40,9 +40,9 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
     const player = combat.player;
     const ownPower = combat.origin === 'live' ? currentNpcPower(player.attributes) : null;
     const learned = new Set(player.skills.map((row) => row.id));
-    const inventory = Array.isArray(metadata.inventory)
-      ? new Map(metadata.inventory.map((row) => [row.id, row.count]))
-      : null;
+    const inventory = Array.isArray(metadata.inventory) ? new Map() : null;
+    for (const item of inventory ? metadata.inventory : [])
+      inventory.set(item.id, (inventory.get(item.id) || 0) + item.count);
     function requirement(raw) {
       const type =
         raw.type ||
@@ -339,12 +339,32 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         b.importantCount - a.importantCount ||
         a.name.localeCompare(b.name, 'zh-CN'),
     );
+    const actionableFirst = (kind) => (a, b) => {
+      const ready = (row) =>
+        kind === 'learning'
+          ? row.learning.some((item) => item.status === 'met')
+          : row.compare.status === 'met';
+      const missing = (row) => row.remainingItems.filter((item) => item.important && item.owned === 0).length;
+      return (
+        Number(ready(b)) - Number(ready(a)) ||
+        Number(b.samePlace) - Number(a.samePlace) ||
+        missing(b) - missing(a) ||
+        b.importantCount - a.importantCount ||
+        a.name.localeCompare(b.name, 'zh-CN')
+      );
+    };
     return {
       available: true,
       origin: combat.origin === 'live' ? 'live' : 'saved',
+      inventoryKnown: inventory !== null,
+      placeKnown: !!metadata.map,
       people: rows,
-      remaining: rows.filter((row) => row.remainingItems.length && row.compare.status !== 'unmet'),
-      learning: rows.filter((row) => row.learning.some((item) => item.status !== 'unmet')),
+      remaining: rows
+        .filter((row) => row.remainingItems.length && row.compare.status !== 'unmet')
+        .sort(actionableFirst('remaining')),
+      learning: rows
+        .filter((row) => row.learning.some((item) => item.status !== 'unmet'))
+        .sort(actionableFirst('learning')),
       locked: rows.filter(
         (row) =>
           (row.remainingItems.length && row.compare.status === 'unmet') ||

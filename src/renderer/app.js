@@ -1713,6 +1713,7 @@ async function receiveHandbookContext(context) {
   databaseKind = context.databaseKind || '全部';
   databaseType = context.databaseType || '全部';
   databasePage = context.databasePage || 0;
+  delete npcProgressView.filter;
   Object.assign(npcProgressView, context.npcProgress || { tab: 'remaining', query: '', page: 0 });
   worldView.kind = context.worldKind === 'places' ? 'places' : 'quests';
   worldView.query = context.worldQuery || '';
@@ -6730,6 +6731,14 @@ async function handle(action, id, target, navigationFocused = false) {
     case 'npc-progress-tab':
       if (!['remaining', 'learning', 'locked', 'cleared'].includes(id)) break;
       npcProgressView.tab = id;
+      delete npcProgressView.filter;
+      npcProgressView.page = 0;
+      render(true);
+      break;
+    case 'npc-progress-filter':
+      if (!['all', 'ready', 'nearby', 'missing'].includes(id)) break;
+      if (id === 'all') delete npcProgressView.filter;
+      else npcProgressView.filter = id;
       npcProgressView.page = 0;
       render(true);
       break;
@@ -8501,6 +8510,10 @@ document.addEventListener('compositionend', (event) => {
   render(true);
 });
 document.addEventListener('change', async (event) => {
+  if (event.target.id === 'npc-progress-filter') {
+    await handle('npc-progress-filter', event.target.value, event.target);
+    return;
+  }
   if (event.target.id === 'database-kind-picker') {
     await handle('database-kind', event.target.value, event.target);
     return;

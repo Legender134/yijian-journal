@@ -1,5 +1,5 @@
 'use strict';
-const { chooseCodexKind } = require('./ui-smoke-actions.cjs');
+const { chooseCodexKind, openMainPage } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -180,6 +180,10 @@ const pulse = () => {
     await main.locator('[data-npc-progress-card="10016"]').waitFor();
     assert.equal(await main.locator('[data-npc-progress-card="10016"]').evaluate((node) => node.open), false);
     await main.screenshot({ path: path.join(output, 'main-pending.png') });
+    await main.locator('#npc-progress-filter').selectOption('missing');
+    assert.equal(await main.locator('[data-npc-progress-card="10016"]').isVisible(), true);
+    assert.equal(await main.locator('[data-npc-progress-card="10047"]').count(), 0);
+    await main.locator('#npc-progress-filter').selectOption('all');
     await main.locator('[data-action="npc-progress-tab"][data-id="locked"]').click();
     const wei = main.locator('[data-npc-progress-card="10047"]');
     await wei.locator('> summary').click();
@@ -208,6 +212,7 @@ const pulse = () => {
     await small.locator('[data-npc-progress-card="10016"] > summary').click();
     await small.screenshot({ path: path.join(output, 'companion-expanded.png') });
     await small.locator('[data-action="npc-progress-tab"][data-id="learning"]').click();
+    await small.locator('#npc-progress-filter').selectOption('ready');
     await small.locator('[data-action="main"]').first().click();
     await main.waitForFunction(() => document.querySelector('#npc-progress-search')?.value === '江吟风');
     assert.equal(
@@ -215,6 +220,7 @@ const pulse = () => {
       'true',
     );
     assert.equal(await main.locator('[data-npc-progress-card="10016"]').isVisible(), true);
+    assert.equal(await main.locator('#npc-progress-filter').inputValue(), 'ready');
     await main.locator('[data-action="compact"]').first().click();
 
     // A larger synthetic cohort exercises pagination as well as the page hidden
@@ -229,6 +235,7 @@ const pulse = () => {
         }),
       );
     expected = writeSave([...npcs, ...extraPeople]);
+    await small.locator('#npc-progress-filter').selectOption('nearby');
     await search.fill('炼丹');
     const nextPage = small.locator('[data-action="npc-progress-page"]').filter({ hasText: '下一页' });
     await nextPage.waitFor();
@@ -240,6 +247,7 @@ const pulse = () => {
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-npc-progress-card')));
     const assertTransferredList = async () => {
       await main.waitForFunction(() => document.querySelector('#npc-progress-search')?.value === '炼丹');
+      assert.equal(await main.locator('#npc-progress-filter').inputValue(), 'nearby');
       assert.equal(
         await main
           .locator('[data-action="npc-progress-tab"][data-id="learning"]')
@@ -293,6 +301,35 @@ const pulse = () => {
       document.querySelector('[data-npc-progress-page]')?.textContent.includes('现场更新'),
     );
     assert.match(await small.locator('[data-npc-progress-card="10016"] > summary').innerText(), /×2/);
+    await small.locator('#npc-progress-filter').selectOption('missing');
+    await small.locator('[data-action="npc-progress-filter"][data-id="all"]').waitFor();
+    assert.match(await small.locator('.npc-progress-list').innerText(), /背包状态未读取/);
+    publish([{ id: 100034, count: 2 }], { resources: { inventory: [] } });
+    pulse();
+    await small.locator('[data-npc-progress-card="10016"]').waitFor();
+    assert.equal(await small.locator('#npc-progress-filter').inputValue(), 'missing');
+    const nativeSmall = await app.browserWindow(small);
+    await nativeSmall.evaluate((win) => win.setSize(460, 660));
+    await small.screenshot({ animations: 'disabled', path: path.join(output, 'actionable-460.png') });
+    await nativeSmall.evaluate((win) => win.setSize(200, 400));
+    await small.waitForFunction(() => window.innerWidth <= 200);
+    assert.equal(await small.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    const filterBounds = await small.locator('#npc-progress-filter').boundingBox();
+    assert(filterBounds.x >= 0 && filterBounds.x + filterBounds.width <= 201);
+    await small.screenshot({ animations: 'disabled', path: path.join(output, 'actionable-200.png') });
+    await nativeSmall.evaluate((win) => win.setSize(460, 660));
+    await nativeSmall.dispose();
+    publish([{ id: 100034, count: 2 }], { resources: { inventory: [{ id: 100034, count: 1 }] } });
+    pulse();
+    await small.locator('[data-npc-progress-card="10016"]').waitFor({ state: 'detached' });
+    assert.equal(await small.locator('#npc-progress-filter').inputValue(), 'missing');
+    publish([{ id: 100034, count: 2 }]);
+    pulse();
+    await small.waitForFunction(() =>
+      document.querySelector('.npc-progress-list')?.textContent.includes('背包状态未读取'),
+    );
+    await small.locator('[data-action="npc-progress-filter"][data-id="all"]').click();
+    await small.locator('[data-npc-progress-card="10016"]').waitFor();
     // Direct codex entries and both search surfaces share the same live task cohort.
     await small.locator('.companion-tabs [data-id="database"]').click();
     await chooseCodexKind(small, '任务');
@@ -330,7 +367,7 @@ const pulse = () => {
     assert.equal(await small.locator('.flow-state-notice').count(), 0);
     // An ordinary codex list must use the same current NPC state before a
     // detail has ever been opened; the saved fixture says this bag is empty.
-    await main.locator('.sidebar-nav [data-id="database"]').click();
+    await openMainPage(main, 'database');
     await chooseCodexKind(main, '人物');
     await main.locator('#list-search').fill('江吟风');
     const initialPerson = main.locator('[data-action="database-detail"][data-id="npc-10016"]').first();

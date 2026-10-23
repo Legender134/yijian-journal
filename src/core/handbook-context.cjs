@@ -96,6 +96,12 @@ function handbookContext(value) {
     query: text(npc?.query, 100),
     page: page(npc?.page),
   };
+  const npcFilters = [
+    'nearby',
+    ...(['remaining', 'learning'].includes(result.npcProgress.tab) ? ['ready'] : []),
+    ...(['remaining', 'locked'].includes(result.npcProgress.tab) ? ['missing'] : []),
+  ];
+  if (npcFilters.includes(npc?.filter)) result.npcProgress.filter = npc.filter;
   result.worldPage = page(value.worldPage);
   result.worldStatus = ['all', 'active', 'completed', 'recorded', 'unrecorded'].includes(value.worldStatus)
     ? value.worldStatus

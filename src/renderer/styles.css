@@ -4353,8 +4353,26 @@ kbd {
   gap: 6px;
   margin-bottom: 12px;
 }
-.npc-progress-page > .search-input {
+.npc-progress-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 12px;
+}
+.npc-progress-tools .search-input {
+  flex: 1 1 170px;
+  min-width: 0;
+}
+.npc-progress-tools select {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 12px;
 }
 .npc-progress-card {
   border-bottom: 1px solid var(--line);
@@ -4387,6 +4405,20 @@ kbd {
 .npc-progress-blocker {
   color: var(--muted);
   font-size: 12px;
+}
+.npc-progress-action {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.npc-progress-status {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.npc-power-reference {
+  color: var(--muted);
 }
 .npc-progress-body {
   padding-top: 8px;

@@ -77,10 +77,10 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
       )
       .join('');
   }
-  function gates(row) {
+  function gates(row, showPower = true) {
     const friend = row.friendship;
     const power =
-      row.power && row.ownPower
+      showPower && row.power && row.ownPower
         ? `<p>战力参考：你 ${Math.round(row.ownPower.value)}，对方 ${Math.round(row.power.value)} · ${text(row.power.title)}${row.power.value > row.ownPower.value ? '。建议先检查主修武学与配装。' : ''}</p>`
         : '';
     const giftQuality = missingEntry(row.gift)
@@ -117,7 +117,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
             '</div></details>'
           : '')
       : '';
-    return `<section class="${embedded ? '' : 'detail-block '}npc-progress-detail" data-npc-progress="${text(row.npcId)}">${heading}${embedded ? '' : privatePreview}${gates(row)}${embedded && row.remainingItems.length ? `<details data-persist-detail="npc-private-${text(row.npcId)}"><summary>剩余私物 · ${row.remainingItems.length} 种</summary><div class="related-items mt">${items(row)}</div></details>` : ''}${row.learning.length ? `<details data-persist-detail="npc-learning-${text(row.npcId)}"><summary>请教内容 · ${row.learning.length} 项</summary><ul>${learning(row)}</ul></details>` : ''}</section>`;
+    return `<section class="${embedded ? '' : 'detail-block '}npc-progress-detail" data-npc-progress="${text(row.npcId)}">${heading}${embedded ? '' : privatePreview}${gates(row, !embedded)}${embedded && row.remainingItems.length ? `<details data-persist-detail="npc-private-${text(row.npcId)}"><summary>剩余私物 · ${row.remainingItems.length} 种</summary><div class="related-items mt">${items(row)}</div></details>` : ''}${row.learning.length ? `<details data-persist-detail="npc-learning-${text(row.npcId)}"><summary>请教内容 · ${row.learning.length} 项</summary><ul>${learning(row)}</ul></details>` : ''}</section>`;
   }
   function card(row, tab, scope) {
     const learning = orderedLearning(row);
@@ -135,23 +135,38 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
             .slice(0, 2)
             .map((item) => `${link(item)} ×${text(item.count)}`)
             .join(' · ');
-    const blocker =
+    const operations = [
+      ['比武', row.compare],
+      ['赠礼', row.gift],
+      ['请教', row.consult],
+      ...learning.map((item) => ['请教', item]),
+    ];
+    const [operation, gate] =
       tab === 'learning'
-        ? ready.length
-          ? ''
-          : reason(learning[0]?.checks)
+        ? ['请教', ready[0] || learning[0]]
         : tab === 'locked'
-          ? reason(
-              [row.compare, row.gift, row.consult, ...row.learning].find((gate) => gate.status !== 'met')
-                ?.checks,
-            )
-          : reason(row.compare.checks);
+          ? operations.find(([, gate]) => gate.status === 'unmet') ||
+            operations.find(([, gate]) => gate.status === 'unknown') ||
+            []
+          : ['比武', row.compare];
+    const firstBlocker = gate?.checks.find((check) => check.status === 'unmet') || unmet(gate?.checks)[0];
+    const blockerLabel = firstBlocker?.text.startsWith(operation) ? '' : text(operation || '条件') + '：';
+    const status =
+      tab === 'cleared'
+        ? ''
+        : gate?.status === 'met'
+          ? `<span class="npc-progress-status">${tab === 'learning' ? `可请教 ${ready.length} 项` : '可比武'}</span>`
+          : `<span class="npc-progress-blocker">${blockerLabel}${firstBlocker ? checkText(firstBlocker) : '待确认'}</span>`;
+    const power =
+      row.power && row.ownPower
+        ? `<small class="npc-power-reference">战力：你 ${Math.round(row.ownPower.value)} / 对方 ${Math.round(row.power.value)}</small>`
+        : '';
     const giftPreparation = missingEntry(row.gift)
       ? ''
       : `<div class="row mt">${act('journey-gift-dialog', '准备赠礼', 'btn', row.id, 'plus')}</div>`;
-    return `<details class="npc-progress-card" data-npc-progress-card="${text(row.npcId)}" data-persist-detail="npc-progress-${text(scope)}-${text(row.npcId)}"><summary><span class="row between"><strong>${act('database-detail', text(row.name), 'text-btn', row.id)}</strong><small>${row.place ? act('world-place', text(row.place.name), 'text-btn', row.place.id) : '位置待确认'}</small></span><span>${row.collection === 'cleared' && tab !== 'learning' ? '私物已清空' : preview}${row.importantCount && tab !== 'learning' ? ` · 重点 ${row.importantCount} 种` : ''}</span>${blocker ? `<span class="npc-progress-blocker">${blocker}</span>` : ''}</summary><div class="npc-progress-body">${person(row, true)}${giftPreparation}</div></details>`;
+    return `<details class="npc-progress-card" data-npc-progress-card="${text(row.npcId)}" data-persist-detail="npc-progress-${text(scope)}-${text(row.npcId)}"><summary><span class="row between"><strong>${act('database-detail', text(row.name), 'text-btn', row.id)}</strong><small>${row.place ? act('world-place', text(row.place.name), 'text-btn', row.place.id) : '位置待确认'}</small></span><span>${row.collection === 'cleared' && tab !== 'learning' ? '私物已清空' : preview}${row.importantCount && tab !== 'learning' ? ` · 重点 ${row.importantCount} 种` : ''}</span>${status || power ? `<span class="npc-progress-action">${status}${power}</span>` : ''}</summary><div class="npc-progress-body">${person(row, true)}${giftPreparation}</div></details>`;
   }
-  function page(data, { tab = 'remaining', query = '', page = 0, scope = '' } = {}) {
+  function page(data, { tab = 'remaining', query = '', page = 0, filter = 'all', scope = '' } = {}) {
     if (!data?.available) return '';
     const tabs = [
       ['remaining', '待比武'],
@@ -172,15 +187,44 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
         .filter(Boolean)
         .some((value) => value.toLocaleLowerCase('zh-CN').includes(needle));
     const matching = Object.fromEntries(tabs.map(([id]) => [id, data[id].filter(matches)]));
-    const rows = matching[tab];
+    const filters = [
+      ['all', '全部人物', () => true],
+      ...(['remaining', 'learning'].includes(tab)
+        ? [
+            [
+              'ready',
+              tab === 'learning' ? '现在可请教' : '现在可比武',
+              (row) =>
+                tab === 'learning'
+                  ? row.learning.some((item) => item.status === 'met')
+                  : row.compare.status === 'met',
+            ],
+          ]
+        : []),
+      ['nearby', '当前场景', (row) => row.samePlace],
+      ...(['remaining', 'locked'].includes(tab)
+        ? [
+            [
+              'missing',
+              '未持有重点私物',
+              (row) => row.remainingItems.some((item) => item.important && item.owned === 0),
+            ],
+          ]
+        : []),
+    ];
+    const selected = filters.find(([id]) => id === filter) || filters[0];
+    filter = selected[0];
+    const rows = matching[tab].filter(selected[2]);
     const otherMatches = tabs.filter(([id]) => id !== tab && matching[id].length);
     const empty =
-      needle && otherMatches.length
-        ? `<p>当前分类没有匹配。</p><div class="tag-row">${otherMatches.map(([id, label]) => act('npc-progress-tab', `${label} · ${matching[id].length}`, 'btn', id)).join('')}</div>`
-        : '<p class="small">没有匹配的人物。</p>';
+      filter !== 'all' && (matching[tab].length || !needle)
+        ? `<p class="small">${filter === 'missing' && data.inventoryKnown === false ? '背包状态未读取，暂时无法筛选未持有物品。' : filter === 'nearby' && data.placeKnown === false ? '当前场景未读取。' : '没有符合筛选的人物。'}</p>${act('npc-progress-filter', '查看全部', 'btn', 'all')}`
+        : needle && otherMatches.length
+          ? `<p>当前分类没有匹配。</p><div class="tag-row">${otherMatches.map(([id, label]) => act('npc-progress-tab', `${label} · ${matching[id].length}`, 'btn', id)).join('')}</div>`
+          : '<p class="small">没有匹配的人物。</p>';
     const pages = Math.max(1, Math.ceil(rows.length / 12));
     page = Math.max(0, Math.min(page, pages - 1));
-    return `<section class="npc-progress-page duel-page" data-npc-progress-page><h2>比武与请教</h2><div class="npc-progress-tabs" role="group" aria-label="比武与请教筛选">${tabs.map(([id, label]) => `<button class="btn${tab === id ? ' soft' : ''}" data-action="npc-progress-tab" data-id="${id}" aria-pressed="${tab === id}">${label} ${matching[id].length}</button>`).join('')}</div><label class="search-input"><input id="npc-progress-search" value="${text(query)}" maxlength="100" placeholder="人物、地点、私物或功法" aria-label="搜索比武与请教"></label><div class="npc-progress-list">${
+    return `<section class="npc-progress-page duel-page" data-npc-progress-page><h2>比武与请教</h2><div class="npc-progress-tabs" role="group" aria-label="比武与请教筛选">${tabs.map(([id, label]) => `<button class="btn${tab === id ? ' soft' : ''}" data-action="npc-progress-tab" data-id="${id}" aria-pressed="${tab === id}">${label} ${matching[id].length}</button>`).join('')}</div><div class="npc-progress-tools"><label class="search-input"><input id="npc-progress-search" value="${text(query)}" maxlength="100" placeholder="人物、地点、私物或功法" aria-label="搜索比武与请教"></label><select id="npc-progress-filter" aria-label="人物筛选">${filters.map(([id, label, matchesFilter]) => `<option value="${id}"${filter === id ? ' selected' : ''}>${label} ${matching[tab].filter(matchesFilter).length}</option>`).join('')}</select></div><div class="npc-progress-list">${
       rows
         .slice(page * 12, page * 12 + 12)
         .map((row) => card(row, tab, scope))

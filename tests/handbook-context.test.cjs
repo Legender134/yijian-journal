@@ -228,6 +228,27 @@ test('NPC handoff accepts only bounded list filters and resets missing or invali
     });
   for (const page of [1.5, Infinity, 100001, '1'])
     assert.equal(handbookContext({ profileId: 'p', npcProgress: { page } }).npcProgress.page, 0);
+  for (const [tab, filter] of [
+    ['remaining', 'ready'],
+    ['learning', 'ready'],
+    ['locked', 'missing'],
+    ['cleared', 'nearby'],
+  ])
+    assert.equal(
+      handbookContext({ profileId: 'p', npcProgress: { tab, filter } }).npcProgress.filter,
+      filter,
+    );
+  for (const [tab, filter] of [
+    ['remaining', 'remove'],
+    ['learning', 'missing'],
+    ['locked', 'ready'],
+    ['cleared', 'missing'],
+    ['remaining', {}],
+  ])
+    assert.equal(
+      handbookContext({ profileId: 'p', npcProgress: { tab, filter } }).npcProgress.filter,
+      undefined,
+    );
   assert.deepEqual(
     handbookContext({
       profileId: 'p',
