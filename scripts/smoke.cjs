@@ -1694,7 +1694,19 @@ async function companionHomeInventorySync(page) {
         ],
       }),
     );
-    // The companion now hands off to the complete checklist. This next scenario
+    // This scenario checks the warning content, after the new fixture has passed
+    // the save-settling guard. Automatic polling was checked separately above.
+    const rosterHash = createHash('sha256')
+      .update(fs.readFileSync(path.join(fakeSaves, '2.sav')))
+      .digest('hex');
+    await win.waitForFunction(
+      async (expected) => {
+        const result = await window.journal.companionSnapshot();
+        return result.ok && result.data.flow?.available && result.data.flow.reference?.hash === expected;
+      },
+      rosterHash,
+      { timeout: 18000, polling: 1000 },
+    );
     // Refresh from the history page, where the manual refresh action lives.
     await win.locator('.sidebar-nav [data-action="navigate"][data-id="home"]').click();
     await refreshProgress(win);
