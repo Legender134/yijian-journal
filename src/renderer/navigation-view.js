@@ -1,13 +1,13 @@
 export function navigationView({ route, headings, icon, goalCount = 0 }) {
   const primary = [
     ['home', 'home'],
-    ['checklist', 'scroll'],
     ['duels', 'duel'],
     ['database', 'book'],
     ['saves', 'archive'],
-    ['world', 'map'],
   ];
   const additional = [
+    ['checklist', 'scroll'],
+    ['world', 'map'],
     ['materials', 'bag'],
     ['library', 'feather'],
     ['journey', 'map'],

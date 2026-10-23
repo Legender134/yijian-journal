@@ -1,5 +1,5 @@
 'use strict';
-const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
+const { openMainPage, chooseCodexKind, openTimelineEditor } = require('./ui-smoke-actions.cjs');
 // Synthetic-only user workflows. Never launches, attaches to, or commands the real game.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -78,10 +78,12 @@ async function shot(name) {
     await win.locator('.start-panel .btn.primary[data-action="navigate"][data-id="saves"]').click();
     assert.match(await win.locator('.operation-history').innerText(), /合成测试连接异常/);
     assert.equal(await win.locator('[data-save-ready]').first().isDisabled(), true);
-    assert.equal(await win.locator('[data-action="timeline-target"]').count(), 11);
+    assert.equal(await win.locator('#timeline-target option').count(), 11);
     await win.locator('.latest-reliable [data-action="timeline-preview"]').click();
     assert.equal(await win.locator('#timeline-load-button').isDisabled(), true);
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('关闭和重启后仍要找回的草稿');
+    await openTimelineEditor(win);
     await win.locator('#timeline-label').fill('新的尝试起点');
     await close();
     await win.locator('.latest-reliable [data-action="timeline-preview"]').click();
@@ -152,7 +154,7 @@ async function shot(name) {
     assert(!home.flow.active.some((task) => task.id === 'quest-5200'));
     assert.equal(await win.locator('.flow-active [data-id="quest-5200"]').count(), 0);
     await route('saves');
-    await win.locator('[data-action="save-detail"][data-id="2.sav"]').click();
+    await win.locator('.save-progress-actions [data-action="save-detail"][data-id="2.sav"]').click();
     await win.locator('.save-recorded-quests > summary').click();
     const recorded = win.locator('.saved-quest[data-quest-id="5200"]');
     await recorded.locator('details > summary').click();

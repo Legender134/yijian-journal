@@ -231,7 +231,7 @@ async function capture(win, name) {
     report.checks.push(
       'closing the small window, changing each supported size in the main window and reopening applies the current saved size immediately',
     );
-    await page.locator('.sidebar-nav [data-id="goals"]').click();
+    await openMainPage(page, 'goals');
     await page.locator('[data-action="goal-add"]').first().click();
     await page.locator('#goal-title').fill('放大时保留未完成目标');
     await page.locator('#goal-detail').fill('阅读缩放不得关闭编辑器或覆盖文字。');
@@ -260,7 +260,7 @@ async function capture(win, name) {
       );
       assert.equal(reply.ok, true, reply.error);
     }
-    await page.locator('.sidebar-nav [data-id="materials"]').click();
+    await openMainPage(page, 'materials');
     await page.waitForFunction(() => document.querySelectorAll('[data-craft-plan-id]').length === 2);
     await noHorizontal(page);
     for (const action of [

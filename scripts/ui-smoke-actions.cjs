@@ -19,4 +19,22 @@ async function chooseCodexKind(page, kind) {
   else await page.locator(`.database-tabs [data-action="database-kind"][data-id="${kind}"]`).click();
 }
 
-module.exports = { revealMainPage, openMainPage, chooseCodexKind };
+async function openTimelineEditor(page) {
+  const editor = page.locator('.timeline-node-editor');
+  await editor.waitFor({ state: 'attached' });
+  if (!(await editor.evaluate((node) => node.open))) await editor.locator(':scope > summary').click();
+}
+
+async function openTimelinePreview(page, id) {
+  const selector = `[data-action="timeline-preview"][data-id="${id}"]:visible`;
+  const unused = page.locator('details[data-persist-detail="unused-timeline"]');
+  if ((await unused.count()) && !(await unused.evaluate((node) => node.open)))
+    await unused.locator(':scope > summary').click();
+  if (!(await page.locator(selector).first().isVisible())) {
+    const history = page.locator('.timeline-history-disclosure');
+    if (!(await history.evaluate((node) => node.open))) await history.locator(':scope > summary').click();
+  }
+  await page.locator(selector).first().click();
+}
+
+module.exports = { revealMainPage, openMainPage, chooseCodexKind, openTimelineEditor, openTimelinePreview };

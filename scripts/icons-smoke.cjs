@@ -103,6 +103,7 @@ async function shot(name) {
     report.assetCount = images.length;
     report.checks.push('every referenced local PNG decodes inside the sandboxed renderer, offline');
     await nav('settings');
+    await win.locator('[data-persist-detail="settings-connection"] > summary').click();
     assert.equal(await win.locator('[data-action="auto-backup"]').getAttribute('aria-checked'), 'false');
     await win.locator('[data-action="auto-backup"]').click();
     await nav('home');
@@ -166,7 +167,7 @@ async function shot(name) {
       'recipe results and allocated materials carry pictures, shared-stock results remain usable',
     );
     await nav('saves');
-    await win.locator('[data-action="save-detail"][data-id="1.sav"]').click();
+    await win.locator('.save-progress-actions [data-action="save-detail"][data-id="1.sav"]').click();
     await win
       .locator('details')
       .filter({ has: win.locator('#save-inventory-results') })

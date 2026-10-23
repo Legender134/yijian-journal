@@ -51,18 +51,18 @@ let app;
     });
     await win.locator('.layout').waitFor();
     await win.locator('.nav-btn[data-id="saves"]').click();
-    assert.equal(await win.locator('[data-action="timeline-target"]').count(), 11);
+    assert.equal(await win.locator('#timeline-target option').count(), 11);
     assert.equal(await win.locator('.timeline-node').count(), 1);
     assert.equal(await win.locator('.timeline-node [data-action="timeline-preview"]').count(), 1);
-    assert.equal(await win.locator('.timeline-retention .timeline-latest').isVisible(), false);
-    assert.equal(await win.locator('.timeline-precision .save-note').isVisible(), false);
-    assert.equal(await win.getByText(/专用 29 号手动槽请勿手动覆盖/).isVisible(), true);
-    await win.locator('.timeline-precision > summary').click();
+    assert.equal(await win.locator('.timeline-retention .save-note').isVisible(), false);
+    assert.equal(await win.locator('.timeline-slot-note').isVisible(), true);
+    assert.match(await win.locator('.timeline-slot-note').innerText(), /专用 29 号槽请勿手动覆盖/);
+    await win.locator('.timeline-settings > summary').click();
+    await win.locator('.timeline-retention > summary').click();
     assert.equal(await win.getByText(/10–50 秒档位允许偏差 15 秒/).isVisible(), true);
-    await win.locator('.timeline-precision > summary').click();
+    assert.match(await win.locator('.timeline-retention').innerText(), /收藏和最近一次读档前保护另存/);
     await win.locator('.timeline-retention > summary').click();
-    assert.equal(await win.locator('.timeline-retention .timeline-latest').isVisible(), true);
-    await win.locator('.timeline-retention > summary').click();
+    await win.locator('.timeline-settings > summary').click();
     for (const size of [
       [980, 660],
       [1340, 880],
@@ -77,7 +77,11 @@ let app;
       await win.screenshot({ path: path.join(base, 'test-results', `timeline-${size[0]}.png`) });
     }
     await win.locator('.timeline-node [data-action="timeline-preview"]').last().click();
-    assert.ok((await win.locator('.drawer').innerText()).includes('副本校验通过'));
+    await win.locator('.drawer[aria-label="时间线节点预览"]').waitFor();
+    const previewId = await win.locator('[data-action="timeline-load"]').getAttribute('data-id');
+    const inspected = await win.evaluate((id) => window.journal.timelineInspect(id), previewId);
+    assert.equal(inspected.ok, true, 'the opened node passes checksum and metadata validation');
+    assert.equal(inspected.data.record.hash, sha(timeline.inspect(previewId).bytes));
     assert.equal(await win.locator('[data-action="timeline-load"]').isDisabled(), true);
     const blockedLoad = await win.evaluate(
       (id) => window.journal.timelineLoad(id),
@@ -109,7 +113,7 @@ let app;
       await card.waitFor();
       assert.equal(
         await card
-          .locator('.codex-result-copy > strong .quality-text')
+          .locator('.codex-result-heading > strong .quality-text')
           .evaluate((e) => getComputedStyle(e).color),
         color,
       );
@@ -129,7 +133,7 @@ let app;
     await win.screenshot({ path: path.join(base, 'test-results', 'quality-colored-items.png') });
     await chooseCodexKind(win, '人物');
     await win.locator('#list-search').fill('卫霍');
-    assert.equal(await win.locator('.database-card .codex-result-copy > strong .quality-text').count(), 0);
+    assert.equal(await win.locator('.database-card .codex-result-heading > strong .quality-text').count(), 0);
     assert.equal(sha(fs.readFileSync(path.join(source, '29.sav'))), before);
     const backups = new Saves(path.join(data, 'save-backups'));
     assert.equal(backups.list().length, 1, 'native waiting retains one full automatic copy');

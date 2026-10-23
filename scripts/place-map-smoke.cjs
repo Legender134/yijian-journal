@@ -1,5 +1,5 @@
 'use strict';
-const { chooseCodexKind } = require('./ui-smoke-actions.cjs');
+const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -84,7 +84,7 @@ delete env.ELECTRON_RUN_AS_NODE;
     await small.locator('#entity-preview').waitFor({ state: 'hidden' });
     assert.equal(await small.locator('.drawer h1').innerText(), '梧桐村');
     await win.bringToFront();
-    await win.locator('.sidebar [data-id="world"]').click();
+    await openMainPage(win, 'world');
     await win.locator('[data-action="world-kind"][data-id="places"]').click();
     await win.locator('#world-search').fill('仙人渡');
     await win.waitForTimeout(180);
@@ -124,16 +124,12 @@ delete env.ELECTRON_RUN_AS_NODE;
     await small.keyboard.press('Control+k');
     await small.locator('#global-search').fill('种类:物品 名称:金疮药');
     await small.locator('.search-result[data-id="item-133"]').click();
-    const stock = small.locator('.item-usage .detail-stat-grid > div').first().locator('strong');
+    const stock = small.locator('.item-usage-stock > div').first().locator('dd');
     assert.equal(await stock.innerText(), '3');
     await selectProgress(win, '@none', { reopen: false });
-    await small.waitForFunction(
-      () => document.querySelector('.item-usage .detail-stat-grid strong')?.textContent === '—',
-    );
+    await small.waitForFunction(() => document.querySelector('.item-usage-stock dd')?.textContent === '—');
     await selectProgress(win, '1.sav', { reopen: false });
-    await small.waitForFunction(
-      () => document.querySelector('.item-usage .detail-stat-grid strong')?.textContent === '3',
-    );
+    await small.waitForFunction(() => document.querySelector('.item-usage-stock dd')?.textContent === '3');
     await small.locator('[data-action="close-overlay"]').click();
     await small.keyboard.press('Control+k');
     await small.locator('#global-search').fill('卫霍');

@@ -92,7 +92,7 @@ async function item(target = page, id = 'item-10216', name = '铁锭') {
   await target.locator('.item-usage').waitFor();
 }
 async function stock(target = page) {
-  return target.locator('.item-usage .detail-stat-grid strong').allTextContents();
+  return target.locator('.item-usage-stock dd').allTextContents();
 }
 (async () => {
   try {
@@ -117,6 +117,7 @@ async function stock(target = page) {
     checks.push('物品预留未提交的数字或空值在查看配方后返回完整保留，正式预留仍为2');
     await item();
     assert.deepEqual(await stock(), ['10', '7', '3']);
+    await page.locator('[data-persist-detail="item-usage-rows"] > summary').click();
     assert.match(await page.locator('.item-usage').innerText(), /已有铁锭计划甲/);
     assert.match(await page.locator('.item-usage').innerText(), /已有铁锭计划乙/);
     assert.equal(await page.locator('[data-action="reserve-save"]').getAttribute('data-id'), 'item-10216');
@@ -160,16 +161,14 @@ async function stock(target = page) {
     assert(completed.ok, completed.error);
     await page.waitForFunction(
       () =>
-        [...document.querySelectorAll('.item-usage .detail-stat-grid strong')]
-          .map((e) => e.textContent)
-          .join(',') === '10,5,5',
+        [...document.querySelectorAll('.item-usage-stock dd')].map((e) => e.textContent).join(',') ===
+        '10,5,5',
     );
     assert.equal(await page.locator('.item-usage-row[data-item-usage^="craft:"]').count(), 1);
     await companion.waitForFunction(
       () =>
-        [...document.querySelectorAll('.item-usage .detail-stat-grid strong')]
-          .map((e) => e.textContent)
-          .join(',') === '10,5,5',
+        [...document.querySelectorAll('.item-usage-stock dd')].map((e) => e.textContent).join(',') ===
+        '10,5,5',
     );
     assert.equal(await page.locator('#reserve-count').inputValue(), '7');
     assert.equal(await companion.locator('#reserve-count').inputValue(), '');

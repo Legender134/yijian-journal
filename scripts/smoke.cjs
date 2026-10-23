@@ -115,7 +115,14 @@ async function revealAncestors(trigger) {
   const ancestors = trigger.locator('xpath=ancestor::details');
   for (let i = 0; i < (await ancestors.count()); i++) {
     const detail = ancestors.nth(i);
-    if (!(await detail.evaluate((node) => node.open))) await detail.locator(':scope > summary').click();
+    if (!(await detail.evaluate((node) => node.open))) {
+      // A summary may contain clickable entity links; its visual center is not
+      // necessarily the disclosure target, especially with different CI fonts.
+      const summary = detail.locator(':scope > summary');
+      await summary.focus();
+      await summary.press('Enter');
+      assert.equal(await detail.evaluate((node) => node.open), true);
+    }
   }
 }
 async function navigatePage(page, route) {
@@ -352,7 +359,7 @@ async function taskMaterialReturn(page, title, screenshot) {
   assert.equal(await page.locator('#entity-preview').isVisible(), false);
   await page
     .locator('[data-task-relations] > details > summary')
-    .filter({ hasText: /^步骤需要的物品/ })
+    .filter({ hasText: /^全部步骤用料/ })
     .click();
   const material = page.locator('[data-task-relations] [data-id="item-10201"]').first();
   await page.mouse.move(440, 10);
@@ -509,7 +516,7 @@ async function companionReferenceSync(page) {
   const preview = async (count) => {
     const materialSummary = page
       .locator('[data-task-relations] > details:not([open]) > summary')
-      .filter({ hasText: /^步骤需要的物品/ });
+      .filter({ hasText: /^全部步骤用料/ });
     if (await materialSummary.count()) await materialSummary.click();
     const item = page.locator('[data-task-relations] [data-id="item-10201"]').first();
     await item.scrollIntoViewIfNeeded();
@@ -555,8 +562,14 @@ async function companionReferenceSync(page) {
 async function guideAndSearchHandoff(main, compact) {
   const originalBounds = await app.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().includes('compact=1'));
-    const bounds = window.getBounds();
-    window.setBounds({ ...bounds, width: 900, height: 600 });
+    const small = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));
+    const bounds = { main: window.getBounds(), compact: small.getBounds() };
+    // Use short, supported windows so this tests real scrolling even with compact spacing.
+    window.setBounds({ ...bounds.main, width: 760, height: 520 });
+    const compactBounds = { ...bounds.compact, width: 360, height: 360 };
+    small.emit('will-resize', {}, compactBounds);
+    small.setBounds(compactBounds);
+    small.emit('resized');
     return bounds;
   });
   await compact.locator('.compact-title [data-action="search"]').click();
@@ -591,7 +604,11 @@ async function guideAndSearchHandoff(main, compact) {
   await app.evaluate(({ BrowserWindow }, bounds) => {
     BrowserWindow.getAllWindows()
       .find((w) => !w.webContents.getURL().includes('compact=1'))
-      .setBounds(bounds);
+      .setBounds(bounds.main);
+    const small = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));
+    small.emit('will-resize', {}, bounds.compact);
+    small.setBounds(bounds.compact);
+    small.emit('resized');
   }, originalBounds);
   await main.locator('[data-action="compact"]').first().click();
   await compact.locator('[data-action="close-overlay"]').click();
@@ -1058,13 +1075,13 @@ async function companionHomeInventorySync(page) {
       await choiceCompact.locator('#recipe-quantity').fill('3');
       await choiceCompact.locator('#recipe-materials [data-action="database-detail"]').first().click();
       await choiceCompact.locator('.item-usage').waitFor();
-      const stock = choiceCompact.locator('.item-usage .detail-stat-grid > div').first().locator('strong');
+      const stock = choiceCompact.locator('.item-usage-stock > div').first().locator('dd');
       if (sourceReference === '@none') assert.equal(await stock.innerText(), '—');
       else assert.match(await stock.innerText(), /^\d[\d,]*$/);
       await choiceCompact.locator('.drawer [data-action="main"]').click();
       await win.locator('.item-usage').waitFor();
       assert.equal(
-        await win.locator('.item-usage .detail-stat-grid > div').first().locator('strong').innerText(),
+        await win.locator('.item-usage-stock > div').first().locator('dd').innerText(),
         await stock.innerText(),
       );
       await assertProgressReference(win, sourceReference);
@@ -2270,6 +2287,7 @@ async function companionHomeInventorySync(page) {
     assert(Math.abs(resetCompanion.bounds.y - (resetCompanion.area.y + 12)) <= 1);
     await restoredCompanion.keyboard.press('Escape');
     await openMainPage(win, 'settings');
+    await win.locator('[data-persist-detail="settings-layout"] > summary').click();
     await win.locator('[data-action="window-layout-reset"]').click();
     const resetMain = await app.evaluate(({ BrowserWindow, screen }) => ({
       bounds: BrowserWindow.getAllWindows()

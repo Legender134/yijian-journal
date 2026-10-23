@@ -1,5 +1,5 @@
 'use strict';
-const { chooseCodexKind } = require('./ui-smoke-actions.cjs');
+const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -127,7 +127,7 @@ const pulse = () =>
     }
     const choice = '[data-flow-decision="early-woodcutter-axe-choice"]';
     assert.equal(await win.locator(choice).count(), 0, 'the saved reference has not reached the choice');
-    await win.locator('.sidebar-nav [data-id="duels"]').click();
+    await openMainPage(win, 'duels');
     await win.locator('.duel-all > summary').click();
     await win.waitForFunction(() => {
       const content = document.querySelector('.content');
@@ -162,7 +162,7 @@ const pulse = () =>
       'live guidance never saves or chooses for the player',
     );
     await checkBodyPreviews(win, 2);
-    await win.locator('.sidebar-nav [data-id="settings"]').click();
+    await openMainPage(win, 'settings');
     const readingSummary = win.locator('summary').filter({ hasText: '读取方式与资料说明' });
     await readingSummary.click();
     await readingSummary.evaluate((el) => {
@@ -315,7 +315,7 @@ const pulse = () =>
     });
     pulse();
     await small.waitForFunction((node) => !node.isConnected, beforeUnknown);
-    await win.locator('.sidebar-nav [data-id="home"]').click();
+    await openMainPage(win, 'home');
     for (const surface of [win, small]) {
       assert.equal(await surface.locator(choice).count(), 0);
       assert.equal(
@@ -357,7 +357,7 @@ const pulse = () =>
     writeSave([{ id: 5020, step: 1 }]);
     pulse();
     await win.locator('[data-flow-decision="early-jingyin-weapon-choice"]').waitFor({ state: 'detached' });
-    await win.locator('.sidebar-nav [data-id="checklist"]').click();
+    await openMainPage(win, 'checklist');
     const offlineQuest = win
       .locator('.flow-guide [data-flow-rule="early-woodcutter-axe-choice"] [data-id="quest-11002"]')
       .first();
@@ -404,7 +404,7 @@ const pulse = () =>
     await win.locator('.search-result[data-id="quest-11002"]').click();
     await win
       .locator('[data-task-relations] > details > summary')
-      .filter({ hasText: '步骤需要的物品' })
+      .filter({ hasText: '全部步骤用料' })
       .click();
     const taskItem = win.locator('[data-task-relations] [data-id="item-10201"]').first();
     assert.equal(await taskItem.isVisible(), true);
@@ -486,7 +486,7 @@ const pulse = () =>
       if (index) {
         await surface.locator('.companion-tabs [data-id="database"]').click();
         await chooseCodexKind(surface, '地点');
-      } else await surface.locator('.sidebar-nav [data-id="world"]').click();
+      } else await openMainPage(surface, 'world');
       if (await surface.locator('[data-action="world-kind"][data-id="places"]').count())
         await surface.locator('[data-action="world-kind"][data-id="places"]').click();
       await surface.locator('.place-map-pin[aria-label="查看梧桐村"]').click();
@@ -539,7 +539,7 @@ const pulse = () =>
       await input.press('Control+y');
       assert.equal(await input.inputValue(), '铁矿石');
     }
-    await win.locator('.sidebar-nav [data-id="database"]').click();
+    await openMainPage(win, 'database');
     await checkPageSearch(win, 'list-search', 120);
     for (const [index, [route, field]] of [
       ['world', 'world-search'],
@@ -548,9 +548,9 @@ const pulse = () =>
       ['recipe-discovery', 'recipe-discovery-search'],
     ].entries()) {
       if (route === 'recipe-discovery') {
-        await win.locator('.sidebar-nav [data-id="materials"]').click();
+        await openMainPage(win, 'materials');
         await win.locator('[data-action="recipe-discovery-open"]').first().click();
-      } else await win.locator('.sidebar-nav [data-id="' + route + '"]').click();
+      } else await openMainPage(win, route);
       await checkPageSearch(win, field, 150 + index);
     }
     for (const [index, surface] of [win, small].entries()) {
@@ -559,11 +559,12 @@ const pulse = () =>
         .click();
       const timelineFold = surface.locator('details[data-persist-detail="unused-timeline"] > summary');
       if (await timelineFold.count()) await timelineFold.click();
+      await surface.locator('.timeline-history-disclosure > summary').click();
       await checkPageSearch(surface, 'timeline-search', 121 + index);
     }
     {
       const surface = win;
-      await surface.locator('.sidebar-nav [data-id="journal"]').click();
+      await openMainPage(surface, 'journal');
       const form = surface.locator('#journal-filter-form');
       await form.waitFor();
       await surface.locator('#journal-search').fill('白');

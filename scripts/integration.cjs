@@ -176,7 +176,7 @@ async function firstBackupFlow() {
     assert.deepEqual(await firstApp.evaluate(() => globalThis.firstFolderCalls), [{
       title: '选择逸剑风云决 SaveGames 文件夹', defaultPath: firstSaveBase,
     }]);
-    assert.equal(await firstWin.locator('.page-header h1').innerText(), '存档匣');
+    assert.equal(await firstWin.locator('.page-header h1').innerText(), '存档');
     assert.equal(await firstWin.locator('#backup-label').count(), 0);
     assert.equal(await firstWin.locator('.toast.error').count(), 0);
     assert.deepEqual(fs.readFileSync(path.join(firstData, 'journal.json')), beforeCancel);
@@ -192,7 +192,7 @@ async function firstBackupFlow() {
     assert.equal(connected.state.settings.savePath, firstSource);
     assert.equal(connected.state.profiles[0].stageConfirmed, false);
     assert.ok((await firstWin.locator('#backup-label').inputValue()).startsWith(connected.environment.recent.mapName + ' · '));
-    assert.equal(await firstWin.locator('.page-header h1').innerText(), '存档匣');
+    assert.equal(await firstWin.locator('.page-header h1').innerText(), '存档');
     await firstWin.locator('#backup-label').fill('直接选择目录后的第一份备份');
     await firstWin.locator('[data-action="backup-confirm"]').click();
     await firstWin.locator('.backup-row').filter({ hasText: '直接选择目录后的第一份备份' }).waitFor();

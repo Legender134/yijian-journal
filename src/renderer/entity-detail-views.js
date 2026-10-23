@@ -44,10 +44,16 @@ export function createEntityDetailViews({ esc, act, pill, guide = () => [], rich
       `<div class="entity-relation-row">${link(row.entity)}<p class="small muted">在关联任务中：${esc(row.roles.join(' / '))}</p><details><summary>在哪些步骤出现</summary>${steps(row.via)}</details></div>`;
     const itemsRow = (row) =>
       `<div class="entity-relation-row">${link(row.entity)}${row.via.map(({ quest, count }) => `<p class="small">${link(quest)} · 该步骤需 ${esc(count)} 件</p>`).join('')}</div>`;
-    return `<section class="detail-block entity-relations" data-person-relations>${locations}${quests.length ? `<details data-persist-detail="person-related-quests-${esc(e.id)}"><summary>相关任务 · ${quests.length}</summary>${folded(quests, taskRow)}</details>` : ''}${related.people.length ? `<details class="detail-block"><summary>关联任务中的其他人物 · ${related.people.length} · 可能涉及剧情</summary>${folded(related.people, peopleRow)}</details>` : ''}${related.items.length ? `<details class="detail-block"><summary>关联步骤需要的物品 · ${related.items.length}</summary>${folded(related.items, itemsRow)}</details>` : ''}</section>`;
+    return `<section class="detail-block entity-relations" data-person-relations>${locations}${quests.length ? `<details data-persist-detail="person-related-quests-${esc(e.id)}"><summary>相关任务 · ${quests.length}</summary>${folded(quests, taskRow)}</details>` : ''}${related.people.length ? `<details class="detail-block"><summary>相关人物 · ${related.people.length} · 可能涉及剧情</summary>${folded(related.people, peopleRow)}</details>` : ''}${related.items.length ? `<details class="detail-block"><summary>相关物品 · ${related.items.length}</summary>${folded(related.items, itemsRow)}</details>` : ''}</section>`;
   }
   function task(index, q, reference) {
     const related = entityCatalog(index).taskRelations(q);
+    const currentMaterials = related.items.flatMap((row) =>
+      row.via
+        .filter(({ quest }) => quest.gameId !== q.gameId && questStatus(quest.gameId, reference) === '进行中')
+        .map(({ quest, count }) => ({ entity: row.entity, quest, count })),
+    );
+    const materialSteps = new Set(currentMaterials.map((row) => row.quest.gameId));
     const personRow = (row) =>
       `<div class="entity-relation-row">${link(row.entity)}<p class="small muted">${esc(row.roles.join(' / '))}</p><details><summary>对应任务步骤 · ${row.via.length}</summary>${steps(row.via)}</details></div>`;
     const itemRow = (row) =>
@@ -87,7 +93,7 @@ export function createEntityDetailViews({ esc, act, pill, guide = () => [], rich
       !advice
     )
       return '';
-    return `<section class="detail-block entity-relations" data-task-relations>${locations}${related.people.length ? `<details><summary>涉及人物 · ${related.people.length}</summary>${folded(related.people, personRow)}</details>` : ''}${related.items.length ? `<details><summary>步骤需要的物品 · ${related.items.length}</summary>${folded(related.items, itemRow)}</details>` : ''}${related.requirements.length ? `<details><summary>前置与排除任务 · ${related.requirements.length}</summary>${folded(related.requirements, requirementRow)}</details>` : ''}${advice ? `<details><summary>已整理的选择、收益与推进影响 · ${curated.length}</summary>${advice}</details>` : ''}</section>`;
+    return `<section class="detail-block entity-relations" data-task-relations>${locations}${currentMaterials.length ? `<div class="quest-current-materials"><h3>当前步骤用料</h3>${currentMaterials.map((row) => `<div class="codex-source-row">${link(row.entity)}<span>需 ${esc(row.count)}${materialSteps.size > 1 ? ' · ' + link(row.quest) : ''}</span></div>`).join('')}</div>` : ''}${related.people.length ? `<details><summary>涉及人物 · ${related.people.length}</summary>${folded(related.people, personRow)}</details>` : ''}${related.items.length ? `<details><summary>全部步骤用料 · ${related.items.length}</summary>${folded(related.items, itemRow)}</details>` : ''}${related.requirements.length ? `<details><summary>前置与排除任务 · ${related.requirements.length}</summary>${folded(related.requirements, requirementRow)}</details>` : ''}${advice ? `<details><summary>攻略建议 · ${curated.length}</summary>${advice}</details>` : ''}</section>`;
   }
   return { person, task };
 }

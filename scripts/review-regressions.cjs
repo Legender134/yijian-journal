@@ -1,5 +1,10 @@
 'use strict';
-const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
+const {
+  openMainPage,
+  chooseCodexKind,
+  openTimelineEditor,
+  openTimelinePreview,
+} = require('./ui-smoke-actions.cjs');
 // Independent synthetic user-flow regression. YIJIAN_TEST_DATA blocks all native game commands.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -694,8 +699,9 @@ async function searchReadability() {
     });
     await win.locator('.search-result[data-id="item-1002"]').focus();
     await win.keyboard.press('Enter');
-    await win.locator('.drawer .tag-row .quality-label').waitFor();
-    assert.equal(await win.locator('.drawer .tag-row .quality-label').innerText(), '蓝色品质');
+    await win.locator('.drawer .game-detail-meta').waitFor();
+    assert.match(await win.locator('.drawer .game-detail-meta').innerText(), /蓝色/);
+    assert.equal(await win.locator('.drawer h1 .quality-text').getAttribute('data-quality'), '蓝');
     await win.locator('[data-action="drawer-back"]').click();
     await win.locator('#global-search').waitFor();
     assert.equal(await win.locator('#global-search').inputValue(), '纯钢剑');
@@ -1495,6 +1501,7 @@ async function fullDraftCapacity() {
   try {
     await nav(win, 'saves');
     await win.locator('.latest-reliable [data-action="timeline-preview"]').click();
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('满额后暂存失败的文字');
     await win.locator('.toast.error').filter({ hasText: '100' }).waitFor();
     assert.equal(activity(data).drafts[record.id], undefined);
@@ -1515,6 +1522,7 @@ async function fullDraftCapacity() {
     ({ app, win } = running);
     await nav(win, 'saves');
     await win.locator('.latest-reliable [data-action="timeline-preview"]').click();
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('释放容量后可保存');
     await win.locator('.toast.error').filter({ hasText: '100' }).waitFor();
     await close(win);
@@ -1550,6 +1558,7 @@ async function fullDraftCapacity() {
     assert.equal(topUp.ok, true);
     assert.equal(Object.keys(activity(data).drafts).length, 100);
     await win.locator('.latest-reliable [data-action="timeline-preview"]').click();
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('满额仍可正式保存');
     await win.locator('.toast.error').filter({ hasText: '100' }).waitFor();
     await win.locator('[data-action="timeline-edit-save"]').first().click();
@@ -1606,8 +1615,10 @@ async function interleavedNodeSave() {
       };
     }, nodeA.id);
     await nav(win, 'saves');
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeA.id}"]`).first().click();
+    await openTimelinePreview(win, nodeA.id);
+    await openTimelineEditor(win);
     await win.locator('#timeline-label').fill('A 新名称');
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('A 新备注');
     await app.evaluate(async () => {
       const deadline = Date.now() + 4000;
@@ -1617,7 +1628,7 @@ async function interleavedNodeSave() {
     });
     await win.locator('[data-action="timeline-edit-save"]').first().click();
     await win.keyboard.press('Escape');
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeB.id}"]`).first().click();
+    await openTimelinePreview(win, nodeB.id);
     assert.equal(await win.locator('.drawer h1').innerText(), '节点 B');
     assert.equal(await win.locator('#timeline-note').inputValue(), 'B 原备注');
     assert.equal(await app.evaluate(() => globalThis.reviewReleased), false);
@@ -1647,7 +1658,8 @@ async function interleavedNodeSave() {
       globalThis.reviewReleased = false;
       globalThis.reviewRelease = null;
     });
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeA.id}"]`).first().click();
+    await openTimelinePreview(win, nodeA.id);
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('A 第二备注');
     await app.evaluate(async () => {
       const deadline = Date.now() + 4000;
@@ -1657,7 +1669,7 @@ async function interleavedNodeSave() {
     });
     await win.locator('[data-action="timeline-edit-save"]').first().click();
     await win.keyboard.press('Escape');
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeA.id}"]`).first().click();
+    await openTimelinePreview(win, nodeA.id);
     assert.equal(await win.locator('#timeline-note').isDisabled(), true);
     assert.equal(await win.locator('[data-action="timeline-edit-save"]').first().isDisabled(), true);
     assert.equal(await win.locator('[data-action="timeline-draft-discard"]').isDisabled(), true);
@@ -1667,6 +1679,7 @@ async function interleavedNodeSave() {
       () => document.querySelector('#timeline-note') && !document.querySelector('#timeline-note').disabled,
     );
     assert.equal(timeline(data).records.find((r) => r.id === nodeA.id).note, 'A 第二备注');
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('A 最终备注');
     await win.locator('[data-action="timeline-edit-save"]').first().click();
     await win.waitForFunction(() => document.querySelector('#timeline-note')?.value === 'A 最终备注');
@@ -1752,7 +1765,7 @@ async function inFlightLoadUi() {
     }, data);
     await pulse();
     await nav(win, 'saves');
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeA.id}"]`).first().click();
+    await openTimelinePreview(win, nodeA.id);
     const loadButton = win.locator('#timeline-load-button');
     await win.waitForFunction(() => document.querySelector('#timeline-load-button')?.disabled === false);
     await loadButton.click();
@@ -1772,7 +1785,7 @@ async function inFlightLoadUi() {
 
     await win.keyboard.press('Escape');
     await win.locator('.drawer').waitFor({ state: 'detached' });
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeB.id}"]`).first().click();
+    await openTimelinePreview(win, nodeB.id);
     assert.equal(await win.locator('.drawer h1').innerText(), '等待节点 B');
     assert.equal(await loadButton.isDisabled(), true);
     assert.match(
@@ -1899,7 +1912,8 @@ async function cancelledTrayQuit(healthDelay = 0, companionDraft = false) {
       await win.locator('.compact-shell').waitFor();
       await win.locator('.companion-tabs [data-action="navigate"][data-id="saves"]').click();
     } else await nav(win, 'saves');
-    await win.locator(`[data-action="timeline-preview"][data-id="${record.id}"]`).first().click();
+    await openTimelinePreview(win, record.id);
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('退出前写不下的新稿');
     await win.locator('.toast.error').filter({ hasText: '100' }).waitFor();
     console.log('tray: failed draft visible');
@@ -2099,6 +2113,7 @@ async function interruptedRestoreReceipt() {
     assert.match(receipt.message, /已回退 1 个文件/);
     assert(receipt.message.includes(source.slice(0, 220)));
     assert(receipt.message.includes(pending.safetyId));
+    await win.locator('.operation-history > summary').click();
     assert((await win.locator('.operation-history').innerText()).includes(receipt.message));
     for (const copy of [originalCopy, safety]) {
       const verified = backups.verify(copy.manifest.id);
@@ -2109,6 +2124,7 @@ async function interruptedRestoreReceipt() {
     ({ app, win } = running = await launch(data));
     await nav(win, 'saves');
     assert.equal(await banner().count(), 0);
+    await win.locator('.operation-history > summary').click();
     assert((await win.locator('.operation-history').innerText()).includes(receipt.message));
     assert.equal(operations().filter((event) => event.message === receipt.message).length, 1);
     assert.deepEqual(fs.readFileSync(path.join(source, '1.sav')), current);
@@ -2367,6 +2383,7 @@ async function unreadableProgressAndImport() {
     assert.doesNotMatch(await win.locator('.start-panel').innerText(), /存档回顾.*现在就能使用/);
     await nav(win, 'saves');
     await win.locator('.backup-row').first().waitFor();
+    await win.locator('.save-files > summary').click();
     assert.match(await win.locator('.content').innerText(), /进度暂无法读取/);
     const copies = new Saves(path.join(data, 'save-backups'));
     assert.deepEqual(copies.verify(copies.list()[0].id).buffers.get('1.sav'), invalid);
@@ -2377,6 +2394,7 @@ async function unreadableProgressAndImport() {
     await app.evaluate(({ dialog }, file) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
     }, broken);
+    await win.locator('[data-persist-detail="settings-data"] > summary').click();
     await win.locator('[data-action="import"]').click();
     await win.waitForFunction(() => document.querySelector('.toast')?.textContent.includes('当前记录未改动'));
     assert.deepEqual(fs.readFileSync(path.join(data, 'journal.json')), before);
@@ -2421,7 +2439,8 @@ async function importedReferences() {
     await win.locator(`.database-card[data-id="${person.id}"]`).click();
     await selectProgress(win, '');
     assert.equal(await progressValue(win), '');
-    assert.match(await win.locator('.person-gifts > summary').innerText(), /符合偏好的物品/);
+    await win.locator('.person-gifts > summary').click();
+    assert.match(await win.locator('.person-gifts > p').first().innerText(), /符合偏好的物品/);
     assert.doesNotMatch(await win.locator('.person-gifts').innerText(), /仅列可用库存/);
     await close(win);
     // Shared Settings changed the profile itself; restore the pinned import fixture.
@@ -2436,6 +2455,7 @@ async function importedReferences() {
         return { response: 0 };
       };
     }, file);
+    await win.locator('[data-persist-detail="settings-data"] > summary').click();
     await win.locator('[data-action="export"]').click();
     await win.waitForFunction(() => document.querySelector('.toast')?.textContent.includes('导出'));
     const before = fs.readFileSync(path.join(data, 'journal.json'));
@@ -2481,8 +2501,13 @@ async function customOpacityImport() {
     JSON.stringify({ ...store.get(), settings: { ...store.get().settings, compactOpacity: 0.9 } }),
   );
   let launched = (running = await launch(data));
-  try {
+  async function openCompanionSettings() {
     await nav(launched.win, 'settings');
+    const settings = launched.win.locator('[data-persist-detail="settings-companion"]');
+    if (!(await settings.evaluate((node) => node.open))) await settings.locator(':scope > summary').click();
+  }
+  try {
+    await openCompanionSettings();
     assert.equal(await launched.win.locator('#companion-opacity').inputValue(), '0.82');
     assert.equal(await launched.win.locator('#companion-opacity option:checked').innerText(), '82%（当前）');
     assert.equal(journal(data).settings.compactOpacity, 0.82);
@@ -2490,6 +2515,7 @@ async function customOpacityImport() {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
       dialog.showMessageBox = async () => ({ response: 1 });
     }, exported);
+    await launched.win.locator('[data-persist-detail="settings-data"] > summary').click();
     await launched.win.locator('[data-action="import"]').click();
     await launched.win.waitForFunction(() =>
       [...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('手札已导入')),
@@ -2500,13 +2526,13 @@ async function customOpacityImport() {
     await launched.app.close();
     running = null;
     launched = running = await launch(data);
-    await nav(launched.win, 'settings');
+    await openCompanionSettings();
     assert.equal(await launched.win.locator('#companion-opacity').inputValue(), '0.82');
     await launched.app.close();
     running = null;
     new Store(data, catalog).mutate({ type: 'settings', value: { compactOpacity: 0.9 } });
     launched = running = await launch(data);
-    await nav(launched.win, 'settings');
+    await openCompanionSettings();
     assert.equal(await launched.win.locator('#companion-opacity').inputValue(), '0.9');
     assert.equal(await launched.win.locator('#companion-opacity option:checked').innerText(), '90%（当前）');
     await launched.win.locator('#companion-opacity').selectOption('0.85');

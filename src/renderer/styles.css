@@ -19,12 +19,9 @@
   --serif: JournalSerif, 'Microsoft YaHei', serif;
 }
 .flow-panel {
-  margin-bottom: 22px;
-  padding: 24px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  line-height: 1.7;
+  margin-bottom: 14px;
+  padding: 0;
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
 .flow-home-title {
@@ -52,7 +49,7 @@
 }
 .flow-panel > section,
 .flow-heading {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 .flow-rule,
 .flow-task {
@@ -272,24 +269,26 @@
 .flow-summary .flow-main-index {
   display: none;
 }
-@media (min-width: 1200px) {
-  .flow-summary.flow-has-risks {
+@media (min-width: 1000px) {
+  .flow-summary {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
-    gap: 0 22px;
+    grid-template-columns: minmax(0, 1.35fr) minmax(260px, 1fr);
+    gap: 0 24px;
     align-items: start;
   }
-  .flow-summary.flow-has-risks > :not(.flow-risks, .flow-active) {
+  .flow-summary > .flow-current-decisions,
+  .flow-summary > .flow-risks,
+  .flow-summary > .flow-state-notice,
+  .flow-summary > .flow-more {
     grid-column: 1 / -1;
   }
-  .flow-summary:not(.flow-has-risks) .flow-active {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 16px;
-    align-items: start;
+  .flow-summary > .flow-active {
+    grid-column: 1;
+    grid-row: span 3;
   }
-  .flow-summary:not(.flow-has-risks) .flow-active > :not(.flow-task) {
-    grid-column: 1 / -1;
+  .flow-summary > .flow-advice,
+  .flow-summary > .flow-opportunities {
+    grid-column: 2;
   }
 }
 .game-picture {
@@ -582,7 +581,7 @@
 .start-actions {
   display: flex;
   gap: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 .home-optional > summary {
   color: var(--green);
@@ -695,7 +694,7 @@
   display: flex;
   align-items: center;
   gap: 18px;
-  margin: 16px 0 20px;
+  margin: 10px 0 14px;
 }
 .game-detail-title > div {
   min-width: 0;
@@ -1011,7 +1010,7 @@ svg {
 .sidebar {
   background: var(--ink);
   color: #dde2ce;
-  padding: 33px 18px 20px;
+  padding: 18px 14px 14px;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1034,7 +1033,7 @@ svg {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 10px 31px;
+  padding: 0 10px 20px;
 }
 .brand-name {
   font-family: var(--serif);
@@ -1161,18 +1160,13 @@ svg {
   flex-direction: column;
 }
 .titlebar {
-  height: 38px;
+  min-height: 48px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   -webkit-app-region: drag;
   padding-left: 28px;
-}
-.window-name {
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 1px;
 }
 .window-buttons {
   display: flex;
@@ -1199,9 +1193,9 @@ svg {
   height: 14px;
 }
 .topbar {
-  height: 56px;
+  min-height: 48px;
   flex-shrink: 0;
-  padding: 0 34px 13px;
+  padding: 4px 0 4px 20px;
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -1252,7 +1246,7 @@ kbd {
 .content {
   overflow-y: auto;
   flex: 1;
-  padding: 29px 34px 35px;
+  padding: 18px 22px 24px;
   scrollbar-gutter: stable;
 }
 .content::-webkit-scrollbar,
@@ -1265,9 +1259,9 @@ kbd {
   border-radius: 9px;
 }
 .page-header {
-  margin-bottom: 23px;
+  margin-bottom: 14px;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
 }
@@ -1344,8 +1338,8 @@ kbd {
 .card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 11px;
-  padding: 21px 23px;
+  border-radius: 8px;
+  padding: 14px 16px;
 }
 .card-header {
   display: flex;
@@ -2099,8 +2093,8 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 25px;
-  padding: 19px 0;
+  gap: 16px;
+  padding: 12px 0;
   border-bottom: 1px solid #e6e9dc;
 }
 .setting-row > label {
@@ -2220,20 +2214,20 @@ kbd {
   animation: slideIn 0.2s ease;
 }
 .drawer-head {
-  padding: 24px 28px 18px;
+  padding: 10px 18px;
   border-bottom: 1px solid #dfe4d5;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 .drawer-body {
-  padding: 24px 28px;
+  padding: 16px 18px;
   overflow-y: auto;
   flex: 1;
 }
 .drawer-body h1 {
-  font: 30px var(--serif);
-  margin: 9px 0 13px;
+  font: 26px var(--serif);
+  margin: 0 0 4px;
 }
 .drawer-body .intro {
   font-size: 13px;
@@ -2248,11 +2242,11 @@ kbd {
   margin-bottom: 8px;
 }
 .detail-block {
-  margin: 25px 0;
+  margin: 14px 0;
 }
 .detail-block h3 {
-  font-size: 13px;
-  margin-bottom: 12px;
+  font-size: 14px;
+  margin-bottom: 8px;
 }
 .steps {
   padding: 0;
@@ -2732,7 +2726,7 @@ kbd {
     grid-template-columns: 190px 1fr;
   }
   .content {
-    padding: 23px 25px;
+    padding: 16px 20px;
   }
   .topbar {
     padding-left: 25px;
@@ -2748,7 +2742,7 @@ kbd {
     grid-template-columns: minmax(0, 1.3fr) minmax(230px, 1fr);
   }
   .card {
-    padding: 18px;
+    padding: 14px 16px;
   }
   .stat {
     padding: 14px;
@@ -2960,14 +2954,14 @@ kbd {
 }
 .detail-stat-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin: 20px 0;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+  margin: 10px 0;
 }
 .detail-stat-grid > div {
   background: #edf0e4;
-  border-radius: 8px;
-  padding: 15px;
+  border-radius: 5px;
+  padding: 8px 10px;
 }
 .detail-stat-grid small {
   display: block;
@@ -3950,8 +3944,8 @@ kbd {
 /* Plans keep source conditions available without crowding the next action. */
 .journey-layout {
   display: grid;
-  grid-template-columns: minmax(180px, 230px) minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
   align-items: start;
 }
 .journey-summary {
@@ -3961,7 +3955,7 @@ kbd {
   align-items: baseline;
 }
 .journey-summary strong {
-  font-size: 28px;
+  font-size: 18px;
   color: var(--accent, #356b55);
 }
 .journey-location {
@@ -4141,7 +4135,7 @@ kbd {
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
-  padding: 14px 4px;
+  padding: 10px 4px;
   background: transparent;
   transition: background 120ms ease;
 }
@@ -4166,7 +4160,7 @@ kbd {
   min-width: 0;
   flex: 1;
 }
-.codex-result-copy > strong {
+.codex-result-heading > strong {
   font-size: 15px;
   font-weight: 600;
   line-height: 1.55;
@@ -4181,9 +4175,123 @@ kbd {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.codex-result-meta {
-  color: var(--green);
-  font-size: 11px;
+.codex-result-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.codex-result-heading > small,
+.game-detail-meta {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.item-usage-stock {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 8px 0;
+}
+.item-usage-stock > div {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.item-usage-stock dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.item-usage-stock dd {
+  margin: 0;
+  font-weight: 600;
+}
+.flow-material-details > summary {
+  font-size: 12px;
+  padding: 3px 0;
+}
+.flow-material .entity-link {
+  padding: 0;
+  min-height: 24px;
+}
+.settings-section > summary {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 4px 0;
+}
+.settings-section[open] > summary {
+  margin-bottom: 12px;
+}
+details.card:not([open]) {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  background: transparent;
+}
+.backup-toolbar {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: start;
+}
+.backup-toolbar > .search-input {
+  flex: 1;
+  min-width: 0;
+}
+.backup-toolbar > .search-input input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+}
+.backup-filter-menu > summary {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.backup-filter-menu .backup-filters {
+  position: absolute;
+  inset: calc(100% + 5px) 0 auto;
+  z-index: 4;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+.backup-result-count {
+  margin: 8px 0;
+}
+.backup-management,
+.backup-selection {
+  margin: 8px 0;
+}
+.backup-management > .row,
+.backup-selection > .row {
+  flex-wrap: wrap;
+}
+.backup-management > .row > button,
+.backup-selection > .row > button,
+.backup-selection > .row > .backup-selected-count {
+  flex-shrink: 0;
+}
+.backup-management[open] > summary,
+.backup-batch-help[open] > summary {
+  margin-bottom: 10px;
+}
+.backup-batch-help {
+  margin: 8px 0;
+}
+.backup-row {
+  flex-wrap: wrap;
+}
+.backup-row > .spacer {
+  flex: 1 1 160px;
+  overflow-wrap: anywhere;
+}
+.npc-progress-tabs > .btn {
+  padding: 7px 4px;
+  justify-content: center;
+  min-width: 0;
+  gap: 3px;
 }
 .codex-source-row,
 .codex-growth > div {
@@ -4229,9 +4337,8 @@ kbd {
   }
 }
 .item-statistics {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
 }
 .item-statistics h3 {
   margin-top: 0;
@@ -4278,14 +4385,14 @@ kbd {
   cursor: pointer;
 }
 .duel-compact-card > summary::after {
-  content: '展开准备建议与收益';
+  content: '▸';
   display: block;
   font-size: 11px;
   color: var(--green);
   margin-top: 5px;
 }
 .duel-compact-card[open] > summary::after {
-  content: '收起详情';
+  content: '▾';
 }
 .duel-compact-card .duel-place,
 .duel-reward-preview {
@@ -4348,10 +4455,10 @@ kbd {
   margin-top: 5px;
 }
 .npc-progress-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 8px;
 }
 .npc-progress-tools {
   position: relative;
@@ -4426,6 +4533,12 @@ kbd {
 .npc-progress-card summary .row {
   flex-wrap: wrap;
   gap: 6px;
+}
+.npc-progress-card summary strong {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
 }
 .npc-progress-blocker {
   color: var(--muted);
@@ -4745,12 +4858,19 @@ kbd {
 /* Keep global actions available above the page content. */
 .layout .topbar {
   min-height: 48px;
-  padding-top: 8px;
-  padding-bottom: 8px;
+  height: auto;
+  padding: 4px 0 4px 18px;
+  gap: 16px;
 }
 .layout .topbar > .row {
-  width: 100%;
-  justify-content: flex-end;
+  min-width: 0;
+  flex: 1;
+  width: auto;
+  justify-content: flex-start;
+}
+.layout .topbar button,
+.layout .topbar a {
+  -webkit-app-region: no-drag;
 }
 .layout .nav-more {
   margin-top: 8px;

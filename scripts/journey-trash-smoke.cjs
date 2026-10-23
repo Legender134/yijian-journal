@@ -145,6 +145,10 @@ async function editor(kind, target = page) {
   if (!(await button.isVisible()))
     await button.locator('xpath=ancestor::details[1]').locator('summary').first().click();
   await button.click();
+  if (kind === 'gift') {
+    const actions = target.locator('.gift-editor-actions');
+    if (!(await actions.evaluate((node) => node.open))) await actions.locator(':scope > summary').click();
+  }
 }
 async function remove(kind, target = page) {
   await editor(kind, target);
@@ -164,6 +168,7 @@ async function written(file) {
   try {
     await launch();
     await nav('journey');
+    await page.locator('.journey-locations > summary').click();
     const scenes = page.locator('details[data-persist-detail^="journey-location:"]').first();
     const sceneKey = await scenes.getAttribute('data-persist-detail');
     await scenes.locator('summary').click();
