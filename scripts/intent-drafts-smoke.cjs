@@ -1,5 +1,5 @@
 'use strict';
-const { openMainPage } = require('./ui-smoke-actions.cjs');
+const { openMainPage, openIntentEditorActions } = require('./ui-smoke-actions.cjs');
 // Real main/compact windows with isolated synthetic saves; no real game integration.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -218,8 +218,10 @@ async function collectionQuantityJourney() {
   await page.locator('#goal-title').fill('给掌柜留用的铁矿石');
   await page.locator('#goal-quantity').fill('12');
   await until((p) => p.intentDrafts.some((r) => r.targetId === goal.id && r.values.quantity === '12'));
+  await openIntentEditorActions(page);
   await page.locator('[data-action="intent-draft-copy"]').click();
   p = await until((p) => p.intentDrafts.some((r) => r.targetId === goal.id && r.values.quantity === '12'));
+  await openIntentEditorActions(page);
   assert.equal(await page.locator('[data-action="intent-draft-copy"]').innerText(), '另存此目标的编辑草稿');
   await page.locator('[data-action="goal-save"]').click();
   p = await until((p) => p.goals.find((g) => g.id === goal.id)?.source.quantity === 12);
@@ -234,6 +236,7 @@ async function collectionQuantityJourney() {
   const stale = p.intentDrafts.find((r) => r.targetId === goal.id);
   assert(stale, 'the original independent editing draft remains');
   await resume(stale.id);
+  await openIntentEditorActions(page);
   await page.locator('[data-action="intent-draft-copy"]').click();
   await page.waitForFunction(() =>
     document.querySelector('#toasts').textContent.includes('原物品目标已变化'),
@@ -241,6 +244,7 @@ async function collectionQuantityJourney() {
   assert.equal((await current()).goals.find((g) => g.id === goal.id).source.quantity, 12);
   await page.keyboard.press('Escape');
   await page.locator('[data-action="intent-drafts"]').first().click();
+  await openIntentEditorActions(page);
   await page.locator('[data-action="intent-draft-discard"][data-id="' + stale.id + '"]').click();
   await page.locator('[data-action="intent-draft-discard-confirm"]').click();
   await until((p) => !p.intentDrafts.some((r) => r.id === stale.id));
@@ -255,6 +259,7 @@ async function collectionQuantityJourney() {
   await resume(removedDraft.id);
   assert.equal(await page.locator('#goal-quantity').inputValue(), '13');
   assert.match(await page.locator('#overlay').innerText(), /原物品目标已移除，草稿仍保留/);
+  await openIntentEditorActions(page);
   await page.locator('[data-action="intent-draft-copy"]').click();
   await page.waitForFunction(() => document.querySelector('#toasts').textContent.includes('请先恢复原目标'));
   await page.keyboard.press('Escape');
@@ -512,10 +517,12 @@ async function collectionQuantityJourney() {
     assert.equal(p.journey.todos[0].title, '另一个窗口改过的正式事项');
     assert(p.intentDrafts.some((r) => r.id === conflictDraft));
     assert.equal(await page.locator('#journey-title').inputValue(), '冲突时仍保留这段编辑');
+    await openIntentEditorActions(page);
     await page.locator('#overlay [data-action="intent-draft-recheck"]').click();
     await page.keyboard.press('Escape');
     assert.equal((await current()).journey.todos[0].title, '另一个窗口改过的正式事项');
     await resume(conflictDraft);
+    await openIntentEditorActions(page);
     await page.locator('#overlay [data-action="intent-draft-copy"]').click();
     p = await until((p) => p.intentDrafts.some((r) => r.kind === 'journey-todo' && r.id !== conflictDraft));
     const copied = p.intentDrafts.find((r) => r.kind === 'journey-todo' && r.id !== conflictDraft);
@@ -524,10 +531,12 @@ async function collectionQuantityJourney() {
     assert(p.intentDrafts.some((r) => r.id === conflictDraft));
     assert.equal(p.journey.todos[0].title, '另一个窗口改过的正式事项');
     await page.keyboard.press('Escape');
+    await openIntentEditorActions(page);
     await page.locator('[data-action="intent-draft-discard"][data-id="' + copied.id + '"]').click();
     await page.locator('[data-action="intent-draft-discard-confirm"]').click();
     await until((p) => !p.intentDrafts.some((r) => r.id === copied.id));
     await resume(conflictDraft);
+    await openIntentEditorActions(page);
     await page.locator('#overlay [data-action="intent-draft-recheck"]').click();
     await page.locator('[data-action="intent-draft-recheck-confirm"]').click();
     await page.locator('[data-action="journey-intent-save"]').click();
@@ -538,9 +547,11 @@ async function collectionQuantityJourney() {
     await page.keyboard.press('Escape');
     p = await until((p) => p.intentDrafts.some((r) => r.values.title === '需要明确放弃的草稿'));
     const discardId = p.intentDrafts.find((r) => r.values.title === '需要明确放弃的草稿').id;
+    await openIntentEditorActions(page);
     await page.locator('[data-action="intent-draft-discard"][data-id="' + discardId + '"]').click();
     await page.keyboard.press('Escape');
     assert((await current()).intentDrafts.some((r) => r.id === discardId));
+    await openIntentEditorActions(page);
     await page.locator('[data-action="intent-draft-discard"][data-id="' + discardId + '"]').click();
     await page.locator('[data-action="intent-draft-discard-confirm"]').click();
     p = await until((p) => !p.intentDrafts.some((r) => r.id === discardId));
@@ -566,6 +577,7 @@ async function collectionQuantityJourney() {
     );
     assert.equal(await page.locator('#overlay [data-entity-id="place-999999"]').count(), 0);
     assert((await page.locator('#overlay').innerText()).includes('拟标为已完成'));
+    await openIntentEditorActions(page);
     await page.locator('#overlay [data-action="intent-draft-discard"]').click();
     await page.locator('[data-action="intent-draft-discard-confirm"]').click();
     await until((p) => !p.intentDrafts.some((r) => r.id === 'unknown-place'));

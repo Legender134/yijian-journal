@@ -187,7 +187,7 @@ function activateIntentEditor(kind, targetId, context = {}, row = null) {
     ?.querySelector('.modal-footer')
     ?.insertAdjacentHTML(
       'beforebegin',
-      '<p id="intent-draft-status" class="save-note" role="status">输入后会自动暂存；正式保存才加入当前安排。</p>',
+      '<p id="intent-draft-status" class="save-note" role="status">草稿自动暂存，保存后加入安排。</p>',
     );
   for (const button of dialog?.querySelectorAll('[data-action="close-overlay"]') || []) {
     if (button.closest('.modal-footer')) button.textContent = '暂存并关闭';
@@ -211,7 +211,7 @@ function activateIntentEditor(kind, targetId, context = {}, row = null) {
         act('intent-draft-recheck', '重新核对原安排…', 'text-btn', activeIntentEditor.id) +
         act('intent-draft-discard', '放弃草稿…', 'text-btn', activeIntentEditor.id),
     );
-  if (kind === 'journey-gift') {
+  {
     const more = document.createElement('details');
     more.className = 'gift-editor-actions';
     more.innerHTML = '<summary>更多操作</summary><div class="row wrap"></div>';
@@ -219,10 +219,12 @@ function activateIntentEditor(kind, targetId, context = {}, row = null) {
       '.modal-footer [data-action="intent-draft-copy"],.modal-footer [data-action="intent-draft-recheck"],.modal-footer [data-action="intent-draft-discard"],.modal-footer [data-action="journey-intent-remove"]',
     ))
       more.lastElementChild.append(button);
-    dialog.querySelector('.journey-intent-body').append(more);
+    const body = dialog.querySelector('.journey-intent-body');
+    if (body) body.append(more);
+    else dialog.querySelector('.modal-footer').before(more);
     dialog.querySelector('#intent-draft-status').textContent = row
       ? '已恢复草稿，保存后加入安排。'
-      : '修改会自动暂存。';
+      : '草稿自动暂存，保存后加入安排。';
   }
 }
 function captureIntentEditor(editor, force = false) {
@@ -2802,7 +2804,7 @@ function saveNote(id = profile().id) {
   return task;
 }
 function noteBlock() {
-  return `<div class="note-paper"><div class="row between wrap"><h3>江湖随手记</h3>${act('navigate', '逐条记录与回顾', 'text-btn', 'journal', 'feather')}</div><textarea id="note" data-persist="note" data-profile-id="${esc(profile().id)}" maxlength="20000" aria-label="江湖随手记" placeholder="上次停在何处？下次想做什么？\n给未来的自己留句话。">\n${esc(drafts.get(profile().id) ?? profile().notes)}</textarea><div id="note-status" class="note-footer">${drafts.has(profile().id) ? '正在保存…' : '只存在这台电脑 · 自动保存'}</div>${act('note-history', '找回旧内容 · ' + (profile().noteRevisions?.length || 0), 'text-btn', '', 'archive')}<details class="small"><summary>旧内容保留规则</summary><p class="save-note">自动保留最近 20 份非空旧内容；连续编辑每隔 5 分钟留一份，清空或恢复前立即保留。更早的内容可通过导出手札备份另行保存。</p></details></div>`;
+  return `<div class="note-paper"><div class="row between wrap"><h3>江湖随手记</h3>${act('navigate', '逐条记录与回顾', 'text-btn', 'journal', 'feather')}</div><textarea id="note" data-persist="note" data-profile-id="${esc(profile().id)}" maxlength="20000" aria-label="江湖随手记" placeholder="随手记…">\n${esc(drafts.get(profile().id) ?? profile().notes)}</textarea><div id="note-status" class="note-footer">${drafts.has(profile().id) ? '正在保存…' : '已保存到本机'}</div>${act('note-history', '找回旧内容 · ' + (profile().noteRevisions?.length || 0), 'text-btn', '', 'archive')}<details class="small"><summary>旧内容保留规则</summary><p class="save-note">自动保留最近 20 份非空旧内容；连续编辑每隔 5 分钟留一份，清空或恢复前立即保留。更早的内容可通过导出手札备份另行保存。</p></details></div>`;
 }
 function showNoteHistory(returnContext = null) {
   const rows = profile().noteRevisions || [];
@@ -3001,26 +3003,8 @@ function goalRow(g) {
 }
 function goalsPage() {
   const p = profile();
-  return `${pageHeader('PACK LIGHT, GO FAR', '行囊目标', '想学的武功、想见的人，还有下一次出发的理由。', act('goal-add', '添加目标', 'btn primary', '', 'plus'))}${journeyTrashViews.entry(p)}<div class="saved-goals"><div class="stack"><section class="card"><div class="card-header"><h2>我的待办</h2>${pill(`${p.goals.filter((g) => !goalDone(g)).length} 件未完成`)}</div>${
-    p.goals.length
-      ? orderedGoals().map(goalRow).join('')
-      : empty(
-          '行囊还很轻',
-          '把一个大目标拆成几件小事，走起路来就有了方向。',
-          act('goal-add', '写下第一件事', 'btn soft', '', 'plus'),
-        )
-  }</section><section class="card"><div class="card-header"><h2>收藏的线索</h2>${act('navigate', '去索引看看', 'text-btn', 'library', 'arrow')}</div>${
-    p.favorites.length
-      ? p.favorites
-          .map((id) => entry(id))
-          .filter(Boolean)
-          .map(
-            (e) =>
-              `<div class="check-row"><div class="check-body"><div class="check-title">${entityReferences.text(e.title)}</div><p class="check-description">${entityReferences.text(e.location)} · ${e.kind}</p></div>${iconButton('detail', 'chevron', '查看线索', e.id)}${iconButton('entry-goal', 'plus', '加入待办', e.id)}${iconButton('favorite', 'star', '取消收藏', e.id, 'favorite on')}</div>`,
-          )
-          .join('')
-      : empty('把线索装进行囊', '在江湖索引中点击星标，就能在这里找到它。')
-  }</section></div><div class="stack">${noteBlock()}<div class="notice info">${icon('leaf')}<span>每个周目的清单、收藏和随手记彼此独立。${compact ? '打开完整手札后，可以在左下角切换或新建周目。' + act('main', '打开完整手札', 'text-btn', '', 'external') : '你可以在左下角切换或新建周目。'}</span></div></div></div>`;
+  const favorites = p.favorites.map((id) => entry(id)).filter(Boolean);
+  return `${pageHeader('', '行囊目标', '', act('goal-add', '添加目标', 'btn primary', '', 'plus'))}${journeyTrashViews.entry(p)}<div class="saved-goals"><div class="stack"><section class="card"><div class="card-header"><h2>我的待办</h2>${pill(`${p.goals.filter((g) => !goalDone(g)).length} 件未完成`)}</div>${p.goals.length ? orderedGoals().map(goalRow).join('') : '<p class="small muted">还没有目标</p>'}</section><details class="card" data-persist-detail="goal-favorites"${favorites.length ? ' open' : ''}><summary>收藏线索 · ${favorites.length}</summary><div class="row mt">${act('navigate', '查找线索', 'text-btn', 'library', 'search')}</div>${favorites.map((e) => `<div class="check-row"><div class="check-body"><div class="check-title">${entityReferences.text(e.title)}</div><p class="check-description">${entityReferences.text(e.location)} · ${e.kind}</p></div>${iconButton('detail', 'chevron', '查看线索', e.id)}${iconButton('entry-goal', 'plus', '加入待办', e.id)}${iconButton('favorite', 'star', '取消收藏', e.id, 'favorite on')}</div>`).join('')}</details></div><div class="stack">${noteBlock()}<details class="small"><summary>周目说明</summary><p>清单、收藏和随手记按周目分别保存。${compact ? '打开完整手札后可切换或新建周目。' + act('main', '打开完整手札', 'text-btn', '', 'external') : '可在左下角切换或新建周目。'}</p></details></div></div>`;
 }
 function nodeDraftPanel() {
   const entries = Object.entries(environment.activity?.drafts || {});
@@ -3142,7 +3126,7 @@ function savesPage() {
   const connection = `<div class="card mb save-connection"><div class="row between save-connection-header"><div class="row save-connection-description"><div class="save-icon">${icon('folder')}</div><div><h3>${files.length ? '已连接本机存档' : '尚未连接存档'}</h3><p class="small muted">${files.length ? '文件会被只读扫描，备份保存在手札的数据目录。' : '选择游戏的 SaveGames 文件夹即可开始。'}</p></div></div><div class="save-stats"><div><strong>${files.filter((f) => /\.sav$/i.test(f.name)).length}</strong><small>存档文件</small></div><div>${environment.recovery ? '<button class="btn" disabled title="请先核对完整存档恢复">更换目录 · 先核对恢复</button>' : act('choose-saves', '更换目录', 'btn')}</div></div></div><div class="separator"></div><div class="row between save-connection-path"><span class="mono muted">${esc(save.path || '等待选择目录')}</span>${save.path ? act('folder', '打开目录', 'text-btn', 'saves', 'external') : ''}</div></div>`;
   return `${pageHeader('A PLACE TO RETURN TO', '存档', '重要选择之前，为这一程留一份退路。', `${act('refresh', '刷新', 'btn', '', 'refresh')}${act('backup', '创建备份', 'btn primary', '', 'download')}`)}${restoreRecoveryBanner()}${backupCareBanner()}${warnings}${saveReviewActions()}${timelinePanel()}${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${!save.path || !files.length ? connection : ''}
  <div class="row between mb"><h2>完整备份 <span class="small muted">${environment.backupInventoryError ? '· 数量待核对' : backups.length ? `· ${backups.length} 份` : ''}</span></h2><div class="row"><span class="small muted">完整自动备份 · ${backupStatus()}</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></div>
- ${backupViews.anomalies(environment.backupAnomalies || [])}${environment.backupInventoryError ? backupViews.unavailable(environment.backupInventoryError, environment.backupRoot) : backups.length ? backupViews.page(backups, backupView) : `<div class="card">${empty('还没有备份', '先在游戏内保存，再创建第一份副本。每份备份都会保留原始文件并校验完整性。', act('backup', '创建第一份备份', 'btn soft', '', 'download'))}</div>`}${protectionViews.controls(protectionView)}${activityPanel()}<details class="save-backup-help mb" data-persist-detail="backup-help"><summary>备份设置与说明</summary><p class="small">完整自动备份 · ${backupStatus()}</p><p class="save-note">原生游戏连接工作时暂停完整自动备份，避免重复复制其他槽位；等待连接或关闭时间线时仍保护文件。关闭时间线后立即检查，之后每分钟核对文件变化；稳定后复制已保存的文件，不会替游戏执行保存。副本不会自动删除。可按名称、类型和日期整理或分批导出；上方完整换机会自动分卷，请一并带走分卷目录。</p></details>
+ ${backupViews.anomalies(environment.backupAnomalies || [])}${environment.backupInventoryError ? backupViews.unavailable(environment.backupInventoryError, environment.backupRoot) : backups.length ? backupViews.page(backups, backupView) : '<p class="small muted mb">还没有备份</p>'}${protectionViews.controls(protectionView)}${activityPanel()}<details class="save-backup-help mb" data-persist-detail="backup-help"><summary>备份设置与说明</summary><p class="small">完整自动备份 · ${backupStatus()}</p><p class="save-note">原生游戏连接工作时暂停完整自动备份，避免重复复制其他槽位；等待连接或关闭时间线时仍保护文件。关闭时间线后立即检查，之后每分钟核对文件变化；稳定后复制已保存的文件，不会替游戏执行保存。副本不会自动删除。可按名称、类型和日期整理或分批导出；上方完整换机会自动分卷，请一并带走分卷目录。</p></details>
  <details class="card save-files" data-persist-detail="save-files"><summary>存档目录与文件</summary>${save.path && files.length ? connection : ''} <div class="section-heading"><h2>当前存档文件</h2><div class="row"><span class="small muted">共 ${files.length} 个文件 · ${bytes(save.total)}</span>${files.some((f) => f.metadata) ? act('save-compare', '比较两份存档', 'btn', '', 'search') : ''}</div></div>${
    files.length
      ? `<div class="table-wrap"><table class="save-table"><thead><tr><th>文件</th><th>保存时间</th><th>游玩时长</th><th>场景 / 队伍</th><th>大小</th></tr></thead><tbody>${files
@@ -3710,7 +3694,7 @@ function render(preserve = false, navigationId = null) {
     for (const { name, value } of next.attributes) if (name !== 'value') field.setAttribute(name, value);
     if (journalFilters) {
       // Keep the whole pending filter group connected, including native input
-      // history. Only the available tags can change during a background update.
+      // history. Sync available options and the applied-filter summary only.
       for (const select of journalFilters.querySelectorAll('select')) {
         const replacement = next.querySelector('#' + select.id);
         const options = (node) => [...node.options].map((o) => [o.value, o.textContent]);
@@ -3721,6 +3705,9 @@ function render(preserve = false, navigationId = null) {
         if (pending && ![...select.options].some((option) => option.value === value)) select.append(pending);
         select.value = value;
       }
+      const summary = journalFilters.querySelector('[data-journal-filters] > summary');
+      const nextSummary = next.querySelector('[data-journal-filters] > summary');
+      if (summary && nextSummary) summary.textContent = nextSummary.textContent;
     }
     const oldPath = [],
       newPath = [];
@@ -4186,9 +4173,9 @@ function goalModal(id, savedDraft = null) {
         }
       : null;
   modal(
-    g ? '编辑行囊目标' : '下一步，想做什么？',
-    '一句明确的小目标，就足够开始下一次出发。',
-    `<div class="field"><label for="goal-title">目标</label><input id="goal-title" maxlength="200" placeholder="例如：去青木舫，看看司马铃的新任务" value="${esc(g?.title || '')}"></div><div class="field"><label for="goal-detail">补充说明（可选）</label><textarea id="goal-detail" rows="4" maxlength="2000" placeholder="前置条件、需要准备的东西……">${esc(g?.detail || '')}</textarea></div>${journeyDraft ? placePicker.field(gameIndex, journeyDraft.placePicker, '目标地点（可选）') + '<p class="save-note">保存地点后，同一个目标会参与按地点行程，完成状态仍由原目标管理。选择「地点未定」可移除地点；不会从文字猜选，也不会合并同名待办。</p>' : ''}`,
+    g ? '编辑目标' : '添加目标',
+    '',
+    `<div class="field"><label for="goal-title">目标</label><input id="goal-title" maxlength="200" placeholder="例如：去青木舫找司马铃" value="${esc(g?.title || '')}"></div><div class="field"><label for="goal-detail">补充说明（可选）</label><textarea id="goal-detail" rows="3" maxlength="2000" placeholder="前置条件、所需物品">${esc(g?.detail || '')}</textarea></div>${journeyDraft ? placePicker.field(gameIndex, journeyDraft.placePicker, '目标地点（可选）') + '<details class="small"><summary>地点与行程</summary><p>选定地点后，目标会加入该地点的行程。选择「地点未定」可移除地点。</p></details>' : ''}`,
     act('goal-save', g ? '保存修改' : '放进行囊', 'btn primary', g?.id || ''),
   );
   if (quantityField)

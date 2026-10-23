@@ -139,7 +139,7 @@ export function createWorldViews({
                 .map((c) => esc(c.name))
                 .join('、')}</p>`
             : ''
-        }<div class="database-card-foot">${t.kind === 'Primary' ? '主线' : '支线'}${t.parentId ? '步骤' : '任务'}${icon('chevron')}</div></button>`;
+        }${t.parentId || !/^【(?:主线|支线)】/.test(t.name) ? `<div class="database-card-foot">${t.kind === 'Primary' ? '主线' : '支线'}${t.parentId ? '步骤' : '任务'}${icon('chevron')}</div>` : ''}</button>`;
       })
       .join('');
     return `<div class="page-header"><div><h1 class="serif">任务与地点</h1></div></div><div class="segmented world-tabs">${[
@@ -174,7 +174,7 @@ export function createWorldViews({
               '',
             )}</select><select id="world-scope" aria-label="任务显示范围"><option value="roots" ${view.roots ? 'selected' : ''}>主任务</option><option value="all" ${!view.roots ? 'selected' : ''}>任务与步骤</option></select>`
         : ''
-    }${pill(searchError ? '搜索条件待修改' : `${filtered.length} 项`)}</div>${searchError ? `<div id="world-search-error" role="alert">${notice(searchError, true)}</div>` : cards ? `${view.kind === 'places' && !view.query.trim() ? `<details data-persist-detail="world-places-list"><summary>地点列表 · ${filtered.length}</summary>` : ''}<div class="database-grid">${cards}</div><div class="pagination">${act('world-page', '上一页', 'btn', String(Math.max(0, current - 1)))}<span>第 ${current + 1} / ${pages} 页</span>${act('world-page', '下一页', 'btn', String(Math.min(pages - 1, current + 1)))}</div>${view.kind === 'places' && !view.query.trim() ? '</details>' : ''}` : empty('没有匹配的线索', view.status !== 'all' && !view.reference ? '先选择可读存档，或切换为所有资料。' : '调整搜索、记录筛选或显示范围。')}`;
+    }${pill(searchError ? '搜索条件待修改' : `${filtered.length} 项`)}</div>${searchError ? `<div id="world-search-error" role="alert">${notice(searchError, true)}</div>` : cards ? `${view.kind === 'places' && !view.query.trim() ? `<details data-persist-detail="world-places-list"><summary>地点列表 · ${filtered.length}</summary>` : ''}<div class="database-grid">${cards}</div>${pages > 1 ? `<div class="pagination">${current > 0 ? act('world-page', '上一页', 'btn', String(current - 1)) : ''}<span>第 ${current + 1} / ${pages} 页</span>${current < pages - 1 ? act('world-page', '下一页', 'btn', String(current + 1)) : ''}</div>` : ''}${view.kind === 'places' && !view.query.trim() ? '</details>' : ''}` : empty('没有匹配的线索', view.status !== 'all' && !view.reference ? '先选择可读存档，或切换为所有资料。' : '调整搜索、记录筛选或显示范围。')}`;
   }
   function requirementRows(list, index, view) {
     prepare(index);

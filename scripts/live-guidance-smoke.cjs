@@ -633,6 +633,11 @@ const pulse = () =>
         1,
         'the preserved filters still apply normally',
       );
+      const appliedFilters = form.locator('[data-journal-filters]');
+      assert.match(await appliedFilters.locator(':scope > summary').innerText(), /筛选 · 4/);
+      await appliedFilters.locator(':scope > summary').click();
+      assert.equal(await appliedFilters.evaluate((node) => node.open), false);
+      assert.match(await appliedFilters.locator(':scope > summary').innerText(), /筛选 · 4/);
     }
     await app.evaluate(({ BrowserWindow }) => {
       const w = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));

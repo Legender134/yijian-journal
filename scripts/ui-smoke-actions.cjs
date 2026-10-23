@@ -18,6 +18,12 @@ async function openJournalFilters(page) {
   if (!(await filters.evaluate((node) => node.open))) await filters.locator(':scope > summary').click();
 }
 
+async function openIntentEditorActions(page) {
+  const more = page.locator('.gift-editor-actions');
+  if ((await more.count()) && !(await more.evaluate((node) => node.open)))
+    await more.locator(':scope > summary').click();
+}
+
 async function revealJournalAction(page, action) {
   const button = page.locator(`[data-action="${action}"]`);
   if (!(await button.isVisible())) {
@@ -56,6 +62,7 @@ module.exports = {
   revealMainPage,
   openMainPage,
   openJournalFilters,
+  openIntentEditorActions,
   revealJournalAction,
   chooseCodexKind,
   openTimelineEditor,

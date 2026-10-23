@@ -1962,6 +1962,7 @@ kbd {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
   gap: 22px;
+  align-items: start;
 }
 .companion .saved-goals {
   grid-template-columns: minmax(0, 1fr);
