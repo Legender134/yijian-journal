@@ -98,7 +98,11 @@ async function nav(page, id) {
     await nav(page, 'materials');
     await page.locator('#craft-search').fill('精钢锭');
     await page.locator('.craft-suggestions [data-action="craft-add"][data-id="fusion-9502"]').waitFor();
-    assert((await page.locator('.craft-picker').innerText()).includes('同名成品和生产配方优先'));
+    assert.equal(
+      await page.locator('.craft-suggestions [data-action="craft-add"]').first().getAttribute('data-id'),
+      'fusion-9502',
+    );
+    assert.match(await page.locator('.craft-picker > p').innerText(), /^找到 \d+ 份配方$/);
     await page.locator('[data-action="craft-search-page"]').last().click();
     assert((await page.locator('.craft-picker').innerText()).includes('第 2 /'));
     checks.push('精确材料搜索优先生产配方，匹配结果分页可达');
