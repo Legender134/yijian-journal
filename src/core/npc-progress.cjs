@@ -40,9 +40,9 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
     const player = combat.player;
     const ownPower = combat.origin === 'live' ? currentNpcPower(player.attributes) : null;
     const learned = new Set(player.skills.map((row) => row.id));
-    const inventory = Array.isArray(metadata.inventory)
-      ? new Map(metadata.inventory.map((row) => [row.id, row.count]))
-      : null;
+    const inventory = Array.isArray(metadata.inventory) ? new Map() : null;
+    for (const item of inventory ? metadata.inventory : [])
+      inventory.set(item.id, (inventory.get(item.id) || 0) + item.count);
     function requirement(raw) {
       const type =
         raw.type ||
@@ -313,6 +313,24 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         });
       }
       const place = maps.get(saved.mapKey);
+      const blockedLearning = learning.find((item) => item.status === 'unmet');
+      const restriction =
+        remainingItems.length && compare.status === 'unmet'
+          ? { operation: '比武', ...compare }
+          : remainingItems.length &&
+              Number.isFinite(friend.cap) &&
+              friend.cap < 100 &&
+              gift.status === 'unmet'
+            ? { operation: '赠礼', ...gift }
+            : blockedLearning
+              ? { operation: '请教', status: blockedLearning.status, checks: blockedLearning.checks }
+              : remainingItems.length && saved.visible === false
+                ? {
+                    operation: '位置',
+                    status: 'unknown',
+                    checks: [{ status: 'unknown', text: '地图中暂未显示此人物' }],
+                  }
+                : null;
       rows.push({
         id: person.id,
         npcId: id,
@@ -331,6 +349,7 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         importantCount: remainingItems.filter((row) => row.important).length,
         collection: remainingItems.length ? 'remaining' : 'cleared',
         learning,
+        restriction,
       });
     }
     rows.sort(
@@ -339,22 +358,33 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         b.importantCount - a.importantCount ||
         a.name.localeCompare(b.name, 'zh-CN'),
     );
+    const actionableFirst = (kind) => (a, b) => {
+      const ready = (row) =>
+        kind === 'learning'
+          ? row.learning.some((item) => item.status === 'met')
+          : row.compare.status === 'met';
+      const missing = (row) => row.remainingItems.filter((item) => item.important && item.owned === 0).length;
+      return (
+        Number(ready(b)) - Number(ready(a)) ||
+        Number(b.samePlace) - Number(a.samePlace) ||
+        missing(b) - missing(a) ||
+        b.importantCount - a.importantCount ||
+        a.name.localeCompare(b.name, 'zh-CN')
+      );
+    };
     return {
       available: true,
       origin: combat.origin === 'live' ? 'live' : 'saved',
+      inventoryKnown: inventory !== null,
+      placeKnown: !!metadata.map,
       people: rows,
-      remaining: rows.filter((row) => row.remainingItems.length && row.compare.status !== 'unmet'),
-      learning: rows.filter((row) => row.learning.some((item) => item.status !== 'unmet')),
-      locked: rows.filter(
-        (row) =>
-          (row.remainingItems.length && row.compare.status === 'unmet') ||
-          (row.remainingItems.length &&
-            Number.isFinite(row.friendship.cap) &&
-            row.friendship.cap < 100 &&
-            row.gift.status === 'unmet') ||
-          (row.remainingItems.length && row.visible === false) ||
-          row.learning.some((item) => item.status === 'unmet'),
-      ),
+      remaining: rows
+        .filter((row) => row.remainingItems.length && row.compare.status !== 'unmet')
+        .sort(actionableFirst('remaining')),
+      learning: rows
+        .filter((row) => row.learning.some((item) => item.status !== 'unmet'))
+        .sort(actionableFirst('learning')),
+      locked: rows.filter((row) => row.restriction),
       cleared: rows.filter((row) => !row.remainingItems.length),
     };
   };

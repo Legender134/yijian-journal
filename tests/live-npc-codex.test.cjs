@@ -178,6 +178,21 @@ test('NPC gift suggestions respect observed quality and gate without inventing a
   });
   assert.match(html, /背包中的偏好物品 · 1 种 · 金色起/);
   assert.match(html, /2 件/);
+  for (const counts of [
+    [2, 3],
+    [2, 0],
+    [0, 0],
+  ]) {
+    const ref = {
+      ...live,
+      metadata: { quests: [], inventory: counts.map((count) => ({ id: goldId, count })) },
+    };
+    const before = structuredClone(ref);
+    const total = counts.reduce((a, b) => a + b, 0);
+    const result = render(progress, ref);
+    assert.match(result, total ? new RegExp(`${total} 件`) : /背包中暂无符合条件的物品/);
+    assert.deepEqual(ref, before);
+  }
   metadata.combat.npcStates[0].rawFriendliness = 100;
   progress = project(metadata);
   assert.equal(progress.people[0].gift.status, 'unmet');
