@@ -1,4 +1,5 @@
 'use strict';
+const { openTimelineEditor } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -91,11 +92,12 @@ let app, child;
     assert.equal(health.backupStatus, 'watching');
     assert.match(health.protection.reason, /等待连接.*仍会自动备份/);
     await win.locator('.nav-btn[data-id="saves"]').click();
-    assert.equal(await win.locator('[data-action="timeline-target"]').count(), 11);
+    assert.equal(await win.locator('#timeline-target option').count(), 11);
     assert.ok(
-      (await win.locator('.target-picker .unavailable').count()) >= 9,
+      (await win.locator('#timeline-target option').filter({ hasText: '暂无' }).count()) >= 9,
       'old bookmarks cannot impersonate recent targets',
     );
+    await win.locator('.timeline-history-disclosure > summary').click();
     assert.equal(await win.locator('.history-row').count(), 20);
     await win.locator('.history-pagination [data-action="timeline-page"]').last().click();
     assert.equal(await win.locator('.history-row').count(), 7);
@@ -111,7 +113,9 @@ let app, child;
       'comparison item names preserve actual game quality colors',
     );
     await win.screenshot({ path: path.join(base, 'test-results', 'timeline-upgrade-differences.png') });
+    await openTimelineEditor(win);
     await win.locator('#timeline-label').fill('<测试节点>');
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('新的备注');
     await win.locator('[data-action="timeline-edit-save"]').first().click();
     await win.locator('.drawer h1').filter({ hasText: '<测试节点>' }).waitFor();

@@ -554,7 +554,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
                 : ''
             }</section>`
           : ''
-      }<section class="flow-opportunities"><h2>可接任务${opportunities.length ? ` · ${opportunities.length} 项` : ''}</h2>${
+      }<section class="flow-opportunities"><h2>未接任务线索${opportunities.length ? ` · ${opportunities.length} 项` : ''}</h2>${
         opportunities.length
           ? rule(opportunities[0], false, 'opportunity') +
             (opportunities.length > 1

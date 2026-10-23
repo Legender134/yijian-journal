@@ -1,5 +1,5 @@
 'use strict';
-const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
+const { openMainPage, chooseCodexKind, openTimelineEditor } = require('./ui-smoke-actions.cjs');
 // Independent synthetic user-flow regression. YIJIAN_TEST_DATA blocks all native game commands.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -1495,6 +1495,7 @@ async function fullDraftCapacity() {
   try {
     await nav(win, 'saves');
     await win.locator('.latest-reliable [data-action="timeline-preview"]').click();
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('满额后暂存失败的文字');
     await win.locator('.toast.error').filter({ hasText: '100' }).waitFor();
     assert.equal(activity(data).drafts[record.id], undefined);
@@ -1515,6 +1516,7 @@ async function fullDraftCapacity() {
     ({ app, win } = running);
     await nav(win, 'saves');
     await win.locator('.latest-reliable [data-action="timeline-preview"]').click();
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('释放容量后可保存');
     await win.locator('.toast.error').filter({ hasText: '100' }).waitFor();
     await close(win);
@@ -1550,6 +1552,7 @@ async function fullDraftCapacity() {
     assert.equal(topUp.ok, true);
     assert.equal(Object.keys(activity(data).drafts).length, 100);
     await win.locator('.latest-reliable [data-action="timeline-preview"]').click();
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('满额仍可正式保存');
     await win.locator('.toast.error').filter({ hasText: '100' }).waitFor();
     await win.locator('[data-action="timeline-edit-save"]').first().click();
@@ -1607,7 +1610,9 @@ async function interleavedNodeSave() {
     }, nodeA.id);
     await nav(win, 'saves');
     await win.locator(`[data-action="timeline-preview"][data-id="${nodeA.id}"]`).first().click();
+    await openTimelineEditor(win);
     await win.locator('#timeline-label').fill('A 新名称');
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('A 新备注');
     await app.evaluate(async () => {
       const deadline = Date.now() + 4000;
@@ -1648,6 +1653,7 @@ async function interleavedNodeSave() {
       globalThis.reviewRelease = null;
     });
     await win.locator(`[data-action="timeline-preview"][data-id="${nodeA.id}"]`).first().click();
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('A 第二备注');
     await app.evaluate(async () => {
       const deadline = Date.now() + 4000;
@@ -1667,6 +1673,7 @@ async function interleavedNodeSave() {
       () => document.querySelector('#timeline-note') && !document.querySelector('#timeline-note').disabled,
     );
     assert.equal(timeline(data).records.find((r) => r.id === nodeA.id).note, 'A 第二备注');
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('A 最终备注');
     await win.locator('[data-action="timeline-edit-save"]').first().click();
     await win.waitForFunction(() => document.querySelector('#timeline-note')?.value === 'A 最终备注');
@@ -1900,6 +1907,7 @@ async function cancelledTrayQuit(healthDelay = 0, companionDraft = false) {
       await win.locator('.companion-tabs [data-action="navigate"][data-id="saves"]').click();
     } else await nav(win, 'saves');
     await win.locator(`[data-action="timeline-preview"][data-id="${record.id}"]`).first().click();
+    await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('退出前写不下的新稿');
     await win.locator('.toast.error').filter({ hasText: '100' }).waitFor();
     console.log('tray: failed draft visible');

@@ -1,7 +1,7 @@
 {
   "name": "yijian-journal",
   "productName": "逸剑手札",
-  "version": "1.22.0",
+  "version": "1.23.0",
   "description": "逸剑风云决随行助手：流程提醒、比武请教、关联图鉴与存档保护，在游戏旁知道下一步。",
   "main": "src/main.cjs",
   "private": true,

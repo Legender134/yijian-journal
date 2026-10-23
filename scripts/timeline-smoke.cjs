@@ -51,18 +51,18 @@ let app;
     });
     await win.locator('.layout').waitFor();
     await win.locator('.nav-btn[data-id="saves"]').click();
-    assert.equal(await win.locator('[data-action="timeline-target"]').count(), 11);
+    assert.equal(await win.locator('#timeline-target option').count(), 11);
     assert.equal(await win.locator('.timeline-node').count(), 1);
     assert.equal(await win.locator('.timeline-node [data-action="timeline-preview"]').count(), 1);
-    assert.equal(await win.locator('.timeline-retention .timeline-latest').isVisible(), false);
-    assert.equal(await win.locator('.timeline-precision .save-note').isVisible(), false);
-    assert.equal(await win.getByText(/专用 29 号手动槽请勿手动覆盖/).isVisible(), true);
-    await win.locator('.timeline-precision > summary').click();
+    assert.equal(await win.locator('.timeline-retention .save-note').isVisible(), false);
+    assert.equal(await win.locator('.timeline-slot-note').isVisible(), true);
+    assert.match(await win.locator('.timeline-slot-note').innerText(), /专用 29 号槽请勿手动覆盖/);
+    await win.locator('.timeline-settings > summary').click();
+    await win.locator('.timeline-retention > summary').click();
     assert.equal(await win.getByText(/10–50 秒档位允许偏差 15 秒/).isVisible(), true);
-    await win.locator('.timeline-precision > summary').click();
+    assert.match(await win.locator('.timeline-retention').innerText(), /收藏和最近一次读档前保护另存/);
     await win.locator('.timeline-retention > summary').click();
-    assert.equal(await win.locator('.timeline-retention .timeline-latest').isVisible(), true);
-    await win.locator('.timeline-retention > summary').click();
+    await win.locator('.timeline-settings > summary').click();
     for (const size of [
       [980, 660],
       [1340, 880],

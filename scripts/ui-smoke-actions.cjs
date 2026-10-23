@@ -19,4 +19,10 @@ async function chooseCodexKind(page, kind) {
   else await page.locator(`.database-tabs [data-action="database-kind"][data-id="${kind}"]`).click();
 }
 
-module.exports = { revealMainPage, openMainPage, chooseCodexKind };
+async function openTimelineEditor(page) {
+  const editor = page.locator('.timeline-node-editor');
+  await editor.waitFor({ state: 'attached' });
+  if (!(await editor.evaluate((node) => node.open))) await editor.locator(':scope > summary').click();
+}
+
+module.exports = { revealMainPage, openMainPage, chooseCodexKind, openTimelineEditor };

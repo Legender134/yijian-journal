@@ -167,7 +167,7 @@ async function shot(name) {
       'recipe results and allocated materials carry pictures, shared-stock results remain usable',
     );
     await nav('saves');
-    await win.locator('[data-action="save-detail"][data-id="1.sav"]').click();
+    await win.locator('.save-progress-actions [data-action="save-detail"][data-id="1.sav"]').click();
     await win
       .locator('details')
       .filter({ has: win.locator('#save-inventory-results') })
