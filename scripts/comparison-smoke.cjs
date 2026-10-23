@@ -126,7 +126,9 @@ let app;
     report.checks.push(
       'save recap returns to its exact inventory search and task filter after entity lookup',
     );
-    await win.locator('[data-action="save-compare"]').click();
+    const files = win.locator('.save-files');
+    if (!(await files.evaluate((node) => node.open))) await files.locator(':scope > summary').click();
+    await files.locator('[data-action="save-compare"]').click();
     await win.locator('#compare-left').selectOption('1.sav');
     await win.locator('#compare-right').selectOption('2.sav');
     await win.locator('[data-action="compare-run"]').click();

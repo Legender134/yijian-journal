@@ -115,7 +115,14 @@ async function revealAncestors(trigger) {
   const ancestors = trigger.locator('xpath=ancestor::details');
   for (let i = 0; i < (await ancestors.count()); i++) {
     const detail = ancestors.nth(i);
-    if (!(await detail.evaluate((node) => node.open))) await detail.locator(':scope > summary').click();
+    if (!(await detail.evaluate((node) => node.open))) {
+      // A summary may contain clickable entity links; its visual center is not
+      // necessarily the disclosure target, especially with different CI fonts.
+      const summary = detail.locator(':scope > summary');
+      await summary.focus();
+      await summary.press('Enter');
+      assert.equal(await detail.evaluate((node) => node.open), true);
+    }
   }
 }
 async function navigatePage(page, route) {

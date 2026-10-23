@@ -1,5 +1,10 @@
 'use strict';
-const { openMainPage, chooseCodexKind, openTimelineEditor } = require('./ui-smoke-actions.cjs');
+const {
+  openMainPage,
+  chooseCodexKind,
+  openTimelineEditor,
+  openTimelinePreview,
+} = require('./ui-smoke-actions.cjs');
 // Independent synthetic user-flow regression. YIJIAN_TEST_DATA blocks all native game commands.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -1610,7 +1615,7 @@ async function interleavedNodeSave() {
       };
     }, nodeA.id);
     await nav(win, 'saves');
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeA.id}"]`).first().click();
+    await openTimelinePreview(win, nodeA.id);
     await openTimelineEditor(win);
     await win.locator('#timeline-label').fill('A 新名称');
     await openTimelineEditor(win);
@@ -1623,7 +1628,7 @@ async function interleavedNodeSave() {
     });
     await win.locator('[data-action="timeline-edit-save"]').first().click();
     await win.keyboard.press('Escape');
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeB.id}"]`).first().click();
+    await openTimelinePreview(win, nodeB.id);
     assert.equal(await win.locator('.drawer h1').innerText(), '节点 B');
     assert.equal(await win.locator('#timeline-note').inputValue(), 'B 原备注');
     assert.equal(await app.evaluate(() => globalThis.reviewReleased), false);
@@ -1653,7 +1658,7 @@ async function interleavedNodeSave() {
       globalThis.reviewReleased = false;
       globalThis.reviewRelease = null;
     });
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeA.id}"]`).first().click();
+    await openTimelinePreview(win, nodeA.id);
     await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('A 第二备注');
     await app.evaluate(async () => {
@@ -1664,7 +1669,7 @@ async function interleavedNodeSave() {
     });
     await win.locator('[data-action="timeline-edit-save"]').first().click();
     await win.keyboard.press('Escape');
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeA.id}"]`).first().click();
+    await openTimelinePreview(win, nodeA.id);
     assert.equal(await win.locator('#timeline-note').isDisabled(), true);
     assert.equal(await win.locator('[data-action="timeline-edit-save"]').first().isDisabled(), true);
     assert.equal(await win.locator('[data-action="timeline-draft-discard"]').isDisabled(), true);
@@ -1760,7 +1765,7 @@ async function inFlightLoadUi() {
     }, data);
     await pulse();
     await nav(win, 'saves');
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeA.id}"]`).first().click();
+    await openTimelinePreview(win, nodeA.id);
     const loadButton = win.locator('#timeline-load-button');
     await win.waitForFunction(() => document.querySelector('#timeline-load-button')?.disabled === false);
     await loadButton.click();
@@ -1780,7 +1785,7 @@ async function inFlightLoadUi() {
 
     await win.keyboard.press('Escape');
     await win.locator('.drawer').waitFor({ state: 'detached' });
-    await win.locator(`[data-action="timeline-preview"][data-id="${nodeB.id}"]`).first().click();
+    await openTimelinePreview(win, nodeB.id);
     assert.equal(await win.locator('.drawer h1').innerText(), '等待节点 B');
     assert.equal(await loadButton.isDisabled(), true);
     assert.match(
@@ -1907,7 +1912,7 @@ async function cancelledTrayQuit(healthDelay = 0, companionDraft = false) {
       await win.locator('.compact-shell').waitFor();
       await win.locator('.companion-tabs [data-action="navigate"][data-id="saves"]').click();
     } else await nav(win, 'saves');
-    await win.locator(`[data-action="timeline-preview"][data-id="${record.id}"]`).first().click();
+    await openTimelinePreview(win, record.id);
     await openTimelineEditor(win);
     await win.locator('#timeline-note').fill('退出前写不下的新稿');
     await win.locator('.toast.error').filter({ hasText: '100' }).waitFor();

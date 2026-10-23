@@ -25,4 +25,16 @@ async function openTimelineEditor(page) {
   if (!(await editor.evaluate((node) => node.open))) await editor.locator(':scope > summary').click();
 }
 
-module.exports = { revealMainPage, openMainPage, chooseCodexKind, openTimelineEditor };
+async function openTimelinePreview(page, id) {
+  const selector = `[data-action="timeline-preview"][data-id="${id}"]:visible`;
+  const unused = page.locator('details[data-persist-detail="unused-timeline"]');
+  if ((await unused.count()) && !(await unused.evaluate((node) => node.open)))
+    await unused.locator(':scope > summary').click();
+  if (!(await page.locator(selector).first().isVisible())) {
+    const history = page.locator('.timeline-history-disclosure');
+    if (!(await history.evaluate((node) => node.open))) await history.locator(':scope > summary').click();
+  }
+  await page.locator(selector).first().click();
+}
+
+module.exports = { revealMainPage, openMainPage, chooseCodexKind, openTimelineEditor, openTimelinePreview };
