@@ -294,7 +294,9 @@ async function assertContext(scroll, label) {
         .get()
         .events.some((event) => event.at === receipt.at && event.message === receipt.message),
     );
-    assert.match(await page.locator('#app').innerText(), new RegExp(safety.id));
+    const history = page.locator('.operation-history');
+    if (!(await history.evaluate((node) => node.open))) await history.locator(':scope > summary').click();
+    assert.match(await history.innerText(), new RegExp(safety.id));
     assertSource();
     assert.deepEqual(
       Object.fromEntries([...saves.verify(safety.id).buffers].map(([name, buffer]) => [name, sha(buffer)])),

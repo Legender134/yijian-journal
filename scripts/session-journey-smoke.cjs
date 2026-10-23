@@ -129,7 +129,7 @@ async function expandUndo() {
     await nav('journey');
     if (await page.locator('[data-persist-detail="itinerary-queue"]:not([open])').count())
       await page.locator('[data-persist-detail="itinerary-queue"] > summary').click();
-    assert.match(await page.locator('[data-itinerary]').innerText(), /挑选本次/);
+    assert.match(await page.locator('[data-itinerary]').innerText(), /从下方行动中挑选，加入本次行程/);
     const firstPlan = await plan();
     const a = firstPlan.actions.find((a) => a.sources.some((s) => s.type === 'user' && s.id === 'first'));
     const b = firstPlan.actions.find((a) => a.sources.some((s) => s.type === 'user' && s.id === 'second'));

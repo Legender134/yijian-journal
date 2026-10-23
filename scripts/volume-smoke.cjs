@@ -332,7 +332,7 @@ async function volumeAndCorruptFlow() {
   await launch(long);
   await nav('saves');
   const page = active.page;
-  assert.match(await page.locator('.content').innerText(), /筛选到 1001 \/ 1001 份完整备份/);
+  assert.match(await page.locator('.backup-result-count').innerText(), /^1001 \/ 1001 份/);
   assert.equal(await page.locator('[data-action="backup-preview"]').count(), 20);
   assert.match(await page.locator('.pagination').last().innerText(), /第 1 \/ 51 页/);
   const firstPageIds = await page

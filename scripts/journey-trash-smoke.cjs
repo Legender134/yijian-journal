@@ -164,6 +164,7 @@ async function written(file) {
   try {
     await launch();
     await nav('journey');
+    await page.locator('.journey-locations > summary').click();
     const scenes = page.locator('details[data-persist-detail^="journey-location:"]').first();
     const sceneKey = await scenes.getAttribute('data-persist-detail');
     await scenes.locator('summary').click();
