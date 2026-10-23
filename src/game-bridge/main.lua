@@ -58,6 +58,8 @@ local function manager(name, gi)
 end
 local observationEpoch, observationVersion, observationSequence = 0, 0, 0
 local observationIdentity, observationContent, observationRef, loadAliasReady = nil, nil, nil, false
+local moneyAliasReady = false
+local bagAliasReady = false
 -- This guard precedes command readiness and the loaded receipt as well as
 -- observation. A new pawn alone is not evidence that native loading ended.
 local function loadPending(sm)
@@ -127,7 +129,7 @@ local function npcObservation(s, source, token)
         field(nm,'NPCInfos','MapProperty',0x80)
         field(qm,'QuestProcesses','MapProperty',0x38)
         field(qm,'FinishQuests','MapProperty',0x88)
-        local ids, rows, playerIdentity, budget = {}, {}, nil, 100000
+        local ids, rows, playerIdentity, playerObject, budget = {}, {}, nil, nil, 100000
         local attributes={
             {'Level',0x90,5},{'JingLi',0x70,44},{'DaZaoLevel',0x330,27},{'ZhiYiLevel',0x3f0,48},
             {'FishingLevel',0x410,61},{'CookingLevel',0x430,63},{'AlchemyLevel',0x450,65},{'GatheringLevel',0x470,67},
@@ -158,7 +160,7 @@ local function npcObservation(s, source, token)
             field(o,'Friendliness','MapProperty',0x110); field(o,'SkillExp','IntProperty',0x200)
             field(o,'NPCLocation','StructProperty',0x208,'/Script/JH.NPCLocation')
             if o.NPCId ~= id or not integer(o.GuildId,0,1000000) or not integer(o.SkillExp,0,2147483647) then error('npc_identity') end
-            if id == 0 then playerIdentity=address(o) end
+            if id == 0 then playerIdentity=address(o); playerObject=o end
             local set, vals=o.AttributeSet,{}
             if not valid(set) or set:IsA('/Script/JH.JHAttributeSet') ~= true then error('attribute_set') end
             for _,a in ipairs(attributes) do
@@ -224,17 +226,94 @@ local function npcObservation(s, source, token)
         questMap(qm.QuestProcesses,true); questMap(qm.FinishQuests,false)
         local questRows={}; for _,v in pairs(quests) do questRows[#questRows+1]=v end
         table.sort(questRows); table.sort(rows)
+        -- Optional current resources share this same game-thread observation.
+        -- A missing manager withdraws only its resource, never revives a saved
+        -- balance/party or hides otherwise complete NPC and quest observations.
+        local resourceParts, resourceOwners={},{}
+        local function resource(copy)
+            local ok,part,owner=pcall(copy)
+            resourceOwners[#resourceOwners+1]=ok and owner or '-'
+            if ok then resourceParts[#resourceParts+1]=part end
+        end
+        resource(function()
+            local im=manager('ItemManager',gi)
+            if not valid(im) then error('missing_item_manager') end
+            -- ItemManager's private int32 balance at 0x30 is pinned by the
+            -- actual EXE, constructor and Money requirement reader. This
+            -- class has no reflected balance field. Register metadata only;
+            -- never assign the alias or call the subsystem convenience getter.
+            local t=PropertyTypes.IntProperty
+            if type(t)~='table' or t.Name~='IntProperty' or t.Size~=4 or
+                not valid(StaticFindObject('/Script/JH.ItemManager')) then error('money_type') end
+            if not moneyAliasReady then
+                RegisterCustomProperty({Name='YijianJournalMoney',Type=t,BelongsToClass='/Script/JH.ItemManager',OffsetInternal=0x30})
+                moneyAliasReady=true
+            end
+            local money=im.YijianJournalMoney
+            if not integer(money,0,2147483647) or address(im:GetOuter())~=address(gi) then error('money_value') end
+            -- ERequirementType::Item uses ItemManager's private bag at 0x88,
+            -- not NPCInfo.ItemSpecs. The pinned count method traverses pointer
+            -- elements and sums ItemDefId/Num at 0x3c/0x40.
+            local a,p=PropertyTypes.ArrayProperty,PropertyTypes.ObjectProperty
+            if type(a)~='table' or a.Name~='ArrayProperty' or a.Size~=16 or
+                type(p)~='table' or p.Name~='ObjectProperty' or p.Size~=8 then error('bag_type') end
+            if not bagAliasReady then
+                RegisterCustomProperty({Name='YijianJournalBag',Type=a,BelongsToClass='/Script/JH.ItemManager',OffsetInternal=0x88,
+                    ArrayProperty={Type=p}})
+                bagAliasReady=true
+            end
+            local bag=array(im.YijianJournalBag,10000,function(item)
+                if not valid(item) or item:IsA('/Script/JH.ItemInfoSpec')~=true then error('bag_item_type') end
+                field(item,'ItemDefId','IntProperty',0x3c); field(item,'Num','IntProperty',0x40)
+                if not integer(item.ItemDefId,1,10000000) or not integer(item.Num,0,100000000) then error('bag_item_value') end
+                return '{"id":'..item.ItemDefId..',"count":'..item.Num..'}'
+            end)
+            if address(im:GetOuter())~=address(gi) then error('bag_owner') end
+            return '"money":'..money..',"inventory":'..bag,address(im)
+        end)
+        resource(function()
+            local tm=manager('TeamManager',gi)
+            if not valid(tm) then error('missing_team_manager') end
+            field(tm,'TeamInfos','ArrayProperty',0xf0,'ObjectProperty:/Script/JH.TeamInfo')
+            local seenTeam={}
+            local team=array(tm.TeamInfos,128,function(member)
+                if not valid(member) or member:IsA('/Script/JH.TeamInfo')~=true then error('team_member_type') end
+                field(member,'NPCId','IntProperty',0x38)
+                local id=member.NPCId
+                if not integer(id,0,10000000) or seenTeam[id] or
+                    not ids[id] or address(member:GetOuter())~=address(gi) and
+                    address(member:GetOuter())~=address(nm) and address(member:GetOuter())~=address(tm) then error('team_member') end
+                seenTeam[id]=true
+                return tostring(id)
+            end)
+            if address(tm:GetOuter())~=address(gi) then error('team_owner') end
+            return '"teamIds":'..team,address(tm)
+        end)
+        resource(function()
+            field(playerObject,'GuildHonors','MapProperty',0x1b0)
+            local honors,seenHonors={},{}
+            playerObject.GuildHonors:ForEach(function(k,v)
+                local id,value=k:get(),v:get()
+                budget=budget-1
+                if not integer(id,0,1000000) or not integer(value,-2147483648,2147483647) or
+                    seenHonors[id] or #honors>=10000 or budget<0 then error('guild_honor') end
+                seenHonors[id]=true
+                honors[#honors+1]='{"id":'..id..',"value":'..value..'}'
+            end)
+            table.sort(honors)
+            return '"guildHonors":['..table.concat(honors,',')..']',playerIdentity
+        end)
         stable()
         local playerAfter=nil
         nm.NPCInfos:ForEach(function(k,v) if k:get() == 0 then playerAfter=address(v:get()); return true end end)
         if playerAfter ~= playerIdentity then error('player_changed') end
         local identity={address(gi),address(sm),address(nm),address(qm),playerIdentity}
         local identityJson='['; for i,v in ipairs(identity) do identityJson=identityJson..(i>1 and ',' or '')..quote(v) end; identityJson=identityJson..']'
-        local binding=source..'\n'..s.world..'\n'..s.pawn..'\n'..identityJson
+        local binding=source..'\n'..s.world..'\n'..s.pawn..'\n'..identityJson..'\n'..table.concat(resourceOwners,':')
         if observationIdentity ~= binding then
             observationEpoch=observationEpoch+1; observationIdentity=binding; observationContent=nil
         end
-        local content='"quests":['..table.concat(questRows,',')..'],"npcs":['..table.concat(rows,',')..']'
+        local content='"quests":['..table.concat(questRows,',')..'],"npcs":['..table.concat(rows,',')..'],"resources":{'..table.concat(resourceParts,',')..'}'
         if #content > 4000000 then error('observation_size') end
         if content ~= observationContent then
             observationVersion=observationVersion+1

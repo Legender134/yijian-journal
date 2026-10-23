@@ -102,6 +102,42 @@ test('format14 reads player health ratios, learned skills and equipped items sep
   assert.deepEqual(bytes, before);
 });
 
+test('player contribution maps preserve signed values while invalid keys withdraw only contribution', () => {
+  for (const guildHonors of [
+    [],
+    [[1, 299]],
+    [
+      [1, -2],
+      [3, 6000],
+    ],
+  ]) {
+    const bytes = syntheticSave({ full: true, npcs: [{ ...rich, guildHonors }] });
+    const before = Buffer.from(bytes);
+    const read = readMetadata(bytes, { details: true });
+    assert.deepEqual(
+      read.guildHonors,
+      guildHonors.map(([id, value]) => ({ id, value })),
+    );
+    assert.equal(read.combat.player.skillPoints, rich.skillPoints);
+    assert.deepEqual(bytes, before);
+  }
+  for (const guildHonors of [
+    [
+      [1, 200],
+      [1, 300],
+    ],
+    [[-1, 300]],
+    [[1000001, 300]],
+  ]) {
+    const read = readMetadata(syntheticSave({ full: true, npcs: [{ ...rich, guildHonors }] }), {
+      details: true,
+    });
+    assert(read.combat);
+    assert.equal(read.guildHonors, undefined);
+    assert.equal(read.combat.player.skillPoints, rich.skillPoints);
+  }
+});
+
 test('valid item int32 and two flags do not become a fictitious int64 timestamp', () => {
   for (const nativeValue of [-2147483648, -1, 2147483647])
     for (const flag9 of [0, 1])

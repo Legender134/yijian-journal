@@ -4,6 +4,7 @@ import { entityCatalog, placeEntityId } from './entity-catalog.js';
 import { compileSearch } from './search-query.js';
 import { taskMentions } from './task-mentions.js';
 import { allObjectivePlaces, resolveTaskObjectives } from '../shared/task-objectives.mjs';
+import { completionChecks } from '../shared/task-completion.mjs';
 export function createWorldViews({
   esc,
   act,
@@ -181,6 +182,13 @@ export function createWorldViews({
     return (
       list
         .map((r) => {
+          if (r.type === 'Money' || r.type === 'TeamMember') {
+            const check = completionChecks(
+              [{ ...r, ...(r.type === 'Money' ? { comparison: 'gt' } : {}) }],
+              view.reference?.metadata,
+            )[0];
+            return `<div class="world-rule"><span>${richText(check.text)}</span>${view.reference ? pill(check.status === 'met' ? '已满足' : check.status === 'unmet' ? '未满足' : '未确认', check.status === 'met' ? 'green' : check.status === 'unmet' ? 'orange' : '') : ''}</div>`;
+          }
           const q = quests.get(r.id),
             relatedQuest = q || quests.get(r.relatedQuestId),
             person = people.get(r.id);

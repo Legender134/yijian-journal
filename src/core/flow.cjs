@@ -249,7 +249,7 @@ function createFlowProjector({
       ? {
           questStates: live.questStates,
           questsComplete: true,
-          ...(Array.isArray(live.player.inventory) ? { inventory: live.player.inventory } : {}),
+          ...(live.resources || {}),
           map: liveMap?.key || '',
           mapName: liveMap?.name || '',
           combat: { origin: 'live', player: live.player, npcStates: live.npcStates },
@@ -312,14 +312,18 @@ function createFlowProjector({
         };
       if (r.type === 'Money')
         return {
-          text: `铜钱至少 ${r.value}`,
-          status: Number.isFinite(metadata?.money)
-            ? metadata.money >= r.value
+          text: `铜钱至少 ${Math.floor(r.value) + 1}`,
+          status: Number.isFinite(metadata?.money) ? (metadata.money > r.value ? 'met' : 'unmet') : 'unknown',
+        };
+      if (r.type === 'TeamMember')
+        return {
+          text: `需${npcName(r.id)}在队`,
+          status: Array.isArray(metadata.teamIds)
+            ? metadata.teamIds.includes(r.id)
               ? 'met'
               : 'unmet'
             : 'unknown',
         };
-      if (r.type === 'TeamMember') return { text: `${npcName(r.id)}：队伍状态需核对`, status: 'unknown' };
       if (r.type === 'Friendliness' || r.type === 'FriendlinessUp')
         return {
           text: `${r.name || npcName(r.id)}：资料列好感条件 ${r.value}，比较方式与当前好感需核对`,
@@ -856,6 +860,7 @@ function createFlowProjector({
             metadata: {
               quests: live.questStates,
               questsComplete: true,
+              ...(live.resources || {}),
               ...(Array.isArray(metadata.inventory) ? { inventory: metadata.inventory } : {}),
               map: metadata.map,
               mapName: metadata.mapName,

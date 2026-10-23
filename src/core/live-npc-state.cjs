@@ -122,6 +122,51 @@ function readNpcObservation(value, { world, pawn, now = Date.now() } = {}) {
     }
     const player = npcs.find((row) => row.id === 0);
     if (!player) return null;
+    const resources = {};
+    if (value.resources !== undefined) {
+      const raw = value.resources;
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+      if (raw.money !== undefined) {
+        if (!integer(raw.money, 0, 2147483647)) return null;
+        resources.money = raw.money;
+      }
+      if (raw.inventory !== undefined) {
+        if (!Array.isArray(raw.inventory) || raw.inventory.length > 10000) return null;
+        resources.inventory = [];
+        for (const item of raw.inventory) {
+          if (!item || !integer(item.id, 1, 10000000) || !integer(item.count, 0, 100000000) || --budget < 0)
+            return null;
+          resources.inventory.push({ id: item.id, count: item.count });
+        }
+      }
+      if (raw.teamIds !== undefined) {
+        if (
+          !Array.isArray(raw.teamIds) ||
+          raw.teamIds.length > 128 ||
+          new Set(raw.teamIds).size !== raw.teamIds.length ||
+          !raw.teamIds.every((id) => integer(id, 0, 10000000) && seenNpcs.has(id))
+        )
+          return null;
+        resources.teamIds = [...raw.teamIds];
+      }
+      if (raw.guildHonors !== undefined) {
+        if (!Array.isArray(raw.guildHonors) || raw.guildHonors.length > 10000) return null;
+        const seen = new Set();
+        resources.guildHonors = [];
+        for (const row of raw.guildHonors) {
+          if (
+            !row ||
+            !integer(row.id, 0, 1000000) ||
+            !integer(row.value, -2147483648, 2147483647) ||
+            seen.has(row.id) ||
+            --budget < 0
+          )
+            return null;
+          seen.add(row.id);
+          resources.guildHonors.push({ id: row.id, value: row.value });
+        }
+      }
+    }
     return {
       schema: 1,
       origin: 'live',
@@ -130,6 +175,7 @@ function readNpcObservation(value, { world, pawn, now = Date.now() } = {}) {
       pawn,
       questStates: quests,
       player,
+      resources,
       npcStates: npcs.filter((row) => row.id !== 0),
     };
   } catch {

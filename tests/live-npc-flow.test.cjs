@@ -49,6 +49,7 @@ const observation = (friend = 70, extraQuests = []) =>
       world: 'World /Synthetic.LV_26_P',
       pawn: 'Pawn Synthetic',
       sampledAt: 1800000000,
+      resources: { inventory: [{ id: 100034, count: 1 }] },
       quests: [
         { id: 12071, step: 4 },
         { id: 12075, step: 4 },

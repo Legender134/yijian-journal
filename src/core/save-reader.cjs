@@ -211,6 +211,8 @@ function readMetadata(bytes, { details = false } = {}) {
     if (details && propertyEnd !== null) {
       result.inventory = readInventory(data, propertyEnd);
       result.combat = readCombat(data, propertyEnd, nativeFormat);
+      if (Array.isArray(result.combat?.player.guildHonors))
+        result.guildHonors = result.combat.player.guildHonors;
     }
     return typeof result.playSeconds === 'number' ? result : null;
   } catch {

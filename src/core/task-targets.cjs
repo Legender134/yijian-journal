@@ -364,6 +364,18 @@ function createTaskTargetProjector(world, materialItems = {}) {
       instruction: !task.parentId && parents.has(task.gameId) ? '下一步未识别，请查看游戏任务栏。' : title,
       actionRequirements: requirements,
       ...(task.finishingRequirements?.length ? { finishingRequirements: task.finishingRequirements } : {}),
+      ...(guide?.contributionGate
+        ? {
+            contributionGate: {
+              ...guide.contributionGate,
+              collectingTargets: guide.contributionGate.collectingPeople.map((id) => ({
+                ...personFor(id),
+                ids: [id],
+              })),
+              readyTargets: guide.contributionGate.readyPeople.map((id) => ({ ...personFor(id), ids: [id] })),
+            },
+          }
+        : {}),
       ...(task.finishingRequirements?.some((row) => ['KillMonster', 'KillMonsterAggre'].includes(row.type))
         ? { counterGate: { recipients: recipientIds.map((id) => ({ ...personFor(id), ids: [id] })) } }
         : {}),

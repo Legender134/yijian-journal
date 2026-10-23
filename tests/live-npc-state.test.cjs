@@ -177,6 +177,50 @@ test('blob changes, load epochs and source bindings reject replay, stale and par
     'a complete parse is required before replacing known empty bags',
   );
 });
+test('current resources preserve empty values and withdraw independently of private NPC bags', () => {
+  const legacy = readNpcObservation(sample(), binding);
+  assert.deepEqual(legacy.resources, {});
+  const resources = { money: 0, inventory: [], teamIds: [], guildHonors: [] };
+  assert.deepEqual(readNpcObservation({ ...sample(), resources }, binding).resources, resources);
+  const populated = {
+    money: 3001,
+    inventory: [
+      { id: 100034, count: 7 },
+      { id: 100034, count: 2 },
+    ],
+    teamIds: [0],
+    guildHonors: [{ id: 1, value: -5 }],
+  };
+  assert.deepEqual(readNpcObservation({ ...sample(), resources: populated }, binding).resources, populated);
+  for (const invalid of [
+    { money: -1 },
+    { money: 1.5 },
+    { inventory: [{ id: 1, count: -1 }] },
+    { teamIds: [0, 0] },
+    { teamIds: [9999999] },
+    {
+      guildHonors: [
+        { id: 1, value: 1 },
+        { id: 1, value: 2 },
+      ],
+    },
+    { guildHonors: [{ id: 1, value: Infinity }] },
+  ])
+    assert.equal(readNpcObservation({ ...sample(), resources: invalid }, binding), null);
+});
+
+test('authenticated resource replacement removes earlier current balances instead of merging them', () => {
+  const c = channel();
+  const first = c.reader.sample(
+    c.state({}, { resources: { money: 100, teamIds: [0], guildHonors: [{ id: 1, value: 300 }] } }),
+  );
+  assert.equal(first.resources.money, 100);
+  c.advance();
+  const next = c.reader.sample(c.state({ sequence: 2 }, { version: 2, resources: { inventory: [] } }));
+  assert(next);
+  assert.deepEqual(next.resources, { inventory: [] });
+});
+
 const sample = () => ({
   schema: 1,
   world: binding.world,

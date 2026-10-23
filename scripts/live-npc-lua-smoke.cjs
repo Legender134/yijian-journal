@@ -36,10 +36,11 @@ local function object(class,name,values,fields)
     return o,values,fields
 end
 for _,kind in ipairs({'IntProperty','Int8Property','FloatProperty','MapProperty','ObjectProperty','ArrayProperty','StructProperty','NameProperty','BoolProperty','EnumProperty'}) do
-    PropertyTypes=PropertyTypes or {}; PropertyTypes[kind]={Name=kind,Size=kind=='Int8Property' and 1 or 4}
+    PropertyTypes=PropertyTypes or {}; PropertyTypes[kind]={Name=kind,Size=kind=='Int8Property' and 1 or kind=='ArrayProperty' and 16 or kind=='ObjectProperty' and 8 or 4}
 end
 local classPaths={'/Script/JH.TeamInfo','/Script/JH.NPCManager','/Script/JH.QuestManager','/Script/JH.SaveManager',
-    '/Script/JH.JHAttributeSet','/Script/JH.ItemInfoSpec','/Script/CoreUObject.ScriptStruct','/Script/JH.JHSaveGameConfig','/Script/JH.JHSaveGame'}
+    '/Script/JH.JHAttributeSet','/Script/JH.ItemInfoSpec','/Script/CoreUObject.ScriptStruct','/Script/JH.JHSaveGameConfig','/Script/JH.JHSaveGame',
+    '/Script/JH.ItemManager','/Script/JH.TeamManager'}
 for _,c in ipairs(classPaths) do classes[c]=object('/Script/CoreUObject.Class','Class '..c) end
 local function property(kind,offset,target,inner)
     local p,d=object('Property',kind,{})
@@ -127,18 +128,36 @@ qmData.FinishQuests=map({{12071,quest(12071,4)}})
 local lib=object('Lib','Lib',{GetGameInstance=function() return gi end,GetCurrentWorld=function() return world end,
     GetPlayerController=function() return pc end,GetWorldType=function() return 1 end,
     GetSaveManager=function() error('mutating subsystem getter') end,GetNPCManager=function() error('mutating getter') end})
-function StaticFindObject(name) if name=='/Script/JH.Default__ManagerFuncLib' then return lib end; error('unexpected lookup') end
+function StaticFindObject(name) if name=='/Script/JH.Default__ManagerFuncLib' then return lib end; if classes[name] then return classes[name] end; error('unexpected lookup') end
 function FindFirstOf(name) assert(name=='JHNeoUISubsystem'); return ui end
 local extraManager=nil
+local itemManager,itemData,teamManager,teamData,teamFields,extraItemManager
+local function enableResources()
+    local bagItem=object('/Script/JH.ItemInfoSpec',nil,{ItemDefId=100034,Num=7},fields({{'ItemDefId','IntProperty',0x3c},{'Num','IntProperty',0x40}}))
+    itemManager,itemData=object('/Script/JH.ItemManager','ItemManager Synthetic',{outer=gi,YijianJournalMoney=3001,YijianJournalBag=array({bagItem})})
+    teamManager,teamData,teamFields=object('/Script/JH.TeamManager','TeamManager Synthetic',{outer=gi,TeamInfos=array({player,teacher})},
+        fields({{'TeamInfos','ArrayProperty',0xf0,nil,property('ObjectProperty',0,'/Script/JH.TeamInfo')}}))
+    playerFields.GuildHonors=property('MapProperty',0x1b0); playerData.GuildHonors=map({{1,299}})
+end
 function FindAllOf(name)
     if name=='SaveManager' then return {sm} end
     if name=='NPCManager' then return extraManager and {nm,extraManager} or {nm} end
     if name=='QuestManager' then return {qm} end
+    if name=='ItemManager' then return extraItemManager and {itemManager,extraItemManager} or itemManager and {itemManager} or {} end
+    if name=='TeamManager' then return teamManager and {teamManager} or {} end
     error('unexpected enumeration')
 end
 function RegisterCustomProperty(info)
-    assert(info.Name=='YijianJournalLoadBusy' and info.Type.Name=='Int8Property' and info.Type.Size==1 and info.OffsetInternal==0x9c)
-    assert(info.BelongsToClass=='/Script/JH.SaveManager'); aliases=aliases+1
+    if info.Name=='YijianJournalMoney' then
+        assert(info.Type.Name=='IntProperty' and info.Type.Size==4 and info.OffsetInternal==0x30 and info.BelongsToClass=='/Script/JH.ItemManager')
+    elseif info.Name=='YijianJournalBag' then
+        assert(info.Type.Name=='ArrayProperty' and info.Type.Size==16 and info.OffsetInternal==0x88 and info.BelongsToClass=='/Script/JH.ItemManager')
+        assert(info.ArrayProperty.Type.Name=='ObjectProperty' and info.ArrayProperty.Type.Size==8)
+    else
+        assert(info.Name=='YijianJournalLoadBusy' and info.Type.Name=='Int8Property' and info.Type.Size==1 and info.OffsetInternal==0x9c)
+        assert(info.BelongsToClass=='/Script/JH.SaveManager')
+    end
+    aliases=aliases+1
 end
 function YijianNativeInitialize() return 'unicode-v2' end
 function YijianNativeRead(file) return files[file],files[file] and 'ok' or 'missing' end
@@ -270,4 +289,64 @@ run(
     assert(f.get('new').npcObservation.epoch > f.get('first').npcObservation.epoch);
   },
 );
+run(
+  'actual backpack, money, party and contribution share a read-only observation',
+  'enableResources(); pulse("first"); assert(aliases==3); itemData.YijianJournalMoney=0; itemData.YijianJournalBag=array({}); teamData.TeamInfos=array({}); playerData.GuildHonors=map({}); now=now+1; pulse("empty")',
+  (f) => {
+    assert.deepEqual(f.get('first-blob').resources, {
+      money: 3001,
+      inventory: [{ id: 100034, count: 7 }],
+      teamIds: [0, 10038],
+      guildHonors: [{ id: 1, value: 299 }],
+    });
+    assert.equal(f.get('first-blob').npcs.find((n) => n.id === 0).inventory[0].count, 2);
+    assert.deepEqual(f.get('empty-blob').resources, {
+      money: 0,
+      inventory: [],
+      teamIds: [],
+      guildHonors: [],
+    });
+    assert(f.get('empty').npcObservation.version > f.get('first').npcObservation.version);
+  },
+);
+run(
+  'replacement resource owners start a new epoch even with unchanged values',
+  'enableResources(); pulse("first"); enableResources(); now=now+1; pulse("replaced"); itemManager=nil; now=now+1; pulse("withdrawn")',
+  (f) => {
+    assert.deepEqual(f.get('first-blob').resources, f.get('replaced-blob').resources);
+    assert(f.get('replaced').npcObservation.epoch > f.get('first').npcObservation.epoch);
+    assert(f.get('withdrawn').npcObservation.epoch > f.get('replaced').npcObservation.epoch);
+    assert.equal(f.get('withdrawn-blob').resources.money, undefined);
+    assert.equal(f.get('withdrawn-blob').resources.inventory, undefined);
+    assert.deepEqual(f.get('withdrawn-blob').resources.teamIds, [0, 10038]);
+  },
+);
+for (const [name, change, absent] of [
+  ['foreign item owner', 'itemData.outer=object("OtherGI")', ['money', 'inventory']],
+  [
+    'ambiguous item manager',
+    'extraItemManager=object("/Script/JH.ItemManager","Duplicate",{outer=gi})',
+    ['money', 'inventory'],
+  ],
+  ['invalid money', 'itemData.YijianJournalMoney=-1', ['money', 'inventory']],
+  ['wrong array element width', 'PropertyTypes.ObjectProperty.Size=4', ['money', 'inventory']],
+  ['invalid actual bag element', 'itemData.YijianJournalBag=array({false})', ['money', 'inventory']],
+  ['foreign team owner', 'teamData.outer=object("OtherGI")', ['teamIds']],
+  ['duplicate party entry', 'teamData.TeamInfos=array({teacher,teacher})', ['teamIds']],
+  ['party ID outside loaded cohort', 'teamData.TeamInfos=array({npc(77,gi)})', ['teamIds']],
+  ['wrong party layout', 'teamFields.TeamInfos=property("ArrayProperty",0xf1)', ['teamIds']],
+  ['wrong contribution layout', 'playerFields.GuildHonors=property("MapProperty",0x1b1)', ['guildHonors']],
+  ['duplicate contribution key', 'playerData.GuildHonors=map({{1,299},{1,300}})', ['guildHonors']],
+])
+  run(
+    'optional resource withdrawal: ' + name,
+    'enableResources(); pulse("first"); ' + change + '; now=now+1; pulse("changed")',
+    (f) => {
+      assert(f.get('changed').npcObservation, 'complete NPC/quest observation remains available');
+      const resources = f.get('changed-blob').resources;
+      for (const key of absent) assert.equal(resources[key], undefined, key);
+      for (const key of ['money', 'inventory', 'teamIds', 'guildHonors'].filter((k) => !absent.includes(k)))
+        assert.deepEqual(resources[key], f.get('first-blob').resources[key], key);
+    },
+  );
 console.log('Lua synthetic NPC smoke passed; no game or personal save access.');
