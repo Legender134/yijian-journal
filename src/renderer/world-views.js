@@ -132,14 +132,14 @@ export function createWorldViews({
           return `<button class="database-card world-place-card" data-action="world-place" data-id="${esc(placeEntityId(t, index.world.maps))}"><span class="database-symbol">${icon('map')}</span><h3>${esc(t.name)}</h3><p>${esc(variantSummary(placeEntityId(t, index.world.maps), view.reference) || (related.length ? `${related.length} 条任务关联地点` : '查看此地点的资料关联'))}${t.cave ? ' · 洞穴场景' : ''}</p><div class="database-card-foot">${t.cave ? '洞穴' : '地点'}${icon('chevron')}</div></button>`;
         }
         const active = family(t).filter((c) => c !== t && isActiveQuest(c, saved));
-        return `<button class="database-card world-quest-card" data-action="world-quest" data-id="${t.id}"><div class="row between"><span class="database-symbol">${icon('scroll')}</span>${pill(status(t, view), saved.get(t.gameId)?.step === 4 ? 'green' : '')}</div><h3>${esc(t.name)}</h3><p>${
+        return `<button class="database-card world-quest-card" data-action="world-quest" data-id="${t.id}"><div class="row between"><span class="database-symbol">${icon('scroll')}</span>${pill(status(t, view), saved.get(t.gameId)?.step === 4 ? 'green' : '')}</div><h3>${esc(t.name)}</h3>${
           active.length
-            ? `进行中的步骤：${active
+            ? `<p>进行中的步骤：${active
                 .slice(0, 2)
                 .map((c) => esc(c.name))
-                .join('、')}`
-            : esc(t.parentId ? '任务步骤 · 查看所属任务与关联资料' : '查看步骤、交互人物与所需物品')
-        }</p><div class="database-card-foot">${t.kind === 'Primary' ? '主线' : '支线'}${t.parentId ? '步骤' : '任务'}${icon('chevron')}</div></button>`;
+                .join('、')}</p>`
+            : ''
+        }<div class="database-card-foot">${t.kind === 'Primary' ? '主线' : '支线'}${t.parentId ? '步骤' : '任务'}${icon('chevron')}</div></button>`;
       })
       .join('');
     return `<div class="page-header"><div><h1 class="serif">任务与地点</h1></div></div><div class="segmented world-tabs">${[
