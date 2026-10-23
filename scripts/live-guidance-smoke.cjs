@@ -63,6 +63,25 @@ let app,
   current = null,
   session = '1800000000-123456',
   token;
+async function captureNative(surface, file) {
+  // Capture the Electron surface without Chromium's page-screenshot lifecycle,
+  // which can stall after switching between the main and companion windows.
+  const native = await app.browserWindow(surface);
+  try {
+    await native.evaluate((win) => win.showInactive());
+    await surface.evaluate(() => document.fonts.ready);
+    await surface.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+    const png = await native.evaluate(async (win) =>
+      (await win.webContents.capturePage()).toPNG().toString('base64'),
+    );
+    assert(png.length > 0, 'Native screenshot must contain image data');
+    fs.writeFileSync(file, Buffer.from(png, 'base64'));
+  } finally {
+    await native.dispose();
+  }
+}
 const pulse = () =>
   fs.writeFileSync(
     path.join(data, 'game-bridge/state.json'),
@@ -223,7 +242,7 @@ const pulse = () =>
       assert.match(await materials.innerText(), /铁矿石[\s\S]*需 4[\s\S]*后山山洞/);
       assert.match(await materials.innerText(), /库存未读取/);
     }
-    await small.screenshot({ path: path.join(output, 'live-choice-brief.png'), animations: 'disabled' });
+    await captureNative(small, path.join(output, 'live-choice-brief.png'));
     await checkBodyPreviews(small, 5);
     await small.locator(choice + ' > details > summary').click();
     assert.match(
@@ -247,7 +266,7 @@ const pulse = () =>
       await small.locator(choice + ' > details > summary').evaluate((el) => document.activeElement === el),
       true,
     );
-    await small.screenshot({ path: path.join(output, 'live-choice-on-duels.png'), animations: 'disabled' });
+    await captureNative(small, path.join(output, 'live-choice-on-duels.png'));
     const oldChoice = writeSave([
       { id: 11002, step: 1 },
       { id: 11005, step: 1 },
@@ -502,10 +521,7 @@ const pulse = () =>
       await visibleDock.waitFor({ state: 'visible' });
       assert.equal(await keptMap.evaluate((el) => el.isConnected && document.activeElement === el), true);
       await assertExposed();
-      await surface.screenshot({
-        path: path.join(output, `live-choice-reader-${index}.png`),
-        animations: 'disabled',
-      });
+      await captureNative(surface, path.join(output, `live-choice-reader-${index}.png`));
       current = null;
       pulse();
       await visibleDock.waitFor({ state: 'detached' });
@@ -650,7 +666,7 @@ const pulse = () =>
         true,
         id + ' complete consequence fits the default passive window',
       );
-      await small.screenshot({ path: path.join(output, 'passive-' + id + '.png'), animations: 'disabled' });
+      await captureNative(small, path.join(output, 'passive-' + id + '.png'));
     }
     assert.deepEqual(fs.readFileSync(saveFile), lastStock);
     assert.deepEqual(errors, []);
