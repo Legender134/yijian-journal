@@ -354,7 +354,9 @@ test('NPC details show shared story blockers once and the locked summary exposes
   assert.match(html, /暂时上限/);
   assert.match(html, /比武|请教/);
   assert.equal(row.compare.status, 'met', 'raw affinity may permit compare while gifts are story-capped');
-  const card = view.page(data, { tab: 'locked' }).split('</summary>')[0];
+  const card = view
+    .page(data, { tab: 'locked' })
+    .match(/data-npc-progress-card="[^\"]+"[\s\S]*?<summary>([\s\S]*?)<\/summary>/)[1];
   assert.match(card, /npc-progress-blocker.*好感暂时上限/s);
   assert.match(html, /私物还剩/);
 });
@@ -413,23 +415,23 @@ test('readiness, scene and unowned key-item filters retain search, unknowns and 
   const before = structuredClone(data);
   const cards = (html) =>
     [...html.matchAll(/data-npc-progress-card="(\d+)"/g)].map((match) => Number(match[1]));
-  assert.deepEqual(cards(view.page(data, { filter: 'ready' })), [10016]);
-  assert.deepEqual(cards(view.page(data, { filter: 'nearby' })), [10038]);
-  assert.deepEqual(cards(view.page(data, { filter: 'missing' })), [10038]);
-  assert.deepEqual(cards(view.page(data, { tab: 'learning', filter: 'ready' })), [10016]);
-  const noMatch = view.page(data, { filter: 'missing', query: '江吟风' });
+  assert.deepEqual(cards(view.page(data, { filters: ['ready'] })), [10016]);
+  assert.deepEqual(cards(view.page(data, { filters: ['nearby'] })), [10038]);
+  assert.deepEqual(cards(view.page(data, { filters: ['missing'] })), [10038]);
+  assert.deepEqual(cards(view.page(data, { tab: 'learning', filters: ['ready'] })), [10016]);
+  const noMatch = view.page(data, { filters: ['missing'], query: '江吟风' });
   assert.deepEqual(cards(noMatch), []);
   assert.match(noMatch, /data-action="npc-progress-filter" data-id="all"/);
   assert.match(noMatch, /value="江吟风"/);
   assert.deepEqual(data, before);
   delete input.inventory;
-  const unknown = view.page(project(input), { filter: 'missing' });
+  const unknown = view.page(project(input), { filters: ['missing'] });
   assert.deepEqual(cards(unknown), []);
   assert.match(unknown, /背包状态未读取/);
   delete input.map;
-  assert.match(view.page(project(input), { filter: 'nearby' }), /当前场景未读取/);
+  assert.match(view.page(project(input), { filters: ['nearby'] }), /场景未读取/);
   input.inventory = [];
-  assert.deepEqual(cards(view.page(project(input), { filter: 'missing' })), [10016, 10038]);
+  assert.deepEqual(cards(view.page(project(input), { filters: ['missing'] })), [10016, 10038]);
 });
 
 test('collapsed cards expose one actionable condition and current power, keeping all conditions in details', async () => {
@@ -439,7 +441,7 @@ test('collapsed cards expose one actionable condition and current power, keeping
   input.combat.player.attributes[44] = 0;
   const data = project(input);
   const html = view.page(data, { tab: 'locked' });
-  const summary = html.split('</summary>')[0];
+  const summary = html.match(/data-npc-progress-card="[^\"]+"[\s\S]*?<summary>([\s\S]*?)<\/summary>/)[1];
   assert.match(summary, /比武好感 20/);
   assert.doesNotMatch(summary, /比武：比武/);
   assert.doesNotMatch(summary, /精力不足/);
@@ -449,10 +451,83 @@ test('collapsed cards expose one actionable condition and current power, keeping
   input.combat.player.attributes = powers;
   input.combat.npcStates[0].attributes = { ...powers, 2: 2000 };
   input.combat.npcStates[0].rawFriendliness = 70;
-  const ready = view.page(project(input)).split('</summary>')[0];
+  const ready = view
+    .page(project(input))
+    .match(/data-npc-progress-card="[^\"]+"[\s\S]*?<summary>([\s\S]*?)<\/summary>/)[1];
   assert.match(ready, /可比武/);
   assert.match(ready, /战力：你 \d+ \/ 对方 \d+/);
   assert.doesNotMatch(ready, /必胜|胜率/);
   delete input.combat.origin;
-  assert.doesNotMatch(view.page(project(input)).split('</summary>')[0], /战力：/);
+  assert.doesNotMatch(
+    view
+      .page(project(input))
+      .match(/data-npc-progress-card="[^\"]+"[\s\S]*?<summary>([\s\S]*?)<\/summary>/)[1],
+    /战力：/,
+  );
+});
+
+test('unowned key-item results preview the missing reward rather than already owned private loot', async () => {
+  const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
+  const view = createNpcProgressViews({
+    esc: String,
+    act: (action, label, cls, id) => `<button data-action="${action}" data-id="${id}">${label}</button>`,
+  });
+  const data = project(
+    metadata(
+      [
+        npc(10038, {
+          inventory: [100034, 100073, 100076].map((id) => ({ id, count: 1 })),
+        }),
+      ],
+      [],
+      { inventory: [100034, 100073].map((id) => ({ id, count: 1 })) },
+    ),
+  );
+  const html = view.page(data, { filters: ['missing'] });
+  const summary = html.match(/data-npc-progress-card="[^\"]+"[\s\S]*?<summary>([\s\S]*?)<\/summary>/)[1];
+  assert.match(summary, /data-id="item-100076"/);
+  assert.doesNotMatch(summary, /data-id="item-100034"|data-id="item-100073"/);
+  assert.match(summary, /缺少 1 种/);
+  for (const id of [100034, 100073, 100076]) assert.match(html, new RegExp(`data-id="item-${id}"`));
+});
+
+test('three action filters intersect and saved/live labels follow the actual data source', async () => {
+  const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
+  const view = createNpcProgressViews({ esc: String, act: (_action, label) => label });
+  const input = metadata([
+    npc(10016, { inventory: [{ id: 100034, count: 1 }] }),
+    npc(10038, { visible: false, inventory: [{ id: 100034, count: 1 }] }),
+    npc(10047, { mapKey: 'LV_26_P', inventory: [{ id: 100034, count: 1 }] }),
+  ]);
+  const options = { filters: ['nearby', 'ready', 'missing'] };
+  const before = structuredClone(input);
+  const saved = view.page(project(input), options);
+  assert.deepEqual(
+    [...saved.matchAll(/data-npc-progress-card="(\d+)"/g)].map((match) => Number(match[1])),
+    [10016],
+  );
+  assert.match(saved, /data-npc-progress-origin="saved"/);
+  assert.match(saved, /保存时可比武|保存时的场景/);
+  assert.doesNotMatch(saved, /现在可比武|现在可请教/);
+  assert.deepEqual(input, before);
+  input.combat.origin = 'live';
+  const live = view.page(project(input), options);
+  assert.doesNotMatch(live, /data-npc-progress-origin="saved"|保存时可比武|保存时的场景/);
+  assert.match(live, /当前场景/);
+  delete input.combat.origin;
+  assert.match(view.page(project(input), options), /data-npc-progress-origin="saved"/);
+});
+
+test('restricted preview names the operation that actually caused inclusion, not an unrelated gift limit', async () => {
+  const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
+  const view = createNpcProgressViews({ esc: String, act: (_action, label) => label });
+  const input = metadata([npc(10016, { rawFriendliness: 100, attributes: { 65: 3 } })]);
+  input.combat.player.attributes[44] = 20;
+  const data = project(input);
+  assert.equal(data.locked[0].restriction.operation, '请教');
+  const html = view.page(data, { tab: 'locked' });
+  const summary = html.match(/data-npc-progress-card="[^\"]+"[\s\S]*?<summary>([\s\S]*?)<\/summary>/)[1];
+  assert.match(summary, /请教：精力不足/);
+  assert.doesNotMatch(summary, /好感已满/);
+  assert.match(html, /好感已满/);
 });

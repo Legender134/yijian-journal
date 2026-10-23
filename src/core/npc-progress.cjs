@@ -313,6 +313,24 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         });
       }
       const place = maps.get(saved.mapKey);
+      const blockedLearning = learning.find((item) => item.status === 'unmet');
+      const restriction =
+        remainingItems.length && compare.status === 'unmet'
+          ? { operation: '比武', ...compare }
+          : remainingItems.length &&
+              Number.isFinite(friend.cap) &&
+              friend.cap < 100 &&
+              gift.status === 'unmet'
+            ? { operation: '赠礼', ...gift }
+            : blockedLearning
+              ? { operation: '请教', status: blockedLearning.status, checks: blockedLearning.checks }
+              : remainingItems.length && saved.visible === false
+                ? {
+                    operation: '位置',
+                    status: 'unknown',
+                    checks: [{ status: 'unknown', text: '地图中暂未显示此人物' }],
+                  }
+                : null;
       rows.push({
         id: person.id,
         npcId: id,
@@ -331,6 +349,7 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         importantCount: remainingItems.filter((row) => row.important).length,
         collection: remainingItems.length ? 'remaining' : 'cleared',
         learning,
+        restriction,
       });
     }
     rows.sort(
@@ -365,16 +384,7 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       learning: rows
         .filter((row) => row.learning.some((item) => item.status !== 'unmet'))
         .sort(actionableFirst('learning')),
-      locked: rows.filter(
-        (row) =>
-          (row.remainingItems.length && row.compare.status === 'unmet') ||
-          (row.remainingItems.length &&
-            Number.isFinite(row.friendship.cap) &&
-            row.friendship.cap < 100 &&
-            row.gift.status === 'unmet') ||
-          (row.remainingItems.length && row.visible === false) ||
-          row.learning.some((item) => item.status === 'unmet'),
-      ),
+      locked: rows.filter((row) => row.restriction),
       cleared: rows.filter((row) => !row.remainingItems.length),
     };
   };

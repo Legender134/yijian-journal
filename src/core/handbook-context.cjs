@@ -101,7 +101,10 @@ function handbookContext(value) {
     ...(['remaining', 'learning'].includes(result.npcProgress.tab) ? ['ready'] : []),
     ...(['remaining', 'locked'].includes(result.npcProgress.tab) ? ['missing'] : []),
   ];
-  if (npcFilters.includes(npc?.filter)) result.npcProgress.filter = npc.filter;
+  if (Array.isArray(npc?.filters) && npc.filters.length <= 3) {
+    const filters = [...new Set(npc.filters.filter((filter) => npcFilters.includes(filter)))];
+    if (filters.length) result.npcProgress.filters = filters;
+  }
   result.worldPage = page(value.worldPage);
   result.worldStatus = ['all', 'active', 'completed', 'recorded', 'unrecorded'].includes(value.worldStatus)
     ? value.worldStatus

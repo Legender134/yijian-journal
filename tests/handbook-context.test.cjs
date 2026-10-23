@@ -234,9 +234,9 @@ test('NPC handoff accepts only bounded list filters and resets missing or invali
     ['locked', 'missing'],
     ['cleared', 'nearby'],
   ])
-    assert.equal(
-      handbookContext({ profileId: 'p', npcProgress: { tab, filter } }).npcProgress.filter,
-      filter,
+    assert.deepEqual(
+      handbookContext({ profileId: 'p', npcProgress: { tab, filters: [filter] } }).npcProgress.filters,
+      [filter],
     );
   for (const [tab, filter] of [
     ['remaining', 'remove'],
@@ -246,9 +246,20 @@ test('NPC handoff accepts only bounded list filters and resets missing or invali
     ['remaining', {}],
   ])
     assert.equal(
-      handbookContext({ profileId: 'p', npcProgress: { tab, filter } }).npcProgress.filter,
+      handbookContext({ profileId: 'p', npcProgress: { tab, filters: [filter] } }).npcProgress.filters,
       undefined,
     );
+  assert.deepEqual(
+    handbookContext({
+      profileId: 'p',
+      npcProgress: { tab: 'remaining', filters: ['nearby', 'ready', 'missing'] },
+    }).npcProgress.filters,
+    ['nearby', 'ready', 'missing'],
+  );
+  assert.equal(
+    handbookContext({ profileId: 'p', npcProgress: { filters: Array(4).fill('ready') } }).npcProgress.filters,
+    undefined,
+  );
   assert.deepEqual(
     handbookContext({
       profileId: 'p',
@@ -301,7 +312,7 @@ test('handoff retains pages, filters, body reading and same-name history across 
     databaseKind: '人物',
     databaseType: '全部',
     databasePage: 3,
-    npcProgressView: { tab: 'learning', query: '炼丹', page: 1 },
+    npcProgressView: { tab: 'learning', query: '炼丹', page: 1, filters: ['ready', 'nearby'] },
     worldView: {
       kind: 'quests',
       query: '药',
@@ -355,18 +366,33 @@ test('handoff retains pages, filters, body reading and same-name history across 
   assert.equal(wire.detail.giftPage, 2);
   assert.equal(wire.history[0].detail.id, 'name:莫弃');
   assert.equal(wire.history[0].detail.flowBound, true);
-  assert.deepEqual(wire.npcProgress, { tab: 'learning', query: '炼丹', page: 1 });
+  assert.deepEqual(wire.npcProgress, {
+    tab: 'learning',
+    query: '炼丹',
+    page: 1,
+    filters: ['ready', 'nearby'],
+  });
   Object.assign(context.npcProgressView, { tab: 'remaining', query: '', page: 0 });
   await context.receive(wire);
   assert.equal(context.currentDrawer.giftPage, 2);
   assert.equal(context.databasePage, 3);
-  assert.deepEqual(context.npcProgressView, { tab: 'learning', query: '炼丹', page: 1 });
+  assert.deepEqual(context.npcProgressView, {
+    tab: 'learning',
+    query: '炼丹',
+    page: 1,
+    filters: ['ready', 'nearby'],
+  });
   assert.equal(restored.at(-1).page, true);
   assert.equal(restored.at(-1).value.scroll, 840);
   await context.open(wire.history[0]);
   assert.equal(context.currentDrawer.id, 'name:莫弃');
   assert.equal(context.currentDrawer.flowReference.name, '2.sav');
-  assert.deepEqual(context.npcProgressView, { tab: 'learning', query: '炼丹', page: 1 });
+  assert.deepEqual(context.npcProgressView, {
+    tab: 'learning',
+    query: '炼丹',
+    page: 1,
+    filters: ['ready', 'nearby'],
+  });
   context.route = 'world';
   context.currentDrawer = null;
   const world = handbookContext(context.capture());
@@ -380,7 +406,15 @@ test('handoff retains pages, filters, body reading and same-name history across 
   const npcList = handbookContext(context.capture());
   Object.assign(context.npcProgressView, { tab: 'locked', query: '卫霍', page: 0 });
   await context.receive(npcList);
-  assert.deepEqual(context.npcProgressView, { tab: 'learning', query: '炼丹', page: 1 });
+  assert.deepEqual(context.npcProgressView, {
+    tab: 'learning',
+    query: '炼丹',
+    page: 1,
+    filters: ['ready', 'nearby'],
+  });
+  const legacy = handbookContext({ ...npcList, npcProgress: { tab: 'remaining', query: '', page: 0 } });
+  await context.receive(legacy);
+  assert.equal(context.npcProgressView.filters, undefined, 'an older context clears stale receiver filters');
 });
 
 test('body presentation restores semantic cards and folds despite a different main-window layout', () => {
