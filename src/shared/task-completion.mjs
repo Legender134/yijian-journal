@@ -12,6 +12,25 @@ export function completionChecks(requirements = [], reading = {}, questId) {
     ? new Map((reading.questStates || reading.quests).map((row) => [row.id, row.step]))
     : null;
   const live = reading.questsComplete === true;
+  let honors = null;
+  if (Array.isArray(reading.guildHonors) && reading.guildHonors.length <= 10000) {
+    const keys = new Set();
+    if (
+      reading.guildHonors.every(
+        (row) =>
+          row &&
+          Number.isSafeInteger(row.id) &&
+          row.id >= 0 &&
+          row.id <= 1000000 &&
+          Number.isSafeInteger(row.value) &&
+          row.value >= -2147483648 &&
+          row.value <= 2147483647 &&
+          !keys.has(row.id) &&
+          keys.add(row.id),
+      )
+    )
+      honors = new Map(reading.guildHonors.map((row) => [row.id, row.value]));
+  }
   const quest = (reading.questStates || reading.quests)?.find?.((row) => row.id === questId);
   return requirements.map((requirement) => {
     const { type, id, value, name } = requirement;
@@ -51,8 +70,16 @@ export function completionChecks(requirements = [], reading = {}, questId) {
           ? 'met'
           : 'unmet';
       hint = status === 'unmet' ? `先准备${name}中的任一种` : text;
-    } else if (type === 'GuildHonor') text = `${name}至少 ${countText(value)}`;
-    else if (type === 'KillMonster' || type === 'KillMonsterAggre') {
+    } else if (type === 'GuildHonor') {
+      text = `${name}至少 ${countText(value)}`;
+      if (honors && Number.isFinite(value) && value >= 0) {
+        const current = honors.get(id) || 0;
+        status = current >= value ? 'met' : 'unmet';
+        progress = { current, total: value, remaining: Math.max(0, value - current) };
+        text = name;
+        hint = status === 'met' ? `${name}已达标` : `${name}还差 ${countText(progress.remaining)}`;
+      }
+    } else if (type === 'KillMonster' || type === 'KillMonsterAggre') {
       text = `击败${name} × ${countText(value)}`;
       // The pinned quest completion predicate matches BOTH requirement type
       // and Id inside THIS quest's tracked array, then compares Num >= target.

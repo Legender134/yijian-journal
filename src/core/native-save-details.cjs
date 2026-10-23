@@ -150,7 +150,19 @@ function readCombat(data, start, format) {
         if (npcId === 0) playerFriendliness = value;
       }
       fixedMap(10000, 5); // GuildFriendliness
-      fixedMap(10000, 8); // GuildHonors
+      const guildHonors = [],
+        honorKeys = new Set();
+      let honorsValid = true;
+      const honorCount = r.count(10000, 8);
+      if (id !== 0) r.take(honorCount * 8);
+      else
+        for (let h = 0; h < honorCount; h++) {
+          const guildId = r.i32(),
+            value = r.i32();
+          if (guildId < 0 || guildId > 1000000 || honorKeys.has(guildId)) honorsValid = false;
+          honorKeys.add(guildId);
+          guildHonors.push({ id: guildId, value });
+        }
       const meridianPoints = r.i32();
       const inventory = r.items(); // NPC private items, distinct from equipment
       const equipment = r.items();
@@ -212,6 +224,7 @@ function readCombat(data, start, format) {
           equipment,
           attributes,
           mapKey,
+          ...(honorsValid ? { guildHonors } : {}),
         };
       }
     }

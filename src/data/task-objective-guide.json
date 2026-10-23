@@ -60,14 +60,21 @@
     "instruction": "返回武当派弟子房休息"
   },
   "5243": {
-    "evidenceQuestIds": [5243],
+    "evidenceQuestIds": [
+      5243
+    ],
     "instruction": "找元风接门派任务，贡献达标后找道通晋升资深弟子",
-    "actionRequirements": [
-      {
-        "type": "Context",
-        "name": "门派贡献需达到300"
-      }
-    ]
+    "contributionGate": {
+      "guildId": 1,
+      "collectingPeople": [
+        5031
+      ],
+      "readyPeople": [
+        5011
+      ],
+      "collectingAction": "找元风接门派任务",
+      "readyAction": "找道通晋升资深弟子"
+    }
   },
   "5256": {
     "evidenceQuestIds": [5256],
@@ -78,14 +85,21 @@
     "instruction": "在博坊地窖寻找密室，救出王钧的妻子"
   },
   "5305": {
-    "evidenceQuestIds": [5305],
+    "evidenceQuestIds": [
+      5305
+    ],
     "instruction": "找元风接门派任务，贡献达标后找道通晋升精英弟子",
-    "actionRequirements": [
-      {
-        "type": "Context",
-        "name": "门派贡献需达到1500"
-      }
-    ]
+    "contributionGate": {
+      "guildId": 1,
+      "collectingPeople": [
+        5031
+      ],
+      "readyPeople": [
+        5011
+      ],
+      "collectingAction": "找元风接门派任务",
+      "readyAction": "找道通晋升精英弟子"
+    }
   },
   "5358": {
     "evidenceQuestIds": [5358],
@@ -184,14 +198,21 @@
     "instruction": "进入威远镖局，查看打斗情况"
   },
   "5751": {
-    "evidenceQuestIds": [5751],
+    "evidenceQuestIds": [
+      5751
+    ],
     "instruction": "找元风接门派任务，贡献达标后找道通晋升传功弟子",
-    "actionRequirements": [
-      {
-        "type": "Context",
-        "name": "门派贡献需达到3000"
-      }
-    ]
+    "contributionGate": {
+      "guildId": 1,
+      "collectingPeople": [
+        5031
+      ],
+      "readyPeople": [
+        5011
+      ],
+      "collectingAction": "找元风接门派任务",
+      "readyAction": "找道通晋升传功弟子"
+    }
   },
   "5768": {
     "evidenceQuestIds": [5768],
@@ -206,14 +227,21 @@
     "instruction": "在程家堡右侧第一桌入席"
   },
   "5851": {
-    "evidenceQuestIds": [5851],
+    "evidenceQuestIds": [
+      5851
+    ],
     "instruction": "找元风接门派任务，贡献达标后找道通晋升执法弟子",
-    "actionRequirements": [
-      {
-        "type": "Context",
-        "name": "门派贡献需达到6000"
-      }
-    ]
+    "contributionGate": {
+      "guildId": 1,
+      "collectingPeople": [
+        5031
+      ],
+      "readyPeople": [
+        5011
+      ],
+      "collectingAction": "找元风接门派任务",
+      "readyAction": "找道通晋升执法弟子"
+    }
   },
   "5865": {
     "evidenceQuestIds": [5860, 5865],

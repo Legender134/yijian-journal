@@ -996,16 +996,16 @@ test('promotion objectives keep contribution thresholds and contacts in the defa
     const flow = flowSnapshot({ id: 'synthetic', referenceMode: 'latest' }, reference);
     const step = flow.active.find((q) => q.gameId === task.parentId).steps.find((q) => q.id === task.id);
     assert.equal(step.targets.actionState, 'unknown');
-    assert.match(step.nextAction, new RegExp('门派贡献需达到' + threshold));
+    assert.match(step.nextAction, new RegExp('武当派贡献至少 ' + threshold.toLocaleString('zh-CN')));
     assert.match(step.nextAction, /元风.*道通/);
     assert.match(step.targets.people.find((p) => p.id === 'npc-5011').role, /条件满足后/);
     const compact = createFlowViews(helpers)
       .panel(flow, { compact: true })
       .split('<details class="flow-now-details"')[0];
-    assert.match(compact, new RegExp(String(threshold)));
+    assert.match(compact, new RegExp(threshold.toLocaleString('zh-CN')));
     assert.match(
       refs.preview('quest-' + task.parentId, { reference }),
-      new RegExp('门派贡献需达到' + threshold),
+      new RegExp('武当派贡献至少 ' + threshold.toLocaleString('zh-CN')),
     );
   }
 });

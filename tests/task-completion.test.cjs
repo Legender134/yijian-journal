@@ -134,6 +134,78 @@ test('an active step uses completion conditions instead of making historical pic
   assert.doesNotMatch(step.nextAction, /铜钱|1000000/);
 });
 
+test('promotion routes follow current contribution through shortage, promotion and withdrawal', () => {
+  for (const [id, threshold, rank] of [
+    [5243, 300, '资深弟子'],
+    [5305, 1500, '精英弟子'],
+    [5751, 3000, '传功弟子'],
+    [5851, 6000, '执法弟子'],
+  ]) {
+    for (const value of [threshold - 1, threshold, 0]) {
+      const ref = reference(id, { guildHonors: [{ id: 1, value }] });
+      const flow = flowSnapshot(selected, ref);
+      const step = flow.active.flatMap((row) => row.steps).find((row) => row.id === 'quest-' + id);
+      assert.equal(step.targets.actionState, value >= threshold ? 'ready' : 'missing');
+      assert.equal(
+        step.completionRequirements.find((row) => row.type === 'GuildHonor').progress.current,
+        value,
+      );
+      assert.equal(step.targets.people[0].id, value >= threshold ? 'npc-5011' : 'npc-5031');
+      if (value >= threshold) assert.equal(step.nextAction, '找道通晋升' + rank);
+      else assert.match(step.nextAction, /找元风接门派任务.*还差/);
+    }
+    assert.equal(projector.project(task(id), {}).actionState, 'unknown');
+    assert.equal(projector.project(task(id), { guildHonors: [] }).actionState, 'missing');
+    const invalid = [
+      { id: 1, value: threshold },
+      { id: 1, value: threshold },
+    ];
+    assert.equal(projector.project(task(id), { guildHonors: invalid }).actionState, 'unknown');
+  }
+});
+
+test('pickup money uses a strict threshold and team checks use the current party', () => {
+  for (const [id, threshold] of [
+    [11125, 2000],
+    [11225, 50],
+    [11301, 500],
+    [11421, 800],
+    [11426, 800],
+    [11442, 1000],
+  ]) {
+    const q = task(id);
+    const cashRequirement = q.requirements.find((row) => row.type === 'Money');
+    assert.equal(cashRequirement.value, threshold);
+    const projection = createFlowProjector({
+      world: {
+        ...world,
+        quests: world.quests.map((row) =>
+          row.gameId === id ? { ...row, requirements: [cashRequirement], requestNPCs: [5011] } : row,
+        ),
+      },
+      game,
+      guide: { ...guide, rules: [] },
+    });
+    for (const money of [threshold, threshold + 1]) {
+      const flow = projection.flowSnapshot(selected, {
+        name: '1.sav',
+        metadata: { quests: [{ id, step: 3 }], money },
+      });
+      const row = flow.opportunities.find((row) => row.id === 'conditions-' + id);
+      assert.equal(Boolean(row), money > threshold);
+      if (row) assert.equal(row.conditions.find((check) => check.text.startsWith('铜钱')).status, 'met');
+      assert.equal(
+        completionChecks([{ type: 'Money', value: threshold, comparison: 'gt' }], { money })[0].status,
+        money > threshold ? 'met' : 'unmet',
+      );
+    }
+  }
+  const req = [{ type: 'TeamMember', id: 10047, name: '队友' }];
+  assert.equal(completionChecks(req, { teamIds: [] })[0].status, 'unmet');
+  assert.equal(completionChecks(req, { teamIds: [10047] })[0].status, 'met');
+  assert.equal(completionChecks(req, {})[0].status, 'unknown');
+});
+
 test('alternative hand-ins accept a permitted item, disclose each quality and never count an unrelated sword', () => {
   const requirement = task(12407).finishingRequirements;
   for (const inventory of [[], [{ id: 1002, count: 9 }]]) {
@@ -228,7 +300,8 @@ test('fresh observed inventory flows into current material checks and codex whil
         pawn: 'Pawn Synthetic',
         sampledAt: 1800000000,
         quests: old.metadata.quests,
-        npcs: [npc(count ? [{ id: itemId, count }] : [])],
+        npcs: [npc([{ id: itemId, count: 77 }])],
+        resources: { inventory: count ? [{ id: itemId, count }] : [] },
       },
       { world: 'World /Synthetic.LV_37_P', pawn: 'Pawn Synthetic', now: 1800000000000 },
     );

@@ -58,6 +58,33 @@ export function resolveTaskObjectives(template, reading = {}) {
     ...(party.length ? [`需${party.join('、')}在队`] : []),
     ...pending.filter((requirement) => !requirement.partyName).map((requirement) => requirement.hint),
   ].join('；');
+  if (template.contributionGate) {
+    const gate = template.contributionGate;
+    const contribution = finishing.find((row) => row.type === 'GuildHonor' && row.id === gate.guildId);
+    const ready = contribution?.status === 'met' && !pending.length;
+    const missing = contribution?.status === 'unmet';
+    const ids = ready ? gate.readyPeople : missing ? gate.collectingPeople : null;
+    const contacts = ready
+      ? gate.readyTargets
+      : missing
+        ? gate.collectingTargets
+        : [...gate.collectingTargets, ...gate.readyTargets];
+    return {
+      ...template,
+      actionState: ready ? 'ready' : missing ? 'missing' : 'unknown',
+      conditionHint: ready ? '' : preparation,
+      nextAction: ready
+        ? gate.readyAction
+        : [missing ? gate.collectingAction : template.instruction, preparation].filter(Boolean).join('；'),
+      people: contacts.map((person) => ({
+        ...person,
+        role: ready ? '晋升' : missing ? '接门派任务' : '条件满足后交互',
+      })),
+      places: ids
+        ? template.places.filter((place) => place.personIds?.some((id) => ids.includes(id)))
+        : template.places.map((place) => ({ ...place, conditionHint: preparation })),
+    };
+  }
   if (!template.materialGate && template.counterGate) {
     const recipients = template.counterGate.recipients.map((person) => ({ ...person, role: '回报' }));
     const ready = !pending.length;

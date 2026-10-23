@@ -2241,6 +2241,15 @@ async function companionHomeInventorySync(page) {
     await restoredCompanion.locator('[data-action="companion-layout"]').first().click();
     await restoredCompanion.locator('[data-action="window-layout-reset"]').click();
     await restoredCompanion.waitForFunction(() => !document.querySelector('[data-companion-layout]'));
+    // Check the transient toast before slower cross-process layout assertions.
+    // A success message must not cover the only restore control after tucking.
+    await restoredCompanion.locator('#toasts .toast').first().waitFor();
+    await restoredCompanion.locator('[data-action="companion-tuck"]').click();
+    await restoredCompanion.locator('[data-action="companion-untuck"]').waitFor();
+    assert.equal(await restoredCompanion.locator('#toasts').isVisible(), false);
+    assert.equal(await restoredCompanion.locator('[data-action="companion-untuck"]').isVisible(), true);
+    await restoredCompanion.locator('[data-action="companion-untuck"]').click();
+    await restoredCompanion.locator('.compact-shell').waitFor();
     assert.equal(JSON.parse(fs.readFileSync(path.join(data, 'window-layout.json'))).companion, undefined);
     assert.equal(
       (await restoredCompanion.evaluate(async () => (await window.journal.bootstrap()).data)).state.settings
@@ -2255,14 +2264,6 @@ async function companionHomeInventorySync(page) {
     }));
     assert.equal(resetCompanion.bounds.width, 460);
     assert.equal(resetCompanion.bounds.height, 660);
-    // A success message must not cover the only restore control after tucking.
-    await restoredCompanion.locator('#toasts .toast').first().waitFor();
-    await restoredCompanion.locator('[data-action="companion-tuck"]').click();
-    await restoredCompanion.locator('[data-action="companion-untuck"]').waitFor();
-    assert.equal(await restoredCompanion.locator('#toasts').isVisible(), false);
-    assert.equal(await restoredCompanion.locator('[data-action="companion-untuck"]').isVisible(), true);
-    await restoredCompanion.locator('[data-action="companion-untuck"]').click();
-    await restoredCompanion.locator('.compact-shell').waitFor();
     assert(
       Math.abs(resetCompanion.bounds.x - (resetCompanion.area.x + resetCompanion.area.width - 472)) <= 1,
     );
