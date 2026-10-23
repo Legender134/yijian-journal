@@ -530,7 +530,7 @@ const pulse = () =>
     }
     async function checkPageSearch(surface, field, sequence) {
       const input = surface.locator('#' + field);
-      await input.scrollIntoViewIfNeeded();
+      await input.click();
       await input.fill('铁');
       await input.pressSequentially('矿石');
       const kept = await input.elementHandle();
