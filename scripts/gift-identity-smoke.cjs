@@ -96,6 +96,11 @@ async function expand(selector) {
     await page.waitForFunction(() => !document.querySelector('#journey-item-stock').disabled);
     await expand('.gift-choice-filters');
     await page.locator('#journey-item-stock').check();
+    await page.waitForFunction(
+      () =>
+        !document.querySelector('#journey-item option[value="item-1000"]') &&
+        document.querySelectorAll('#journey-item option[value="item-1002"]').length === 1,
+    );
     assert.equal(await page.locator('#journey-item option[value="item-1000"]').count(), 0);
     assert.equal(await page.locator('#journey-item option[value="item-1002"]').count(), 1);
     await page.locator('#journey-item-stock').uncheck();
