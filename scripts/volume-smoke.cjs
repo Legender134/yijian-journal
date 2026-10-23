@@ -169,7 +169,7 @@ async function openDialog(file) {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [target] });
   }, file);
 }
-async function toast(text, error = false) {
+async function toast(text, error = false, timeout = 90000) {
   const found = await active.page.waitForFunction(
     ({ selector, pattern, flags, literal }) => {
       const matches = [...document.querySelectorAll(selector)]
@@ -183,7 +183,7 @@ async function toast(text, error = false) {
       flags: text instanceof RegExp ? text.flags : '',
       literal: text instanceof RegExp ? '' : text,
     },
-    { timeout: 90000 },
+    { timeout },
   );
   try {
     return await found.jsonValue();
@@ -238,7 +238,13 @@ async function mainExport(file, count) {
   if (await active.page.locator('[data-protection-controls]:not([open])').count())
     await active.page.locator('[data-protection-controls] > summary').click();
   await active.page.locator('[data-action="protection-export"]').click();
-  const text = await toast(new RegExp('保护包已校验[\\s\\S]* · 本机 ' + count + ' 份完整备份'));
+  // The 1001-backup fixture scans thousands of files and crosses a collection
+  // boundary. A verified native export took 166 seconds on this Windows host.
+  const text = await toast(
+    new RegExp('保护包已校验[\\s\\S]* · 本机 ' + count + ' 份完整备份'),
+    false,
+    count > 1000 ? 300000 : 90000,
+  );
   assert(fs.existsSync(file) || fs.existsSync(file + '.parts'), 'main UI export did not publish its target');
   return text;
 }
@@ -414,7 +420,7 @@ async function volumeAndCorruptFlow() {
   if (await page.locator('[data-protection-controls]:not([open])').count())
     await page.locator('[data-protection-controls] > summary').click();
   await page.locator('[data-action="protection-export"]').click();
-  await toast('完整导出未完成', true);
+  await toast('完整导出未完成', true, 300000);
   const failureResult = page.locator('[aria-label="最近一次完整导出"]');
   await failureResult.locator('p[role="alert"]').filter({ hasText: '长期保护 0001' }).waitFor();
   const errorToast = await failureResult.innerText();
