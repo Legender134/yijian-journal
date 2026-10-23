@@ -127,7 +127,7 @@ test('observed item sources use remaining private items and keep only unobserved
   progress.people[2].remainingItems = [];
   const empty = view.holders(index, { gameId: 9 }, progress);
   assert.match(empty, /已读取的人物中暂未发现此私物/);
-  assert.match(empty, /未核对人物的初始线索/);
+  assert.match(empty, /<summary>现场未发现持有者 · 未核对线索 1<\/summary>/);
   assert.doesNotMatch(empty, /data-id="npc-4"/);
 });
 

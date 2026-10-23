@@ -276,7 +276,7 @@ export function createWorldViews({
     const mentions = taskMentions(index, task);
     const places = [...mentions.places, ...mentions.aliases];
     if (!mentions.people.length && !places.length) return '';
-    return `<details class="detail-block task-mentions" ${showText ? 'open' : ''}><summary>说明中提到的人物与地点${showText ? '' : ' · 可能涉及剧情'}</summary><p class="save-note">从任务说明中的名字匹配资料，方便继续查询；不代表当前所在地，也不确认接取条件已满足。</p><div class="row">${[
+    return `<details class="detail-block task-mentions" ${showText ? 'open' : ''}><summary>相关人物与地点${showText ? '' : ' · 可能涉及剧情'}</summary><p class="save-note">从任务说明中的名字匹配资料，方便继续查询；不代表当前所在地，也不确认接取条件已满足。</p><div class="row">${[
       ...new Set(mentions.people.map((p) => p.name)),
     ]
       .map((name) => {

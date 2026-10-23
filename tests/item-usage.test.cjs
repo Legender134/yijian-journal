@@ -169,7 +169,7 @@ test('same named quality variants keep stock and existing gifts isolated by exac
   assert.equal(blue.usages[0].source.action, 'journey-gift-edit');
   assert.equal(blue.usages[0].source.id, 'blue-gift');
   const output = await html(blue);
-  assert.match(output, /持有<\/small><strong>6/);
+  assert.match(output, /持有<\/dt><dd>6/);
   assert.match(output, /data-action="journey-gift-edit" data-id="blue-gift"/);
   assert.doesNotMatch(output, /green-gift|item-1005/);
 });
@@ -233,7 +233,7 @@ test('processing distinguishes physical input, preceding projected supply and co
   assert.match(output, /待补材料 5/);
   assert.match(output, /前序加工预计产出 5/);
   assert.match(output, /原料缺口 0/);
-  assert.match(output, /持有<\/small><strong>1/);
+  assert.match(output, /持有<\/dt><dd>1/);
 });
 
 test('an eligible alternative appears even if another exact item satisfies its entire group', async () => {
@@ -316,7 +316,7 @@ test('missing inventory preserves known intention demand and unknown physical qu
   assert.ok(result.usages.every((row) => row.allocated === null && row.missing === null));
   const output = await html(result);
   assert.match(output, /库存未读取/);
-  assert.match(output, /持有<\/small><strong>—/);
+  assert.match(output, /持有<\/dt><dd>—/);
   assert.match(output, /已分配 —/);
   assert.doesNotMatch(output, /已分配 0|<strong>0/);
 });
@@ -337,7 +337,7 @@ test('profile or reference mismatches never expose another context allocation as
     assert.deepEqual(result.usages, []);
     const output = await html(result);
     assert.match(output, /进度已变化，请重新打开物品详情/);
-    assert.match(output, /持有<\/small><strong>—/);
+    assert.match(output, /持有<\/dt><dd>—/);
     assert.doesNotMatch(output, /data-item-usage=|<strong>5/);
   }
   assert.deepEqual(another.usages, []);
@@ -381,7 +381,8 @@ test('no recorded uses and spare stock do not imply permission to sell; views es
   const unused = await project('item-1005', p, ref);
   assert.equal(unused.usages.length, 0);
   const output = await html(unused);
-  assert.match(output, /暂无预留用途/);
+  assert.match(output, /已分配<\/dt><dd>0/);
+  assert.doesNotMatch(output, /data-item-usage=/);
   assert.doesNotMatch(output, /可以出售|安全出售/);
 });
 

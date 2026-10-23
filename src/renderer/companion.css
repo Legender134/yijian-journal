@@ -220,7 +220,7 @@
 .companion .compact-title {
   gap: 5px;
   padding: 5px 8px;
-  min-height: 43px;
+  min-height: 36px;
   height: auto;
   flex-wrap: wrap;
 }
@@ -284,7 +284,7 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   border-bottom: 1px solid var(--line);
-  padding: 7px 5px;
+  padding: 2px 5px;
   flex-shrink: 0;
 }
 .companion-tabs .text-btn {
@@ -297,6 +297,42 @@
 }
 .companion .codex-browser .page-header h1 {
   font-size: 20px;
+}
+.companion .codex-browser > .page-header,
+.companion .npc-progress-heading {
+  display: none;
+}
+.companion .npc-progress-page > h2:has(.pill) {
+  margin: 0 0 6px;
+}
+.companion .npc-progress-page > h2:not(:has(.pill)) {
+  display: none;
+}
+.companion .npc-progress-card {
+  padding: 8px 0;
+}
+.companion .npc-progress-card > summary {
+  gap: 4px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.companion .npc-progress-tabs > .btn {
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.companion .npc-progress-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+.companion .npc-progress-tools .search-input input {
+  width: 100%;
+  min-width: 0;
+}
+@media (max-width: 300px) {
+  .companion .npc-progress-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .companion .codex-browser .database-tab {
   padding: 6px 8px;
@@ -397,21 +433,21 @@
 }
 .companion .drawer-head,
 .companion .drawer-body {
-  padding: 15px;
+  padding: 10px 12px;
 }
 .companion .drawer-body h1 {
-  font-size: 25px;
+  font-size: 22px;
 }
 .companion .game-detail-title {
-  gap: 12px;
-  margin: 12px 0 16px;
+  gap: 10px;
+  margin: 0 0 10px;
 }
 .companion .game-detail-title > .game-picture {
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
 }
 .companion .drawer-body > .detail-block {
-  margin: 16px 0;
+  margin: 12px 0;
 }
 .companion .modal {
   overflow-y: auto;
@@ -420,8 +456,9 @@
   max-height: calc(100vh - 100px);
 }
 .companion .page-header {
-  display: block;
-  margin-bottom: 15px;
+  display: flex;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 .companion .page-header h1 {
   font-size: 24px;
@@ -550,7 +587,7 @@
   margin-top: 7px;
 }
 .companion .flow-material-brief > .flow-material {
-  padding: 6px 0;
+  padding: 4px 0;
   border: 0;
   background: transparent;
 }
@@ -564,7 +601,14 @@
   margin: 3px 0;
 }
 .companion .flow-material-details {
-  margin-top: 3px;
+  margin-top: 0;
+}
+.companion .flow-material-details > summary {
+  padding: 2px 0;
+  min-height: 28px;
+}
+.companion .flow-now-details > summary {
+  padding: 5px 0;
 }
 .companion .flow-material-brief .game-picture {
   width: 23px;

@@ -60,6 +60,8 @@ export function createNpcFactViews({ esc, act }) {
         : '位置待确认';
       return `<div class="seller-line"><strong>${link(index, entry.id)}</strong><p>剩余 ×${esc(count)} · ${place}</p><p class="small muted">${esc(hint)}</p></div>`;
     };
+    if (!current.length)
+      return `<details class="detail-block item-private-holders" data-item-private-holders><summary>${progress.origin === 'live' ? '现场' : '保存时'}未发现持有者${unknown.length ? ` · 未核对线索 ${unknown.length}` : ''}</summary><p class="small muted">已读取的人物中暂未发现此私物。</p>${unknown.length ? `<div data-item-private-candidates>${list(unknown, row)}</div>` : ''}</details>`;
     return `<section class="detail-block item-private-holders" data-item-private-holders><h3>${progress.origin === 'live' ? '现场仍持有' : '保存时仍持有'} · ${current.length} 位</h3>${current.length ? list(current, currentRow) : '<p class="small muted">已读取的人物中暂未发现此私物。</p>'}${unknown.length ? `<details data-item-private-candidates><summary>未核对人物的初始线索 · ${unknown.length} 位</summary>${list(unknown, row)}</details>` : ''}</section>`;
   }
   return { person, holders };

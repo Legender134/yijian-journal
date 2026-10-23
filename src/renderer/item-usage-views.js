@@ -40,7 +40,7 @@ export function createItemUsageViews({ esc, act, when }) {
       'profile-mismatch': '周目已变化，请重新打开物品详情。',
       'reference-mismatch': '进度已变化，请重新打开物品详情。',
     }[result.status];
-    return `<section class="detail-block item-usage" aria-label="物品用途"><h3>物品用途</h3>${issue ? `<p class="small muted" role="status">${esc(issue)}</p>` : ''}<div class="detail-stat-grid"><div><small>持有</small><strong>${count(result.stock.owned)}</strong></div><div><small>已分配</small><strong>${count(result.stock.allocated)}</strong></div><div><small>可安排</small><strong>${count(result.stock.remaining)}</strong></div></div>${hasUsages ? result.usages.map(usage).join('') : `<p class="small muted">${['ready', 'inventory-unknown'].includes(result.status) ? '暂无预留用途' : '用途待更新'}</p>`}<div class="row wrap">${act('navigate', '调整用途', 'text-btn', 'materials', 'shield')}</div></section>`;
+    return `<section class="detail-block item-usage" aria-label="物品用途"><div class="row between"><h3>持有与用途</h3>${act('navigate', '安排', 'text-btn', 'materials', 'shield')}</div>${issue ? `<p class="small muted" role="status">${esc(issue)}</p>` : ''}<dl class="item-usage-stock"><div><dt>持有</dt><dd>${count(result.stock.owned)}</dd></div><div><dt>已分配</dt><dd>${count(result.stock.allocated)}</dd></div><div><dt>可安排</dt><dd>${count(result.stock.remaining)}</dd></div></dl>${hasUsages ? `<details data-persist-detail="item-usage-rows"><summary>用途 · ${result.usages.length}</summary>${result.usages.map(usage).join('')}</details>` : !['ready', 'inventory-unknown'].includes(result.status) ? '<p class="small muted">用途待更新</p>' : ''}</section>`;
   }
   return { detail };
 }

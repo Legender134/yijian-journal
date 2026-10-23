@@ -41,7 +41,13 @@ export function createBackupViews({ esc, act, pill, icon, iconButton, empty, whe
       (sum, b) => sum + (b.bytes ?? b.files?.reduce((n, f) => n + f.bytes, 0) ?? 0),
       0,
     );
-    const filters = `<div class="row wrap mb backup-filters"><label class="search-input"><input id="${prefix}-search" data-persist="${prefix}-search" maxlength="100" value="${esc(view.query || '')}" aria-label="查找完整备份" placeholder="查名称、日期或文件"></label><label>类型 <select id="${prefix}-kind">${[
+    const filterCount = [
+      view.kind && view.kind !== 'all',
+      view.lock && view.lock !== 'all',
+      view.from,
+      view.to,
+    ].filter(Boolean).length;
+    const filters = `<div class="backup-toolbar"><label class="search-input"><input id="${prefix}-search" data-persist="${prefix}-search" maxlength="100" value="${esc(view.query || '')}" aria-label="查找完整备份" placeholder="查名称、日期或文件"></label><details class="backup-filter-menu" data-persist-detail="${prefix}-filters"><summary>筛选${filterCount ? ` · ${filterCount}` : ''}</summary><div class="row wrap backup-filters"><label>类型 <select id="${prefix}-kind">${[
       ['all', '全部'],
       ['auto', '自动'],
       ['manual', '手动'],
@@ -51,17 +57,17 @@ export function createBackupViews({ esc, act, pill, icon, iconButton, empty, whe
       .map(([id, label]) => `<option value="${id}" ${view.kind === id ? 'selected' : ''}>${label}</option>`)
       .join(
         '',
-      )}</select></label>${historical ? '' : `<label>锁定 <select id="backup-lock"><option value="all">全部</option><option value="locked" ${view.lock === 'locked' ? 'selected' : ''}>已锁定</option><option value="unlocked" ${view.lock === 'unlocked' ? 'selected' : ''}>可清理</option></select></label>`}<label>从 <input id="${prefix}-from" type="date" value="${esc(view.from || '')}" aria-label="完整备份开始日期"></label><label>到 <input id="${prefix}-to" type="date" value="${esc(view.to || '')}" aria-label="完整备份结束日期"></label></div>`;
+      )}</select></label>${historical ? '' : `<label>锁定 <select id="backup-lock"><option value="all">全部</option><option value="locked" ${view.lock === 'locked' ? 'selected' : ''}>已锁定</option><option value="unlocked" ${view.lock === 'unlocked' ? 'selected' : ''}>可清理</option></select></label>`}<label>从 <input id="${prefix}-from" type="date" value="${esc(view.from || '')}" aria-label="完整备份开始日期"></label><label>到 <input id="${prefix}-to" type="date" value="${esc(view.to || '')}" aria-label="完整备份结束日期"></label></div></details></div>`;
     const selection = historical
       ? ''
-      : `<div class="row wrap mb">${act('backup-select-page', '选择本页', 'btn', '', 'check')}${act('backup-selection-clear', '清空选择', 'text-btn')}<span class="small muted">已选 ${selected.size} 份 · 可跨页选择</span>${selected.size ? act('backup-export-selected', '导出所选完整备份', 'btn', '', 'download') + (!lockedSelected ? act('backup-cleanup-selected', '导出并清理所选…', 'btn danger', '', 'trash') : '<span class="small muted">含已锁定副本，清理前请取消选择或逐份解锁</span>') : ''}${selected.size ? `<details class="selected-backup-summary"><summary>核对已选 ${selected.size} 份 · ${bytes(selectedRows.reduce((n, b) => n + b.bytes, 0))}</summary>${selectedRows.map((b) => `<p>${esc(b.label)} · ${when(b.createdAt)}${b.locked ? ' · 已锁定' : ''}</p>`).join('')}</details>` : ''}</div><p class="save-note">分批导出会包含全部周目的手札和所选完整备份；时间线与以前导入的档案请用上方「导出全部保护资料」。每批最多 1000 份、2 GiB，单纯导出保留原件；「导出并清理」先校验留底，再逐批确认。恢复前保护副本默认锁定，不会自动清理。</p>`;
+      : `<div class="row wrap mb">${act('backup-select-page', '选择本页', 'btn', '', 'check')}${act('backup-selection-clear', '清空选择', 'text-btn')}${selected.size ? `<span class="small muted">已选 ${selected.size} 份</span>` : ''}${selected.size ? act('backup-export-selected', '导出所选完整备份', 'btn', '', 'download') + (!lockedSelected ? act('backup-cleanup-selected', '导出并清理所选…', 'btn danger', '', 'trash') : '<span class="small muted">含已锁定副本，清理前请取消选择或逐份解锁</span>') : ''}${selected.size ? `<details class="selected-backup-summary"><summary>核对已选 ${selected.size} 份 · ${bytes(selectedRows.reduce((n, b) => n + b.bytes, 0))}</summary>${selectedRows.map((b) => `<p>${esc(b.label)} · ${when(b.createdAt)}${b.locked ? ' · 已锁定' : ''}</p>`).join('')}</details>` : ''}</div><details class="backup-batch-help"><summary>导出与清理说明</summary><p class="save-note">分批导出会包含全部周目的手札和所选完整备份；时间线与以前导入的档案请用「换机与导入导出」中的「导出全部保护资料」。每批最多 1000 份、2 GiB，单纯导出保留原件；「导出并清理」先校验留底，再逐批确认。恢复前保护副本默认锁定，不会自动清理。</p></details>`;
     const rows = shown
       .map(
         (b) =>
           `<div class="backup-row">${historical ? '' : `<input type="checkbox" data-action="backup-selection" data-id="${esc(b.id)}" aria-label="选择 ${esc(b.label)}" ${selected.has(b.id) ? 'checked' : ''}>`}<div class="backup-symbol">${icon(b.kind === 'safety' ? 'shield' : 'archive')}</div><div class="spacer"><h3>${esc(b.label)} ${b.kind === 'auto' ? pill('自动') : b.kind === 'safety' ? pill('保护副本', 'green') : ''}${b.locked ? pill('已锁定', 'green') : ''}</h3><p>${when(b.createdAt)} · ${b.count ?? b.files?.length ?? 0} 个文件 · ${bytes(b.bytes ?? b.files?.reduce((n, f) => n + f.bytes, 0) ?? 0)}${b.verificationError ? `<br><strong>校验未通过 · ${esc(b.verificationError)}</strong>` : ''}</p></div>${historical ? act('protection-backup-select', view.backupId === b.id ? '已展开' : '查看文件', 'btn', b.id, 'book') : act(b.locked ? 'backup-unlock' : 'backup-lock', b.locked ? '解锁…' : '锁定', 'text-btn', b.id, 'shield') + iconButton('verify', 'shield', '校验完整性', b.id) + act('backup-preview', '查看副本', 'btn', b.id, 'eye')}</div>`,
       )
       .join('');
-    return `${filters}${view.from && view.to && view.from > view.to ? '<p class="notice">开始日期不能晚于结束日期</p>' : ''}<p class="small muted" role="status">筛选到 ${matches.length} / ${backups.length} 份完整备份 · 文件占用 ${bytes(totalBytes)}</p>${selection}<div class="card">${rows || empty('没有符合条件的备份', '调整名称、类型或日期，再重新查找。')}</div>${pages > 1 ? `<div class="pagination">${act(prefix + '-page', '上一页', 'btn', String(Math.max(0, current - 1)))}<span>第 ${current + 1} / ${pages} 页</span>${act(prefix + '-page', '下一页', 'btn', String(Math.min(pages - 1, current + 1)))}</div>` : ''}`;
+    return `${filters}${view.from && view.to && view.from > view.to ? '<p class="notice">开始日期不能晚于结束日期</p>' : ''}<p class="small muted backup-result-count" role="status">${matches.length} / ${backups.length} 份 · ${bytes(totalBytes)}</p>${historical ? '' : selected.size ? `<section class="backup-selection">${selection}</section>` : `<details class="backup-management" data-persist-detail="backup-management"><summary>管理副本</summary>${selection}</details>`}<div class="card">${rows || empty('没有符合条件的备份', '调整名称、类型或日期，再重新查找。')}</div>${pages > 1 ? `<div class="pagination">${act(prefix + '-page', '上一页', 'btn', String(Math.max(0, current - 1)))}<span>第 ${current + 1} / ${pages} 页</span>${act(prefix + '-page', '下一页', 'btn', String(Math.min(pages - 1, current + 1)))}</div>` : ''}`;
   }
   return { page, filtered, anomalies, unavailable };
 }

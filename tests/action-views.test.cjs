@@ -298,7 +298,7 @@ test('a pending choice shows conditional material stock and sources without decl
     assert.equal(requirement.missing, owned === null ? null : Math.max(0, 4 - owned));
     for (const html of [view.panel(flow, { compact: true }), view.taskMaterials(flow)]) {
       assert.match(html, /仅选重锻时备料/);
-      assert.match(html, /flow-source-brief/);
+      assert.match(html, /flow-source-brief|flow-material-details/);
       assert.match(html, owned === null ? /库存未读取/ : new RegExp(`需 4 · 持有 ${owned}`));
     }
     const compact = view.panel(flow, { compact: true });
@@ -691,7 +691,7 @@ test('task materials uses saved active steps only with quantities and expandable
   ];
   const html = (await views).taskMaterials(flow);
   assert.match(html, /当前任务备料.*合成测试任务.*采药步骤.*测试药草.*需 5 · 持有 2 · 缺 3/s);
-  assert.match(html, /<details[^>]*><summary>获取详情<\/summary>.*合成效率：每次 1 件/s);
+  assert.match(html, /<details[^>]*><summary>测试山坡<\/summary>.*合成效率：每次 1 件/s);
   assert.doesNotMatch(html, /不应计入的物品/);
   assert.match((await views).taskMaterials(current()), /当前已识别的进行中步骤暂无可展示的材料需求/);
   assert.match((await views).taskMaterials({ available: true }), /暂无可识别进行中步骤/);
@@ -727,12 +727,12 @@ test('material summaries keep exact destinations once and expand only additional
     view.taskMaterials(flow, { compact: true }),
     view.taskMaterials(flow),
   ]) {
-    const visible = html.slice(0, html.indexOf('<details'));
+    const [details] = detailsWithClass(html, 'flow-material-details');
+    const visible = html.slice(0, html.indexOf('<details')) + details.summary;
     assert.match(visible, /测试药草.*需 5 · 持有 2 · 缺 3/s);
     assert.match(visible, /data-action="world-place" data-id="place-10"[^>]*>合成后山山洞/);
     assert.match(visible, /data-action="database-detail" data-id="npc-11"[^>]*>合成采药人/);
-    const [details] = detailsWithClass(html, 'flow-material-details');
-    assert.equal(details.summary, '获取详情');
+    assert.match(details.summary, /合成后山山洞/);
     assert.doesNotMatch(details.opening, /\bopen(?:\s|=|>)/);
     assert.doesNotMatch(details.body, /需 5 · 持有 2|查看地点资料|查看商人资料/);
     assert.match(details.body, /北侧洞口.*单次 2 件.*合成效率.*合成采集依据.*其他主要路线.*合成掉落依据/s);
@@ -755,11 +755,11 @@ test('unknown material stock and absent sources stay explicit without empty disc
       view.taskMaterials(flow, { compact: true }),
       view.taskMaterials(flow),
     ]) {
-      const visible = html.split('<details')[0];
+      const details = detailsWithClass(html, 'flow-material-details');
+      const visible = html.split('<details')[0] + (details[0]?.summary || '');
       assert.match(visible, /需 5 · 库存未读取/);
       assert.match(visible, /暂无获取地点/);
       assert.doesNotMatch(visible, /持有 0|缺 0|已足|库存未知的替代商人/);
-      const details = detailsWithClass(html, 'flow-material-details');
       assert.equal(details.length, routes.length ? 1 : 0);
       if (routes.length) {
         assert.doesNotMatch(details[0].opening, /\bopen(?:\s|=|>)/);
@@ -955,11 +955,53 @@ test('main flow shows the first recommendation and folds additional advice', asy
   assert.doesNotMatch(html, /<details[^>]*class="flow-advice"/);
 });
 
+test('task advice retains the recommendation and reason when its repeated lead is folded', async () => {
+  const flow = current();
+  flow.active[0].gameId = 1;
+  flow.advice = [
+    {
+      id: 'prepare-first',
+      questId: 1,
+      activeRule: true,
+      recommendation: { action: '先在村外备齐药草', reason: '避免往返跑图' },
+    },
+  ];
+  const html = (await views).panel(flow, { summary: true });
+  assert.doesNotMatch(html, /<section class="flow-advice">/);
+  const advice = html.slice(html.indexOf('data-flow-suggestion="prepare-first"'));
+  assert.match(advice, /<summary>做法与理由<\/summary>[\s\S]*先在村外备齐药草/);
+  assert.match(advice, /避免往返跑图/);
+  flow.advice[0].recommendation.hint = '交付前保留一株';
+  const hinted = (await views).panel(flow, { summary: true });
+  assert.match(hinted, /<p>交付前保留一株<\/p><details/);
+  assert.match(hinted, /先在村外备齐药草/);
+});
+
+test('the home flow keeps later active tasks and their advice available in place', async () => {
+  const flow = current();
+  flow.active = [1, 2, 3, 4].map((id) => ({ ...flow.active[0], id: 'quest-' + id, gameId: id }));
+  flow.advice = [
+    {
+      id: 'fourth',
+      questId: 4,
+      activeRule: true,
+      recommendation: { action: '第四任务的推荐行动', reason: '保留任务收益' },
+    },
+  ];
+  const html = (await views).panel(flow, { summary: true });
+  const [remaining] = detailsWithClass(html, 'flow-all-active');
+  assert.equal(remaining.summary, '其余 1 项进行中任务');
+  assert.match(remaining.body, /data-flow-quest="quest-4"/);
+  assert.match(remaining.body, /第四任务的推荐行动/);
+});
+
 test('compact disclosure state follows advice, task and material identities across stage changes', async () => {
   const view = await views;
   const keys = (html, summary) =>
     [...html.matchAll(/<details\b([^>]*)><summary>([\s\S]*?)<\/summary>/g)]
-      .filter((match) => match[2] === summary)
+      .filter((match) =>
+        summary === null ? /class="flow-material-details"/.test(match[1]) : match[2] === summary,
+      )
       .map((match) => match[1].match(/data-persist-detail="([^"]+)"/)?.[1]);
   const advice = (id) => ({ id, recommendation: { hint: id, action: '合成行动', reason: '合成理由' } });
   const before = keys(view.panel({ advice: [advice('old')] }, { compact: true }), '做法与理由');
@@ -973,11 +1015,12 @@ test('compact disclosure state follows advice, task and material identities acro
   assert.deepEqual(reordered, [after[0], before[0]]);
   for (const compact of [false, true]) {
     const flow = current([material(), material({ id: 'item-6', name: '第二材料' })]);
-    const initial = keys(view.taskMaterials(flow, { compact }), '获取详情');
+    const initial = keys(view.taskMaterials(flow, { compact }), null);
+    assert.equal(initial.length, 2);
     flow.active[0].steps[0].materials.reverse();
-    assert.deepEqual(keys(view.taskMaterials(flow, { compact }), '获取详情'), [...initial].reverse());
+    assert.deepEqual(keys(view.taskMaterials(flow, { compact }), null), [...initial].reverse());
     flow.active[0].steps[0].id = 'quest-7';
-    assert(keys(view.taskMaterials(flow, { compact }), '获取详情').every((key) => !initial.includes(key)));
+    assert(keys(view.taskMaterials(flow, { compact }), null).every((key) => !initial.includes(key)));
   }
 });
 
@@ -1152,7 +1195,7 @@ test('a blocked accepted Qiluo departure gives one current instruction without a
     );
     assert.doesNotMatch(lead, /class="flow-targets"/);
     assert.match(html, /data-id="quest-30150"/);
-    assert.match(html, /条件与完整步骤|完整步骤/);
+    assert.match(html, /任务详情|完整步骤/);
   }
 });
 
