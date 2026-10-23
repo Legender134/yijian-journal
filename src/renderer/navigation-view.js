@@ -1,6 +1,6 @@
 export function navigationView({ route, headings, icon, goalCount = 0 }) {
   const primary = [
-    ['home', 'home'],
+    ['home', 'pin'],
     ['duels', 'duel'],
     ['database', 'book'],
     ['saves', 'archive'],

@@ -237,8 +237,11 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
           const efficiency = route.efficiency || '';
           return `${efficiency && !/^(?:效率待核对|暂无效率数据)[。.]*$/.test(efficiency) ? `<p class="small">${prose(efficiency)}</p>` : ''}${sources(route.sources)}`;
         };
-        const routeRow = (route, isFirst = false) =>
-          `${isFirst ? '' : `<h4>${routeHeading(route)}</h4>`}${routeDetail(route) ? `<p>${prose(routeDetail(route))}</p>` : ''}${evidence(route)}`;
+        const routeRow = (route, isFirst = false) => {
+          const heading = routeHeading(route);
+          const detail = prose(routeDetail(route));
+          return `${isFirst ? '' : `<h4>${heading}</h4>`}${detail && (detail !== heading || (bodyOnly && isFirst)) ? `<p>${detail}</p>` : ''}${evidence(route)}`;
+        };
         const body = `${first ? routeRow(first, !!brief && !briefs[material.id]) : ''}${primary
           .slice(1)
           .map((route) => routeRow(route))
