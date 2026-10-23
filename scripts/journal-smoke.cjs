@@ -1,5 +1,5 @@
 'use strict';
-const { openMainPage } = require('./ui-smoke-actions.cjs');
+const { openMainPage, openJournalFilters, revealJournalAction } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs'),
   path = require('node:path'),
   assert = require('node:assert/strict');
@@ -282,19 +282,20 @@ async function nav(page, id) {
     await page.locator('[data-action="goal-toggle"][data-id="' + goalId + '"]').click();
     await until(page, (p) => p.journalEntries.some((e) => e.kind === 'goal-reopened'));
     await nav(page, 'journal');
+    await openJournalFilters(page);
     await page.locator('#journal-kind').selectOption('manual');
     await page.locator('[data-action="journal-filter"]').click();
     assert.equal(await page.locator('article[data-journal-id]').count(), 2);
     await app.evaluate(({ dialog }, file) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
     }, exported);
-    await page.locator('[data-action="journal-export"]').click();
+    await (await revealJournalAction(page, 'journal-export')).click();
     const archived = await written(exported, true);
     assert.equal(archived.profiles[0].journalEntries.length, 4);
-    await page.locator('[data-action="journal-remove-filtered"]').click();
+    await (await revealJournalAction(page, 'journal-remove-filtered')).click();
     await page.locator('#overlay [data-action="close-overlay"]').first().click();
     assert.equal((await current(page)).journalEntries.length, 4);
-    await page.locator('[data-action="journal-remove-filtered"]').click();
+    await (await revealJournalAction(page, 'journal-remove-filtered')).click();
     await page.locator('[data-action="journal-remove-filtered-confirm"]').click();
     p = await until(page, (p) => p.journalEntries.length === 2);
     assert.equal(p.goals[0].done, false);

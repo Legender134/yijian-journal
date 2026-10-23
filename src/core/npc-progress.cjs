@@ -151,6 +151,7 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       const checks = [
         {
           status,
+          showWhenMet: true,
           text: `好感 ${threshold}${friendship.value === null ? '（剧情上限待确认）' : `（当前 ${friendship.value}）`}`,
         },
       ];
@@ -172,6 +173,7 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       if (kind === 'Compare' && contracts.compare?.basis === 'raw') {
         checks.push({
           status: friendship.raw >= threshold ? 'met' : 'unmet',
+          showWhenMet: true,
           text: `比武好感 ${threshold}（当前 ${friendship.raw}）`,
         });
         checks.push(vigorCheck(contracts.compare.vigor, contracts.compare.talentVigor));
@@ -299,6 +301,7 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         if (baseCost !== null)
           checks.push({
             status: Number.isFinite(player.skillPoints) && player.skillPoints >= baseCost ? 'met' : 'unknown',
+            showWhenMet: true,
             text: `武学点${Number.isFinite(player.skillPoints) ? ` ${player.skillPoints}` : '待确认'}，基础消耗 ${baseCost}（门派、难度或天赋可减免）`,
           });
         learning.push({

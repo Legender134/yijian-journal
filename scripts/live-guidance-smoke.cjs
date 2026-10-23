@@ -1,5 +1,5 @@
 'use strict';
-const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
+const { openMainPage, chooseCodexKind, openJournalFilters } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -585,6 +585,7 @@ const pulse = () =>
       await form.waitFor();
       await surface.locator('#journal-search').fill('白');
       await surface.locator('#journal-search').pressSequentially('锦');
+      await openJournalFilters(surface);
       await surface.locator('#journal-from').fill('2026-10-01');
       await surface.locator('#journal-to').fill('2026-10-14');
       await surface.locator('#journal-kind').selectOption('manual');

@@ -39,7 +39,13 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
   };
   const checkKey = (check) => JSON.stringify([check.text, check.entityId, check.status]);
   const reason = (checks, excluded = new Set()) =>
-    [...new Map(unmet(checks).map((check) => [checkKey(check), check])).values()]
+    [
+      ...new Map(
+        checks
+          .filter((check) => check.status !== 'met' || check.showWhenMet)
+          .map((check) => [checkKey(check), check]),
+      ).values(),
+    ]
       .filter((check) => !excluded.has(checkKey(check)))
       .filter((row) => row.text)
       .map(checkText)
@@ -69,7 +75,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
     ];
   }
   function learning(row) {
-    const excluded = new Set([...sharedChecks(row), ...unmet(row.consult.checks)].map(checkKey));
+    const excluded = new Set([...sharedChecks(row), ...row.consult.checks].map(checkKey));
     return orderedLearning(row)
       .map(
         (item) =>

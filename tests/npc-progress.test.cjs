@@ -330,6 +330,42 @@ test('learning summary prioritizes currently available arts while retaining othe
   assert.match(view.person(data.people[0], true), /好感 90/, 'full restrictions remain available');
 });
 
+test('expanded learning retains satisfied affinity and point costs without adding them to the card summary', async () => {
+  const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
+  const view = createNpcProgressViews({ esc: String, act: (_action, label) => label });
+  const projector = createNpcProgressProjector({
+    world: {
+      people: [{ id: 'npc-1', gameId: 1, name: '合成教师', functions: ['Compare', 'Consult', 'Gift'] }],
+      quests: [],
+      maps: [],
+    },
+    game: { entries: [{ id: 'skill-1', gameId: 1, name: '合成功法' }] },
+    contracts: {
+      friendlyLimits: { Compare: 20, Consult: 10 },
+      compare: { basis: 'raw', vigor: 10, talentVigor: 5 },
+      skills: { 1: { friendliness: 40, skillPointCost: 10 } },
+    },
+  });
+  const input = metadata([npc(1, { attributes: { 27: 3 }, skills: [{ id: 1, level: 1 }] })]);
+  const data = projector(input);
+  const row = data.people[0];
+  assert.equal(row.learning.find((item) => item.kind === 'life').status, 'met');
+  const cost = row.learning
+    .find((item) => item.kind === 'martial')
+    .checks.find((check) => /基础消耗/.test(check.text));
+  assert.equal(cost.status, 'met');
+  const summary = view
+    .page(data, { tab: 'learning' })
+    .match(/<details class="npc-progress-card"[\s\S]*?<summary>([\s\S]*?)<\/summary>/)[1];
+  assert.doesNotMatch(summary, /好感|基础消耗|精力充足/);
+  const details = view.person(row, true);
+  assert.match(details, /锻造.*?好感 30/s, 'a ready life skill still exposes its threshold after expansion');
+  assert.match(details, /比武：.*?好感 20/s);
+  assert(details.includes(cost.text), 'ready martial arts retain their known point cost');
+  assert.doesNotMatch(details, /精力充足/);
+  assert.equal((details.match(/好感 10/g) || []).length, 1, 'the common consult gate appears once');
+});
+
 test('NPC details show shared story blockers once and the locked summary exposes its actual restricted operation', async () => {
   const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
   const view = createNpcProgressViews({

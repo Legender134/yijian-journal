@@ -1,5 +1,5 @@
 'use strict';
-const { openMainPage } = require('./ui-smoke-actions.cjs');
+const { openMainPage, revealJournalAction } = require('./ui-smoke-actions.cjs');
 // Recoverable records in real main/compact windows. All data and saves are synthetic.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -202,7 +202,7 @@ async function recordActionsFit(target) {
       true,
     );
     checks.push('取消、关闭、Esc与背景均返回原记录、保留阅读位置与焦点，关闭详情返回原记录入口');
-    await page.locator('[data-action="journal-remove-filtered"]').click();
+    await (await revealJournalAction(page, 'journal-remove-filtered')).click();
     await page.locator('[data-action="journal-remove-filtered-confirm"]').waitFor();
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('#overlay [role="dialog"]').count(), 0);
@@ -210,7 +210,7 @@ async function recordActionsFit(target) {
     await remove(page, recordId);
     await until((p) => p.journalTrash?.some((row) => row.entry.id === recordId));
     const newer = await record(page, '删除后新写的内容', '后来的内容必须保留');
-    await page.locator('[data-action="journal-trash-open"]').click();
+    await (await revealJournalAction(page, 'journal-trash-open')).click();
     await page.locator('#journal-trash-query').fill('重要正文');
     assert.equal(await page.locator('[data-journal-trash-id]').count(), 1);
     await page.locator('[data-action="journal-trash-detail"]').first().click();
@@ -238,7 +238,7 @@ async function recordActionsFit(target) {
     await app.evaluate(({ dialog }, file) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
     }, journal);
-    await page.locator('[data-action="journal-export"]').click();
+    await (await revealJournalAction(page, 'journal-export')).click();
     const exported = await written(journal, true);
     assert.equal(exported.profiles[0].journalTrash[0].entry.body, original.body);
     await nav('saves');
@@ -253,7 +253,7 @@ async function recordActionsFit(target) {
     await page.waitForFunction(() => !document.querySelector('[data-action="protection-export"]')?.disabled);
     checks.push('手札 JSON 与全部保护资料实际导出均携带已删除记录');
     await nav('journal');
-    await page.locator('[data-action="journal-trash-open"]').click();
+    await (await revealJournalAction(page, 'journal-trash-open')).click();
     await page.locator('[data-action="journal-trash-purge-preview"]').click();
     await page.keyboard.press('Escape');
     assert((await current()).journalTrash.some((row) => row.entry.id === recordId));
@@ -282,9 +282,9 @@ async function recordActionsFit(target) {
     await companion.locator('.search-result[data-action="journal-entry-open"]').click();
     await companion.locator('[data-action="journal-entry-edit"]').click();
     await companion.locator('[data-action="journal-entry-save"]').click();
-    await companion.locator('[data-action="journal-trash-open"]').waitFor();
+    await (await revealJournalAction(companion, 'journal-trash-open')).waitFor();
     await page.locator('[data-action="journal-trash-purge-preview"]').click();
-    await companion.locator('[data-action="journal-trash-open"]').click();
+    await (await revealJournalAction(companion, 'journal-trash-open')).click();
     await companion.locator('[data-action="journal-trash-restore-preview"]').click();
     await companion.locator('[data-action="journal-trash-confirm"]').click();
     await until((p) => p.journalEntries.some((entry) => entry.id === recordId));
@@ -314,7 +314,7 @@ async function recordActionsFit(target) {
     await browse.waitFor({ state: 'attached' });
     await browse.locator('xpath=ancestor::details[1]').locator('summary').first().click();
     await browse.click();
-    await page.locator('[data-action="historical-journal-trash-open"]').click();
+    await (await revealJournalAction(page, 'historical-journal-trash-open')).click();
     assert.equal(await page.locator('[data-journal-trash-id="' + recordId + '"]').count(), 1);
     assert.equal(await page.locator('[data-action="journal-trash-restore-preview"]').count(), 0);
     assert.equal(await page.locator('[data-action="journal-trash-purge-preview"]').count(), 0);
