@@ -133,7 +133,9 @@ let app, child;
       '27 retained nodes, paging past 12, search, rename escaping, bookmark toggle, saved-progress differences, pre-load return',
     );
     await win.locator('.nav-btn[data-id="settings"]').click();
+    await win.locator('[data-persist-detail="settings-connection"] > summary').click();
     assert.ok((await win.locator('.content').innerText()).includes('正在检查变化'));
+    await win.locator('[data-persist-detail="settings-shortcuts"] > summary').click();
     await win.locator('#shortcut-save').fill('Ctrl+Alt+J');
     await win.locator('[data-action="shortcuts-save"]').click();
     await win.locator('.toast').filter({ hasText: '已用于随行小窗' }).waitFor();

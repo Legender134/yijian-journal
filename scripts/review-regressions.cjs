@@ -2377,6 +2377,7 @@ async function unreadableProgressAndImport() {
     await app.evaluate(({ dialog }, file) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
     }, broken);
+    await win.locator('[data-persist-detail="settings-data"] > summary').click();
     await win.locator('[data-action="import"]').click();
     await win.waitForFunction(() => document.querySelector('.toast')?.textContent.includes('当前记录未改动'));
     assert.deepEqual(fs.readFileSync(path.join(data, 'journal.json')), before);
@@ -2436,6 +2437,7 @@ async function importedReferences() {
         return { response: 0 };
       };
     }, file);
+    await win.locator('[data-persist-detail="settings-data"] > summary').click();
     await win.locator('[data-action="export"]').click();
     await win.waitForFunction(() => document.querySelector('.toast')?.textContent.includes('导出'));
     const before = fs.readFileSync(path.join(data, 'journal.json'));
@@ -2490,6 +2492,7 @@ async function customOpacityImport() {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
       dialog.showMessageBox = async () => ({ response: 1 });
     }, exported);
+    await launched.win.locator('[data-persist-detail="settings-data"] > summary').click();
     await launched.win.locator('[data-action="import"]').click();
     await launched.win.waitForFunction(() =>
       [...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('手札已导入')),
@@ -2509,6 +2512,7 @@ async function customOpacityImport() {
     await nav(launched.win, 'settings');
     assert.equal(await launched.win.locator('#companion-opacity').inputValue(), '0.9');
     assert.equal(await launched.win.locator('#companion-opacity option:checked').innerText(), '90%（当前）');
+    await launched.win.locator('[data-persist-detail="settings-companion"] > summary').click();
     await launched.win.locator('#companion-opacity').selectOption('0.85');
     await launched.win.waitForFunction(() => document.querySelector('#companion-opacity')?.value === '0.85');
     assert.equal(journal(data).settings.compactOpacity, 0.85);

@@ -995,6 +995,73 @@ test('the home flow keeps later active tasks and their advice available in place
   assert.match(remaining.body, /第四任务的推荐行动/);
 });
 
+test('active herb advice keeps the shared-material warning visible once before its details', async () => {
+  const { flowSnapshot } = require('../src/core/flow.cjs');
+  const flow = flowSnapshot(
+    { id: 'synthetic', referenceMode: 'latest' },
+    {
+      name: 'Synthetic.sav',
+      metadata: { quests: [11077, 11078].map((id) => ({ id, step: 1 })), inventory: [] },
+    },
+  );
+  const warning = flow.advice.find((row) => row.id === 'medicine-shared-herbs').warning;
+  assert.match(warning, /慈母委托.*地黄.*合计/);
+  for (const compact of [false, true]) {
+    const html = (await views).panel(flow, { compact, summary: !compact });
+    const suggestion = html.match(/data-flow-suggestion="medicine-shared-herbs">([\s\S]*?)<\/article>/)?.[1];
+    assert(suggestion, 'warning is reachable from the active task, not only the full guide index');
+    assert(suggestion.slice(0, suggestion.indexOf('<details')).includes(warning));
+    assert.equal(suggestion.split(warning).length - 1, 1);
+  }
+});
+
+test('advice previews preserve a distinct warning alongside the folded action and reason', async () => {
+  for (const linked of [false, true]) {
+    const flow = current();
+    if (linked) flow.active[0].gameId = 1;
+    flow.advice = [
+      {
+        id: 'prepare-first',
+        ...(linked ? { questId: 1 } : {}),
+        activeRule: true,
+        warning: '交付药草后，另一任务还需要一株',
+        recommendation: { hint: '交付前先备齐药草', action: '先在村外备齐两株药草', reason: '避免往返跑图' },
+      },
+    ];
+    for (const compact of [false, true]) {
+      const html = (await views).panel(flow, { compact, summary: !compact });
+      const suggestion = html.match(/data-flow-suggestion="prepare-first">([\s\S]*?)<\/article>/)?.[1];
+      assert(suggestion);
+      assert.match(suggestion.slice(0, suggestion.indexOf('<details')), /交付前先备齐药草/);
+      assert.match(suggestion, /<summary>做法与理由<\/summary>[\s\S]*交付药草后，另一任务还需要一株/);
+      assert.match(suggestion, /先在村外备齐两株药草/);
+      assert.match(suggestion, /避免往返跑图/);
+    }
+    delete flow.advice[0].recommendation.hint;
+    for (const compact of [false, true]) {
+      const html = (await views).panel(flow, { compact, summary: !compact });
+      const suggestion = html.match(/data-flow-suggestion="prepare-first">([\s\S]*?)<\/article>/)?.[1];
+      assert.match(suggestion, /交付药草后，另一任务还需要一株/);
+      assert.match(suggestion, /先在村外备齐两株药草/);
+      assert.match(suggestion, /避免往返跑图/);
+    }
+  }
+});
+
+test('unlinked advice keeps its action preview even beside a task with no game id', async () => {
+  const flow = current();
+  flow.advice = [
+    {
+      id: 'unlinked',
+      activeRule: true,
+      recommendation: { action: '先去村东查看额外对话', reason: '保留可选剧情' },
+    },
+  ];
+  const html = (await views).panel(flow, { compact: true });
+  assert.match(html, /<h2>顺路可做<\/h2>/);
+  assert.match(html, /data-flow-suggestion="unlinked"><p>先去村东查看额外对话<\/p>/);
+});
+
 test('compact disclosure state follows advice, task and material identities across stage changes', async () => {
   const view = await views;
   const keys = (html, summary) =>

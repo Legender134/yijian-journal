@@ -4264,6 +4264,15 @@ details.card:not([open]) {
 .backup-selection {
   margin: 8px 0;
 }
+.backup-management > .row,
+.backup-selection > .row {
+  flex-wrap: wrap;
+}
+.backup-management > .row > button,
+.backup-selection > .row > button,
+.backup-selection > .row > .backup-selected-count {
+  flex-shrink: 0;
+}
 .backup-management[open] > summary,
 .backup-batch-help[open] > summary {
   margin-bottom: 10px;

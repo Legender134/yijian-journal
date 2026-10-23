@@ -91,7 +91,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     warning = false,
     scope = 'rule',
     previewShown = false,
-    { actionShown = previewShown } = {},
+    { actionShown = previewShown, previewText } = {},
   ) {
     const stage = row.kind === 'stage';
     const choices = list(row.choices);
@@ -113,7 +113,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
         ? '已越过提示节点，请确认任务是否仍可继续。'
         : row.compactWarning || row.message || row.warning || pickup.action);
     const fullWarning =
-      !closedWindow && row.warning && row.warning !== message
+      !closedWindow && row.warning && row.warning !== (previewText ?? message)
         ? `<p class="flow-warning-detail">${prose(row.warning)}</p>`
         : '';
     const pickupBody =
@@ -434,10 +434,10 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   }
   const compactAdvice = (row, alreadyActive = false) => {
     const lead = alreadyActive
-      ? row.recommendation?.hint
+      ? row.recommendation?.hint || row.warning
       : row.recommendation?.hint || row.recommendation?.action || row.pickup?.action || row.warning;
     return persist(
-      `<article class="flow-suggestion" data-flow-suggestion="${text(row.id)}">${lead ? `<p>${prose(lead)}</p>` : ''}<details><summary>做法与理由</summary>${rule(row, false, 'advice', true, { actionShown: !!lead })}</details></article>`,
+      `<article class="flow-suggestion" data-flow-suggestion="${text(row.id)}">${lead ? `<p>${prose(lead)}</p>` : ''}<details><summary>做法与理由</summary>${rule(row, false, 'advice', true, { actionShown: !!lead && lead === row.recommendation?.action, previewText: lead || '' })}</details></article>`,
       `compact-advice-${row.id}`,
     );
   };
@@ -447,7 +447,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const warnings = list(flow.warnings).filter((row) => !decisionIds.has(row.id));
     const active = list(flow.active);
     const advice = list(flow.advice).filter((row) => !decisionIds.has(row.id));
-    const adviceActive = (row) => active.some((task) => task.gameId === row.questId);
+    const adviceActive = (row) => row.questId != null && active.some((task) => task.gameId === row.questId);
     const adviceView = (row) => compactAdvice(row, adviceActive(row));
     const warningIds = new Set([...warnings, ...decisions].map((row) => row.id));
     const opportunities = list(flow.opportunities).filter((row) => !warningIds.has(row.id));

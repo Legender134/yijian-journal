@@ -404,7 +404,7 @@ const pulse = () =>
     await win.locator('.search-result[data-id="quest-11002"]').click();
     await win
       .locator('[data-task-relations] > details > summary')
-      .filter({ hasText: '步骤需要的物品' })
+      .filter({ hasText: '全部步骤用料' })
       .click();
     const taskItem = win.locator('[data-task-relations] [data-id="item-10201"]').first();
     assert.equal(await taskItem.isVisible(), true);
