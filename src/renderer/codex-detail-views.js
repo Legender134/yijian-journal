@@ -25,6 +25,10 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
   function effect(index, a, quest) {
     const amount = `${a.value > 0 ? '+' : ''}${a.value.toLocaleString('zh-CN')}`;
     const target = (kind) => link(index, kind + '-' + a.id);
+    if (a.type === 'CAttr') {
+      const change = itemEffectText(a, index.itemStats);
+      if (change) return `${text(change.name)} <strong>${text(change.value)}</strong>`;
+    }
     if (a.type === 'CItem' && target('item'))
       return `${target('item')} <strong>${a.value < 0 ? '−' : '+'}${Math.abs(a.value)}</strong>`;
     if (

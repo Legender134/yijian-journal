@@ -1952,7 +1952,25 @@ test('decision prompts follow an actual active choice step and disappear after c
   for (const rule of guide.rules.filter((row) => row.decisionSteps?.length)) {
     for (const id of rule.decisionSteps) {
       const task = world.quests.find((row) => row.gameId === id);
-      assert.equal(task?.parentId, rule.questId, rule.id);
+      if (task) assert.equal(task.parentId, rule.questId, rule.id);
+      else {
+        const contract = require('../src/data/live-choice-contracts.json').contracts.find(
+          (row) => row.questId === id && row.rootQuestId === rule.questId,
+        );
+        assert(contract, `${rule.id}: hidden retirement step needs an exact native contract`);
+        assert.equal(require('../src/data/codex-details.json').hiddenSteps[id]?.ownerId, rule.questId);
+        const savedOnly = flowSnapshot(
+          profile(),
+          ref([
+            { id: rule.questId, step: 1 },
+            { id, step: 1 },
+          ]),
+        );
+        assert(
+          !savedOnly.decisions.some((row) => row.id === rule.id),
+          'hidden retirement steps cannot activate saved advice',
+        );
+      }
     }
   }
 });

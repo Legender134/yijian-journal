@@ -11,6 +11,38 @@ const world = require('../src/data/world-index.json'),
   game = require('../src/data/game-index.json');
 const guide = require('../src/data/flow-guide.cjs');
 const task = (id) => world.quests.find((row) => row.gameId === id);
+
+test('nine-refined pill absence uses strict ItemMax and the complete inventory sum', () => {
+  const raw = require('../src/data/codex-details.json').hiddenSteps[11743].finishingRequirements.find(
+    (row) => row.type === 'ItemMax',
+  );
+  assert.deepEqual(raw, { type: 'ItemMax', id: 165, value: 1 });
+  const requirement = { ...raw, name: '九炼熊蛇丸' };
+  for (const [inventory, status] of [
+    [[], 'met'],
+    [[{ id: 165, count: 0 }], 'met'],
+    [[{ id: 165, count: 1 }], 'unmet'],
+    [[{ id: 165, count: 2 }], 'unmet'],
+    [[{ id: 100, count: 2 }], 'met'],
+  ]) {
+    const check = completionChecks([requirement], { inventory })[0];
+    assert.equal(check.status, status);
+    assert.equal(check.text, '九炼熊蛇丸：未持有');
+  }
+  assert.equal(completionChecks([requirement], {})[0].status, 'unknown');
+  const stacks = {
+    inventory: [
+      { id: 165, count: 1 },
+      { id: 165, count: 1 },
+    ],
+  };
+  assert.equal(
+    completionChecks([{ ...requirement, value: 2 }], stacks)[0].status,
+    'unmet',
+    'equal is not less',
+  );
+  assert.equal(completionChecks([{ ...requirement, value: 3 }], stacks)[0].status, 'met');
+});
 const reference = (id, extra = {}) => ({
   name: '1.sav',
   hash: 'synthetic',

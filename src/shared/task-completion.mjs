@@ -42,6 +42,11 @@ export function completionChecks(requirements = [], reading = {}, questId) {
     if (type === 'Item') {
       text = `${name} × ${countText(value)}`;
       if (inventory) status = (inventory.get(id) || 0) >= value ? 'met' : 'unmet';
+    } else if (type === 'ItemMax') {
+      // Build 21798996: native enum 15 uses the same inventory sum as Item,
+      // but returns true for count < Num, not count <= Num.
+      text = value === 1 ? `${name}：未持有` : `${name}：数量少于 ${countText(value)}`;
+      if (inventory) status = (inventory.get(id) || 0) < value ? 'met' : 'unmet';
     } else if (type === 'Money') {
       const minimum = requirement.comparison === 'gt' ? Math.floor(value) + 1 : value;
       text = `铜钱至少 ${countText(minimum)} 文`;

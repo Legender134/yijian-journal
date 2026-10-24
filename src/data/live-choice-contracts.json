@@ -69,6 +69,74 @@
   },
   "contracts": [
     {
+      "ruleId": "gusu-performer-first-bowls-choice",
+      "questId": 11453,
+      "rootQuestId": 11447,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "吃三盆",
+          "choiceIndex": 0
+        },
+        {
+          "text": "吃六盆",
+          "choiceIndex": 1
+        },
+        {
+          "text": "吃九盆",
+          "choiceIndex": 2
+        }
+      ]
+    },
+    {
+      "ruleId": "gusu-performer-three-bowls-followup-choice",
+      "questId": 11454,
+      "rootQuestId": 11447,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "再吃三盆",
+          "choiceIndex": 0
+        },
+        {
+          "text": "认输",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "gusu-performer-six-bowls-followup-choice",
+      "questId": 11455,
+      "rootQuestId": 11447,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "再吃三盆",
+          "choiceIndex": 0
+        },
+        {
+          "text": "认输",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "gusu-performer-iron-arm-choice",
+      "questId": 11456,
+      "rootQuestId": 11447,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "拼了",
+          "choiceIndex": 0
+        },
+        {
+          "text": "认输",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
       "ruleId": "mowen-thankyou-gift-choice",
       "questId": 12406,
       "rootQuestId": 12400,

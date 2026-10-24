@@ -252,6 +252,13 @@ module.exports = {
     10498: [{ ...goldenScorpionRoute, title: goldenScorpionRoute.label, questId: 16000 }],
   },
   sources: {
+    gusuPerformerGame: {
+      title: '游戏资料：姑苏灯会街头卖艺的四组选项',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/live-choice-contracts.json',
+      version: 'Build 21798996',
+      confidence:
+        '同构建Quests原表11453至11456的完整按钮、跳转与动作；属性2对应气血上限，物品144为东坡肉、10223为赤铜锭。未实机验证整条灯会的后续结算。',
+    },
     rankPickupWindowsGame: {
       title: '游戏资料：精英晋升、五仙花酿与首座接取边界',
       url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-window-contracts.json',
@@ -1847,6 +1854,119 @@ module.exports = {
       sourceIds: ['gs33', 'pandaBai', 'threeDmBaiRescue'],
       uncertainty:
         '当前构建已核对死亡、救出两种任务记录及奖励。地点与先后来自不同作者的攻略，未实机验证全部触发；75/80好感解锁有版本差异。分支结算后不会自动回退。',
+    },
+    {
+      id: 'gusu-performer-first-bowls-choice',
+      title: '街头卖艺·吞天虎：先吃三盆，保住气血上限',
+      questId: 11447,
+      chapterRoots: [],
+      // Hidden follow-ups have no public quest rows; their close also retires
+      // an older saved first-question recommendation.
+      decisionSteps: [11453, 11454, 11455],
+      requireDecisionWindow: true,
+      afterAllComplete: [],
+      untilAnyStarted: [],
+      deadlineLabel: '挑战吞天虎、决定吃多少之前',
+      recommendation: {
+        hint: '吞天虎：先选「吃三盆」，保住气血上限',
+        caution: '直接「吃九盆」会扣5点气血上限。',
+        goal: '保住气血上限，并取得这段东坡肉奖励',
+        action: '优先选「吃三盆」；接下来的追问中，「再吃三盆」或「认输」都给东坡肉×1。',
+        reason:
+          '吃三盆进入的追问，两种答法都没有气血上限扣减；直接吃九盆会扣5点气血上限，且该按钮不发东坡肉。',
+        tradeoff:
+          '若先吃六盆，下一问应认输；此时同名的「再吃三盆」会扣2点气血上限。这些只是当前小段的奖励与代价，后续挑战仍须另行完成。',
+      },
+      pickup: { place: '姑苏灯会', person: '吞天虎', action: '按当前挑战对话决定食量。' },
+      warning: '吞天虎的不同食量进入不同追问；吃三盆与吃六盆后的「再吃三盆」后果不同。',
+      choices: [
+        { label: '吃三盆', effect: '进入吃三盆后的追问；再吃三盆或认输都给东坡肉×1，均无气血上限扣减。' },
+        { label: '吃六盆', effect: '进入吃六盆后的追问；认输给东坡肉×1，再吃三盆则扣2点气血上限。' },
+        { label: '吃九盆', effect: '气血上限减少5点；该按钮不发东坡肉，然后返回挑选对手。' },
+      ],
+      sourceIds: ['gusuPerformerGame'],
+      uncertainty: '已核对当前构建原表按钮与直接动作，未实机验证；不以选完本段推断街头卖艺或后续灯会已完成。',
+    },
+    // These unnamed follow-ups have no saved decision anchors. Only their
+    // exact native contracts may activate branch-specific recommendations.
+    {
+      id: 'gusu-performer-three-bowls-followup-choice',
+      title: '街头卖艺·吞天虎：吃三盆后的追问',
+      questId: 11447,
+      chapterRoots: [],
+      requireDecisionWindow: true,
+      afterAllComplete: [],
+      untilAnyStarted: [],
+      deadlineLabel: '',
+      recommendation: {
+        hint: '吞天虎·先吃三盆：可选「再吃三盆」',
+        caution: '本问两种答法都给东坡肉×1，无气血上限扣减。',
+        goal: '保住气血上限，取得本段东坡肉',
+        action: '这是先吃三盆后的追问，可选「再吃三盆」；选「认输」的本段奖励与属性影响相同。',
+        reason: '当前追问的两种按钮都只发东坡肉×1，均无气血上限扣减，然后返回挑选对手。',
+        tradeoff: '先吃六盆后的同名追问后果不同；本段得物品不表示后续挑战或整条灯会已完成。',
+      },
+      pickup: { place: '姑苏灯会', person: '吞天虎', action: '确认当前是先吃三盆后的追问。' },
+      warning: '本问是先吃三盆的分支，两种答法的直接奖励与属性影响相同。',
+      choices: [
+        { label: '再吃三盆', effect: '东坡肉×1；无气血上限扣减，然后返回挑选对手。' },
+        { label: '认输', effect: '东坡肉×1；无气血上限扣减，然后返回挑选对手。' },
+      ],
+      sourceIds: ['gusuPerformerGame'],
+      uncertainty: '已核对当前构建原表中先吃三盆后的追问，未实机验证；同名按钮在先吃六盆的追问中后果不同。',
+    },
+    {
+      id: 'gusu-performer-six-bowls-followup-choice',
+      title: '街头卖艺·吞天虎：吃六盆后及时认输',
+      questId: 11447,
+      chapterRoots: [],
+      requireDecisionWindow: true,
+      afterAllComplete: [],
+      untilAnyStarted: [],
+      deadlineLabel: '',
+      recommendation: {
+        hint: '吞天虎·先吃六盆：选「认输」，保住气血上限',
+        caution: '此时「再吃三盆」会扣2点气血上限。',
+        goal: '保住气血上限，并取得本段东坡肉',
+        action: '这是先吃六盆后的追问，优先选「认输」，取得东坡肉×1。',
+        reason: '认输无气血上限扣减；继续再吃三盆会扣2点气血上限，且该按钮不发东坡肉。',
+        tradeoff: '认输后返回挑选对手；本段物品不表示其他挑战或后续灯会已完成。',
+      },
+      pickup: { place: '姑苏灯会', person: '吞天虎', action: '确认当前是先吃六盆后的追问。' },
+      warning: '吃六盆后的「再吃三盆」会损失气血上限，和先吃三盆后的同名选项不同。',
+      choices: [
+        { label: '再吃三盆', effect: '气血上限减少2点；该按钮不发东坡肉，然后返回挑选对手。' },
+        { label: '认输', effect: '东坡肉×1；无气血上限扣减，然后返回挑选对手。' },
+      ],
+      sourceIds: ['gusuPerformerGame'],
+      uncertainty: '已核对当前构建原表中先吃六盆后的追问，未实机验证；同名按钮在先吃三盆的追问中后果不同。',
+    },
+    {
+      id: 'gusu-performer-iron-arm-choice',
+      title: '街头卖艺·铁臂猿：认输保住气血上限',
+      questId: 11447,
+      chapterRoots: [],
+      decisionSteps: [11456],
+      requireDecisionWindow: true,
+      afterAllComplete: [],
+      untilAnyStarted: [],
+      deadlineLabel: '挑战铁臂猿、决定是否硬拼之前',
+      recommendation: {
+        hint: '铁臂猿：选「认输」，保住气血上限',
+        caution: '「拼了」会扣5点气血上限。',
+        goal: '保住气血上限，并取得本段赤铜锭',
+        action: '优先选「认输」，取得赤铜锭×3。',
+        reason: '认输无气血上限扣减；硬拼会扣5点气血上限，且该按钮不发赤铜锭。',
+        tradeoff: '认输后返回挑选对手；后续挑战与灯会结算仍需继续按当前任务完成。',
+      },
+      pickup: { place: '姑苏灯会', person: '铁臂猿', action: '按当前挑战对话决定是否硬拼。' },
+      warning: '硬拼会损失气血上限；认输给赤铜锭×3。',
+      choices: [
+        { label: '拼了', effect: '气血上限减少5点；该按钮不发赤铜锭，然后返回挑选对手。' },
+        { label: '认输', effect: '赤铜锭×3；无气血上限扣减，然后返回挑选对手。' },
+      ],
+      sourceIds: ['gusuPerformerGame'],
+      uncertainty: '已核对当前构建原表按钮与直接动作，未实机验证；不以选完本段推断街头卖艺或后续灯会已完成。',
     },
     {
       id: 'chengyu-stay-choice',

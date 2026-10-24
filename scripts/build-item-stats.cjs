@@ -119,7 +119,9 @@ function buildItemStats({ gameIndex, items, pools, buffs, formats, attributes, p
     outputPools = {},
     outputBuffs = {},
     outputAttrs = {};
-  const neededAttrs = new Set(),
+  // Quest 5054 also grants GatheringExp. Keep its numeric label in this
+  // canonical attribute catalog rather than duplicating it in quest views.
+  const neededAttrs = new Set([68]),
     neededPools = new Set(),
     neededBuffs = new Set();
   function remember(action) {

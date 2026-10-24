@@ -20,6 +20,7 @@ const triples = (rows = []) =>
     .filter((r) => Number.isInteger(r.id) && Number.isFinite(r.value));
 const effectTypes = new Set([
   'CItem',
+  'CAttr',
   'ARandItem',
   'ANormalRandItem',
   'CMoney',

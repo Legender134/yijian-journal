@@ -325,7 +325,7 @@ test('skill detail includes proven affinity, base cost, growth and exact learnin
   const all = index.entries.filter((e) => e.kind === '武学');
   for (const e of all) assert(index.codex.skills[e.gameId], e.id);
 });
-test('hidden pill quantity conditions retain the actual item without inventing an ItemMax comparison', async () => {
+test('hidden pill absence conditions retain the actual item and strict native ItemMax comparison', async () => {
   const { createCodexDetailViews } = await import('../src/renderer/codex-detail-views.js');
   const { createWorldViews } = await import('../src/renderer/world-views.js');
   const index = encyclopedia();
@@ -342,11 +342,47 @@ test('hidden pill quantity conditions retain the actual item without inventing a
   const step = html.split('data-quest-step="11743"')[1].split('class="codex-outcome-step"')[0];
   assert.match(step, /物品要求/);
   assert.match(step, /data-action="database-detail" data-id="item-165">九炼熊蛇丸/);
-  assert.match(step, /数量条件待确认/);
-  assert.doesNotMatch(step, /资料条件 · 1|已满足|至少|至多|最多/);
+  assert.match(step, /未持有/);
+  assert.match(step, /未满足/);
+  assert.doesNotMatch(step, /数量条件待确认|资料条件 · 1|已满足|至少|至多|最多/);
   const missing = worldViews.requirementRows([{ type: 'ItemMax', id: 999999, value: 1 }], index, {});
   assert.match(missing, /未收录物品/);
   assert.doesNotMatch(missing, /data-id="item-999999"/);
+});
+
+test('quest outcomes expose actual attribute costs and life experience without adding difficulty alternatives', async () => {
+  const { createCodexDetailViews } = await import('../src/renderer/codex-detail-views.js');
+  const index = encyclopedia();
+  const view = createCodexDetailViews(helpers);
+  const detail = (id) =>
+    view.quest(
+      index,
+      index.world.quests.find((row) => row.gameId === id),
+      null,
+    );
+  const performer = detail(11447);
+  for (const [step, choice, loss] of [
+    [11453, '吃九盆', 5],
+    [11455, '再吃三盆', 2],
+    [11456, '拼了', 5],
+  ]) {
+    const section = performer.split(`data-quest-step="${step}"`)[1].split('class="codex-outcome-step"')[0];
+    const option = section.split(`<summary>选择「${choice}」</summary>`)[1].split('</details>')[0];
+    assert.match(option, new RegExp(`气血上限 <strong>-${loss} 点</strong>`));
+  }
+  assert.deepEqual(index.itemStats.attributes[68], {
+    key: 'GatheringExp',
+    name: '采集经验',
+    unit: '点',
+    scale: 1,
+    precision: 2,
+  });
+  assert.match(detail(5054), /采集经验 <strong>\+10 点<\/strong>/);
+  const alchemy = detail(6256);
+  assert.match(alchemy, /炼丹经验 <strong>\+800 点<\/strong>/);
+  assert.equal((alchemy.match(/炼丹经验/g) || []).length, 1);
+  assert.doesNotMatch(alchemy, /\+2,400|\+2400/);
+  assert.match(detail(11110), /钓鱼经验 <strong>\+300 点<\/strong>/);
 });
 
 test('unified codex browses quests and scenes, keeps every search result and dispatches typed links', async () => {

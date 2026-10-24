@@ -87,6 +87,7 @@ function fixture() {
       { Id: 1, Key: 'Health' },
       { Id: 9, Key: 'AttackPower' },
       { Id: 10, Key: 'Crit' },
+      { Id: 68, Key: 'GatheringExp' },
     ],
     provenance: {
       schema: 1,

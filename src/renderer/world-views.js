@@ -190,7 +190,12 @@ export function createWorldViews({
             const target = item
               ? act('database-detail', esc(item.name), 'text-btn', item.id)
               : esc(r.name || '未收录物品');
-            return `<div class="world-rule"><span class="small muted">物品要求</span><span>${target} · 数量条件待确认</span></div>`;
+            const check = completionChecks(
+              [{ ...r, name: item?.name || r.name || '未收录物品' }],
+              view.reference?.metadata,
+            )[0];
+            const quantity = r.value === 1 ? '未持有' : `数量少于 ${Number(r.value).toLocaleString('zh-CN')}`;
+            return `<div class="world-rule"><span class="small muted">物品要求</span><span>${target} · ${esc(quantity)}</span>${view.reference ? pill(check.status === 'met' ? '已满足' : check.status === 'unmet' ? '未满足' : '未确认', check.status === 'met' ? 'green' : check.status === 'unmet' ? 'orange' : '') : ''}</div>`;
           }
           if (r.type === 'Money' || r.type === 'TeamMember') {
             const check = completionChecks(
