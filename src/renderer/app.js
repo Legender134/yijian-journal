@@ -4046,7 +4046,7 @@ function dismissOverlay() {
       activeIntentEditor = intent.returnContext.editor;
       journeyDraft = intent.returnContext.draft;
       overlay.querySelector('[data-action="journey-intent-remove"]')?.focus({ preventScroll: true });
-      overlay.querySelector('.modal').scrollTop = intent.returnContext.scroll;
+      overlay.querySelector('.journey-intent-body').scrollTop = intent.returnContext.scroll;
       if (journeyDraft?.kind === 'gift') loadGiftStock(journeyDraft);
       return;
     }
@@ -6321,7 +6321,7 @@ async function handle(action, id, target, navigationFocused = false) {
           content: overlay.firstChild,
           editor: activeIntentEditor,
           draft,
-          scroll: overlay.querySelector('.modal').scrollTop,
+          scroll: overlay.querySelector('.journey-intent-body').scrollTop,
         },
       };
       modal(
