@@ -239,7 +239,7 @@ async function recipeReservationConsistency() {
       assert.equal(material.owned, 2);
       assert.equal(material.missing, Math.max(0, quantity - 2));
       assert.match(text, /已有 2/);
-      assert.match(text, quantity > 2 ? new RegExp('还缺 ' + (quantity - 2)) : /已备齐/);
+      assert.equal(await coal.locator('.pill').innerText(), quantity > 2 ? '缺 ' + (quantity - 2) : '足够');
       samples.push({ quantity, text, owned: material.owned, missing: material.missing });
     }
     check(
@@ -290,10 +290,10 @@ async function recipeReservationConsistency() {
     const released = await win.evaluate(() => window.journal.recipePlan('fusion-1000', 3, '0.sav'));
     assert(released.ok, released.error);
     assert.equal(released.data.materials.find((m) => m.id === 10205).owned, 5);
-    assert.match(await coal.innerText(), /已备齐/);
+    assert.equal(await coal.locator('.pill').innerText(), '足够');
     await reserve(true);
     await coal.filter({ hasText: '已有 2' }).waitFor();
-    assert.match(await coal.innerText(), /还缺 1/);
+    assert.equal(await coal.locator('.pill').innerText(), '缺 1');
     assert.equal(await win.locator('#recipe-quantity').inputValue(), '3');
     check(
       'open recipe follows cross-window plan release and reservation without losing quantity or fixed reference',
