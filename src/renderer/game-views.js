@@ -134,7 +134,8 @@ export function createGameViews({
     if (!e) return '';
     const itemLink = (id, name) =>
       byId(index, `item-${id}`) ? act('database-detail', esc(name), 'text-btn', `item-${id}`) : esc(name);
-    let extra = '';
+    let extra = '',
+      recipeState = '';
     const reserved = Object.values(allocationTotals).reduce((a, b) => a + b, 0);
     if (e.kind === '物品')
       extra = `${itemStats.detail(index, e)}${e.useLimit ? `<p class="item-use-limit">使用次数上限 ${esc(e.useLimit)} 次</p>` : ''}<details class="detail-block item-trade-details" data-persist-detail="item-trade-${esc(e.id)}"><summary>价格与赠礼</summary><div class="detail-stat-grid"><div><small>买入基础价</small><strong>${e.buyPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 文</strong></div><div><small>卖出基础价</small><strong>${e.sellPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 文</strong></div><div><small>赠礼</small><strong>${e.giftable ? '可以赠送' : '不可赠送'}</strong></div></div></details>`;
@@ -216,7 +217,10 @@ export function createGameViews({
           { fusion: 'fusionRecipes', alchemy: 'alchemyRecipes', cooking: 'cookingRecipes' }[e.recipeType]
         ];
       if (Array.isArray(learned))
-        extra = notice(learned.includes(e.gameId) ? '已学会' : '尚未学会', true) + extra;
+        recipeState = pill(
+          learned.includes(e.gameId) ? '已学会' : '尚未学会',
+          learned.includes(e.gameId) ? 'green' : '',
+        );
     }
     if (e.kind === '配方' && e.learningItems?.length)
       extra += `<div class="detail-block recipe-learning"><h3>学习这份配方的图纸</h3><div class="related-items">${e.learningItems.map((id) => itemLink(id, byId(index, `item-${id}`)?.name || `物品 #${id}`)).join('')}</div></div>`;
@@ -266,7 +270,7 @@ export function createGameViews({
     }
     const guides =
       index.guideEntries?.filter((g) => g.title.includes(e.name) || e.name.includes(g.title)) || [];
-    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(e.name)}资料"><div class="drawer-head"><span class="small muted">图鉴 / ${e.kind}</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="game-detail-title">${picture(e.id, 'detail')}<div><h1>${qualityText.name(e, e.name)}</h1><div class="game-detail-meta">${e.kind === '人物' ? '' : esc(typeName(e))}${e.quality ? ' · ' + esc(e.quality) + '色' : ''}</div></div></div>${e.description && e.kind !== '人物' ? `<p class="intro preserve-text">${richText(e.description)}</p>` : ''}${extra}${e.description && e.kind === '人物' ? `<details class="detail-block"><summary>人物经历</summary><p class="preserve-text">${richText(e.description)}</p></details>` : ''}${guides.length ? `<div class="detail-block"><h3>手札里的相关线索</h3>${guides.map((g) => '<div class="row wrap mb"><span>' + richText(g.title) + '</span>' + act('detail', '查看线索', 'text-btn', g.id, 'arrow') + '</div>').join('')}</div>` : ''}</div><div class="drawer-actions">${act(e.kind === '配方' ? 'recipe-goal' : 'database-goal', e.kind === '配方' ? '把备料单加入待办' : '设为目标', 'btn primary', e.id, 'plus')}${e.kind === '人物' && (!Array.isArray(e.functions) || e.functions.includes('Gift')) ? (e.hobbies.length ? act('database-gifts', '偏好物品', 'btn', e.id, 'search') : '') + act('journey-gift-dialog', '规划赠礼', 'btn', e.id, 'plus') : e.kind === '物品' && e.giftable ? act('journey-gift-dialog', '规划赠礼', 'btn', ':' + e.id, 'plus') : ''}</div></section>`;
+    return `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(e.name)}资料"><div class="drawer-head"><span class="small muted">图鉴 / ${e.kind}</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="game-detail-title">${picture(e.id, 'detail')}<div><h1>${qualityText.name(e, e.name)}</h1><div class="game-detail-meta">${e.kind === '人物' ? '' : esc(typeName(e))}${e.quality ? ' · ' + esc(e.quality) + '色' : ''}${recipeState ? ' · ' + recipeState : ''}</div></div></div>${e.description && e.kind !== '人物' ? `<p class="intro preserve-text">${richText(e.description)}</p>` : ''}${extra}${e.description && e.kind === '人物' ? `<details class="detail-block"><summary>人物经历</summary><p class="preserve-text">${richText(e.description)}</p></details>` : ''}${guides.length ? `<div class="detail-block"><h3>手札里的相关线索</h3>${guides.map((g) => '<div class="row wrap mb"><span>' + richText(g.title) + '</span>' + act('detail', '查看线索', 'text-btn', g.id, 'arrow') + '</div>').join('')}</div>` : ''}</div><div class="drawer-actions">${act(e.kind === '配方' ? 'recipe-goal' : 'database-goal', e.kind === '配方' ? '把备料单加入待办' : '设为目标', 'btn primary', e.id, 'plus')}${e.kind === '人物' && (!Array.isArray(e.functions) || e.functions.includes('Gift')) ? (e.hobbies.length ? act('database-gifts', '偏好物品', 'btn', e.id, 'search') : '') + act('journey-gift-dialog', '规划赠礼', 'btn', e.id, 'plus') : e.kind === '物品' && e.giftable ? act('journey-gift-dialog', '规划赠礼', 'btn', ':' + e.id, 'plus') : ''}</div></section>`;
   }
   function recipeMaterials(e, quantity, index, reference = null) {
     const inventory = reference?.metadata.inventory,

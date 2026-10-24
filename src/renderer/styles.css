@@ -1830,7 +1830,7 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  margin-bottom: 17px;
+  margin-bottom: 12px;
 }
 .field label {
   font-size: 12px;
@@ -1883,6 +1883,12 @@ kbd {
 }
 .stack textarea {
   resize: vertical;
+}
+.stack .search-input > input {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .stack .row label {
   flex: 1 1 140px;
@@ -2090,7 +2096,7 @@ kbd {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 0;
+  padding: 8px 0;
   border-bottom: 1px solid #e6e9dc;
 }
 .setting-row > label {
@@ -2107,13 +2113,17 @@ kbd {
 .setting-row h3 {
   font-size: 13px;
   font-weight: 500;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .setting-row p {
   font-size: 11px;
   color: var(--muted);
   max-width: 650px;
   overflow-wrap: anywhere;
+}
+.setting-row .text-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .switch {
   width: 38px;
@@ -2298,7 +2308,7 @@ kbd {
   border: 1px solid #e1e5d9;
   border-radius: 14px;
   box-shadow: 0 20px 70px #0002;
-  padding: 26px;
+  padding: 20px;
   max-height: 88vh;
   overflow: auto;
   animation: fadeIn 0.16s ease;
@@ -2310,14 +2320,20 @@ kbd {
 .modal p {
   color: var(--muted);
   font-size: 12px;
-  margin-bottom: 19px;
-  line-height: 1.9;
+  margin-bottom: 12px;
+  line-height: 1.65;
 }
 .modal-footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 9px;
-  margin-top: 23px;
+  margin-top: 16px;
+}
+.modal-footer > .btn {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .personal-intent-editor .modal-footer {
   flex-wrap: wrap;
@@ -3002,11 +3018,11 @@ kbd {
   background: #f1efdf;
   border: 1px solid #e1dfc9;
   border-radius: 10px;
-  padding: 19px;
-  margin: 24px 0;
+  padding: 12px;
+  margin: 14px 0;
 }
 .recipe-box > .small {
-  margin: 12px 0;
+  margin: 8px 0;
 }
 .quantity-label {
   display: flex;
@@ -3029,11 +3045,11 @@ kbd {
 }
 .material-row {
   display: flex;
-  gap: 15px;
+  gap: 10px;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #dedfce;
-  padding: 10px 0;
+  padding: 8px 0;
   font-size: 12px;
 }
 .material-row strong {
@@ -3042,7 +3058,7 @@ kbd {
 }
 .material-row.total {
   border-bottom: 0;
-  padding-top: 16px;
+  padding-top: 10px;
 }
 .recipe-box h3 {
   font-size: 14px;
@@ -3565,6 +3581,10 @@ kbd {
 }
 .craft-layout > * {
   min-width: 0;
+}
+.craft-plan-panel .card-header {
+  gap: 8px;
+  margin-bottom: 8px;
 }
 .craft-suggestions > div {
   display: flex;
@@ -4364,15 +4384,20 @@ details.card:not([open]) {
   line-height: 1.7;
 }
 .duel-compact-card > summary {
+  position: relative;
   list-style: none;
   cursor: pointer;
 }
+.duel-compact-card > summary > .row {
+  padding-right: 16px;
+}
 .duel-compact-card > summary::after {
   content: '▸';
-  display: block;
+  position: absolute;
+  right: 0;
+  top: 2px;
   font-size: 11px;
   color: var(--green);
-  margin-top: 5px;
 }
 .duel-compact-card[open] > summary::after {
   content: '▾';
@@ -4395,8 +4420,8 @@ details.card:not([open]) {
   margin-top: 0;
 }
 .companion .duel-compact-card {
-  padding: 12px;
-  margin: 10px 0;
+  padding: 10px;
+  margin: 8px 0;
 }
 
 /* Stable brand and compact healthy connection; task content owns the workspace. */
@@ -4491,13 +4516,19 @@ details.card:not([open]) {
 }
 .npc-progress-card {
   border-bottom: 1px solid var(--line);
-  padding: 12px 0;
+  padding: 10px 0;
+}
+.npc-progress-detail > p {
+  margin: 6px 0;
+}
+details.flow-task-materials {
+  margin: 0 0 8px;
 }
 .npc-progress-card > summary {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   padding-left: 16px;
   list-style: none;
 }

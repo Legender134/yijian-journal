@@ -360,6 +360,11 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
         : recommended.length
           ? ''
           : `<p class="small muted">${active.length ? '当前已识别的进行中步骤暂无可展示的材料需求。' : '暂无可识别进行中步骤的材料需求，请核对游戏任务栏。'}</p>`;
+    if (flow?.available && !needs.length && !recommended.length && !list(flow.sharedMaterials).length)
+      return persist(
+        `<details class="flow-task-materials" data-flow-task-materials data-persist-detail="empty-task-materials"><summary>任务备料 · 暂无已知需求</summary>${body}</details>`,
+        'task-materials',
+      );
     return persist(
       `<section class="flow-task-materials" data-flow-task-materials><h2>当前任务备料</h2>${flow?.available ? (compact && list(flow.sharedMaterials).length ? `<details data-persist-detail="task-shared-materials"><summary>共用材料 · 按合计量预留</summary>${sharedMaterialSummary(flow.sharedMaterials)}</details>` : sharedMaterialSummary(flow.sharedMaterials)) : ''}${body}${recommended.map((row) => `<article data-flow-rule="${text(row.id)}"><h3>${questButton(row.questId, row.name)}</h3>${compact ? `<p class="small">${text(row.recommendation.materialLabel)}</p>${compactMaterials(row.recommendation.materials, [], { scope: row.id })}` : choiceMaterials(row)}</article>`).join('')}</section>`,
       'task-materials',

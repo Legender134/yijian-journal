@@ -1464,15 +1464,17 @@ function craftRecipeSummary(list) {
 function materialPage() {
   const p = profile(),
     selected = p.craftPlans?.find((x) => x.id === p.activeCraftPlanId);
-  const draftReservation = selected?.done
-    ? `<p class="save-note">正在查看已完成计划，编辑清单不再预留材料。重新打开该计划后，按原先的预留规则核对。</p>${act('craft-plan-complete', '重新打开这份计划', 'btn soft', selected.id, 'refresh')}`
-    : act(
-        'craft-draft-reserve',
-        p.reserveCraftDraft === false ? '为编辑清单保留材料' : '编辑清单已保留材料 · 点击释放',
-        'text-btn',
-        '',
-        'shield',
-      );
+  const draftReservation = !p.craftList?.length
+    ? ''
+    : selected?.done
+      ? `<p class="save-note">正在查看已完成计划，编辑清单不再预留材料。重新打开该计划后，按原先的预留规则核对。</p>${act('craft-plan-complete', '重新打开这份计划', 'btn soft', selected.id, 'refresh')}`
+      : act(
+          'craft-draft-reserve',
+          p.reserveCraftDraft === false ? '预留清单材料' : '已预留清单材料 · 释放',
+          'text-btn',
+          '',
+          'shield',
+        );
   const rows = (p.craftPlans || [])
     .map((plan) => {
       const contents = craftRecipeSummary(plan.list),
@@ -1482,7 +1484,7 @@ function materialPage() {
       return `<div class="backup-row" data-craft-plan-id="${esc(plan.id)}"><div class="spacer"><h3>${esc(plan.name)}</h3><p data-craft-plan-contents>${craftRecipeLinks(plan.list)}</p><p>${plan.list.length} 种配方 · ${plan.done ? '个人已制作完成 · 用料已释放' : plan.reserved === false ? '尚未预留材料' : '按本周目规则预留'} · ${when(plan.updatedAt)}</p></div>${button('craft-plan-open', '打开', 'btn', 'book')}${button('craft-plan-complete', plan.done ? '重新打开计划' : '完成整份计划…', 'btn soft', plan.done ? 'refresh' : 'check')}${button('craft-plan-copy', '另存一份', 'text-btn', 'plus')}${!plan.done ? button('craft-plan-reserve', plan.reserved === false ? '保留材料' : '释放计划用量', 'text-btn', 'shield') : ''}${iconButton('craft-plan-remove', 'trash', '移除制作计划：' + context, plan.id)}</div>`;
     })
     .join('');
-  const plans = `<section class="card mb"><div class="card-header"><h2>我的制作计划</h2>${(p.craftList || []).length ? act('craft-plan-dialog', selected ? '保存为新计划' : '保存当前清单', 'btn soft', '', 'plus') + (selected ? act('craft-plan-dialog', '更新「' + selected.name + '」', 'btn', selected.id, 'edit') : '') : ''}</div><p class="save-note">完成计划后释放预留材料，可随时重新打开。</p>${draftReservation}${rows || '<p class="small muted">先添加配方，再保存第一份计划。</p>'}${p.previousCraftList ? act('craft-draft-restore', '找回上一次编辑清单 · ' + p.previousCraftList.length + ' 种配方', 'text-btn', '', 'refresh') : ''}</section>`;
+  const plans = `<section class="card mb craft-plan-panel"><div class="card-header"><h2>我的制作计划</h2><div class="row wrap">${selected?.done ? '' : draftReservation}${(p.craftList || []).length ? act('craft-plan-dialog', selected ? '保存为新计划' : '保存当前清单', 'btn soft', '', 'plus') + (selected ? act('craft-plan-dialog', '更新「' + selected.name + '」', 'btn', selected.id, 'edit') : '') : ''}</div></div>${selected?.done ? draftReservation : ''}${rows || (p.craftList?.length ? '' : '<p class="small muted">暂无制作计划</p>')}${p.previousCraftList ? act('craft-draft-restore', '找回上一次编辑清单 · ' + p.previousCraftList.length + ' 种配方', 'text-btn', '', 'refresh') : ''}</section>`;
   return (
     taskMaterialsSection() +
     journeyTrashViews.entry(p) +
@@ -3174,10 +3176,10 @@ function companionSettings() {
     )}</select><label for="companion-opacity">提示透明度</label><select id="companion-opacity" class="input">${options.map((n) => `<option value="${n}" ${n === opacity ? 'selected' : ''}>${Number((n * 100).toFixed(2))}%${presets.includes(n) ? '' : '（当前）'}</option>`).join('')}</select></div><p class="small muted">Esc 关闭详情，再按返回轻提示。使用窗口化或无边框模式。</p></details>`;
 }
 function settingsPage() {
-  return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">阅读与陪伴</h2><div class="setting-row"><div><h3>游戏进度</h3><p>${profile().referenceMode === 'none' ? '仅查资料' : profile().saveSlot ? esc(profile().saveSlot) : '自动使用最新进度'}</p></div>${act('save-slot', '更改', 'btn', '', 'edit')}</div><div class="setting-row"><div><label for="reading-scale"><strong>界面大小</strong></label><p>快捷键 Ctrl + / −，Ctrl + 0 恢复默认。</p></div><div class="row wrap"><select id="reading-scale" class="input" aria-label="界面大小">${[100, 110, 125, 150].map((size) => `<option value="${size}"${(state.settings.readingScale || 100) === size ? ' selected' : ''}>${size}%${size === 100 ? ' · 默认' : ''}</option>`).join('')}</select>${act('reading-scale-reset', '恢复默认大小', 'text-btn')}</div></div><div class="setting-row"><div><h3>使用帮助</h3></div>${act('help', '打开使用说明', 'btn', '', 'book')}</div><div class="setting-row"><div><h3>少剧透提示</h3><p>详细剧情折叠显示。</p></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3>随行小窗</h3><p>Ctrl + Alt + J 展开或收起。</p></div>${act('compact', '打开随行小窗', 'btn', '', 'pin')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3></div>${act('profiles', '管理周目', 'btn', '', 'person')}</div></section>
+  return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">常用设置</h2><div class="setting-row"><div><h3>游戏进度</h3><p>${profile().referenceMode === 'none' ? '仅查资料' : profile().saveSlot ? esc(profile().saveSlot) : '自动使用最新进度'}</p></div>${act('save-slot', '更改', 'btn', '', 'edit')}</div><div class="setting-row"><div><label for="reading-scale" title="Ctrl + / −，Ctrl + 0 恢复默认"><strong>界面大小</strong></label></div><div class="row wrap"><select id="reading-scale" class="input" aria-label="界面大小">${[100, 110, 125, 150].map((size) => `<option value="${size}"${(state.settings.readingScale || 100) === size ? ' selected' : ''}>${size}%${size === 100 ? ' · 默认' : ''}</option>`).join('')}</select>${act('reading-scale-reset', '恢复默认', 'text-btn', '', '', '恢复默认大小')}</div></div><div class="setting-row"><div><h3>使用帮助</h3></div>${act('help', '查看', 'btn', '', 'book', '打开使用说明')}</div><div class="setting-row"><div><h3>少剧透提示</h3></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3 title="Ctrl + Alt + J">随行小窗</h3></div>${act('compact', '打开', 'btn', '', 'pin', '打开随行小窗')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3></div>${act('profiles', '管理', 'btn', '', 'person', '管理周目')}</div></section>
  ${windowLayoutSettings()}${companionSettings()}${shortcutSettings()}<details class="card settings-section" data-persist-detail="settings-connection"><summary>本机连接</summary><div class="setting-row"><div><h3>逸剑风云决 ${environment.game.installed ? '· 已找到' : '· 由 Steam 启动'}</h3><p>${esc(environment.game.path || '使用 Steam 游戏入口启动')}${environment.game.build ? ` · Build ${esc(environment.game.build)}` : ''}</p></div>${act('launch', '启动游戏', 'btn', '', 'game')}</div><div class="setting-row"><div><h3>游戏存档目录</h3><p class="mono">${esc(state.settings.savePath || '尚未选择')}</p></div>${act('choose-saves', '选择目录', 'btn', '', 'folder')}</div>${environment.detected.length > 1 ? `<div class="setting-row"><div><h3>检测到多个存档目录</h3><p>请选择你本次游玩的账户目录。</p></div><select id="detected-save" class="input">${environment.detected.map((p) => `<option value="${esc(p)}" ${p === state.settings.savePath ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>` : ''}<div class="setting-row"><div><h3>完整自动备份 · ${backupStatus()}</h3><p>保存后自动留存副本；游戏内自动存档在存档匣设置。</p></div><button class="switch ${state.settings.autoBackup ? 'on' : ''}" role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" data-action="auto-backup"></button></div></details>
  ${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${protectionViews.controls(protectionView)}<details class="card settings-section" data-persist-detail="settings-data"><summary>记录与数据</summary><div class="setting-row"><div><h3>手札备份</h3><p>导出全部周目的记录。导入前会保留当前手札副本；此功能不包含游戏存档。</p></div><div class="row">${act('import', '导入', 'btn', '', 'upload')}${act('export', '导出手札', 'btn', '', 'download')}</div></div><div class="setting-row"><div><h3>本地数据目录</h3><p class="mono">${esc(environment.userData)}</p></div>${act('folder', '打开', 'btn', 'data', 'folder')}</div><div class="setting-row"><div><h3>游戏存档备份目录</h3><p class="mono">${esc(environment.backupRoot)}</p></div>${act('folder', '打开', 'btn', 'backups', 'folder')}</div></details>
- <section class="card"><h2 class="mb">软件更新</h2>${updatePanel()}</section><section class="card"><div class="card-header"><h2>资料与版本</h2>${pill(`v${version}`)}</div><p class="small muted mb">${esc(gameIndex.source)} · Build ${esc(gameIndex.build)}。非官方助手。</p><details data-persist-detail="settings-reading-source"><summary>读取方式与资料说明</summary><p>未接入游戏时，保存后更新。接入后，跟随最新进度的任务、人物和已支持对话选择会现场更新。</p><p>背包、铜钱和备料仍按保存记录核对。</p><p>图鉴基础等级与商品资料可能随剧情、难度和培养变化。</p><p>${esc(catalog.notice)}</p></details><details data-persist-detail="settings-sources"><summary>资料来源</summary><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></details></section></div>`;
+ <section class="card"><h2 class="mb">软件更新</h2>${updatePanel()}</section><details class="card settings-section" data-persist-detail="settings-about"><summary>资料与版本 ${pill(`v${version}`)}</summary><p class="small muted mb">${esc(gameIndex.source)} · Build ${esc(gameIndex.build)}。非官方助手。</p><details data-persist-detail="settings-reading-source"><summary>读取方式与资料说明</summary><p>未接入游戏时，保存后更新。接入后，跟随最新进度的任务、人物和已支持对话选择会现场更新。</p><p>背包、铜钱和备料仍按保存记录核对。</p><p>图鉴基础等级与商品资料可能随剧情、难度和培养变化。</p><p>${esc(catalog.notice)}</p></details><details data-persist-detail="settings-sources"><summary>资料来源</summary><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></details></details></div>`;
 }
 function homeJourney() {
   const plan = environment.journey;
@@ -4189,8 +4191,8 @@ function goalModal(id, savedDraft = null) {
 function profilesModal() {
   modal(
     '管理周目',
-    '清单、目标和笔记按周目保存。',
-    `<div class="field"><label for="profile-select">切换周目</label><select id="profile-select">${state.profiles.map((p) => `<option value="${p.id}" ${p.id === profile().id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div><div class="row mb">${act('profile-switch', '切换到此周目', 'btn soft')}${act('profile-rename', '重命名当前周目', 'text-btn')}</div><div class="separator"></div><div class="field"><label for="profile-name">新周目名称</label><input id="profile-name" placeholder="例如：二周目 · 刀法之旅" maxlength="40"></div>`,
+    '',
+    `<div class="field"><label for="profile-select">切换周目</label><select id="profile-select">${state.profiles.map((p) => `<option value="${p.id}" ${p.id === profile().id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div><div class="row mb">${act('profile-switch', '切换', 'btn soft', '', '', '切换到此周目')}${act('profile-rename', '重命名', 'text-btn', '', '', '重命名当前周目')}</div><div class="separator"></div><div class="field"><label for="profile-name">新周目名称</label><input id="profile-name" placeholder="例如：二周目 · 刀法之旅" maxlength="40"></div>`,
     act('profile-create', '新建周目', 'btn primary'),
   );
 }
@@ -4199,7 +4201,7 @@ function saveSlotModal(sourceFiles = environment.saves.files) {
   const files = sourceFiles.filter((f) => f.metadata);
   modal(
     '游戏进度',
-    '供流程、图鉴和备料共同使用。',
+    '',
     `<div class="field"><label for="save-slot-select">使用进度</label><select id="save-slot-select"><option value="@latest" ${current === '@latest' ? 'selected' : ''}>自动使用最新进度</option><option value="@none" ${current === '@none' ? 'selected' : ''}>仅查资料 · 不核对游戏存档</option>${!current.startsWith('@') && !files.some((f) => f.name === current) ? `<option value="${esc(current)}" selected>${esc(current)} · 当前不可读</option>` : ''}${files.map((f) => `<option value="${esc(f.name)}" ${f.name === current ? 'selected' : ''}>${esc(f.name)} · ${esc(f.metadata.mapName)} · ${hours(f.metadata.playSeconds)} · ${when(f.modifiedAt)}</option>`).join('')}</select></div>`,
     act('save-slot-save', '保存选择', 'btn primary'),
   );

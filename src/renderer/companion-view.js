@@ -32,12 +32,8 @@ export function createCompanionViews({
     const plan = data?.materials;
     const sharedMoney = craftMoneyNotice(data?.allocations, esc);
     const ownMoney = plan?.stages ? plan.stages.money : plan?.money;
-    if (!plan)
-      return (
-        sharedMoney +
-        '<p class="small muted">将配方加入备料清单，或在图鉴中加入制作目标，这里会随有效存档更新。</p>'
-      );
-    return `<section class="companion-materials">${sharedMoney}<h3>${icon('bag')} ${esc(data.materialsLabel || '当前备料')} · ${plan.recipes.length} 项配方</h3>${data.materialsCompleted ? '<p class="notice">个人已制作完成 · 用料已释放</p><p class="save-note">下方仅供若重新制作时核对；本计划不再计入待制作安排。</p>' : ''}${data.allocations?.baseMaterialMissingTotal > 0 ? `<p class="small shortage">${data.materialsCompleted ? '其他未完成的任务、制作与赠礼计划' : '全部任务、制作与赠礼计划'}按加工安排的原料共同还缺 ${data.allocations.baseMaterialMissingTotal} 件，可在行程中查看每项需求。</p>${act('navigate', '查看完整行程', 'text-btn', 'journey', 'map')}` : ''}${plan.materials.map((m) => `<div class="companion-material"><div>${materialIdentity(m)}</div><span class="${m.missing > 0 ? 'shortage' : 'muted'}">${data.materialsCompleted ? '若重做：' : ''}${m.missing === null ? `需 ${m.count} · 待核对` : m.missing ? `还缺 ${m.missing}` : '已齐'}</span></div>`).join('')}${plan.stages ? `<p class="small">${data.materialsCompleted ? '若重新制作：' : ''}原料还缺 ${plan.stages.rawMissingTotal ?? '待核对'} 件 · 先加工 ${plan.stages.workRemaining.processing} 次 · 再制作 ${plan.stages.workRemaining.final} 次</p>` : ''}<p class="small muted">${data.materialsCompleted ? '若重做' : '本清单'}含加工费用 ${ownMoney === null ? '待核对' : ownMoney.toLocaleString() + ' 文'}${data.materialsCompleted ? '，未纳入共同预算' : ''}</p>${managementLink ? act('main-materials', '调整清单与留用数量', 'btn soft', '', 'external') : ''}</section>`;
+    if (!plan) return sharedMoney + '<p class="small muted">暂无制作清单</p>';
+    return `<section class="companion-materials">${sharedMoney}<h3>${icon('bag')} ${esc(data.materialsLabel || '当前备料')} · ${plan.recipes.length} 项配方</h3>${data.materialsCompleted ? '<p class="notice">个人已制作完成 · 用料已释放</p><p class="save-note">下方仅供若重新制作时核对；本计划不再计入待制作安排。</p>' : ''}${data.allocations?.baseMaterialMissingTotal > 0 ? `<p class="small shortage">${data.materialsCompleted ? '其他未完成的任务、制作与赠礼计划' : '全部任务、制作与赠礼计划'}共同还缺 ${data.allocations.baseMaterialMissingTotal} 件物资。</p>${act('navigate', '查看完整行程', 'text-btn', 'journey', 'map')}` : ''}${plan.materials.map((m) => `<div class="companion-material"><div>${materialIdentity(m)}</div><span class="${m.missing > 0 ? 'shortage' : 'muted'}">${data.materialsCompleted ? '若重做：' : ''}${m.missing === null ? `需 ${m.count} · 待核对` : m.missing ? `还缺 ${m.missing}` : '已齐'}</span></div>`).join('')}${plan.stages ? `<p class="small">${data.materialsCompleted ? '若重新制作：' : ''}原料还缺 ${plan.stages.rawMissingTotal ?? '待核对'} 件 · 先加工 ${plan.stages.workRemaining.processing} 次 · 再制作 ${plan.stages.workRemaining.final} 次</p>` : ''}<p class="small muted">${data.materialsCompleted ? '若重做' : '本清单'}含加工费用 ${ownMoney === null ? '待核对' : ownMoney.toLocaleString() + ' 文'}${data.materialsCompleted ? '，未纳入共同预算' : ''}</p>${managementLink ? act('main-materials', '调整清单与留用数量', 'btn soft', '', 'external') : ''}</section>`;
   }
   function frame(body, footer) {
     return `<div class="compact-shell"><div class="compact-title" title="拖动标题栏调整位置，拖动窗口边缘调整大小"><div class="row"><img class="app-mark" src="../assets/icon.svg" alt=""><span>逸剑手札</span></div>${iconButton('search', 'search', '搜索图鉴')}${act('main', '完整手札', 'compact-control', '', 'external')}${act('companion-tuck', '收起', 'compact-control', '', 'tuck')}${iconButton('companion-layout', 'more', '布局与显示')}</div><div class="companion-tabs">${act('navigate', '流程', 'text-btn', 'home', 'pin')}${act('navigate', '比武请教', 'text-btn', 'duels', 'duel')}${act('navigate', '图鉴', 'text-btn', 'database', 'book')}${act('navigate', '存档', 'text-btn', 'saves', 'archive')}</div><div class="compact-body">${body}</div><div class="compact-foot"><span data-save-health>${footer}</span><span data-update-badge>${updateBadge()}</span></div></div>`;
@@ -52,7 +48,7 @@ export function createCompanionViews({
       const undo = trip.steps.filter(
         (s) => s.handled || s.skipped || (s.status === 'user-done' && s.craftPlanId),
       );
-      return `<section data-companion-itinerary><h3 class="companion-section">${esc(trip.name)} · 还剩 ${trip.summary.remaining} 项</h3><p class="small muted">你选定的顺序 · ${trip.status === 'ended' ? '已结束，可继续' : trip.status === 'active' ? '进行中，随时续接' : '已选好，准备开始'}</p>${trip.status !== 'active' ? act('journey-itinerary-status', trip.status === 'ended' ? '继续这一程' : '开始这一程', 'btn soft', 'active') : ''}${next ? `<div class="compact-goal" data-itinerary-next="${esc(next.actionId)}"><strong>下一项 · ${summary.itineraryTitle(next)}</strong><p class="small muted">${summary.itineraryPlace(next)}</p><p class="small muted">${esc(next.reason)}</p><div class="row wrap">${next.action ? act('journey-open', '步骤与来源', 'text-btn', next.actionId, 'arrow') : next.continuation?.kind === 'choice-required' ? act('journey-open', '选择接续步骤', 'btn soft', next.actionId, 'arrow') : ''}${next.action?.craftPlanId ? act('craft-plan-complete', '完成整份制作计划…', 'btn soft', next.action.craftPlanId, 'check') : ''}${next.status === 'pending' ? act('journey-itinerary-handle', next.action?.craftPlanId ? '仅个人已处理 · 不释放用料' : '个人已处理', 'btn soft', next.actionId, 'check') : ''}${act('journey-itinerary-skip', '仅本次跳过', 'text-btn', next.actionId)}</div></div>` : '<p class="small muted">本次已无待处理项；可以回顾并写下这一程。</p>'}${
+      return `<section data-companion-itinerary><h3 class="companion-section">${esc(trip.name)} · 还剩 ${trip.summary.remaining} 项</h3><p class="small muted">${trip.status === 'ended' ? '已结束' : trip.status === 'active' ? '进行中' : '待开始'}</p>${trip.status !== 'active' ? act('journey-itinerary-status', trip.status === 'ended' ? '继续这一程' : '开始这一程', 'btn soft', 'active') : ''}${next ? `<div class="compact-goal" data-itinerary-next="${esc(next.actionId)}"><strong>下一项 · ${summary.itineraryTitle(next)}</strong><p class="small muted">${summary.itineraryPlace(next)}</p><p class="small muted">${esc(next.reason)}</p><div class="row wrap">${next.action ? act('journey-open', '步骤与来源', 'text-btn', next.actionId, 'arrow') : next.continuation?.kind === 'choice-required' ? act('journey-open', '选择接续步骤', 'btn soft', next.actionId, 'arrow') : ''}${next.action?.craftPlanId ? act('craft-plan-complete', '完成整份制作计划…', 'btn soft', next.action.craftPlanId, 'check') : ''}${next.status === 'pending' ? act('journey-itinerary-handle', next.action?.craftPlanId ? '仅个人已处理 · 不释放用料' : '个人已处理', 'btn soft', next.actionId, 'check') : ''}${act('journey-itinerary-skip', '仅本次跳过', 'text-btn', next.actionId)}</div></div>` : '<p class="small muted">本次安排已处理完</p>'}${
         trip.upcoming.length
           ? `<details data-persist-detail="companion-itinerary-queue"><summary>后续队列 · ${trip.upcoming.length} 项</summary>${trip.upcoming
               .slice(0, 5)
@@ -60,9 +56,7 @@ export function createCompanionViews({
                 (s) =>
                   `<div class="compact-goal"><strong>${s.position + 1}. ${summary.itineraryTitle(s)}</strong><p class="small muted">${summary.itineraryPlace(s)}${s.needsReview ? ' · 需核对原选择' : ''}</p></div>`,
               )
-              .join(
-                '',
-              )}${trip.upcoming.length > 5 ? `<p class="small muted">其余 ${trip.upcoming.length - 5} 项在完整行程中。</p>` : ''}</details>`
+              .join('')}</details>`
           : ''
       }${
         undo.length
@@ -83,7 +77,7 @@ export function createCompanionViews({
         const stock = a.gift
           ? `<p class="small">${a.gift.allocationKnown ? (a.gift.missing ? '已备 ' + a.gift.allocated + ' · 还缺 ' + a.gift.missing : '已备齐 ' + a.gift.allocated + ' 件') : '赠礼数量待核对'}</p>`
           : '';
-        return `<div class="compact-goal"><strong>${summary.actionTitle(a, title)}</strong>${a.places.length ? `<p class="small muted">${a.gift ? '' : '地点线索：'}${summary.places(a)}</p>` : ''}${stock}${a.gift ? '' : `<p class="small muted">${a.unknowns ? '含待核对条件，请查看步骤与来源。' : '来自当前周目的记录与计划。'}</p>`}${act('journey-open', a.gift ? '调整与完成' : '查看行动与条件', 'text-btn', a.id, 'arrow')}</div>`;
+        return `<div class="compact-goal"><strong>${summary.actionTitle(a, title)}</strong>${a.places.length ? `<p class="small muted">${summary.places(a)}</p>` : ''}${stock}${!a.gift && a.unknowns ? '<p class="small muted">条件待核对</p>' : ''}${act('journey-open', a.gift ? '调整与完成' : '查看行动与条件', 'text-btn', a.id, 'arrow')}</div>`;
       })
       .join('')}${act('navigate', '按地点查看完整行程', 'btn soft', 'journey', 'book')}`;
   }
