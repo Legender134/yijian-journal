@@ -461,7 +461,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const firstStep = first?.steps?.[0];
     const lead = first
       ? `<section class="flow-now flow-active" data-flow-now data-flow-quest="${text(first.id)}"><h3>${questButton(first.id, first.name)}</h3><p class="flow-next-action">${firstStep ? stepAction(firstStep) : prose('请核对游戏任务栏中的当前要求。')}</p>${firstStep ? compactStepTargets(firstStep) + compactMaterials(firstStep.materials, flow.sharedMaterials, { scope: `${first.id}-${firstStep.id}`, instruction: firstStep.nextAction }) : ''}<details class="flow-now-details" data-persist-detail="flow-now-${text(first.id)}-${text(firstStep?.id)}"><summary>任务详情</summary>${firstStep ? stepPeople(firstStep) + stepPlaces(firstStep) : ''}${activeTask(first, { summaryInLead: true, sharedMaterials: flow.sharedMaterials })}</details></section>`
-      : `<div class="flow-empty"><p>${text(flow.reason || (flow.available ? '当前步骤待核对，可展开下方流程线索。' : '尚无可读存档，可先查询攻略。'))}</p>${flow.referenceNeedsSelection ? button('navigate', '检查游戏连接', 'settings', 'btn soft') : ''}</div>`;
+      : `<div class="flow-empty"><p>${text(flow.reason || (flow.available ? '当前步骤待核对' : '尚无可读存档，可先查询攻略。'))}</p>${flow.referenceNeedsSelection ? button('navigate', '检查游戏连接', 'settings', 'btn soft') : ''}</div>`;
     const riskGroups = new Map();
     for (const row of warnings) {
       const deadline = row.compactDeadline || row.deadlineLabel || row.triggerName;

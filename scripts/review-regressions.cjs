@@ -557,7 +557,7 @@ async function detailReadability() {
         .nth(zoom === 1 ? 0 : 1)
         .click();
       await win.locator('.drawer').waitFor();
-      for (const selector of ['.drawer-body .intro', '.drawer-body > .row', '.spoiler-box p'])
+      for (const selector of ['.drawer-body .intro', '.drawer-body > .row', '[data-action="reveal"]'])
         await measure(selector, zoom + '-index-before-reveal');
       await capture('detail-readability-index-' + zoom);
       await win.locator('[data-action="reveal"]').click();

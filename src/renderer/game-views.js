@@ -91,7 +91,9 @@ export function createGameViews({
               (e.kind === '配方'
                 ? e.materials.map((m) => `${m.name} ×${m.count}`).join('、')
                 : e.description || '');
-      return `<button class="database-card codex-result" data-action="${action}" data-id="${esc(e.id)}">${picture(e.id, 'card')}<span class="codex-result-copy"><span class="codex-result-heading"><strong>${qualityText.name(e, name)}</strong><small>${esc(e.kind === '人物' ? '人物' : typeName(e))}</small></span>${summary ? `<span class="codex-result-summary${numeric ? ' database-numeric' : ''}">${esc(summary)}</span>` : ''}</span>${icon('chevron')}</button>`;
+      const category = e.kind === '人物' ? '人物' : typeName(e);
+      const showCategory = category && category !== kind && category !== type;
+      return `<button class="database-card codex-result" data-action="${action}" data-id="${esc(e.id)}">${picture(e.id, 'card')}<span class="codex-result-copy"><span class="codex-result-heading"><strong>${qualityText.name(e, name)}</strong>${showCategory ? `<small>${esc(category)}</small>` : ''}</span>${summary ? `<span class="codex-result-summary${numeric ? ' database-numeric' : ''}">${esc(summary)}</span>` : ''}</span></button>`;
     };
     return `<section class="codex-browser"><div class="page-header"><h1 class="serif">图鉴</h1></div>
       <div class="database-tabs" role="group" aria-label="图鉴种类">${categories.map((k) => `<button class="database-tab ${kind === k ? 'active' : ''}" data-action="database-kind" data-id="${k}" aria-pressed="${kind === k}">${icon(categoryIcon(k))}<strong>${k}</strong></button>`).join('')}</div>

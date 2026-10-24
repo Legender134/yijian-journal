@@ -1158,7 +1158,7 @@ test('explicitly revealed guide text remains visible after handoff without chang
       handbookContext({ profileId: 'p', detail: { type: 'guide', id: 'synthetic-guide', revealed } }),
     );
     assert.equal(html.includes('合成详细正文'), revealed);
-    assert.equal(html.includes('我需要详细线索'), !revealed);
+    assert.equal(html.includes('展开剧情线索'), !revealed);
     assert.equal(context.currentDrawer.revealed, revealed);
     assert.equal(context.state.settings.spoiler, 'hints');
   }

@@ -232,7 +232,7 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
     let lines = [];
     if (choices.length > 1) {
       lines = [
-        `${choices.length} 条${groupLabel}，点击选择。`,
+        `${choices.length} 条${groupLabel}`,
         ...choices
           .slice(0, 3)
           .map((row) => `${row.name} · ${choiceSummary(row, choices, context.reference) || row.kind}`),
@@ -443,17 +443,11 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
         .filter((line) => line !== '游戏场景')
         .map((line) => '<p>' + esc(line) + '</p>')
         .join('');
-      return (
-        '<div class="entity-preview-place">' +
-        heading +
-        map +
-        facts +
-        '</div><small class="entity-preview-hint">点击查看详情 · Esc 收起</small>'
-      );
+      return '<div class="entity-preview-place">' + heading + map + facts + '</div>';
     }
     return `<div class="entity-preview-heading">${artwork(id, 'card')}<div><small>${esc(choices.length > 1 ? groupLabel : e.kind)}${choices.length === 1 && e.quality ? ' · ' + esc(e.quality) + '色' : ''}</small><strong>${esc(name)}</strong></div></div>${description ? `<p class="entity-preview-description">${esc(description)}</p>` : ''}${lines
       .map((line) => `<p>${esc(line)}</p>`)
-      .join('')}${map}<small class="entity-preview-hint">点击查看详情 · Esc 收起</small>`;
+      .join('')}${map}`;
   }
   return { button, text, preview, artwork, choices: rows, choiceSummary, variantSummary };
 }

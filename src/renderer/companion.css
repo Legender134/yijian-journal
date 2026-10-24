@@ -345,7 +345,7 @@
   flex-basis: 100%;
 }
 .companion .codex-results {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
 }
 .companion-tabs [aria-current='page'] {
   text-decoration: underline;

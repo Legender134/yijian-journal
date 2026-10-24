@@ -1854,7 +1854,7 @@ async function companionHomeInventorySync(page) {
     await openMainPage(win, 'library');
     await win.locator('#list-search').fill('上官虹');
     await win.locator('.entry-card [data-action="detail"]').first().click();
-    assert.equal(await win.locator('.spoiler-box').count(), 1);
+    assert.equal(await win.locator('.drawer [data-action="reveal"]').count(), 1);
     await win.locator('[data-action="reveal"]').click();
     assert.ok((await win.locator('.steps li').count()) > 0);
     assert.equal(
