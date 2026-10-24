@@ -133,7 +133,9 @@ for (const r of read('Quests'))
     if (materials.length) quests[r.QuestId].materials = materials;
   }
 const skills = read('Skills')
-  .filter((r) => r.bOpenForPlayer && validName(r.ViewName))
+  // Item 10438 teaches skill 480 to the hero during quest 28003 (PreQuest = 1).
+  // Keep this story-learning exception narrow; other closed skills stay excluded.
+  .filter((r) => (r.bOpenForPlayer || r.Id === 480) && validName(r.ViewName))
   .map((r) => ({
     id: `skill-${r.Id}`,
     gameId: r.Id,

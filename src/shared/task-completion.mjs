@@ -1,6 +1,14 @@
 const countText = (value) => Number(value).toLocaleString('zh-CN');
 const questLabels = ['尚未开始', '进行中', '已失败', '尚未接取', '已完成'];
 
+// Build 21798996 JumpStep dispatches EJumpQuestStepType handler events,
+// not saved EQuestStep values. Dispatch alone does not prove completion.
+export function questJumpEventText(value) {
+  return Number.isInteger(value)
+    ? ['发起接取', '确认接取', '拒绝接取', '触发推进', '触发结算'][value] || ''
+    : '';
+}
+
 // Only evaluate fields supplied by this reading. Missing native counters,
 // contribution and effective friendship never become fabricated zeroes.
 export function completionChecks(requirements = [], reading = {}, questId) {

@@ -31,6 +31,8 @@ node scripts/reduce-large-table.cjs NPCResources
 
 目前 `build-game-index.cjs` 的 Build 标记固定为 **21798996**。生成其他版本资料时，需同时核对字段与筛选规则并修改该标记；这只是资料版本，不会更改或证明原生存读档兼容性。不要混用不同 Build 的表和索引。
 
+武学默认按 `bOpenForPlayer` 筛选；480「青云扇法」另有主角限定物品10438的显式 `ASkill(480,1)`，以及28003「查看青云扇法」、28041「修炼青云扇法」的正常剧情证据，因此仅为此项保留额外入口，不批量收录所有关闭标志的武学。其请教契约仍保留 `openForPlayer: false`，图鉴不列常规教师、好感或武学点费用；秘籍、各级拳掌精通 +1.1 与1/8/9级突破按原表展示。
+
 生成时间会变化。核对生成结果时应比较实际条目与关联内容，而不是仅比较 JSON 文件时间或条目总数。通过 `pnpm test` 核对索引与逻辑；规则变更后相应修订数据断言。
 
 ## 当前任务选项的只读观察
@@ -72,7 +74,7 @@ node --test tests/item-stats.test.cjs
 
 `CAttr`、`CAllAttr`、百分比恢复等动作类型分别保留，不能把所有动作都解释为永久增加属性。`CAllAttr` 的作用范围，以及 `CHealthAttrPercent` / `CBlueAttrPercent` 的百分比基准尚未核定，不能宣称全队恢复或按上限、当前值、缺失值计算。`ABuff` 等动作的 `value` 保留原参数；`ABattleCountBuff` / `RealTimeBuff` 的参数单位尚未核定，不能直接写成战斗场数或秒。增益描述中的 `{0}` 等占位符，以及 `modifiers` / `durations` 原始参数数组，在未验证等级代入规则前不自动替换。`ARandItem` 的 Id 是物品模板编号，按 Fusion 模式生成随机词条；`ANormalRandItem` 按 Normal 模式生成。两者均不能将 Id 链接为 DropPools 或 RandActionPools 编号，具体词条候选应从该物品模板继续追踪。普通材料确实没有数值效果时保留空 `effects`。
 
-使用条件中的 `Item` 逐项显示物品与数量，不把多项条件吞成泛化提示；这表示模板要求，不代表已经核对玩家库存。`WeaponRequirement` 的类型名称依据同构建静态程序的 `EWeaponType` 枚举（0 Default、1 Sword、2 Sabre、3 Spear、4 Fist、5 HiddenWeapon、6 OtherWeapons），程序 SHA-256 为 `946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c`。枚举只能确认兵器类型，未核定具体判定对象，不宣称必须装备对应武器。`CheckNeiGong`、`CurrentSkillLv` 等比较逻辑未核定时，保留已知对象、参数和待核定说明，不把原始参数擅自解释为最低等级。
+使用条件中的 `Item` 逐项显示物品与数量，不把多项条件吞成泛化提示；这表示模板要求，不代表已经核对玩家库存。`WeaponRequirement` 的类型名称依据同构建静态程序的 `EWeaponType` 枚举（0 Default、1 Sword、2 Sabre、3 Spear、4 Fist、5 HiddenWeapon、6 OtherWeapons），程序 SHA-256 为 `946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c`。枚举只能确认兵器类型，未核定具体判定对象，不宣称必须装备对应武器。已知的 `PreQuest` 显示原生0至4对应状态，`NoQuest` 表示尚未触发，不由Num推导；`JumpStep` 使用独立的 `EJumpQuestStepType` 分派事件，0至4分别为发起接取、确认接取、拒绝接取、触发推进、触发结算，不得复用存档 `EQuestStep` 状态。已pin程序动作99在 `0x140f75c80` 分派至对应 HandleRequesting / HandleAcceptRequested / HandleRefuseRequested / HandleProcessing / HandleFinishing；4只证明触发结算，不据此保证整个处理器或后续剧情无条件完成。物品与任务图鉴共用同一动作解释，未知动作值不推测展示。`CheckNeiGong`、`CurrentSkillLv` 等比较逻辑未核定时，保留已知对象、参数和待核定说明，不把原始参数擅自解释为最低等级。
 
 比武阶段线索另由 `duel-guide.cjs` 维护。智度上人（16022）的静态等级60、私物三转洗髓丹（141）与没药（10315）各1，核对自同Build的 `NPCs.uexp`（SHA-256 `0c3dcfdb36901efc70d65446064c5a97d44c1629d1e2cf418eb586ff3c131ec3`）；不分发原表。宴前及天水赴一线天途中的收集顺序来自标明版本的社区路线，与静态模板证据分开。原文的天水守卫尚未唯一绑定NPC实例，保留名称线索，不用同名候选的等级冒充。模板私物数量、装备池权重都不代表切磋掉率或首胜保证；静态等级不代表当前胜率。
 
@@ -106,6 +108,8 @@ py -m venv .downloads/python-assets
 ```
 
 第一步根据表中的精确引用和已有图鉴条目生成 `.downloads/game-icon-plan.json`，不根据同名人物猜测头像。Python 工具只接受已观察到的单层内联 UE4.26 纹理布局，并检查尺寸、格式、负载长度和偏移；支持 DXT1、DXT5、BGRA，不能解码的条目使用应用分类图标。
+
+青云扇法图标使用原表精确引用 `/Game/JH/UI/Icon/T_Skill480`。原纹理uasset／uexp的SHA-256为 `b4f94ebf80195c54e221752b9a359140e83292a84b3cecaae70faa14f1347ce9`／`2d67784e703623dce369e942af2d8a7c9eeb178ad94a9665107a0ad960c28ad9`，按同一解码器从200像素缩至192像素，不拿同名秘籍图标替代。
 
 输出为 `src/assets/game/<引用哈希>.png` 和 `src/data/game-images.json`，图片最长边 192 像素。构建报告写入 `test-results/game-images-build.json`；计划和报告含本机路径，不提交到 GitHub。
 
@@ -184,7 +188,7 @@ node scripts/build-codex-details.cjs <Quests.Table.Data.json> <Skills.json>
 
 完整任务数组 SHA-256 为 `f1ddf79d01d5d143512ce55b1007b19cd8dc5c57c48ff00cb3ee396f5ef5fecf`，独立记录在 `source.inputs.questsFullTableData`；旧选择输入摘要 `45303fedd1778387ecfc26ff842251ba83e2057f9dbe90c3803a074a44c131d1` 不再作为当前输入接受。Skills JSON 仍为 `1ef5e9f6debaaab410d11b331ea3869ba09f6f90926ee079200df34523e29313`。原 Quests.uasset / .uexp 分别为 `ca4fb2762930e4473fa10301678874e9ebbe4d0ee97b4a193b6ae71badcf3e41` / `2d84daae1fc93fc6f098fd5897091704960581d305adffd2f42a26315a881a86`；Skills.uasset / .uexp 分别为 `fc7018b0b3644f5ffbbae6aea40bfefc3b7990abdcbba9d2ea4fa254936d0d81` / `a2fd448cc404f316f3013611b94b131e7489a7fad3d363153dbc670be2bd6c88`。来源许可沿用游戏数据说明，不当作项目原创代码授权。
 
-当前投影保留 546 个命名任务结果、622 个内部奖励或选择步骤，以及 276 项武学的各级属性动作。`hiddenSteps` 保留实际编号、`ownerId`、经唯一原表 Owner 链得到的 `ownerPath` / `relatedQuestId`、接取与完成条件；缺失、重复或成环的 Owner 链不关联公开任务。内部步骤不获得伪造的正式名称，界面用公开关联任务及结算语境导航，原始编号只放在资料来源折叠与内部属性中。
+当前投影保留 546 个命名任务结果、622 个内部奖励或选择步骤，以及 277 项武学的各级属性动作。`hiddenSteps` 保留实际编号、`ownerId`、经唯一原表 Owner 链得到的 `ownerPath` / `relatedQuestId`、接取与完成条件；缺失、重复或成环的 Owner 链不关联公开任务。内部步骤不获得伪造的正式名称，界面用公开关联任务及结算语境导航，原始编号只放在资料来源折叠与内部属性中。
 
 任务 `CAttr` 复用同一份属性枚举与数值格式，保留正负号和各难度的独立动作。11453 的「吃九盆」、11455 的「再吃三盆」、11456 的「拼了」分别记录气血上限 -5、-2、-5；6256 炼丹经验 +800、11110 钓鱼经验 +300、5054 采集经验 +10 均按原值显示，不由经验奖励推算会升到几级。采集经验 68 由既有的同构建完整属性枚举加入共享数值目录，物品效果和武学成长不变。
 

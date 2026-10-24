@@ -226,7 +226,9 @@ test('quest conditions retain available links and missing references remain expl
     prior,
     /前置任务条件：<button[^>]+data-action="world-quest"[^>]+data-id="quest-28003">查看青云扇法<\/button>/,
   );
-  assert.match(prior, /所需状态待确认/);
+  assert.match(prior, /查看青云扇法<\/button> · 进行中/);
+  assert.match(prior, /查看青云扇法<\/button><\/span><strong>触发结算/);
+  assert.doesNotMatch(prior, /所需状态待确认|另有学习或剧情效果/);
   assert.doesNotMatch(prior, /任务编号|资料参数/);
   for (const [id, quest] of [
     [10424, 30129],
@@ -237,9 +239,35 @@ test('quest conditions retain available links and missing references remain expl
       index.entries.find((e) => e.id === 'item-' + id),
     );
     assert.ok(html.includes('任务排除条件：未收录任务'));
-    assert.match(html, /所需状态待确认/);
+    assert.match(html, /尚未触发/);
     assert.doesNotMatch(html, new RegExp('data-id="quest-' + quest + '"'));
   }
+});
+
+test('item quest events use native dispatch meanings rather than saved quest states', async () => {
+  const { createItemStatViews } = await load;
+  const index = encyclopedia();
+  const view = createItemStatViews({ esc, act });
+  const item = index.entries.find((row) => row.id === 'item-10438');
+  for (const [value, label] of [
+    [0, '发起接取'],
+    [1, '确认接取'],
+    [2, '拒绝接取'],
+    [3, '触发推进'],
+    [4, '触发结算'],
+  ]) {
+    const html = view.detail(index, {
+      ...item,
+      stats: { ...item.stats, effects: [{ type: 'JumpStep', id: 28003, value }], requirements: [] },
+    });
+    assert.match(html, new RegExp(`查看青云扇法</button></span><strong>${label}</strong>`));
+    assert.doesNotMatch(html, /→|已完成|未开始|未接取|进行中|失败/);
+  }
+  const unknown = view.detail(index, {
+    ...item,
+    stats: { ...item.stats, effects: [{ type: 'JumpStep', id: 28003, value: 99 }], requirements: [] },
+  });
+  assert.doesNotMatch(unknown, /发起接取|确认接取|拒绝接取|触发推进|触发结算|已完成/);
 });
 
 test('unknown conditions and absent entries remain safe without exposing implementation parameters', async () => {

@@ -1,3 +1,5 @@
+import { questJumpEventText } from '../shared/task-completion.mjs';
+
 const equipmentTypes = new Set([
   'Sword',
   'Sabre',
@@ -21,6 +23,8 @@ const weaponTypes = {
   6: '奇门',
 };
 const numberText = (value) => Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+const questStateText = (value) =>
+  Number.isInteger(value) ? ['未开始', '进行中', '失败', '未接取', '已完成'][value] : null;
 
 export function itemEffectText(action, data) {
   const attribute = data?.attributes?.[action.id];
@@ -81,6 +85,12 @@ export function createItemStatViews({ esc, act }) {
         return `<p class="small">专属武器强化：${link('item-' + action.id, '待核对武器')} → ${link('item-' + action.value, '强化结果待核对')}</p>`;
       if (action.type === 'ASkill')
         return `<div class="item-effect-buff"><p>学习武学：${link('skill-' + action.id, '未收录武学')}</p></div>`;
+      if (action.type === 'JumpStep') {
+        const quest = index.world?.quests?.find((row) => row.gameId === action.id);
+        const event = questJumpEventText(action.value);
+        if (quest && event)
+          return `<div class="item-effect-row"><span>${act('world-quest', text(quest.name), 'text-btn', quest.id)}</span><strong>${text(event)}</strong></div>`;
+      }
       return '';
     };
     const fixed = stats.effects
@@ -131,7 +141,9 @@ export function createItemStatViews({ esc, act }) {
         const target = quest
           ? act('world-quest', text(quest.name), 'text-btn', quest.id)
           : text('未收录任务');
-        return `${r.type === 'PreQuest' ? '前置任务条件' : '任务排除条件'}：${target} · 所需状态待确认`;
+        return r.type === 'NoQuest'
+          ? `任务排除条件：${target} · 尚未触发`
+          : `前置任务条件：${target} · ${text(questStateText(r.value) || '所需状态待确认')}`;
       }
       return `其他使用条件待确认`;
     };

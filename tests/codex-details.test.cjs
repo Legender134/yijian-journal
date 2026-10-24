@@ -438,3 +438,171 @@ test('codex searches share canonical identities and task status across every pag
     ['quest-5200'],
   );
 });
+
+test('story learning items resolve Qingyun Fan to its actual martial art', async () => {
+  const { createGameViews } = await import('../src/renderer/game-views.js');
+  const index = encyclopedia();
+  const view = createGameViews(helpers);
+  const storyItem = index.entries.find((entry) => entry.id === 'item-10438');
+  assert(storyItem.stats.requirements.some((row) => row.type === 'OnlyHero'));
+  assert(
+    storyItem.stats.requirements.some(
+      (row) => row.type === 'PreQuest' && row.id === 28003 && row.value === 1,
+    ),
+  );
+  for (const id of [10438, 13480]) {
+    const item = index.entries.find((entry) => entry.id === `item-${id}`);
+    assert(item.stats.effects.some((row) => row.type === 'ASkill' && row.id === 480 && row.value === 1));
+    const html = view.detail(index, item.id);
+    assert.match(
+      html,
+      /学习武学：<button data-action="database-detail" data-id="skill-480">青云扇法<\/button>/,
+    );
+    assert.doesNotMatch(html, /未收录武学/);
+  }
+  assert.equal(index.entries.find((entry) => entry.id === 'skill-480').name, '青云扇法');
+  assert.equal(index.images['skill-480'], 'ba605f8b935d929982a2.png');
+  assert.notEqual(index.images['skill-480'], index.images['item-13480']);
+});
+
+test('Qingyun Fan retains ten growth levels and all three exact story breakthroughs', async () => {
+  const { createCodexDetailViews } = await import('../src/renderer/codex-detail-views.js');
+  const index = encyclopedia();
+  const detail = index.codex.skills[480];
+  assert.equal(detail.growth.length, 10);
+  for (const actions of detail.growth) {
+    assert.equal(actions.length, 1);
+    assert.equal(actions[0].type, 'CAttr');
+    assert.equal(actions[0].id, 15);
+    assert(Math.abs(actions[0].value - 1.1) < 1e-6);
+  }
+  assert.deepEqual(detail.levelUnlockRequirements, [
+    { level: 1, requirements: [{ type: 'PreQuest', id: 28041, value: 4 }] },
+    { level: 8, requirements: [{ type: 'PreQuest', id: 28032, value: 4 }] },
+    { level: 9, requirements: [{ type: 'PreQuest', id: 28032, value: 4 }] },
+  ]);
+  const entry = index.entries.find((row) => row.id === 'skill-480');
+  const html = createCodexDetailViews(helpers).skill(index, entry);
+  for (let level = 1; level <= 10; level++)
+    assert(html.includes(`<strong>${level} 级</strong><span>拳掌精通 +1.1 点</span>`));
+  for (const level of [1, 8, 9]) assert.match(html, new RegExp(`突破 ${level} 级`));
+  assert.match(html, /修炼突破/);
+  assert.doesNotMatch(html, /升到 [189] 级/);
+});
+
+test('story-only Qingyun Fan has no regular consultation route even when a live NPC owns it', async () => {
+  const { createCodexDetailViews } = await import('../src/renderer/codex-detail-views.js');
+  const { createNpcProgressProjector } = require('../src/core/npc-progress.cjs');
+  const contracts = require('../src/data/npc-interactions.json');
+  const index = encyclopedia();
+  assert.equal(index.skillConsultation[480].openForPlayer, false);
+  assert.equal(index.skillConsultation[480].excluded, false);
+  const person = {
+    id: 'npc-999001',
+    gameId: 999001,
+    kind: '人物',
+    name: '合成请教人物',
+    functions: ['Consult'],
+    skills: [
+      { id: 'skill-480', level: 10 },
+      { id: 'skill-101', level: 10 },
+    ],
+  };
+  index.entries.push(person);
+  const progress = {
+    people: [
+      {
+        npcId: person.gameId,
+        consult: { status: 'met' },
+        learning: [
+          { entityId: 'skill-480', status: 'met' },
+          { entityId: 'skill-101', status: 'met' },
+        ],
+      },
+    ],
+  };
+  const views = createCodexDetailViews(helpers);
+  const html = views.skill(
+    index,
+    index.entries.find((entry) => entry.id === 'skill-480'),
+    progress,
+    'live',
+  );
+  assert.match(html, /<summary>请教条件 · 不可常规请教<\/summary>/);
+  assert.doesNotMatch(html, /好感 70|基础消耗|skill-teachers|请教线索|>可请教<|data-id="npc-999001"/);
+  for (const id of [10438, 13480]) assert.match(html, new RegExp(`data-id="item-${id}"`));
+  assert.match(html, /学习秘籍/);
+  assert.match(html, /各级属性提升/);
+  assert.match(html, /修炼突破/);
+  const ordinary = views.skill(
+    index,
+    index.entries.find((entry) => entry.id === 'skill-101'),
+    progress,
+    'live',
+  );
+  assert.match(ordinary, /好感 60/);
+  assert.match(ordinary, /基础消耗 1300 武学点/);
+  assert.match(ordinary, /data-id="npc-999001"/);
+  assert.match(ordinary, />可请教</);
+  const projectNpcProgress = createNpcProgressProjector({
+    world: { people: [person], quests: [], maps: [] },
+    game: { entries: index.entries },
+    contracts,
+  });
+  const metadata = {
+    quests: [],
+    inventory: [],
+    combat: {
+      format: 14,
+      player: { id: 0, attributes: { 44: 100 }, skills: [], skillPoints: 10000 },
+      npcStates: [
+        {
+          id: person.gameId,
+          level: 15,
+          rawFriendliness: 100,
+          visible: true,
+          attributes: {},
+          inventory: [],
+          equipment: [],
+          skills: [
+            { id: 480, level: 10 },
+            { id: 101, level: 10 },
+          ],
+        },
+      ],
+    },
+  };
+  const before = structuredClone(metadata);
+  const result = projectNpcProgress(metadata);
+  assert.equal(result.available, true);
+  assert(!result.people[0].learning.some((row) => row.entityId === 'skill-480'));
+  assert(result.people[0].learning.some((row) => row.entityId === 'skill-101' && row.status === 'met'));
+  assert(!result.learning.flatMap((row) => row.learning).some((row) => row.entityId === 'skill-480'));
+  assert.deepEqual(metadata, before);
+});
+
+test('quest codex separates saved-state changes from same-valued handler events', async () => {
+  const { createCodexDetailViews } = await import('../src/renderer/codex-detail-views.js');
+  const index = encyclopedia();
+  const entry = index.world.quests.find((quest) => quest.gameId === 28000);
+  assert(entry);
+  const actions = [
+    { type: 'CQuestStep', id: 28003, value: 3 },
+    { type: 'JumpStep', id: 28003, value: 3 },
+    { type: 'JumpStep', id: 28003, value: 4 },
+  ];
+  const isolated = {
+    ...index,
+    codex: {
+      ...index.codex,
+      quests: { 28000: { finish: [actions, actions, actions], choices: [] } },
+      hiddenSteps: {},
+    },
+  };
+  const html = createCodexDetailViews(helpers).quest(isolated, entry, null);
+  assert.match(html, /查看青云扇法<\/button> → 未接取/);
+  assert.match(html, /查看青云扇法<\/button>：触发推进/);
+  assert.match(html, /查看青云扇法<\/button>：触发结算/);
+  assert.equal((html.match(/→ 未接取/g) || []).length, 1);
+  assert.doesNotMatch(html, /→ 完成|→ 已完成/);
+});

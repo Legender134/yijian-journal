@@ -3707,6 +3707,14 @@
       "skillPointCost": 3400,
       "grade": 4
     },
+    "480": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 3400,
+      "grade": 4
+    },
     "482": {
       "friendliness": 70,
       "requirements": [],

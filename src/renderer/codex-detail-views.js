@@ -1,5 +1,6 @@
 import { entityCatalog } from './entity-catalog.js';
 import { itemEffectText } from './item-stat-views.js';
+import { questJumpEventText } from '../shared/task-completion.mjs';
 
 // All cross-links use shipped entity IDs. Static outcomes never mutate or
 // forecast the active quest state, and rewards from branches are never added.
@@ -51,8 +52,8 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
       return state ? `${target('quest')} → ${state}` : '';
     }
     if (a.type === 'JumpStep' && target('quest')) {
-      const state = ['未开始', '进行中', '失败', '未接取', '完成'][a.value];
-      return state ? `${target('quest')} → ${state}（剧情跳转）` : '';
+      const event = questJumpEventText(a.value);
+      return event ? `${target('quest')}：${text(event)}` : '';
     }
     return '';
   }
@@ -213,22 +214,22 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
       (e) => e.kind === '物品' && e.stats?.effects.some((a) => a.type === 'ASkill' && a.id === entry.gameId),
     );
     const contract = index.skillConsultation?.[entry.gameId];
+    const canConsult = contract && !contract.excluded && contract.openForPlayer !== false;
     const currentPeople = new Map((progress?.people || []).map((person) => [person.npcId, person]));
     const learningFor = (person) =>
       currentPeople.get(person.gameId)?.learning.find((row) => row.entityId === entry.id);
     const priority = (person) =>
       learningFor(person)?.status === 'met' ? 0 : currentPeople.has(person.gameId) ? 1 : 2;
-    const teachers =
-      contract && !contract.excluded
-        ? index.entries
-            .filter(
-              (e) =>
-                e.kind === '人物' &&
-                e.functions?.includes('Consult') &&
-                (e.skills?.some((s) => s.id === entry.id) || learningFor(e)),
-            )
-            .sort((a, b) => priority(a) - priority(b))
-        : [];
+    const teachers = canConsult
+      ? index.entries
+          .filter(
+            (e) =>
+              e.kind === '人物' &&
+              e.functions?.includes('Consult') &&
+              (e.skills?.some((s) => s.id === entry.id) || learningFor(e)),
+          )
+          .sort((a, b) => priority(a) - priority(b))
+      : [];
     const teacher = (person) => {
       const current = currentPeople.get(person.gameId);
       const learning = learningFor(person);
@@ -262,7 +263,7 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
       ? `<section class="detail-block skill-level-unlocks"><h3>修炼突破</h3>${unlockRequirements.map((row) => `<div class="codex-source-row"><strong>突破 ${text(row.level)} 级</strong><span>${row.requirements.map(unlockCondition).join('；')}</span></div>`).join('')}</section>`
       : '';
     const consult = contract
-      ? `<details class="detail-block skill-consult"><summary>请教条件${contract.excluded ? ' · 不可常规请教' : ` · 好感 ${text(contract.friendliness)}`}</summary>${contract.excluded ? '' : `<p>基础消耗 ${text(contract.skillPointCost)} 武学点；门派、难度或天赋可能减免。</p>${contract.requirements.length && index.renderRequirements ? index.renderRequirements(contract.requirements, index, { reference: null }) : ''}`}<details><summary>资料来源</summary><p>游戏资料表 · Build ${text(index.build)}</p></details></details>`
+      ? `<details class="detail-block skill-consult"><summary>请教条件${!canConsult ? ' · 不可常规请教' : ` · 好感 ${text(contract.friendliness)}`}</summary>${!canConsult ? '' : `<p>基础消耗 ${text(contract.skillPointCost)} 武学点；门派、难度或天赋可能减免。</p>${contract.requirements.length && index.renderRequirements ? index.renderRequirements(contract.requirements, index, { reference: null }) : ''}`}<details><summary>资料来源</summary><p>游戏资料表 · Build ${text(index.build)}</p></details></details>`
       : '';
     return `${manuals.length ? `<section class="detail-block skill-manuals"><h3>学习秘籍</h3><div class="related-items">${manuals.map((e) => link(index, e.id)).join('')}</div></section>` : ''}${unlocks}${consult}${teachers.length ? `<details class="detail-block skill-teachers" data-persist-detail="skill-teachers-${text(entry.gameId)}"><summary>请教线索 · ${teachers.length} 位${progress && origin !== 'live' ? ' · 保存时状态' : ''}</summary>${more(teachers, teacher)}</details>` : ''}${levels.length ? `<details class="detail-block skill-growth"><summary>各级属性提升</summary><div class="codex-growth">${levels.map((r) => `<div><strong>${r.level} 级</strong><span>${r.rows.map((a) => text(a.name + ' ' + a.value)).join(' · ')}</span></div>`).join('')}</div></details>` : ''}`;
   }
