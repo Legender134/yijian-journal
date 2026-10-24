@@ -62,12 +62,10 @@ export function createJourneyTrashViews({ esc, act, when, placeLabel = (place) =
   }
   function craftContent(record, index) {
     return [
-      ...record.list.map(
-        (line) => `配方：${sourceName(index, line.id)} · ${line.id} · 制作次数 ${line.quantity}`,
-      ),
+      ...record.list.map((line) => `配方：${sourceName(index, line.id)} · 制作次数 ${line.quantity}`),
       ...Object.entries(record.choices || {}).map(
         ([itemId, recipeId]) =>
-          `加工选择：${sourceName(index, 'item-' + itemId)} · item-${itemId} → ${sourceName(index, recipeId)} · ${recipeId}`,
+          `加工选择：${sourceName(index, 'item-' + itemId)} → ${sourceName(index, recipeId)}`,
       ),
       !Object.keys(record.choices || {}).length ? '未指定加工选择，核对时按当前配方规则计算' : '',
       record.reserved === false ? '原预留偏好：不保留材料' : '原预留偏好：保留材料',
@@ -79,12 +77,10 @@ export function createJourneyTrashViews({ esc, act, when, placeLabel = (place) =
   }
   function craftDetail(record, index) {
     return `<p class="preserve-text">${[
-      ...record.list.map(
-        (line) => `配方：${sourceLink(index, line.id)} · ${esc(line.id)} · 制作次数 ${esc(line.quantity)}`,
-      ),
+      ...record.list.map((line) => `配方：${sourceLink(index, line.id)} · 制作次数 ${esc(line.quantity)}`),
       ...Object.entries(record.choices || {}).map(
         ([itemId, recipeId]) =>
-          `加工选择：${sourceLink(index, 'item-' + itemId)} · item-${esc(itemId)} → ${sourceLink(index, recipeId)} · ${esc(recipeId)}`,
+          `加工选择：${sourceLink(index, 'item-' + itemId)} → ${sourceLink(index, recipeId)}`,
       ),
       !Object.keys(record.choices || {}).length ? '未指定加工选择，核对时按当前配方规则计算' : '',
       record.reserved === false ? '原预留偏好：不保留材料' : '原预留偏好：保留材料',

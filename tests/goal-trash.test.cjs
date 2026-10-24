@@ -80,6 +80,7 @@ test('deleted structured arrangements offer static exact references without chan
   const craftPanel = view.panel({ id: 'history', journeyTrash: [rows[2]] }, index, {}, true);
   assert.match(craftPanel, /data-action="archive-entity" data-id="fusion-3"/);
   assert.doesNotMatch(craftPanel.replace(/<[^>]*>/g, ''), /fusion-3|item-2/);
+  assert.doesNotMatch(view.detail(rows[2], index).replace(/<[^>]*>/g, ''), /fusion-3|item-2/);
   for (const id of ['place-8', 'place-999'])
     assert.doesNotMatch(view.detail(row('place', { placeId: id, note: '地点' }), index), /archive-entity/);
   assert.deepEqual({ rows, index }, before);
