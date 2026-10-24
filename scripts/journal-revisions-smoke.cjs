@@ -1,5 +1,5 @@
 'use strict';
-const { openMainPage } = require('./ui-smoke-actions.cjs');
+const { openMainPage, revealJournalAction } = require('./ui-smoke-actions.cjs');
 // Short real Electron UI acceptance; only isolated synthetic saves are used.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -190,7 +190,7 @@ async function mutate(command) {
     await app.evaluate(({ dialog }, file) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
     }, exported);
-    await page.locator('[data-action="journal-export"]').click();
+    await (await revealJournalAction(page, 'journal-export')).click();
     const end = Date.now() + 10000;
     while (!fs.existsSync(exported) && Date.now() < end)
       await new Promise((resolve) => setTimeout(resolve, 50));

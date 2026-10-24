@@ -1,5 +1,5 @@
 'use strict';
-const { openMainPage, chooseCodexKind } = require('./ui-smoke-actions.cjs');
+const { openMainPage, chooseCodexKind, openJournalFilters } = require('./ui-smoke-actions.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -585,6 +585,7 @@ const pulse = () =>
       await form.waitFor();
       await surface.locator('#journal-search').fill('白');
       await surface.locator('#journal-search').pressSequentially('锦');
+      await openJournalFilters(surface);
       await surface.locator('#journal-from').fill('2026-10-01');
       await surface.locator('#journal-to').fill('2026-10-14');
       await surface.locator('#journal-kind').selectOption('manual');
@@ -632,6 +633,11 @@ const pulse = () =>
         1,
         'the preserved filters still apply normally',
       );
+      const appliedFilters = form.locator('[data-journal-filters]');
+      assert.match(await appliedFilters.locator(':scope > summary').innerText(), /筛选 · 4/);
+      await appliedFilters.locator(':scope > summary').click();
+      assert.equal(await appliedFilters.evaluate((node) => node.open), false);
+      assert.match(await appliedFilters.locator(':scope > summary').innerText(), /筛选 · 4/);
     }
     await app.evaluate(({ BrowserWindow }) => {
       const w = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));

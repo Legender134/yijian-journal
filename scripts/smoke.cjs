@@ -1857,6 +1857,22 @@ async function companionHomeInventorySync(page) {
     assert.equal(await win.locator('.spoiler-box').count(), 1);
     await win.locator('[data-action="reveal"]').click();
     assert.ok((await win.locator('.steps li').count()) > 0);
+    assert.equal(
+      await win
+        .locator('.steps li')
+        .nth(1)
+        .locator('[data-action]')
+        .evaluateAll(
+          (links) =>
+            links.length >= 4 &&
+            links.every(
+              (link) =>
+                link.getBoundingClientRect().height <= parseFloat(getComputedStyle(link).lineHeight) * 1.5,
+            ),
+        ),
+      true,
+      'short person, task and place names keep readable inline widths in a guide step',
+    );
     await win.locator('.drawer-actions [data-action="favorite"]').click();
     await win.waitForTimeout(250);
     await captureNative(win, { animations: 'disabled', path: path.join(results, '02-detail.png') });
@@ -1941,7 +1957,10 @@ async function companionHomeInventorySync(page) {
     await win.locator('#list-search').fill('水煮鱼');
     await win.locator('.database-card[data-id="cooking-102"]').click();
     await win.locator('#recipe-quantity').fill('3');
-    assert.ok((await win.locator('#recipe-materials').innerText()).includes('已有 5 · 还缺 1'));
+    assert.match(
+      await win.locator('#recipe-materials .material-row').filter({ hasText: '已有 5' }).innerText(),
+      /缺 1/,
+    );
     await win.locator('.ingredient-options summary').click();
     assert.ok((await win.locator('.ingredient-options').innerText()).includes('鲤鱼'));
     await selectProgressReference(win, '@none', 'database');
@@ -1954,7 +1973,10 @@ async function companionHomeInventorySync(page) {
     await win.locator('#list-search').fill('水煮鱼');
     await win.locator('.database-card[data-id="cooking-102"]').click();
     await win.locator('#recipe-quantity').fill('3');
-    assert.ok((await win.locator('#recipe-materials').innerText()).includes('已有 5 · 还缺 1'));
+    assert.match(
+      await win.locator('#recipe-materials .material-row').filter({ hasText: '已有 5' }).innerText(),
+      /缺 1/,
+    );
     const fishResult = (
       await win.evaluate(async () =>
         (await window.journal.bootstrap()).data.gameIndex.entries.find((e) => e.id === 'cooking-102'),

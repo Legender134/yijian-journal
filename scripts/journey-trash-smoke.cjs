@@ -1,5 +1,5 @@
 'use strict';
-const { openMainPage } = require('./ui-smoke-actions.cjs');
+const { openMainPage, revealJournalAction } = require('./ui-smoke-actions.cjs');
 // Single personal-arrangement recovery in real windows; synthetic journal/saves only.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -302,7 +302,7 @@ async function written(file) {
     await app.evaluate(({ dialog }, file) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
     }, journal);
-    await page.locator('[data-action="journal-export"]').click();
+    await (await revealJournalAction(page, 'journal-export')).click();
     const exported = JSON.parse(await written(journal));
     assert.equal(exported.profiles[0].journeyTrash.length, 1);
     await nav('saves');

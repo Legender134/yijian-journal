@@ -1962,6 +1962,7 @@ kbd {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
   gap: 22px;
+  align-items: start;
 }
 .companion .saved-goals {
   grid-template-columns: minmax(0, 1fr);
@@ -2261,6 +2262,10 @@ kbd {
   line-height: 1.9;
   color: var(--green);
   margin-bottom: 14px;
+}
+.steps .step-content {
+  flex: 1;
+  min-width: 0;
 }
 .steps li:before {
   content: counter(steps);

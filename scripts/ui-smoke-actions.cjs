@@ -13,6 +13,27 @@ async function openMainPage(page, id) {
   await (await revealMainPage(page, id)).click();
 }
 
+async function openJournalFilters(page) {
+  const filters = page.locator('[data-journal-filters]');
+  if (!(await filters.evaluate((node) => node.open))) await filters.locator(':scope > summary').click();
+}
+
+async function openIntentEditorActions(page) {
+  const more = page.locator('.gift-editor-actions');
+  if ((await more.count()) && !(await more.evaluate((node) => node.open)))
+    await more.locator(':scope > summary').click();
+}
+
+async function revealJournalAction(page, action) {
+  const button = page.locator(`[data-action="${action}"]`);
+  if (!(await button.isVisible())) {
+    const management = page.locator('[data-journal-management]');
+    if (!(await management.evaluate((node) => node.open)))
+      await management.locator(':scope > summary').click();
+  }
+  return button;
+}
+
 async function chooseCodexKind(page, kind) {
   const picker = page.locator('#database-kind-picker');
   if (await picker.isVisible()) await picker.selectOption(kind);
@@ -37,4 +58,13 @@ async function openTimelinePreview(page, id) {
   await page.locator(selector).first().click();
 }
 
-module.exports = { revealMainPage, openMainPage, chooseCodexKind, openTimelineEditor, openTimelinePreview };
+module.exports = {
+  revealMainPage,
+  openMainPage,
+  openJournalFilters,
+  openIntentEditorActions,
+  revealJournalAction,
+  chooseCodexKind,
+  openTimelineEditor,
+  openTimelinePreview,
+};
