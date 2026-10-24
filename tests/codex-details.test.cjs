@@ -135,7 +135,7 @@ test('unified codex browses quests and scenes, keeps every search result and dis
 });
 
 test('codex searches share canonical identities and task status across every page', async () => {
-  const { createGameViews, codexEntries } = await import('../src/renderer/game-views.js');
+  const { createGameViews, codexEntries, CODEX_PAGE_SIZE } = await import('../src/renderer/game-views.js');
   const { compileSearch, compareSearchTitles } = await import('../src/renderer/search-query.js');
   const index = encyclopedia(),
     view = createGameViews(helpers);
@@ -149,7 +149,7 @@ test('codex searches share canonical identities and task status across every pag
     const expected = entries.filter(compileSearch(query)).sort(compareSearchTitles(query));
     assert(expected.length, query);
     const ids = [];
-    for (let page = 0; page < Math.ceil(expected.length / 24); page++) {
+    for (let page = 0; page < Math.ceil(expected.length / CODEX_PAGE_SIZE); page++) {
       const html = view.page(index, query, '全部', '全部', page, statuses);
       assert(html.includes(`role="status">${expected.length} 项`), query);
       ids.push(

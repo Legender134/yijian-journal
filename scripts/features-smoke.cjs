@@ -446,7 +446,7 @@ const shot = async (name) => {
     await small.locator('#global-search').fill('剑');
     await small.locator('[data-action="search-all"][data-id="database"]').click();
     await small.locator('.codex-browser .database-card').first().waitFor();
-    const { codexEntries } = await import(
+    const { codexEntries, CODEX_PAGE_SIZE } = await import(
       require('node:url').pathToFileURL(path.join(base, 'src/renderer/game-views.js')).href
     );
     const { compileSearch } = await import(
@@ -470,7 +470,7 @@ const shot = async (name) => {
     assert.equal(await small.locator('.codex-result-count').innerText(), `${activeCount} 项`);
     assert.equal(
       await small.locator('.database-card[data-action="world-quest"]').count(),
-      Math.min(activeCount, 24),
+      Math.min(activeCount, CODEX_PAGE_SIZE),
     );
     await chooseCodexKind(small, '任务');
     await small.locator('#list-search').fill('养生秘术');

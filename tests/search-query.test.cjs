@@ -41,7 +41,8 @@ test('catalogue name matches reach the first page while all ingredient matches r
   assert.equal(ids(render('铁锭'))[0], 'fusion-9500');
   assert.equal(ids(render('铜锭'))[0], 'fusion-9501');
   assert.deepEqual(ids(render('铁锭', '全部')).slice(0, 2), ['item-10216', 'fusion-9500']);
-  const pages = Array.from({ length: 5 }, (_, page) => ids(render('铁锭', '配方', page))).flat();
+  const pageCount = Number(render('铁锭').match(/<span>1 \/ (\d+)<\/span>/)?.[1] || 1);
+  const pages = Array.from({ length: pageCount }, (_, page) => ids(render('铁锭', '配方', page))).flat();
   assert.equal(pages.length, 104);
   assert.equal(new Set(pages).size, 104);
   assert(pages.includes('fusion-1000'), 'recipes using the searched ingredient remain available');

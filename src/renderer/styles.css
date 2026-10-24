@@ -4108,6 +4108,10 @@ kbd {
   color: var(--muted);
   font-size: 12px;
 }
+.codex-browser .pagination {
+  gap: 12px;
+  margin: 12px 0 0;
+}
 .codex-results {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   gap: 0 12px;

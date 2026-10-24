@@ -336,7 +336,7 @@ async function shot(name) {
     const { compileSearch, compareSearchTitles } = await import(
       'data:text/javascript;base64,' + Buffer.from(searchSource).toString('base64')
     );
-    const { codexEntries } = await import(
+    const { codexEntries, CODEX_PAGE_SIZE } = await import(
       require('node:url').pathToFileURL(path.join(base, 'src/renderer/game-views.js')).href
     );
     const matches = codexEntries(index).filter(compileSearch('剑')).sort(compareSearchTitles('剑'));
@@ -348,7 +348,7 @@ async function shot(name) {
     await win.locator('[data-action="search-all"][data-id="database"]').click();
     assert.equal(await win.locator('#list-search').inputValue(), '剑');
     const reachable = [];
-    const pages = Math.ceil(matches.length / 24);
+    const pages = Math.ceil(matches.length / CODEX_PAGE_SIZE);
     for (let page = 0; page < pages; page++) {
       await win.waitForFunction(
         ({ current, total }) =>

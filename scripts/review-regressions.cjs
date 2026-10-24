@@ -132,12 +132,13 @@ async function catalogueNameOrder() {
     const firstId = () => win.locator('.database-card').first().getAttribute('data-id');
     assert.equal(await firstId(), 'fusion-9500');
     const ids = [];
-    for (let page = 0; page < 5; page++) {
-      assert.match(await win.locator('.pagination').innerText(), new RegExp(`${page + 1} / 5`));
+    const pageCount = Number((await win.locator('.pagination').innerText()).match(/1 \/ (\d+)/)[1]);
+    for (let page = 0; page < pageCount; page++) {
+      assert.match(await win.locator('.pagination').innerText(), new RegExp(`${page + 1} / ${pageCount}`));
       ids.push(
         ...(await win.locator('.database-card').evaluateAll((nodes) => nodes.map((n) => n.dataset.id))),
       );
-      if (page < 4) await win.locator('[data-action="database-page"]').last().click();
+      if (page + 1 < pageCount) await win.locator('[data-action="database-page"]').last().click();
     }
     assert.equal(ids.length, 104);
     assert.equal(new Set(ids).size, 104);

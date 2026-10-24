@@ -4,6 +4,7 @@ import { compileSearch, compareSearchTitles } from './search-query.js';
 import { createItemStatViews, itemNumericSummary } from './item-stat-views.js';
 import { createNpcFactViews } from './npc-fact-views.js';
 import { createNpcProgressViews } from './npc-progress-views.js';
+export const CODEX_PAGE_SIZE = 96;
 export function codexEntries(index, statuses = new Map()) {
   const kinds = new Map((index.world?.quests || []).map((q) => [q.id, q.kind]));
   return [...entityCatalog(index).entries.values()].map((e) =>
@@ -74,7 +75,7 @@ export function createGameViews({
       .map((e) => ({ ...e, quality: qualityText?.quality(e) || e.quality }))
       .filter((e) => (type === '全部' || e.type === type) && match(e))
       .sort(compareTitles);
-    const pages = Math.max(1, Math.ceil(filtered.length / 24));
+    const pages = Math.max(1, Math.ceil(filtered.length / CODEX_PAGE_SIZE));
     const current = Math.max(0, Math.min(pageNumber, pages - 1));
     const categoryIcon = (k) => ({ 任务: 'scroll', 地点: 'map', 全部: 'book' })[k] || glyph(k);
     const row = (e) => {
@@ -105,11 +106,11 @@ export function createGameViews({
       <div class="codex-result-count" role="status">${filtered.length} 项</div>${
         filtered.length
           ? `<div class="database-grid codex-results">${filtered
-              .slice(current * 24, current * 24 + 24)
+              .slice(current * CODEX_PAGE_SIZE, (current + 1) * CODEX_PAGE_SIZE)
               .map(row)
               .join(
                 '',
-              )}</div><div class="pagination"><button class="btn" data-action="database-page" data-id="${current - 1}" ${current === 0 ? 'disabled' : ''}>上一页</button><span>${current + 1} / ${pages}</span><button class="btn" data-action="database-page" data-id="${current + 1}" ${current + 1 === pages ? 'disabled' : ''}>下一页</button></div>`
+              )}</div>${pages > 1 ? `<div class="pagination"><button class="btn" data-action="database-page" data-id="${current - 1}" ${current === 0 ? 'disabled' : ''}>上一页</button><span>${current + 1} / ${pages}</span><button class="btn" data-action="database-page" data-id="${current + 1}" ${current + 1 === pages ? 'disabled' : ''}>下一页</button></div>` : ''}`
           : empty('没有找到匹配的资料', '换个关键词或分类。')
       }</section>`;
   }
