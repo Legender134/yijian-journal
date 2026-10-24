@@ -111,6 +111,7 @@ export function createJourneyTrashViews({ esc, act, when, placeLabel = (place) =
     return esc(content(row, index).slice(0, 140));
   }
   const statuses = { draft: '尚未出发', active: '正在进行', ended: '已结束' };
+  // This text is only a search index; visible references use readable labels below.
   function itinerarySource(source, index) {
     const kind = { user: '个人安排', quest: '任务', database: '图鉴' }[source.type];
     const label = source.type === 'user' ? '' : goalSourceName(source, index) + ' · ';
@@ -118,8 +119,7 @@ export function createJourneyTrashViews({ esc, act, when, placeLabel = (place) =
   }
   function itinerarySourceHtml(source, index) {
     const kind = { user: '个人安排', quest: '任务', database: '图鉴' }[source.type];
-    const label = source.type === 'user' ? '' : goalSourceLink(source, index) + ' · ';
-    return `${esc(kind)}：${label}${esc(source.id)} · ${esc(source.field)}`;
+    return esc(kind) + (source.type === 'user' ? '' : '：' + goalSourceLink(source, index));
   }
   function itineraryContent(record, index) {
     return [
@@ -142,12 +142,8 @@ export function createJourneyTrashViews({ esc, act, when, placeLabel = (place) =
       return `<section class="detail-block itinerary-recovery-detail"><h3>${esc(heading)}</h3><p>当前尚无本次行程选择。</p></section>`;
     return `<section class="detail-block itinerary-recovery-detail"><h3>${esc(heading)}</h3><p class="preserve-text">行程名称：${esc(record.name)} · ${statuses[record.status]} · ${record.steps.length} 项选择</p>${record.steps
       .map((step, at) => {
-        const sourceDetails = [
-          `原行动：${esc(step.actionId)}`,
-          ...(step.continuationId ? [`原接续行动：${esc(step.continuationId)}`] : []),
-          ...step.sources.map((source) => itinerarySourceHtml(source, index)),
-        ].join('\n');
-        return `<div class="mb"><h4 class="preserve-text">${at + 1}. ${esc(step.title)}</h4><p class="small">${step.placeId ? '确切资料场景：' + sourceLink(index, step.placeId) + ' · ' + esc(step.placeId) : '未选择资料场景'}<br>${step.skipped ? '仅本次跳过' : '本次未跳过'} · ${step.progressMode === 'save' ? '按当前存档参照核对进度' : '个人手动处理'}</p><details><summary>来源与接续</summary><p class="preserve-text small">${sourceDetails}</p></details></div>`;
+        const sourceDetails = step.sources.map((source) => itinerarySourceHtml(source, index)).join('\n');
+        return `<div class="mb"><h4 class="preserve-text">${at + 1}. ${esc(step.title)}</h4><p class="small">${step.placeId ? '地点：' + sourceLink(index, step.placeId) : '未选择地点'}<br>${step.skipped ? '仅本次跳过' : '本次未跳过'} · ${step.progressMode === 'save' ? '按当前存档参照核对进度' : '个人手动处理'}</p>${sourceDetails ? `<details><summary>关联资料</summary><p class="preserve-text small">${sourceDetails}</p></details>` : ''}</div>`;
       })
       .join('')}</section>`;
   }

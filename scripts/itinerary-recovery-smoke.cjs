@@ -11,6 +11,7 @@ const { Store } = require('../src/core/store.cjs'),
 const { syntheticSave } = require('../tests/fixtures.cjs'),
   migration = require('../src/core/migration.cjs');
 const catalog = require('../src/data/catalog.cjs');
+const world = require('../src/data/world-index.json');
 const base = path.resolve(__dirname, '..'),
   version = require('../package.json').version;
 const expectedExecutable = path.join(base, 'dist', 'v' + version, '逸剑手札-win32-x64', '逸剑手札.exe');
@@ -145,8 +146,8 @@ function assertIndependent(p, before) {
     for (const expected of [
       original.name,
       '当前待替换行程',
-      'place-22',
-      'place-9',
+      world.maps.find((place) => place.id === 'place-22').name,
+      world.maps.find((place) => place.id === 'place-9').name,
       '仅本次跳过',
       '个人已处理按当前状态保留',
     ])
@@ -201,7 +202,13 @@ function assertIndependent(p, before) {
 
     await page.locator('[data-action="journey-trash-close"]').click();
     await page.locator('[data-action="journey-itinerary-clear"]').click();
-    assert.match(await page.locator('#overlay').innerText(), /清空前的完整行程[\s\S]*place-22[\s\S]*place-9/);
+    text = await page.locator('#overlay').innerText();
+    assert.match(text, /清空前的完整行程/);
+    for (const id of ['place-22', 'place-9']) {
+      assert(text.includes(world.maps.find((place) => place.id === id).name));
+      assert(!text.includes(id));
+      assert.equal(await page.locator(`#overlay [data-action="archive-entity"][data-id="${id}"]`).count(), 1);
+    }
     raw = bytes();
     await page.keyboard.press('Escape');
     assert.deepEqual(bytes(), raw);
@@ -328,8 +335,9 @@ function assertIndependent(p, before) {
     for (const sourceDetail of await page.locator('#overlay .itinerary-recovery-detail details').all())
       if ((await sourceDetail.getAttribute('open')) === null) await sourceDetail.locator('summary').click();
     text = await page.locator('#overlay').innerText();
-    assert(text.includes(A));
-    assert(text.includes(B));
+    assert(!text.includes(A));
+    assert(!text.includes(B));
+    assert(text.includes('个人安排'));
     await page.screenshot({
       path: path.join(results, 'historical-itinerary-sources.png'),
       animations: 'disabled',
@@ -337,7 +345,7 @@ function assertIndependent(p, before) {
     await page.keyboard.press('Escape');
     assert.deepEqual(await current(), beforeHistory);
     checks.push(
-      '实际保护包导入历史完整行程与历史回收均只读：名称/顺序/精确场景/跳过/原行动完整，无当前行程修改按钮且当前周目完全保持',
+      '实际保护包导入历史完整行程与历史回收均只读：名称/顺序/精确场景/跳过/原事项完整，关联资料不显示内部编号，无当前行程修改按钮且当前周目完全保持',
     );
     assert.equal(hash(), initialSaveHash);
     assert.deepEqual(errors, []);

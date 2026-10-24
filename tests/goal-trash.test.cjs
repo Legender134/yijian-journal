@@ -72,8 +72,11 @@ test('deleted structured arrangements offer static exact references without chan
     assert.match(html, new RegExp(`data-action="archive-entity" data-id="${id}"`));
   assert.match(html, /<h3>人物物品<\/h3>/);
   assert.match(html, /class="preserve-text">&lt;人物物品&gt;<\/p>/);
-  assert.match(html, /个人安排：item-2 · journey/);
-  assert.match(html, /&lt;原字段&gt;/);
+  assert.match(html, /个人安排/);
+  assert.doesNotMatch(
+    view.detail(rows[3], index).replace(/<[^>]*>/g, ''),
+    /place-1|quest-4|item-2|original|journey|原字段/,
+  );
   const panel = view.panel({ id: 'history', journeyTrash: [rows[0]] }, index, {}, true);
   assert.match(panel, /data-action="archive-entity" data-id="npc-1"/);
   assert.doesNotMatch(panel, /data-action="journey-trash-(restore|purge)/);
