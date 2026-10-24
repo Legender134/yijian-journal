@@ -4102,7 +4102,7 @@ function showDetail(id, keep = false, handoffRevealed) {
   );
   drawerId = id;
   const status = profile().checks[id];
-  const html = `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(e.title)}详情"><div class="drawer-head"><span class="small muted">江湖索引 / ${e.kind}</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${pill(e.kind, 'green')}${e.tags.map((t) => pill(t)).join('')}</div><h1>${entityReferences.text(e.title)}</h1><div class="row small muted">${icon('pin')}${entityReferences.text(e.location)}</div><p class="intro">${entityReferences.text(e.hint)}</p>${e.checkpoint ? notice(`核对节点：${e.checkpoint}`) : ''}<div class="detail-block"><h3>详细线索</h3>${revealed ? `<ol class="steps">${e.steps.map((s) => `<li>${entityReferences.text(s)}</li>`).join('')}</ol>` : `<div class="spoiler-box">${icon('eye')}<h3>把探索的乐趣留给自己</h3><p>展开后可能包含任务条件、选择或奖励。</p>${act('reveal', '我需要详细线索', 'btn soft', id)}</div>`}</div>${e.related.length ? `<div class="detail-block"><h3>关联线索</h3>${e.related.map((r) => '<div class="row wrap mb"><span>' + entityReferences.text(entry(r)?.title || r) + '</span>' + act('detail', '查看线索', 'text-btn', r, 'arrow') + '</div>').join('')}</div>` : ''}<details class="detail-block"><summary>资料来源与参考阶段</summary><p class="small">建议阶段：${esc(catalog.stages[e.stage].title)}</p>${
+  const html = `<section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(e.title)}详情"><div class="drawer-head"><span class="small muted">江湖索引 / ${e.kind}</span>${iconButton('close-overlay', 'close', '关闭详情')}</div><div class="drawer-body"><div class="tag-row">${pill(e.kind, 'green')}${e.tags.map((t) => pill(t)).join('')}</div><h1>${entityReferences.text(e.title)}</h1><div class="row small muted">${icon('pin')}${entityReferences.text(e.location)}</div><p class="intro">${entityReferences.text(e.hint)}</p>${e.checkpoint ? notice(`核对节点：${e.checkpoint}`) : ''}<div class="detail-block"><h3>详细线索</h3>${revealed ? `<ol class="steps">${e.steps.map((s) => `<li><span class="step-content">${entityReferences.text(s)}</span></li>`).join('')}</ol>` : `<div class="spoiler-box">${icon('eye')}<h3>把探索的乐趣留给自己</h3><p>展开后可能包含任务条件、选择或奖励。</p>${act('reveal', '我需要详细线索', 'btn soft', id)}</div>`}</div>${e.related.length ? `<div class="detail-block"><h3>关联线索</h3>${e.related.map((r) => '<div class="row wrap mb"><span>' + entityReferences.text(entry(r)?.title || r) + '</span>' + act('detail', '查看线索', 'text-btn', r, 'arrow') + '</div>').join('')}</div>` : ''}<details class="detail-block"><summary>资料来源与参考阶段</summary><p class="small">建议阶段：${esc(catalog.stages[e.stage].title)}</p>${
     e.sourceIds.length
       ? e.sourceIds
           .map((id) => {
@@ -4125,9 +4125,9 @@ function modal(title, description, body, footer, retainDrawer = false, closeLabe
 }
 function stageModal(selectCurrent = false) {
   modal(
-    '这一程，走到哪里了？',
-    '选择最接近你当前主线的阶段。只会调整手札的提醒范围。',
-    `<div class="field"><label for="stage-select">当前阶段</label><select id="stage-select">${catalog.stages.map((s) => `<option value="${s.id}" ${s.id === profile().stage ? 'selected' : ''}>${s.id + 1}. ${s.title} · ${s.sub}</option>`).join('')}</select></div>${notice('已勾选的记录会保留。切换阶段不会替你完成或跳过任何条目。', true)}`,
+    '流程阶段',
+    '调整手札的提醒范围，现有标记保留。',
+    `<div class="field"><label for="stage-select">当前阶段</label><select id="stage-select">${catalog.stages.map((s) => `<option value="${s.id}" ${s.id === profile().stage ? 'selected' : ''}>${s.id + 1}. ${s.title} · ${s.sub}</option>`).join('')}</select></div>`,
     act('stage-save', '保存进度', 'btn primary', selectCurrent ? 'current' : ''),
   );
 }
@@ -4186,9 +4186,9 @@ function goalModal(id, savedDraft = null) {
 }
 function profilesModal() {
   modal(
-    '每一程，都有自己的故事',
-    '周目之间的清单、目标与笔记分别保存。',
-    `<div class="field"><label for="profile-select">切换周目</label><select id="profile-select">${state.profiles.map((p) => `<option value="${p.id}" ${p.id === profile().id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div><div class="row mb">${act('profile-switch', '切换到此周目', 'btn soft')}${act('profile-rename', '重命名当前周目', 'text-btn')}</div><div class="separator"></div><div class="field"><label for="profile-name">开启新周目</label><input id="profile-name" placeholder="例如：二周目 · 刀法之旅" maxlength="40"></div>`,
+    '管理周目',
+    '清单、目标和笔记按周目保存。',
+    `<div class="field"><label for="profile-select">切换周目</label><select id="profile-select">${state.profiles.map((p) => `<option value="${p.id}" ${p.id === profile().id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div><div class="row mb">${act('profile-switch', '切换到此周目', 'btn soft')}${act('profile-rename', '重命名当前周目', 'text-btn')}</div><div class="separator"></div><div class="field"><label for="profile-name">新周目名称</label><input id="profile-name" placeholder="例如：二周目 · 刀法之旅" maxlength="40"></div>`,
     act('profile-create', '新建周目', 'btn primary'),
   );
 }

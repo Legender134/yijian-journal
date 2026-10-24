@@ -306,7 +306,7 @@ export function createGameViews({
                 })
                 .join('、')}</details>`
             : ''
-        }${inventory ? `<small class="material-owned">已有 ${have.toLocaleString()} · ${missing ? `还缺 ${missing.toLocaleString()}` : '已备齐'}</small>` : ''}</div><strong>需 ${need.toLocaleString()}</strong>${inventory ? pill(missing ? `缺 ${missing}` : '足够', missing ? 'orange' : 'green') : ''}</div>`;
+        }${inventory ? `<small class="material-owned">已有 ${have.toLocaleString()}</small>` : ''}</div><strong>需 ${need.toLocaleString()}</strong>${inventory ? pill(missing ? `缺 ${missing}` : '足够', missing ? 'orange' : 'green') : ''}</div>`;
       })
       .join(
         '',
