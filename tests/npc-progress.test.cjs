@@ -524,7 +524,8 @@ test('unowned key-item results preview the missing reward rather than already ow
   assert.match(summary, /data-id="item-100076"/);
   assert.doesNotMatch(summary, /data-id="item-100034"|data-id="item-100073"/);
   assert.match(summary, /缺少 1 种/);
-  for (const id of [100034, 100073, 100076]) assert.match(html, new RegExp(`data-id="item-${id}"`));
+  for (const id of [100034, 100073, 100076])
+    assert.equal((html.match(new RegExp(`data-id="item-${id}"`, 'g')) || []).length, 1);
 });
 
 test('three action filters intersect and saved/live labels follow the actual data source', async () => {
