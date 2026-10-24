@@ -46,7 +46,7 @@ const npc = (id, extra = {}) => ({
   level: 15,
   rawFriendliness: 70,
   visible: true,
-  attributes: { 27: 1, 48: 1, 61: 1, 63: 1, 65: 1, 67: 1 },
+  attributes: { 27: 0, 48: 0, 61: 0, 63: 0, 65: 0, 67: 0 },
   inventory: [],
   equipment: [],
   skills: [],
@@ -176,6 +176,7 @@ test('consultation compares saved life skills and learned martial arts, respecti
       .filter((row) => row.kind === 'life')
       .map((row) => [row.name, row.playerLevel, row.teacherLevel]),
     [
+      ['制衣', 1, 1],
       ['炼丹', 1, 3],
       ['采集', 1, 2],
     ],
@@ -685,4 +686,106 @@ test('restricted preview names the operation that actually caused inclusion, not
   assert.match(summary, /请教：精力不足/);
   assert.doesNotMatch(summary, /好感已满/);
   assert.match(html, /好感已满/);
+});
+
+test('same-level Qingxu can teach life experience before the configured maximum', () => {
+  const { readNpcObservation } = require('../src/core/live-npc-state.cjs');
+  const observedMetadata = (playerLevel, teacherLevel, friend = 100, vigor = 100) => {
+    const now = 1792800000000;
+    const attrs = (level) =>
+      Object.fromEntries(
+        [5, 27, 48, 61, 63, 65, 67, 44, 9, 10, 14, 11, 12, 2, 4].map((id) => [
+          id,
+          id === 27 ? level : id === 44 ? vigor : id === 5 ? 90 : 0,
+        ]),
+      );
+    const packet = {
+      schema: 1,
+      world: 'synthetic-life-world',
+      pawn: 'synthetic-life-pawn',
+      sampledAt: now / 1000,
+      quests: [],
+      npcs: [
+        {
+          id: 0,
+          attributes: attrs(playerLevel),
+          rawFriendliness: 0,
+          visible: true,
+          mapKey: '',
+          guildId: 1,
+          skillPoints: 100000,
+          inventory: [],
+          skills: [],
+        },
+        {
+          id: 5003,
+          attributes: attrs(teacherLevel),
+          rawFriendliness: friend,
+          visible: true,
+          mapKey: '',
+          guildId: 1,
+          skillPoints: 100000,
+          inventory: [],
+          skills: [],
+        },
+      ],
+    };
+    const observation = readNpcObservation(packet, { world: packet.world, pawn: packet.pawn, now });
+    assert(observation, 'the complete synthetic reading passes the production observation boundary');
+    return { combat: observation, questStates: observation.questStates, inventory: [] };
+  };
+  const life = (input) => project(input).people[0].learning.filter((row) => row.kind === 'life');
+  for (const [playerLevel, teacherLevel, present] of [
+    [2, 3, true],
+    [3, 3, true],
+    [4, 3, false],
+    [9, 9, true],
+    [9, 10, true],
+    [10, 10, false],
+    [3.9, 3.1, true],
+  ]) {
+    const input = observedMetadata(playerLevel, teacherLevel);
+    const rows = life(input);
+    assert.equal(rows.length, present ? 1 : 0, `${playerLevel}/${teacherLevel}`);
+    if (present) {
+      assert.equal(rows[0].status, 'met');
+      assert.equal(rows[0].threshold, 10 * Math.trunc(teacherLevel));
+      assert(project(input).learning.some((row) => row.npcId === 5003));
+    }
+  }
+  assert.equal(life(observedMetadata(3, 3, 29))[0].status, 'unmet');
+  assert.equal(life(observedMetadata(3, 3, 30, 20))[0].status, 'unmet');
+  assert.equal(life(observedMetadata(3, 3, 30, 40))[0].status, 'unknown');
+  assert.equal(life(observedMetadata(3, 3, 30, 60))[0].status, 'met');
+});
+
+test('life level labels compare both characters and ready martial arts retain preview priority', async () => {
+  const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
+  const view = createNpcProgressViews({ esc: String, act: (_action, label) => label });
+  const input = metadata([
+    npc(5003, {
+      rawFriendliness: 100,
+      attributes: { 27: 3 },
+      skills: [
+        { id: 100, level: 8 },
+        { id: 101, level: 6 },
+      ],
+    }),
+  ]);
+  input.combat.player.attributes[27] = 3;
+  input.combat.player.skillPoints = 100000;
+  const data = project(input);
+  const row = data.people[0];
+  assert(row.learning.some((item) => item.kind === 'life' && item.status === 'met'));
+  assert.equal(row.learning.filter((item) => item.kind === 'martial' && item.status === 'met').length, 2);
+  const html = view.page(data, { tab: 'learning' });
+  const summary = html.match(/<details class="npc-progress-card"[\s\S]*?<summary>([\s\S]*?)<\/summary>/)[1];
+  for (const id of [100, 101]) {
+    const name = game.entries.find((entry) => entry.id === 'skill-' + id).name;
+    assert(summary.includes(name));
+  }
+  assert.doesNotMatch(summary, /锻造|→/);
+  const details = view.person(row, true);
+  assert.match(details, /锻造.*你 3 级.*对方 3 级/s);
+  assert.doesNotMatch(details, /3\s*→\s*3|升到|一次升/);
 });

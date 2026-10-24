@@ -294,17 +294,16 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         .sort((a, b) => Number(b.important) - Number(a.important) || a.id - b.id);
       const learning = [];
       for (const [attribute, name] of lifeAttributes) {
-        const teacherLevel = saved.attributes?.[attribute];
-        const playerLevel = player.attributes?.[attribute];
-        if (
-          !Number.isFinite(teacherLevel) ||
-          !Number.isFinite(playerLevel) ||
-          teacherLevel < 1 ||
-          playerLevel < 0 ||
-          teacherLevel <= playerLevel
-        )
-          continue;
-        const threshold = 10 * Math.trunc(teacherLevel);
+        const teacherValue = saved.attributes?.[attribute];
+        const playerValue = player.attributes?.[attribute];
+        if (!Number.isFinite(teacherValue) || !Number.isFinite(playerValue)) continue;
+        // The native dialog compares truncated levels and permits equality.
+        // JiYiLevelExpConfigs ends at 10; recommendations cover training below
+        // that configured limit, without claiming a benefit for 10/10 visits.
+        const teacherLevel = Math.trunc(teacherValue);
+        const playerLevel = Math.trunc(playerValue);
+        if (teacherLevel < 1 || playerLevel < 0 || playerLevel >= 10 || teacherLevel < playerLevel) continue;
+        const threshold = 10 * teacherLevel;
         const checks = [...consult.checks, ...affinityChecks(friend, threshold), vigorCheck()];
         learning.push({
           kind: 'life',

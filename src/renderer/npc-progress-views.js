@@ -23,7 +23,8 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
     [...row.learning].sort(
       (a, b) =>
         (({ met: 0, unknown: 1, unmet: 2 })[a.status] ?? 1) -
-        ({ met: 0, unknown: 1, unmet: 2 }[b.status] ?? 1),
+          ({ met: 0, unknown: 1, unmet: 2 }[b.status] ?? 1) ||
+        Number(b.kind === 'martial') - Number(a.kind === 'martial'),
     );
   const checkText = (check) => {
     const name = String(check.name || '').replace(/^【[^】]+】\s*/, '');
@@ -79,7 +80,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
     return orderedLearning(row)
       .map(
         (item) =>
-          `<li><div class="npc-learning-heading"><span>${link(item)}${item.kind === 'life' ? ` · ${text(item.playerLevel)} → ${text(item.teacherLevel)} 级` : Number.isFinite(item.teacherLevel) && item.teacherLevel > 0 ? ` · 对方 ${text(item.teacherLevel)} 级` : ''}</span><small class="npc-learning-state" data-learning-status="${text(item.status)}">${{ met: '可请教', unmet: '受限', unknown: '待确认' }[item.status] || '待确认'}</small></div>${reason(item.checks, excluded) ? `<p class="small">${reason(item.checks, excluded)}</p>` : ''}</li>`,
+          `<li><div class="npc-learning-heading"><span>${link(item)}${item.kind === 'life' ? ` · 你 ${text(item.playerLevel)} 级 · 对方 ${text(item.teacherLevel)} 级` : Number.isFinite(item.teacherLevel) && item.teacherLevel > 0 ? ` · 对方 ${text(item.teacherLevel)} 级` : ''}</span><small class="npc-learning-state" data-learning-status="${text(item.status)}">${{ met: '可请教', unmet: '受限', unknown: '待确认' }[item.status] || '待确认'}</small></div>${reason(item.checks, excluded) ? `<p class="small">${reason(item.checks, excluded)}</p>` : ''}</li>`,
       )
       .join('');
   }
@@ -163,7 +164,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
             .slice(0, 2)
             .map(
               (item) =>
-                `${link(item)}${item.kind === 'life' ? ` ${text(item.playerLevel)}→${text(item.teacherLevel)}级` : ''}`,
+                `${link(item)}${item.kind === 'life' ? ` 你${text(item.playerLevel)} · 对方${text(item.teacherLevel)}级` : ''}`,
             )
             .join(' · ')
         : loot
@@ -256,7 +257,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
         .slice(page * 12, page * 12 + 12)
         .map((row) => card(row, tab, scope, filters))
         .join('') || empty
-    }</div>${pages > 1 ? `<div class="pagination">${act('npc-progress-page', '上一页', 'btn', String(Math.max(0, page - 1)))}<span>${page + 1} / ${pages}</span>${act('npc-progress-page', '下一页', 'btn', String(Math.min(pages - 1, page + 1)))}</div>` : ''}<details data-persist-detail="npc-progress-basis-${text(scope)}"><summary>${data.origin === 'live' ? '现场更新' : '保存后更新'}</summary><p>${data.origin === 'live' ? '当前清单来自同次现场读取；读档、切换场景或连接中断时撤回现场结果。' : '游戏保存后更新清单；接入现场读取后，无需等待保存。'}私物按人物实际剩余物品统计。</p><p>请教列出更高生活技艺和未学功法；已持有同类物品仍保留剩余收集机会。未记录人物不算完成。</p></details></section>`;
+    }</div>${pages > 1 ? `<div class="pagination">${act('npc-progress-page', '上一页', 'btn', String(Math.max(0, page - 1)))}<span>${page + 1} / ${pages}</span>${act('npc-progress-page', '下一页', 'btn', String(Math.min(pages - 1, page + 1)))}</div>` : ''}<details data-persist-detail="npc-progress-basis-${text(scope)}"><summary>${data.origin === 'live' ? '现场更新' : '保存后更新'}</summary><p>${data.origin === 'live' ? '当前清单来自同次现场读取；读档、切换场景或连接中断时撤回现场结果。' : '游戏保存后更新清单；接入现场读取后，无需等待保存。'}私物按人物实际剩余物品统计。</p><p>请教列出可练习的生活技艺和未学功法；已持有同类物品仍保留剩余收集机会。未记录人物不算完成。</p></details></section>`;
   }
   return { person, page };
 }
