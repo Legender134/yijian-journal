@@ -3424,7 +3424,7 @@ function compactSavesPage() {
   const backups = environment.backups || [];
   const row = (b) =>
     `<div class="compact-backup-row"><div><strong>${esc(b.label)}</strong><span class="small muted">${when(b.createdAt)}</span></div>${act('backup-preview', '查看副本', 'btn', b.id, 'eye')}</div>`;
-  return `<div class="row between mb"><h2>存档</h2>${act('backup', '创建备份', 'btn', '', 'download')}</div>${restoreRecoveryBanner()}${backupCareBanner()}${environment.saves?.error ? notice(environment.saves.error) : ''}${environment.autoError && !environment.backupInventoryError ? notice(environment.autoError) : ''}${saveReviewActions(true)}${timelinePanel()}${backupViews.anomalies(environment.backupAnomalies || [])}<details data-persist-detail="compact-backups" open><summary>完整存档副本 · ${environment.backupInventoryError ? '数量待核对' : backups.length}</summary>${environment.backupInventoryError ? backupViews.unavailable(environment.backupInventoryError, environment.backupRoot) : backups.slice(0, 6).map(row).join('') || '<p>暂无备份</p>'}${backups.length > 6 ? `<details><summary>更早的 ${backups.length - 6} 份</summary>${backups.slice(6).map(row).join('')}</details>` : ''}<div class="row between mt"><span>完整自动备份 · ${backupStatus()}</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></details>${!environment.saves?.path ? act('choose-saves', '连接存档目录', 'btn', '', 'folder') : ''}`;
+  return `<div class="companion-save-tools">${act('backup', '创建备份', 'btn primary', '', 'download')}${saveReviewActions(true)}</div>${restoreRecoveryBanner()}${backupCareBanner()}${environment.saves?.error ? notice(environment.saves.error) : ''}${environment.autoError && !environment.backupInventoryError ? notice(environment.autoError) : ''}${timelinePanel()}${backupViews.anomalies(environment.backupAnomalies || [])}<details data-persist-detail="compact-backups" open><summary>存档备份 · ${environment.backupInventoryError ? '数量待核对' : backups.length || '暂无'}</summary>${environment.backupInventoryError ? backupViews.unavailable(environment.backupInventoryError, environment.backupRoot) : backups.slice(0, 6).map(row).join('')}${backups.length > 6 ? `<details><summary>更早的 ${backups.length - 6} 份</summary>${backups.slice(6).map(row).join('')}</details>` : ''}<div class="row between mt"><span>自动备份 · ${backupStatus()}</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></details>${!environment.saves?.path ? act('choose-saves', '连接存档目录', 'btn', '', 'folder') : ''}`;
 }
 function compactPage() {
   document.body.classList.add('companion');
@@ -3945,7 +3945,10 @@ function showOverlay(html, drawer = false, preserve = false, opener = null, reta
     const head = overlay.querySelector('.drawer-head, .search-input');
     head
       ?.querySelector('[data-action="close-overlay"]')
-      ?.insertAdjacentHTML('beforebegin', act('main', '完整手札', 'text-btn handbook-open', '', 'external'));
+      ?.insertAdjacentHTML(
+        'beforebegin',
+        iconButton('main', 'external', '打开完整手札', '', 'handbook-open'),
+      );
   }
   if (drawer && drawerHistory.length)
     overlay

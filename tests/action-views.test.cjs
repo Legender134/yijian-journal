@@ -427,6 +427,27 @@ test('compact current action exposes person, place and saved quantities before o
   assert.match(html, /前置待核对/, 'conditions remain available');
 });
 
+test('companion keeps an unresolved tracked task first without hiding the next actionable task', async () => {
+  const flow = current();
+  const template = flow.active[0];
+  flow.active = [1, 3, 5].map((id) => ({
+    ...template,
+    id: `quest-${id}`,
+    name: `任务${id}`,
+    steps: [{ ...template.steps[0], id: `quest-${id + 1}` }],
+  }));
+  flow.active[0].steps[0].nextAction = '下一步未识别，请查看游戏任务栏。';
+  const html = (await views).panel(flow, { compact: true });
+  const cards = [...html.matchAll(/<section class="flow-now\b[\s\S]*?<\/section>/g)];
+  assert.equal(cards.length, 2);
+  assert.match(cards[0][0], /data-flow-now data-flow-quest="quest-1"/);
+  assert.match(cards[0][0], /步骤待确认/);
+  assert.match(cards[1][0].split('<details')[0], /把药草交给测试人物/);
+  const [remaining] = detailsWithClass(html, 'flow-all-active');
+  assert.match(remaining.body, /data-flow-quest="quest-5"/);
+  assert.doesNotMatch(remaining.body, /data-flow-quest="quest-[13]"/);
+});
+
 test('main and companion avoid repeating linked action targets but retain exact targets behind ambiguous names', async () => {
   const { createFlowViews } = await import(
     pathToFileURL(path.join(__dirname, '../src/renderer/flow-views.js')).href
@@ -922,7 +943,7 @@ test('compact flow keeps the complete offline guide reachable behind one closed 
       { compact: true, sections: [] },
     );
     const [details] = detailsWithClass(html, 'flow-offline-details');
-    assert.equal(details.summary, '全部流程资料');
+    assert.equal(details.summary, '主线与攻略');
     assert.doesNotMatch(details.opening, /\bopen(?:\s|=|>)/);
     assert.match(details.opening, /data-persist-detail="compact-offline"/);
     assert.match(details.body, /后期完整攻略/);

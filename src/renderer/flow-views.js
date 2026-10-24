@@ -464,9 +464,16 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const visibleSections = new Set(sections);
     const compactDecision = (row) => decision(row, { compact: true });
     const first = active[0];
-    const firstStep = first?.steps?.[0];
+    const currentTask = (task, primary = false) => {
+      const next = task.steps?.[0];
+      const unresolved = !next || next.nextAction === '下一步未识别，请查看游戏任务栏。';
+      return `<section class="flow-now flow-active${unresolved ? ' flow-step-unknown' : ''}"${primary ? ' data-flow-now' : ''} data-flow-quest="${text(task.id)}"><h3>${questButton(task.id, task.name)}${unresolved ? '<small class="flow-step-status">步骤待确认</small>' : ''}</h3>${unresolved ? '' : `<p class="flow-next-action">${stepAction(next)}</p>`}${next ? compactStepTargets(next) + compactMaterials(next.materials, flow.sharedMaterials, { scope: `${task.id}-${next.id}`, instruction: next.nextAction }) : ''}<details class="flow-now-details" data-persist-detail="flow-now-${text(task.id)}-${text(next?.id)}"><summary>任务详情</summary>${next ? stepPeople(next) + stepPlaces(next) : ''}${activeTask(task, { summaryInLead: true, sharedMaterials: flow.sharedMaterials })}</details></section>`;
+    };
     const lead = first
-      ? `<section class="flow-now flow-active" data-flow-now data-flow-quest="${text(first.id)}"><h3>${questButton(first.id, first.name)}</h3><p class="flow-next-action">${firstStep ? stepAction(firstStep) : prose('请核对游戏任务栏中的当前要求。')}</p>${firstStep ? compactStepTargets(firstStep) + compactMaterials(firstStep.materials, flow.sharedMaterials, { scope: `${first.id}-${firstStep.id}`, instruction: firstStep.nextAction }) : ''}<details class="flow-now-details" data-persist-detail="flow-now-${text(first.id)}-${text(firstStep?.id)}"><summary>任务详情</summary>${firstStep ? stepPeople(firstStep) + stepPlaces(firstStep) : ''}${activeTask(first, { summaryInLead: true, sharedMaterials: flow.sharedMaterials })}</details></section>`
+      ? active
+          .slice(0, 2)
+          .map((task, i) => currentTask(task, i === 0))
+          .join('')
       : `<div class="flow-empty"><p>${text(flow.reason || (flow.available ? '当前步骤待核对' : '尚无可读存档，可先查询攻略。'))}</p>${flow.referenceNeedsSelection ? button('navigate', '检查游戏连接', 'settings', 'btn soft') : ''}</div>`;
     const riskGroups = new Map();
     for (const row of warnings) {
@@ -496,18 +503,18 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       : '';
     const current = decisions.length
       ? first
-        ? `<details class="flow-task-peek" data-persist-detail="flow-task-peek-${text(first.id)}"><summary>当前任务 · ${prose(first.name)}</summary>${lead}</details>`
+        ? `<details class="flow-task-peek" data-persist-detail="flow-task-peek-${text(first.id)}"><summary>进行中任务 · ${active.length}</summary>${lead}</details>`
         : ''
       : lead;
     return persist(
       `<section class="flow-panel flow-compact" data-flow>${stateNotice(flow)}${decisions.length ? `<section class="flow-current-decisions" aria-label="当前关键选择">${compactDecision(decisions[0])}${decisions.length > 1 ? `<details data-persist-detail="compact-more-choices"><summary>其他关键选择 · ${decisions.length - 1}</summary>${decisions.slice(1).map(compactDecision).join('')}</details>` : ''}</section>` : ''}${urgent}${decisions.length ? '' : current}${visibleSections.has('advice') && advice.length ? `<section class="flow-advice"><h2>${adviceActive(advice[0]) ? '任务提醒' : '顺路可做'}</h2>${adviceView(advice[0])}${advice.length > 1 ? `<details data-persist-detail="compact-more-advice"><summary>更多建议 · ${advice.length - 1}</summary>${advice.slice(1).map(adviceView).join('')}</details>` : ''}</section>` : ''}${decisions.length ? current : ''}${
-        active.length > 1
-          ? `<details data-persist-detail="compact-other-active" class="flow-all-active"><summary>其他进行中任务 · ${active.length - 1}</summary>${active
-              .slice(1)
+        active.length > 2
+          ? `<details data-persist-detail="compact-other-active" class="flow-all-active"><summary>其他进行中任务 · ${active.length - 2}</summary>${active
+              .slice(2)
               .map((task) => activeTask(task, { sharedMaterials: flow.sharedMaterials }))
               .join('')}</details>`
           : ''
-      }${list(flow.unindexedActive).length ? `<details data-persist-detail="compact-unindexed" class="flow-unindexed" data-flow-unindexed><summary>另有 ${flow.unindexedActive.length} 条进行中记录待识别</summary><p class="small save-note">请核对游戏任务栏；资料尚不能确定这些记录的名称与下一步。</p></details>` : ''}${visibleSections.has('opportunities') ? `<details data-persist-detail="compact-opportunities" class="flow-opportunities"><summary>未接任务线索 · ${opportunities.length}</summary>${opportunities.map((row) => rule(row, false, 'opportunity')).join('') || '<p class="small muted">暂未匹配到接取线索。</p>'}</details>` : ''}${visibleSections.has('milestones') ? `<details data-persist-detail="compact-stage" class="flow-stage-details"><summary>下一节点与阶段变化</summary>${chapter(flow) || '<p class="small muted">当前主线节点待核对。</p>'}${flow.stageUncertainty ? `<p class="small save-note" data-flow-stage-uncertain>${text(flow.stageUncertainty)}</p>` : ''}</details>` : ''}${list(flow.guide).length || list(flow.chapters).length ? `<details class="flow-offline-details" data-persist-detail="compact-offline"><summary>全部流程资料</summary>${offlineIndex(flow)}</details>` : ''}</section>`,
+      }${list(flow.unindexedActive).length ? `<details data-persist-detail="compact-unindexed" class="flow-unindexed" data-flow-unindexed><summary>另有 ${flow.unindexedActive.length} 条进行中记录待识别</summary><p class="small save-note">请核对游戏任务栏；资料尚不能确定这些记录的名称与下一步。</p></details>` : ''}${visibleSections.has('opportunities') ? `<details data-persist-detail="compact-opportunities" class="flow-opportunities"><summary>未接任务线索 · ${opportunities.length}</summary>${opportunities.map((row) => rule(row, false, 'opportunity')).join('') || '<p class="small muted">暂未匹配到接取线索。</p>'}</details>` : ''}${(visibleSections.has('milestones') && (flow.chapter || list(flow.changes).length || flow.stageUncertainty)) || list(flow.guide).length || list(flow.chapters).length ? `<details class="flow-offline-details" data-persist-detail="compact-offline"><summary>主线与攻略</summary>${visibleSections.has('milestones') ? `<section class="flow-stage-details">${chapter(flow)}${flow.stageUncertainty ? `<p class="small save-note" data-flow-stage-uncertain>${text(flow.stageUncertainty)}</p>` : ''}</section>` : ''}${offlineIndex(flow)}</details>` : ''}</section>`,
       'compact-panel',
     );
   }

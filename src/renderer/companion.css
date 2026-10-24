@@ -26,10 +26,14 @@
   padding: 8px;
 }
 .companion .flow-now {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+}
+.companion .flow-step-status {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 8px;
 }
 .companion .flow-now h2 {
   margin-bottom: 4px;
@@ -230,23 +234,6 @@
   letter-spacing: 0;
   min-width: 0;
 }
-.compact-control {
-  -webkit-app-region: no-drag;
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: 4px;
-  border: 0;
-  background: transparent;
-  color: #f5f2df;
-  padding: 6px 4px;
-  font-size: 12px;
-  border-radius: 4px;
-}
-.compact-control:hover {
-  background: #ffffff18;
-}
-.compact-control:focus-visible,
 .compact-title .icon-btn:focus-visible {
   outline-color: #e9dba8;
 }
@@ -308,13 +295,31 @@
 .companion .npc-progress-page > h2:not(:has(.pill)) {
   display: none;
 }
+.companion .npc-progress-page:has(> h2 .pill) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 6px;
+}
+.companion .npc-progress-page:has(> h2 .pill) > * {
+  grid-column: 1 / -1;
+}
+.companion .npc-progress-page:has(> h2 .pill) > h2 {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  margin: 0 0 8px;
+}
+.companion .npc-progress-page:has(> h2 .pill) > .npc-progress-tabs {
+  grid-column: 1;
+  grid-row: 1;
+}
 .companion .npc-progress-card {
-  padding: 8px 0;
+  padding: 4px 0;
 }
 .companion .npc-progress-card > summary {
-  gap: 4px;
-  padding-top: 4px;
-  padding-bottom: 4px;
+  gap: 2px;
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 .companion .npc-progress-tabs > .btn {
   font-size: 12px;
@@ -330,6 +335,9 @@
   min-width: 0;
 }
 @media (max-width: 300px) {
+  .companion-tabs .text-btn > svg {
+    display: none;
+  }
   .companion .npc-progress-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -355,6 +363,25 @@
   padding: 10px 12px;
   min-height: 0;
   overflow-x: hidden;
+}
+.companion-save-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.companion-save-tools .save-progress-actions {
+  display: contents;
+}
+.companion-save-tools .btn {
+  padding: 8px 10px;
+}
+.companion-save-tools .save-history-list {
+  flex-basis: 100%;
+  margin: 0;
+}
+.companion .compact-backup-row {
+  padding: 8px 0;
 }
 .companion .compact-body .eyebrow {
   margin-bottom: 8px;
