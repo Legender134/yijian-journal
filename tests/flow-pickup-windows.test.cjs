@@ -366,3 +366,255 @@ test('main and companion renderer keep concrete pickup impacts and leave closed/
     assert.match(html, /不表示已接任务失败/);
   }
 });
+
+const enforcementId = 'enforcement-pickup-13801';
+const enforcementRows = (stage = 5857) => [
+  [5850, 1],
+  [stage, 1],
+  [5748, 4],
+];
+
+test('enforcement pickup retains the exact quest predicate and completed-challenge transition', () => {
+  const contract = contracts.windows.enforcementPromotionPickup;
+  const task = world.quests.find((row) => row.gameId === 13801);
+  assert.equal(contract.questId, 13800);
+  assert.equal(task.parentId, contract.questId);
+  assert.deepEqual(contract.requestNPCIds, [5008]);
+  assert.deepEqual(contract.requestNPCIds, task.requestNPCs);
+  assert.deepEqual(contract.requirements.values, normalize(task.requirements));
+  assert.deepEqual(contract.requirements.values, [
+    { type: 'PreQuest', id: 5748, value: 4 },
+    { type: 'NoQuest', id: 5858, value: 0 },
+  ]);
+  assert.deepEqual(contract.entryTransition, { fromQuestId: 5857, type: 'JumpStep', id: 5858, value: 4 });
+});
+
+test('enforcement preparation warns before both contribution gathering and the challenge', () => {
+  for (const stage of [5851, 5857]) {
+    const saved = reference(5850, enforcementRows(stage));
+    const flow = flowSnapshot(profile, saved);
+    const row = warning(flow, enforcementId);
+    assert(row);
+    assert.equal(row.deadlineReached, false);
+    assert.match(row.pickup.action, /元启.*请师兄吩咐.*万劫窟/);
+    assert.match(row.deadlineLabel, /挑战道通.*执法晋升/);
+    assert.match(row.recommendation.reason, /600.*门派贡献/);
+    assert(row.conditions.some((check) => /晋升执法弟子剧情/.test(check.text)));
+    assert(!row.conditions.some((check) => /#5858/.test(check.text)));
+    assert(
+      flow.changes.some(
+        (change) =>
+          change.id === enforcementId &&
+          change.affectedTasks.some((task) => task.questId === 13801 && task.scope === 'accept'),
+      ),
+    );
+    const companion = companionSnapshot(defaults(), catalog, saved);
+    assert(companion.flow.warnings.some((entry) => entry.id === enforcementId));
+  }
+});
+
+test('any enforcement record closes only unaccepted pickup and preserves accepted quest status', () => {
+  for (const state of [0, 1, 2, 3, 4]) {
+    const flow = snapshot(5850, [
+      [5850, 1],
+      [5748, 4],
+      [5857, 4],
+      [5858, state],
+    ]);
+    const row = warning(flow, enforcementId);
+    assert(row?.deadlineReached, String(state));
+    assert.match(row.message, /接取窗口已关闭/);
+    assert(!flow.changes.some((change) => change.id === enforcementId));
+  }
+  for (const state of [1, 2, 4]) {
+    for (const past of [false, true]) {
+      const rows = [...enforcementRows(), [13800, state], [13801, state], ...(past ? [[5858, 4]] : [])];
+      const flow = snapshot(5850, rows);
+      assert(!warning(flow, enforcementId));
+      assert(!flow.changes.some((change) => change.id === enforcementId));
+      if (state === 1) assert(flow.active.some((task) => task.gameId === 13800));
+    }
+  }
+  assert(warning(snapshot(5850, [...enforcementRows(), [13800, 3], [13801, 3]]), enforcementId));
+});
+
+test('enforcement pickup does not claim availability outside a known stage or prerequisite', () => {
+  for (const rows of [
+    [
+      [5850, 1],
+      [5857, 1],
+    ],
+    [
+      [5850, 1],
+      [5857, 1],
+      [5748, 1],
+    ],
+    [[5748, 4]],
+    [
+      [5850, 4],
+      [5920, 1],
+      [5748, 4],
+      [5858, 4],
+    ],
+  ]) {
+    const main = rows.some(([id]) => id === 5920) ? 5920 : rows.length === 1 ? 0 : 5850;
+    const flow = snapshot(main, rows);
+    assert(!warning(flow, enforcementId));
+    assert(!flow.changes.some((change) => change.id === enforcementId));
+  }
+  assert(!warning(flowSnapshot(profile, null), enforcementId));
+});
+
+const enforcementActiveId = 'enforcement-active-quests';
+test('the promotion failure contract retains all original roots without inventing hidden quest names', () => {
+  const failures = contracts.windows.enforcementPromotionPickup.activeFailures;
+  assert.deepEqual(
+    failures.questIds,
+    [14152, 14153, 14154, 14170, 14180, 13800, 12200, 30140, 30150, 30360, 30380, 30692],
+  );
+  assert.deepEqual(failures.unnamedQuestIds, [30380, 30692]);
+  assert.equal(failures.requiredStep, 1);
+  assert.equal(failures.failedStep, 2);
+  const rule = guide.rules.find((row) => row.id === enforcementActiveId);
+  assert.equal(rule.advanceEffects.length, 10);
+  for (const effect of rule.advanceEffects) {
+    assert(world.quests.some((row) => row.gameId === effect.questId && row.parentId === 0));
+    assert.equal(effect.scope, 'continue');
+    assert.equal(effect.onlyWhileActive, true);
+  }
+});
+
+test('accepted enforcement tasks keep their promotion failure warning until completed', () => {
+  for (const stage of [5851, 5857]) {
+    const saved = reference(5850, [...enforcementRows(stage), [13800, 1], [13801, 1]]);
+    const flow = flowSnapshot(profile, saved);
+    assert(!warning(flow, enforcementId));
+    const row = warning(flow, enforcementActiveId);
+    assert(row);
+    assert.deepEqual(
+      row.affectedTasks.map((task) => task.questId),
+      [13800],
+    );
+    assert.match(row.affectedTasks[0].name, /惩奸除恶/);
+    assert.match(row.affectedTasks[0].effect, /会失败/);
+    assert.doesNotMatch(row.affectedTasks[0].effect, /没有证明|继续完成/);
+    const change = flow.changes.find((entry) => entry.id === enforcementActiveId);
+    assert.deepEqual(
+      change.affectedTasks.map((task) => task.questId),
+      [13800],
+    );
+    assert(
+      companionSnapshot(defaults(), catalog, saved).flow.warnings.some(
+        (entry) => entry.id === enforcementActiveId,
+      ),
+    );
+    assert.equal(
+      saved.metadata.quests.find((quest) => quest.id === 13800).step,
+      1,
+      'projection must not change the actual task state',
+    );
+  }
+});
+
+test('promotion consequences show only the current active roots and disappear without a known risk', () => {
+  const ids = contracts.windows.enforcementPromotionPickup.activeFailures.questIds.filter(
+    (id) => ![30380, 30692].includes(id),
+  );
+  const all = snapshot(5850, [...enforcementRows(), ...ids.map((id) => [id, 1])]);
+  assert.deepEqual(
+    warning(all, enforcementActiveId).affectedTasks.map((task) => task.questId),
+    ids,
+  );
+  for (const state of [0, 2, 3, 4]) {
+    const flow = snapshot(5850, [...enforcementRows(), ...ids.map((id) => [id, state])]);
+    assert(!warning(flow, enforcementActiveId), String(state));
+    assert(!flow.changes.some((row) => row.id === enforcementActiveId));
+  }
+  const mixed = snapshot(5850, [...enforcementRows(), [12200, 1], [30150, 1], [13800, 4], [30360, 3]]);
+  assert.deepEqual(
+    warning(mixed, enforcementActiveId).affectedTasks.map((task) => task.questId),
+    [12200, 30150],
+  );
+  assert(!warning(snapshot(5850, [...enforcementRows(), [30380, 1], [30692, 1]]), enforcementActiveId));
+  assert(!warning(snapshot(5850, enforcementRows()), enforcementActiveId));
+  assert(!warning(flowSnapshot(profile, null), enforcementActiveId));
+});
+
+test('active quest failure warnings retire after promotion and do not leak into unrelated stages', () => {
+  for (const state of [0, 1, 2, 3, 4]) {
+    const flow = snapshot(5850, [...enforcementRows(), [13800, 1], [13801, 1], [5858, state]]);
+    assert(!warning(flow, enforcementActiveId));
+    assert(!flow.changes.some((row) => row.id === enforcementActiveId));
+  }
+  const later = snapshot(5920, [
+    [5920, 1],
+    [13800, 1],
+    [13801, 1],
+    [5748, 4],
+  ]);
+  assert(!warning(later, enforcementActiveId));
+  const beforeChallenge = snapshot(5850, [
+    [5850, 1],
+    [13800, 1],
+    [5748, 4],
+  ]);
+  assert(!warning(beforeChallenge, enforcementActiveId));
+});
+
+test('main and compact progression views name the actual active failures before opening details', async () => {
+  const { createFlowViews } = await import('../src/renderer/flow-views.js');
+  const views = createFlowViews({
+    esc: String,
+    act: (_action, label) => label,
+    icon: () => '',
+    pill: String,
+    when: String,
+  });
+  const flow = snapshot(5850, [...enforcementRows(), [13800, 1], [13801, 1], [12200, 1], [30150, 4]]);
+  const row = warning(flow, enforcementActiveId);
+  assert.match(row.compactWarning, /惩奸除恶.*绝响难求.*晋升执法后会失败/);
+  assert.doesNotMatch(row.compactWarning, /绮罗筵/);
+  for (const compact of [false, true]) {
+    const html = views.panel(flow, { compact });
+    assert(html.includes(`data-flow-warning="${enforcementActiveId}"`));
+    assert.match(html, /惩奸除恶/);
+    assert.match(html, /绝响难求/);
+    assert.match(html, /正常结算.*失败/);
+    if (compact) {
+      const previews = [...html.matchAll(/<span class="flow-risk-preview">(.*?)<\/span>/gs)].map(
+        (match) => match[1],
+      );
+      assert(previews.some((preview) => /惩奸除恶.*绝响难求.*失败/s.test(preview)));
+    }
+  }
+});
+
+test('offline progression lookup retains the complete conditional task list without claiming current failures', async () => {
+  const { createFlowViews } = await import('../src/renderer/flow-views.js');
+  const views = createFlowViews({
+    esc: String,
+    act: (_action, label) => label,
+    icon: () => '',
+    pill: String,
+    when: String,
+  });
+  for (const flow of [
+    flowSnapshot(profile, null),
+    flowSnapshot({ ...profile, referenceMode: 'none' }, reference(5850, enforcementRows())),
+  ]) {
+    assert.equal(flow.available, false);
+    assert.equal(flow.warnings.length, 0);
+    assert.equal(flow.changes.length, 0);
+    const row = flow.guide.find((entry) => entry.id === enforcementActiveId);
+    assert.equal(row.affectedTasks.length, 10);
+    assert.match(row.warning, /仍在进行中/);
+    for (const compact of [false, true]) {
+      const html = views.panel(flow, { compact });
+      const card = html.match(
+        /<article[^>]*data-flow-rule="enforcement-active-quests"[\s\S]*?<\/article>/,
+      )?.[0];
+      assert(card, 'the offline guide renders its own conditional task card');
+      for (const name of ['惩奸除恶', '绝响难求', '绮罗筵', '慕艾的考验']) assert(card.includes(name));
+    }
+  }
+});

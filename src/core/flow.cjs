@@ -624,7 +624,11 @@ function createFlowProjector({
       const decisionResolved =
         !decisionActive && (rule.decisionSteps || []).some((id) => [2, 4].includes(step(id)));
       const affectedTasks = (rule.advanceEffects || [])
-        .filter((effect) => !effect.questId || ![2, 4].includes(step(effect.questId)))
+        .filter(
+          (effect) =>
+            (!effect.onlyWhileActive || !available || step(effect.questId) === 1) &&
+            (!effect.questId || ![2, 4].includes(step(effect.questId))),
+        )
         .map((effect) => {
           const task = quests.get(effect.questId);
           const accepted = task && family(task).some((entry) => step(entry.gameId) === 1 && !blocked(entry));
@@ -651,6 +655,9 @@ function createFlowProjector({
       }
       return {
         ...rule,
+        ...(rule.requireAffectedTasks && affectedTasks.length
+          ? { compactWarning: `${affectedTasks.map((task) => task.name).join('、')}：${rule.compactWarning}` }
+          : {}),
         ...(recordedWindowMessage
           ? {
               closedWindowSummary: recordedWindowMessage.summary,
@@ -728,6 +735,7 @@ function createFlowProjector({
         !r.failed &&
         !r.pickupRetired &&
         !r.pickupBlocked &&
+        (!r.requireAffectedTasks || r.affectedTasks.length > 0) &&
         !r.decisionResolved &&
         (!r.requireDecisionWindow || r.decisionActive),
     );

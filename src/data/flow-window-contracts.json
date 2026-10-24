@@ -19,6 +19,30 @@
     {
       "path": "Wandering_Sword/Content/JH/Maps/JiangNan/Map55_Lianxinhu/LV_55_P.uexp",
       "sha256": "062eda634ea37ff10625e680976de372117cdbc843ed4e9e45555b9593284852"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5851.uasset",
+      "sha256": "a760c0ee2174a827f8c5aa11779cb98e0bdbbf5dd6a34676ac5f3eb339f906e2"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5851.uexp",
+      "sha256": "ca91a17484883bfafed8d9547b653078c02a87e1e8b3b1250a425dffb9a2562e"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Core/Quest/BP_QuestInfoBase.uasset",
+      "sha256": "b09ddfa3924cf967e54f7468dde26143ac1b1cac744912c67fc681cc33129bc0"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Core/Quest/BP_QuestInfoBase.uexp",
+      "sha256": "6360430339745576d70dccf72800cc214ad853226e638e27e1b49dfbdd32b0a1"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/LS_CG-5851.uasset",
+      "sha256": "13be143c757995e4d1489864debdbbed680d79c1e67db7b3bf254a48eb3ae43c"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/LS_CG-5851.uexp",
+      "sha256": "992360cfecbe8081bcda182698c8efc85579657e825151b5bb6bd470f63642ab"
     }
   ],
   "questTable": {
@@ -259,10 +283,88 @@
         ]
       },
       "action": { "type": "JumpStep", "id": 30153, "value": 0 }
+    },
+    "enforcementPromotionPickup": {
+      "questId": 13800,
+      "conditionQuestId": 13801,
+      "conditionField": "RequestRequirements",
+      "requestNPCIds": [
+        5008
+      ],
+      "closedByQuestPresence": [
+        5858
+      ],
+      "requirements": {
+        "operator": "all",
+        "values": [
+          {
+            "type": "PreQuest",
+            "id": 5748,
+            "value": 4
+          },
+          {
+            "type": "NoQuest",
+            "id": 5858,
+            "value": 0
+          }
+        ]
+      },
+      "entryTransition": {
+        "fromQuestId": 5857,
+        "type": "JumpStep",
+        "id": 5858,
+        "value": 4
+      },
+      "scope": "Unaccepted13801 pickup predicate plus the explicitly proved normal Blueprint failure of listed active roots",
+      "recordingAfterSequence": {
+        "questId": 5858,
+        "questBlueprint": "/Game/JH/Maps/WuDang/Quest/Quest_5851.Quest_5851_C",
+        "finishSequence": "/Game/JH/Maps/WuDang/Quest/LS_CG-5851.LS_CG-5851",
+        "callback": "OnFinished",
+        "nativeCall": "QuestInfo.FinishQuest",
+        "recordedStep": 4,
+        "stopCallbackDoesNotFinish": true,
+        "scope": "Normal configured sequence completion. Event dispatch is not itself a saved-state write; do not promise an operable interval after the fight."
+      },
+      "activeFailures": {
+        "questIds": [
+          14152,
+          14153,
+          14154,
+          14170,
+          14180,
+          13800,
+          12200,
+          30140,
+          30150,
+          30360,
+          30380,
+          30692
+        ],
+        "unnamedQuestIds": [
+          30380,
+          30692
+        ],
+        "requiredStep": 1,
+        "action": "QuestManager.FailQuest",
+        "failedStep": 2,
+        "normalOnFinishedContinuation": [
+          1602,
+          1416,
+          1469,
+          15,
+          37,
+          322,
+          452
+        ],
+        "stoppedSequenceDoesNotEnter": true,
+        "scope": "Only roots at saved/runtime step1; existing unfinished children also receive step2. Never infer failure from the pickup predicate alone."
+      }
     }
   },
   "semantics": {
     "NoQuest": "QuestManager.HasQuest is false; Num does not change this predicate. Any explicitly recorded state, including 0 or 3, fails NoQuest.",
-    "limits": "Only the specified acceptance/departure predicates; no claim that an accepted quest fails or that absent/incomplete save data proves availability. Static rules for the pinned build; no real-game test claimed."
+    "limits": "Only the specified predicates and explicitly proved Blueprint transitions; no other accepted-task failure inferred. Static rules for the pinned build; no real-game test claimed.",
+    "JumpStep": "EJumpQuestStepType event dispatch, not an EQuestStep assignment. The5858 record is written by FinishQuest after the configured sequence OnFinished callback."
   }
 }

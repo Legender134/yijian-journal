@@ -6,6 +6,7 @@ const lotusWindow = flowWindows.lotusMeeting;
 const pickupQuestLabels = {
   5317: '晋升资深弟子剧情',
   5323: '晋升精英弟子剧情',
+  5858: '晋升执法弟子剧情',
   6261: '首座晋升对话（回复道通后）',
 };
 const pickupRule = (window, pickup, detail) => ({
@@ -72,6 +73,74 @@ const elitePickupRules = flowWindows.elitePromotionPickups.pickups.map((pickup, 
       : '演武试艺尚未接取时，先找元风核对；晋升会限制本段接取，并影响八卦刀法及元启个人线的这一前置。',
   });
 });
+const enforcementWindow = flowWindows.enforcementPromotionPickup;
+const enforcementPickupRule = pickupRule(enforcementWindow, enforcementWindow, {
+  id: 'enforcement-pickup-13801',
+  title: '晋升执法前：完成惩奸除恶',
+  compactWarning: '晋升执法前：接取并完成惩奸除恶',
+  chapterRoots: [5850],
+  stageSteps: [5851, 5857],
+  deadlineLabel: '挑战道通、推进执法晋升剧情前',
+  affectedName: '惩奸除恶 · 震山龙授首',
+  effect:
+    '执法晋升剧情结束后无法再接震山龙授首，进行中的惩奸除恶也会失败；先完成可得鱼肠剑、5000铜钱和600门派贡献。',
+  pickup: {
+    place: '武当派 · 元启 → 万劫窟（社区路线）',
+    person: '元启',
+    action: '找元启选择「请师兄吩咐」，接取惩奸除恶；再到万劫窟击败震山龙，回复元启完成任务后再晋升。',
+  },
+  warning: '挑战道通前，先向元启接取并完成惩奸除恶；只接取还不够，晋升结算会让进行中的任务失败。',
+  closedWindowSummary: '惩奸除恶：执法晋升已推进',
+  closedWindowMessage: '震山龙授首的接取窗口已关闭。',
+  uncertainty: '接取边界来自任务原表；进行中的惩奸除恶失败来自晋升Blueprint正常结算路径。',
+  recommendation: {
+    hint: '晋升执法前：先完成元启的惩奸除恶',
+    goal: '保留震山龙授首的接取机会，顺路取得贡献与鱼肠剑',
+    action: '先找元启接取惩奸除恶，到万劫窟击败震山龙，回复元启完成后再挑战道通。',
+    reason: '晋升结算会关闭接取窗口，并让进行中的惩奸除恶失败；完成所得600门派贡献也可用于本阶段准备。',
+    tradeoff: '需要前往万劫窟并完成战斗；想保留本次奖励，应先完成再晋升。',
+  },
+  steps: [
+    '在武当派找元启，选择「请师兄吩咐」，核对惩奸除恶是否已经接取。',
+    '按任务栏到万劫窟击败震山龙，再向元启交付；结算含元启好感+10、鱼肠剑×1、武学感悟×1、5000铜钱和600门派贡献。',
+  ],
+});
+const enforcementFailures = enforcementWindow.activeFailures;
+const enforcementActiveRule = {
+  id: 'enforcement-active-quests',
+  kind: 'stage',
+  questId: 5850,
+  title: '晋升执法前：完成这些任务',
+  compactWarning: '晋升执法后会失败',
+  warning: '挑战道通前先完成下列仍在进行中的任务；执法晋升剧情正常结算会将它们判为失败。',
+  chapterRoots: [5850],
+  stageSteps: [5851, 5857],
+  afterAllComplete: [],
+  untilAnyRecorded: [5858],
+  decisionSteps: [5851, 5857],
+  requireDecisionWindow: true,
+  requireAffectedTasks: true,
+  deadlineLabel: '挑战道通、推进执法晋升剧情前',
+  choices: [],
+  recommendation: {
+    action: '先完成下列进行中的任务，再挑战道通。',
+    reason: '执法晋升剧情正常结算时，会将这些尚在进行中的根任务及未完成子步骤判为失败。',
+    goal: '保留当前已接任务的剧情与奖励',
+    tradeoff: '需要先完成跑图、战斗或交付；不打算保留这些任务时可继续晋升。',
+  },
+  advanceEffects: enforcementFailures.questIds
+    .filter((id) => !enforcementFailures.unnamedQuestIds.includes(id))
+    .map((questId) => ({
+      questId,
+      scope: 'continue',
+      onlyWhileActive: true,
+      effect: '进行中未完成：执法晋升剧情正常结算时会失败。',
+      evidence: 'Quest_5851_C：Quest数组中状态1的根任务调用QuestManager.FailQuest。',
+    })),
+  sourceIds: ['rankPickupWindowsGame'],
+  uncertainty: '仅列已读取为进行中的命名任务；已完成任务不受此失败分支影响。',
+};
+
 const winePickup = flowWindows.fiveFairyWine;
 const fiveFairyPickupRule = pickupRule(winePickup, winePickup, {
   id: 'five-fairy-wine-pickup',
@@ -260,10 +329,10 @@ module.exports = {
         '同构建Quests原表11453至11456的完整按钮、跳转与动作；属性2对应气血上限，物品144为东坡肉、10223为赤铜锭。未实机验证整条灯会的后续结算。',
     },
     rankPickupWindowsGame: {
-      title: '游戏资料：精英晋升、五仙花酿与首座接取边界',
+      title: '游戏资料：武当晋升与五仙花酿的流程边界',
       url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-window-contracts.json',
       version: 'Build 21798996',
-      confidence: '同构建Quests原表的接取条件与推进动作；只限定所列步骤，不把已接任务判失败。',
+      confidence: '同构建Quests条件、推进动作与已核对Blueprint；接取限制和进行中任务失败分别按具体证据说明。',
     },
     flowR2PickupRoute: {
       title: '力拔山兮气盖世呐：门派任务、五仙花酿与人物支线顺序',
@@ -951,6 +1020,8 @@ module.exports = {
   },
   rules: [
     ...elitePickupRules,
+    enforcementPickupRule,
+    enforcementActiveRule,
     fiveFairyPickupRule,
     ...chiefPickupRules,
     {
