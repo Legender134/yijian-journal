@@ -495,7 +495,8 @@ test('version views show complete escaped content with read-only historical cont
   const p = { ...ctx().profile, journalEntries: [entry()], journalRevisions: [old] };
   const detail = views.revisionDetail(p, old.id);
   assert.match(detail, /完整末尾/);
-  assert.match(detail, /原游玩秒数 123/);
+  assert.match(detail, /游玩 0 时 2 分/);
+  assert.doesNotMatch(detail, /原游玩秒数|摘要原修改时间|记录编号|旧版本编号/);
   assert.ok(detail.includes(T0));
   assert.match(detail, /&lt;script>/);
   assert.doesNotMatch(detail, /<script>/);

@@ -282,7 +282,7 @@ test('current and read-only itinerary previews show full order, precise scene, s
     ).placeChoiceLabel,
     esc,
     when: (t) => t,
-    act: (action, label) => `<button data-action="${action}">${label}</button>`,
+    act: (action, label, cls, id) => `<button data-action="${action}" data-id="${esc(id)}">${label}</button>`,
   });
   const index = {
     world: {
@@ -294,22 +294,36 @@ test('current and read-only itinerary previews show full order, precise scene, s
     },
     entries: [],
   };
-  const html = views.detail(row(), index);
+  const archived = row(),
+    before = clone(archived);
+  const html = views.detail(archived, index);
   assert(html.indexOf('1. 第二项先去') < html.indexOf('2. 第一项后去'));
   for (const text of [
     '场景 1',
-    'place-22',
     '场景 2',
-    'place-9',
     '仅本次跳过',
     '本次未跳过',
     '个人已处理按当前状态保留',
-    'quest-999999',
-    B,
-    'journey:quest:' + 'c'.repeat(32),
+    '原任务需要重新核对',
+    '个人安排',
     '&lt;精确场景&gt;',
   ])
     assert(html.includes(text), text);
+  for (const id of ['place-22', 'place-9']) assert(html.includes(`data-id="${id}"`));
+  const visible = html.replace(/<[^>]*>/g, '');
+  for (const value of [
+    'place-22',
+    'place-9',
+    'quest-999999',
+    A,
+    B,
+    'journey:quest:' + 'c'.repeat(32),
+    'original',
+    'placements',
+    'journey',
+  ])
+    assert(!visible.includes(value), value);
+  assert.deepEqual(archived, before);
   assert(!html.includes('<精确场景>'));
   assert(views.panel(profile(), index, { query: 'quest-999999' }).includes('找回这一程'));
   const historical = views.panel(profile(), index, {}, true);

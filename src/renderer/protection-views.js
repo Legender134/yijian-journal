@@ -25,27 +25,29 @@ export function createProtectionViews({
   };
   const label = (id) => {
     const rows = entityRows(id);
+    const knownName = name?.(id);
     const title =
       rows.length > 1 && String(id).startsWith('place-')
         ? '原地点（场景待核对）'
         : rows.length === 1 && String(id).startsWith('place-')
           ? placeLabel(rows[0], getIndex().world?.maps || [])
-          : name(id) || (rows.length === 1 ? rows[0].name : '') || '原选择待核对';
+          : (knownName !== id ? knownName : '') || (rows.length === 1 ? rows[0].name : '') || '原选择待核对';
     const text = esc(title);
     return rows.length === 1 ? act('archive-entity', text, 'text-btn', id) : text;
   };
   function sourceLabel(source) {
-    if (source.type === 'user') return esc(source.id);
-    return ['database', 'quest'].includes(source.type) ? label(source.id) : esc(name(source.id) || source.id);
+    if (source.type === 'user') return '个人记录';
+    return label(source.id);
   }
   function mapLabel(key, title) {
-    if (!key) return esc(title || '未知');
+    const readableTitle = title && title !== key ? title : '';
+    if (!key) return esc(readableTitle || '未知地点');
     const maps = getIndex().world?.maps || [];
     const rows = maps.filter((row) => row.key === key);
-    if (rows.length !== 1) return esc(title || key || '未知');
+    if (rows.length !== 1) return esc(readableTitle || '未知地点');
     const place = rows[0];
     const id = maps.filter((row) => row.id === place.id).length > 1 ? place.id + ':' + place.key : place.id;
-    return act('archive-entity', esc(title || place.name), 'text-btn', id);
+    return act('archive-entity', esc(readableTitle || place.name), 'text-btn', id);
   }
   function nativeLabel(rows, id, title) {
     const matches = rows.filter((row) => row.gameId === id);
@@ -73,7 +75,7 @@ export function createProtectionViews({
       itinerary.steps
         .map(
           (step, index) =>
-            `<div class="detail-block"><h4>${index + 1}. ${esc(step.title)}</h4><div class="tag-row">${pill(step.skipped ? '仅本次跳过' : '本次未跳过')}${pill(handled.has(step.actionId) ? '个人已处理' : '未标记个人处理')}${pill(step.progressMode === 'save' ? '任务按保存的参照核对' : '个人安排')}</div><p>选定场景：${step.placeId ? label(step.placeId) : '未选择场景'}</p><details><summary>当时选择的来源</summary>${step.sources.map((source) => `<p class="small">${sourceLabel(source)} <span class="mono">${esc(source.type)} · ${esc(source.id)} · ${esc(source.field)}</span></p>`).join('')}${step.continuationId ? `<p class="small mono">已选接续：${esc(step.continuationId)}</p>` : ''}</details></div>`,
+            `<div class="detail-block"><h4>${index + 1}. ${esc(step.title)}</h4><div class="tag-row">${pill(step.skipped ? '仅本次跳过' : '本次未跳过')}${pill(handled.has(step.actionId) ? '个人已处理' : '未标记个人处理')}${pill(step.progressMode === 'save' ? '任务按保存的参照核对' : '个人安排')}</div><p>选定场景：${step.placeId ? label(step.placeId) : '未选择场景'}</p><details><summary>当时选择的来源</summary>${step.sources.map((source) => `<p class="small">${sourceLabel(source)}</p>`).join('')}</details></div>`,
         )
         .join('') || '<p class="small muted">这份行程没有选定行动</p>'
     }</details>`;

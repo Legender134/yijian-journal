@@ -1,5 +1,5 @@
 'use strict';
-const { openMainPage, revealJournalAction } = require('./ui-smoke-actions.cjs');
+const { openMainPage, openIntentEditorActions, revealJournalAction } = require('./ui-smoke-actions.cjs');
 // Single personal-arrangement recovery in real windows; synthetic journal/saves only.
 const fs = require('node:fs'),
   path = require('node:path'),
@@ -145,10 +145,7 @@ async function editor(kind, target = page) {
   if (!(await button.isVisible()))
     await button.locator('xpath=ancestor::details[1]').locator('summary').first().click();
   await button.click();
-  if (kind === 'gift') {
-    const actions = target.locator('.gift-editor-actions');
-    if (!(await actions.evaluate((node) => node.open))) await actions.locator(':scope > summary').click();
-  }
+  await openIntentEditorActions(target);
 }
 async function remove(kind, target = page) {
   await editor(kind, target);
@@ -195,15 +192,15 @@ async function written(file) {
         if (kind === 'gift') await page.locator('#journey-quantity').fill('7');
         await page.locator('#journey-done').check();
         const before = await page.locator('#overlay').evaluate((el) => {
-          const modal = el.querySelector('.modal');
-          modal.scrollTop = modal.scrollHeight;
+          const body = el.querySelector('.journey-intent-body');
+          body.scrollTop = body.scrollHeight;
           return {
             values: [...el.querySelectorAll('input,textarea,select')].map((n) => ({
               id: n.id,
               value: n.value,
               checked: n.checked,
             })),
-            scroll: modal.scrollTop,
+            scroll: body.scrollTop,
           };
         });
         await page.locator('[data-action="journey-intent-remove"]').click();
@@ -216,7 +213,7 @@ async function written(file) {
             value: n.value,
             checked: n.checked,
           })),
-          scroll: el.querySelector('.modal').scrollTop,
+          scroll: el.querySelector('.journey-intent-body').scrollTop,
           focus: document.activeElement?.dataset.action,
         }));
         assert.deepEqual(after.values, before.values);

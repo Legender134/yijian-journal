@@ -1443,7 +1443,9 @@ function craftRecipeLinks(list) {
     .map((line) => {
       const recipe = gameViews.byId(gameIndex, line.id);
       return (
-        (recipe ? act('database-detail', esc(recipe.name), 'text-btn', recipe.id) : esc(line.id)) +
+        (recipe
+          ? act('database-detail', esc(recipe.name), 'text-btn', recipe.id)
+          : esc('原配方（资料已变更）')) +
         ' × ' +
         line.quantity +
         ' 次'
@@ -1455,7 +1457,7 @@ function craftRecipeSummary(list) {
   return list
     .map((line) => {
       const recipe = gameIndex.entries.find((entry) => entry.id === line.id);
-      return `${recipe?.name || line.id} × ${line.quantity} 次`;
+      return `${recipe?.name || '原配方（资料已变更）'} × ${line.quantity} 次`;
     })
     .join(' · ');
 }
@@ -4046,7 +4048,7 @@ function dismissOverlay() {
       activeIntentEditor = intent.returnContext.editor;
       journeyDraft = intent.returnContext.draft;
       overlay.querySelector('[data-action="journey-intent-remove"]')?.focus({ preventScroll: true });
-      overlay.querySelector('.modal').scrollTop = intent.returnContext.scroll;
+      overlay.querySelector('.journey-intent-body').scrollTop = intent.returnContext.scroll;
       if (journeyDraft?.kind === 'gift') loadGiftStock(journeyDraft);
       return;
     }
@@ -6321,7 +6323,7 @@ async function handle(action, id, target, navigationFocused = false) {
           content: overlay.firstChild,
           editor: activeIntentEditor,
           draft,
-          scroll: overlay.querySelector('.modal').scrollTop,
+          scroll: overlay.querySelector('.journey-intent-body').scrollTop,
         },
       };
       modal(
@@ -6593,7 +6595,7 @@ async function handle(action, id, target, navigationFocused = false) {
       const list = plan.list
         .map((line) => {
           const recipe = gameIndex.entries.find((entry) => entry.id === line.id);
-          return `<p>${esc(recipe?.name || line.id)} × ${line.quantity} 次</p>`;
+          return `<p>${esc(recipe?.name || '原配方（资料已变更）')} × ${line.quantity} 次</p>`;
         })
         .join('');
       modal(

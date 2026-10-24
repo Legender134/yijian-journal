@@ -422,9 +422,9 @@ test('old names survive editing and rendering while known IDs supply current ide
   const augmented = structuredClone(entries);
   augmented[0].links[0].label = original;
   const html = factory.detail({ ...p, journalEntries: augmented }, entries[0].id, {}, index);
-  const display = html.split('<details><summary>原始记录信息</summary>')[0];
+  const display = html;
   assert.equal(display.split('当前资料：').length - 1, 1);
-  assert.ok(html.includes('<summary>原始记录信息</summary>'));
+  assert.ok(!html.includes('<summary>原始记录信息</summary>'));
   assert.equal(augmented[0].links[0].label, original);
 });
 
@@ -571,10 +571,8 @@ test('legacy system identity suffixes render human variants while edits preserve
       entries[0].links.map((link) => `${link.type}:${link.id}`),
       entries[0],
     ),
-    factory.detail(p, entries[0].id).split('<details><summary>原始记录信息</summary>')[0],
-    factory
-      .revisionContent({ id: 'old-version', entry: entries[0], replacedAt: time })
-      .split('<details><summary>原始记录信息</summary>')[0],
+    factory.detail(p, entries[0].id),
+    factory.revisionContent({ id: 'old-version', entry: entries[0], replacedAt: time }),
   ]) {
     assert.ok(html.includes('梧桐村 · 场景 3'));
     assert.ok(html.includes('莫问授剑 · 【主线】拜师武当 · 资料 2/3'));
@@ -603,11 +601,9 @@ test('legacy system identity suffixes render human variants while edits preserve
   assert.deepEqual(queryJournalEntries(p, { query: '梧桐村 场景 3 资料 2/3' }, index).matchedIds, [
     entries[0].id,
   ]);
-  const raw = factory.detail(p, entries[0].id).split('<details><summary>原始记录信息</summary>')[1];
-  for (const link of before[0].links) {
-    assert.ok(raw.includes(esc(link.label)));
-    assert.ok(raw.includes(link.id));
-  }
+  const visible = factory.detail(p, entries[0].id).replace(/<[^>]*>/g, '');
+  assert.doesNotMatch(visible, /场景 #|任务 #|资料编号/);
+  assert.deepEqual(entries[0].links, before[0].links);
 });
 
 test('same-name people use exact stable variants in fresh saved links and accessible choices', async () => {
