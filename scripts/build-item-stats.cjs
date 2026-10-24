@@ -165,6 +165,7 @@ function buildItemStats({ gameIndex, items, pools, buffs, formats, attributes, p
     outputItems[entry.gameId] = {
       equipmentRank: integer(raw.EquipmentRank, 'equipment rank'),
       usable: !raw.bCantUse,
+      ...(raw.bCantSell === true || enumKey(raw.ItemType) === 'QuestItem' ? { cantSell: true } : {}),
       effects: raw.Actions.map((a) => remember(projectAction(a))),
       requirements: raw.Requirements.map((a) => remember(projectAction(a))),
       random,

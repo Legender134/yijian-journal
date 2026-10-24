@@ -298,3 +298,60 @@ test('unknown conditions and absent entries remain safe without exposing impleme
   assert.match(learned, /data-id="skill-109">&lt;svg onload=evil\(\)&gt;武学<\/button>/);
   assert.doesNotMatch(learned, /<svg/);
 });
+
+test('the trade fold respects prohibited items and preserves ordinary or unknown sale price facts', async () => {
+  const { createGameViews } = await import(
+    pathToFileURL(path.join(__dirname, '../src/renderer/game-views.js')).href
+  );
+  const view = createGameViews({
+    esc,
+    act,
+    icon: () => '',
+    iconButton: () => '',
+    picture: () => '',
+    pill: esc,
+    notice: esc,
+    empty: esc,
+    qualityText: { html: (_id, name) => esc(name), label: () => '', name: (_entry, name) => esc(name) },
+  });
+  const index = encyclopedia();
+  const trade = (data, id) =>
+    view
+      .detail(data, 'item-' + id)
+      .match(/<details class="detail-block item-trade-details"[\s\S]*?<\/details>/)[0];
+  for (const id of [8065, 247, 10041, 10070, 10347, 10501]) {
+    const entry = index.entries.find((row) => row.id === 'item-' + id);
+    assert.equal(entry.stats.cantSell, true);
+    assert.ok(entry.sellPrice > 0);
+    const html = trade(index, id);
+    assert.match(html, /<small>卖出<\/small><strong>不可出售<\/strong>/);
+    assert.doesNotMatch(html, /卖出基础价/);
+    assert.doesNotMatch(html, /<details[^>]*\sopen|可以出售/);
+    assert.ok(html.includes(entry.buyPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + ' 文'));
+    assert.ok(html.includes(entry.giftable ? '可以赠送' : '不可赠送'));
+  }
+  for (const id of [100, 1029]) {
+    const entry = index.entries.find((row) => row.id === 'item-' + id);
+    const html = trade(index, id);
+    assert.ok(
+      html.includes(
+        '<small>卖出基础价</small><strong>' +
+          entry.sellPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) +
+          ' 文</strong>',
+      ),
+    );
+    assert.doesNotMatch(html, /不可出售|可以出售/);
+  }
+  const unknown = structuredClone(index);
+  const entry = unknown.entries.find((row) => row.id === 'item-247');
+  entry.stats = null;
+  const missing = trade(unknown, 247);
+  assert.match(missing, /卖出基础价/);
+  assert.doesNotMatch(missing, /不可出售|可以出售/);
+  entry.stats = { ...index.entries.find((row) => row.id === entry.id).stats, cantSell: 'true' };
+  assert.equal(
+    trade(unknown, 247),
+    missing,
+    'truthy unverified flags must not imply a restriction or permission',
+  );
+});

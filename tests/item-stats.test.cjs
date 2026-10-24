@@ -225,3 +225,50 @@ test('on-disk input hashes must match the explicit static provenance manifest', 
   fs.writeFileSync(path.join(dir, FILES.items), '[]');
   assert.throws(() => readInputs(dir, input.gameIndex), /input hash mismatch/);
 });
+
+test('ordinary item sale flags require a strictly true source boolean', () => {
+  const input = fixture();
+  input.items[0].bCantSell = true;
+  input.items[1].bCantSell = false;
+  input.items[2].bCantSell = 'true';
+  const projected = buildItemStats(input);
+  assert.equal(projected.items[100].cantSell, true);
+  assert.equal(Object.hasOwn(projected.items[101], 'cantSell'), false);
+  assert.equal(Object.hasOwn(projected.items[102], 'cantSell'), false);
+  delete input.items[0].bCantSell;
+  assert.equal(Object.hasOwn(buildItemStats(input).items[100], 'cantSell'), false);
+});
+
+test('published sale restrictions retain actual prohibited items without changing their price facts', () => {
+  for (const [id, sellPrice] of [
+    [8065, 462.7598876953125],
+    [247, 1437.8721923828125],
+    [10041, 1],
+    [10070, 100],
+    [10347, 1000],
+    [10501, 60],
+  ]) {
+    assert.equal(stats.items[id].cantSell, true);
+    assert.equal(gameIndex.entries.find((entry) => entry.id === 'item-' + id).sellPrice, sellPrice);
+  }
+  for (const id of [100, 1029]) assert.equal(Object.hasOwn(stats.items[id], 'cantSell'), false);
+  const restricted = Object.values(stats.items).filter((item) => Object.hasOwn(item, 'cantSell'));
+  assert.equal(restricted.length, 287);
+  assert.ok(restricted.every((item) => item.cantSell === true));
+  for (const id of [
+    10041, 10070, 10347, 10348, 10354, 10358, 10360, 10361, 10362, 10363, 10364, 10365, 10366, 10372, 10374,
+    10375, 10501,
+  ])
+    assert.equal(stats.items[id].cantSell, true, `native QuestItem restriction ${id}`);
+});
+
+test('the native QuestItem category independently prohibits sale even without a true flag', () => {
+  for (const flag of [false, undefined, null, 0, 'true']) {
+    const input = fixture();
+    input.gameIndex.entries[0].typeKey = 'QuestItem';
+    input.items[0].ItemType = 'EItemSubType::QuestItem';
+    input.items[0].bCantSell = flag;
+    assert.equal(buildItemStats(input).items[100].cantSell, true);
+    assert.equal(Object.hasOwn(buildItemStats(input).items[101], 'cantSell'), false);
+  }
+});

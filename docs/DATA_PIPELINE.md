@@ -68,6 +68,8 @@ node scripts/build-item-stats.cjs --input-dir <同版本简化表目录>
 node --test tests/item-stats.test.cjs
 ```
 
+`cantSell: true` 来自同Build Items原表的严格布尔 `bCantSell === true`，或原生另行拒绝的 `EItemSubType::QuestItem` 类别。SellItem入口调用静态谓词 `0x141246800`，先拒绝 `+0x40 == 0x3c`，再拒绝 `+0x83` 禁售标志；其setter为 `0x14128cbd0`。同构建原生枚举注册对 `0x1442daa10` 确认 `EItemSubType::QuestItem=60`，不能与 `EItemType::QuestItem=7` 混用。当前1629个公开物品中270个带标志，另17个任务物品无标志但同样被类型检查拒绝，合计287个显示“不可出售”。五毒玉佩8065、感悟心得247及麦子10041等仍保留原SellPrice用于资料追溯；未标记不补造“可以出售”，不扩展为全部脚本或商店可售性。
+
 输出不带生成时间，因此同一输入得到相同字节。固定 `effects` 与 `random` 候选分开；随机池的 `weight` 是原始池内权重，不是掉率。`RandRange` / `NormalRandRange` 仅保留原字段区间，不据此宣称实际词条条数、抽取次数或独立概率。原表引用缺失的池会保留 `unresolved: true`，不补造候选。
 
 `attributes` 中的 ID 与英文键来自静态枚举，中文名称结合相同版本程序的中文属性文字与物品描述核对；百分数格式依据 `AffixDisplay`。`Percent_*` 使用原值，`Percent100_*` 展示时乘 100。没有确定单位的移动速度及倍率参数保留原数值，不擅自换算。显示最多两位小数的静态参考值，不能声称是游戏实际取整或随机词条结算后的面板。`EquipmentRank` 保留原值，未核定其用途，不直接称为装备等级或品级。
