@@ -718,4 +718,13 @@ test('main home and itinerary summaries share exact gift and location links whil
   const page = views.page(selected, { query: '', completed: true }, index);
   assert.match(page, /道玄让我把一转血气丹留给朋友 &lt;私人约定&gt;/);
   assert.equal(JSON.stringify(selected), before);
+  const missingOwner = structuredClone(p);
+  missingOwner.journey.todos = [];
+  const orphaned = journeyPlan(missingOwner, null);
+  const beforeOrphanView = JSON.stringify(orphaned);
+  const orphanHtml = views.itinerary(orphaned, index);
+  assert.match(orphanHtml, /原关联资料/);
+  assert.match(orphanHtml, /个人记录/);
+  assert.doesNotMatch(orphanHtml.replace(/<[^>]*>/g, ''), /private · journey|原选择的来源指针/);
+  assert.equal(JSON.stringify(orphaned), beforeOrphanView);
 });

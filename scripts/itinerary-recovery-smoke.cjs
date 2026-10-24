@@ -302,6 +302,11 @@ function assertIndependent(p, before) {
       await historicTrip.locator('summary').first().click();
     text = await historicTrip.innerText();
     for (const expected of [original.name, '仅本次跳过']) assert(text.includes(expected), expected);
+    for (const sourceDetail of await historicTrip.locator('details').all())
+      if ((await sourceDetail.getAttribute('open')) === null) await sourceDetail.locator('summary').click();
+    text = await historicTrip.innerText();
+    for (const internal of [A, B, 'first', 'second', 'journey']) assert(!text.includes(internal), internal);
+    assert(text.includes('个人记录'));
     assert.deepEqual(
       await historicTrip
         .locator('[data-action="archive-entity"][data-id^="place-"]')

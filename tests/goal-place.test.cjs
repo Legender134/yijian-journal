@@ -122,7 +122,8 @@ test('offline archive identities open static details while unknown IDs and priva
   assert.doesNotMatch(html, /data-id="place-8"/);
   assert.match(html, /&lt;人物同名物品&gt;/);
   assert.match(html, /<summary>同名物品 · 1 种配方<\/summary>/);
-  assert.match(html, /<p class="small">item-9 <span class="mono">user · item-9/);
+  assert.match(html, /<p class="small">个人记录<\/p>/);
+  assert.doesNotMatch(html, /user · item-9/);
   const preview = factory.preview(file);
   for (const id of ['place-8:OldB', 'quest-2', 'item-10'])
     assert.match(preview, new RegExp(`data-action="archive-entity" data-id="${id}"`));
