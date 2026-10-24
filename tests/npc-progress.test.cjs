@@ -207,6 +207,119 @@ test('consultation compares saved life skills and learned martial arts, respecti
   );
 });
 
+test('proved guild-free martial consultation stays ready with zero or unread skill points and shows its cost', async () => {
+  const { createNpcProgressViews } = await import('../src/renderer/npc-progress-views.js');
+  const view = createNpcProgressViews({ esc: String, act: (_action, label) => label });
+  const input = metadata(
+    [npc(5007, { rawFriendliness: 50, skills: [{ id: 700, level: 8 }] })],
+    [{ id: 5218, step: 4 }],
+  );
+  input.combat.player.skillPoints = 0;
+  let data = project(input);
+  const skill = data.people[0].learning.find((row) => row.id === 700);
+  assert.equal(skill.status, 'met', 'green Wudang movement is free after the first completed promotion');
+  assert(skill.checks.some((check) => check.status === 'met' && /消耗 0/.test(check.text)));
+  assert.match(view.person(data.people[0]), /武学点消耗 0（门派免费请教）/);
+  assert.match(view.page(data, { tab: 'learning', filters: ['ready'] }), /data-npc-progress-card="5007"/);
+  Object.defineProperty(input.combat.player, 'skillPoints', {
+    get() {
+      throw Error('A proved zero cost must not read unavailable skill points');
+    },
+  });
+  data = project(input);
+  assert.equal(data.people[0].learning.find((row) => row.id === 700).status, 'met');
+});
+
+test('guild-free quality follows only the consecutive step-4 prefix and the target NPC guild', () => {
+  const sequence = [5218, 5317, 5323, 5748, 5858];
+  for (let length = 0; length <= sequence.length; length++) {
+    for (let grade = 1; grade <= 6; grade++) {
+      const projector = make({ skills: { 700: { ...contracts.skills[700], grade } } });
+      const input = metadata(
+        [npc(5007, { skills: [{ id: 700, level: 8 }] })],
+        sequence.slice(0, length).map((id) => ({ id, step: 4 })),
+      );
+      input.combat.player.skillPoints = 0;
+      const row = projector(input).people[0].learning.find((row) => row.id === 700);
+      assert.equal(
+        row.status,
+        length > 0 && grade <= length + 1 ? 'met' : 'unknown',
+        `prefix ${length}, grade ${grade}`,
+      );
+    }
+  }
+  const input = metadata([npc(5007, { skills: [{ id: 700, level: 8 }] })]);
+  input.combat.player.skillPoints = 0;
+  for (const quests of [
+    undefined,
+    sequence.slice(1).map((id) => ({ id, step: 4 })),
+    sequence.map((id) => ({ id, step: id === 5218 ? 3 : 4 })),
+    sequence.map((id) => ({ id, step: id === 5218 ? 5 : 4 })),
+  ]) {
+    input.quests = quests;
+    assert.equal(project(input).people[0].learning[0].status, 'unknown');
+  }
+  input.quests = [
+    { id: 5218, step: 4 },
+    { id: 5323, step: 4 },
+    { id: 5748, step: 4 },
+    { id: 5858, step: 4 },
+  ];
+  const higherGrade = make({ skills: { 700: { ...contracts.skills[700], grade: 3 } } });
+  assert.equal(
+    higherGrade(input).people[0].learning[0].status,
+    'unknown',
+    'later quests cannot fill a middle gap',
+  );
+  assert.equal(
+    project(input).people[0].learning[0].status,
+    'met',
+    'a later gap preserves the completed prefix',
+  );
+  input.quests = sequence.map((id) => ({ id, step: 4 }));
+  input.combat.player.guildId = 1;
+  input.combat.npcStates[0].id = 10016;
+  assert.equal(
+    project(input).people[0].learning[0].status,
+    'unknown',
+    'the player guild does not exempt a guild-0 teacher',
+  );
+  const missingGuild = make({ people: { 5007: {} } });
+  input.combat.npcStates[0].id = 5007;
+  assert.equal(missingGuild(input).people[0].learning[0].status, 'unknown');
+  const missingGrade = make({ skills: { 700: { ...contracts.skills[700], grade: undefined } } });
+  assert.equal(missingGrade(input).people[0].learning[0].status, 'unknown');
+});
+
+test('guild-free cost never bypasses affinity, vigor, skill requirements or a missing consult menu', () => {
+  const input = metadata(
+    [npc(5007, { rawFriendliness: 50, skills: [{ id: 700, level: 8 }] })],
+    [{ id: 5218, step: 4 }],
+  );
+  input.combat.player.skillPoints = 0;
+  input.combat.npcStates[0].rawFriendliness = 49;
+  assert.equal(project(input).people[0].learning[0].status, 'unmet');
+  input.combat.npcStates[0].rawFriendliness = 50;
+  input.combat.player.attributes[44] = 29;
+  assert.equal(project(input).people[0].learning[0].status, 'unmet');
+  input.combat.player.attributes[44] = 40;
+  assert.equal(project(input).people[0].learning[0].status, 'unknown');
+  input.combat.player.attributes[44] = 100;
+  const required = make({
+    skills: { 700: { ...contracts.skills[700], requirements: [{ type: 'PreQuest', id: 999999, value: 4 }] } },
+  });
+  assert.equal(required(input).people[0].learning[0].status, 'unmet');
+  const noMenu = createNpcProgressProjector({
+    world: {
+      ...world,
+      people: world.people.map((person) => (person.gameId === 5007 ? { ...person, functions: [] } : person)),
+    },
+    game,
+    contracts,
+  });
+  assert.equal(noMenu(input).people[0].learning[0].status, 'unmet');
+});
+
 test('hidden saved locations remain blocked leads, never a claim of death or permanent route loss', () => {
   const row = project(metadata([npc(10038, { visible: false, inventory: [{ id: 100034, count: 1 }] })]))
     .people[0];

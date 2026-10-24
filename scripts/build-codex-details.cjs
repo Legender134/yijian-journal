@@ -57,10 +57,15 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
     const matches = skillRows.filter((r) => r.Id === entry.gameId && clean(r.ViewName) === entry.name);
     if (matches.length !== 1) throw Error(`Skill identity mismatch: ${entry.id}`);
     const raw = matches[0];
+    const levelUnlockRequirements = (raw.LevelUnLockReqs || []).map((row) => ({
+      level: Number(row.Level),
+      requirements: triples(row.Reqs),
+    }));
     skills[entry.gameId] = {
       growth: Array.from({ length: 10 }, (_, n) =>
         triples(raw['LvUpAction' + (n + 1)]).filter((r) => r.type === 'CAttr'),
       ),
+      ...(levelUnlockRequirements.length ? { levelUnlockRequirements } : {}),
     };
   }
   return {

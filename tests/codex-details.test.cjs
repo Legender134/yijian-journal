@@ -36,6 +36,7 @@ test('codex source projection preserves difficulty and option alternatives and r
     Id: 100,
     ViewName: '剑法',
     LvUpAction1: [{ Type: 'EActionType::CAttr', Id: 17, Num: 0.4 }],
+    LevelUnLockReqs: [{ Level: 4, Reqs: [{ Type: 'ERequirementType::Item', Id: 10466, Num: 1 }] }],
   };
   const data = project([{ ...row, Name: null }, row], [skill], game, world);
   assert.deepEqual(
@@ -44,11 +45,43 @@ test('codex source projection preserves difficulty and option alternatives and r
   );
   assert.equal(data.quests[10].choices[0].actions[0].value, -1);
   assert.equal(data.skills[100].growth[0][0].value, 0.4);
+  assert.deepEqual(data.skills[100].levelUnlockRequirements, [
+    { level: 4, requirements: [{ type: 'Item', id: 10466, value: 1 }] },
+  ]);
   assert.throws(() => project([row, row], [skill], game, world), /identity mismatch/);
   assert.throws(
     () => project([row], [{ ...skill, ViewName: '同编号不同武学' }], game, world),
     /identity mismatch/,
   );
+});
+
+test('the four limited martial arts expose their exact breakthrough condition without changing learning gates', async () => {
+  const { createGameViews } = await import('../src/renderer/game-views.js');
+  const index = encyclopedia();
+  const view = createGameViews(helpers);
+  const cases = [
+    [872, 5, 'PreQuest', 17355, 4],
+    [877, 5, 'Item', 13877, 1],
+    [884, 4, 'Item', 10466, 1],
+    [894, 8, 'PreQuest', 26000, 4],
+  ];
+  for (const [id, level, type, target, count] of cases) {
+    const requirement = index.codex.skills[id].levelUnlockRequirements[0];
+    assert.equal(requirement.level, level);
+    assert.equal(requirement.requirements[0].type, type);
+    assert.equal(requirement.requirements[0].id, target);
+    assert.equal(requirement.requirements[0].value, count);
+    const html = view.detail(index, `skill-${id}`);
+    assert.match(html, /修炼突破/);
+    assert.match(html, new RegExp(`突破 ${level} 级`));
+    assert.doesNotMatch(html, new RegExp(`升到 ${level} 级|消耗.*item-${target}`));
+    if (type === 'Item') assert(html.includes(`data-id="item-${target}"`));
+    else {
+      assert.match(html, /剧情解锁/);
+      assert.doesNotMatch(html, /剧情记录 #|剧情条件 #/);
+    }
+  }
+  assert.doesNotMatch(view.detail(index, 'skill-101'), /修炼突破/);
 });
 test('real task effects connect reward item, hand-in costs, recipient and exact step without summing branches', async () => {
   const { createCodexDetailViews } = await import('../src/renderer/codex-detail-views.js');

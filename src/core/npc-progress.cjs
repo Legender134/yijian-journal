@@ -95,6 +95,38 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       return { ...result, text: raw.name || `${type} ${id} / ${value}` };
     }
     const evaluate = (rows) => (rows || []).map(requirement).filter((row) => row.text);
+    function guildFreeConsultation(person, setting) {
+      const rule = contracts.martialCost?.guildFree;
+      if (
+        !states ||
+        !rule ||
+        !Number.isSafeInteger(rule.targetGuildId) ||
+        contracts.people?.[person.gameId]?.guildId !== rule.targetGuildId ||
+        rule.completedQuestStep !== 4 ||
+        rule.initialMaxQuality !== 0 ||
+        !Array.isArray(rule.sequence) ||
+        !Number.isInteger(setting?.grade) ||
+        setting.grade < 1 ||
+        setting.grade > 6
+      )
+        return false;
+      // Native cost uses the target NPC's guild and stops at the first quest
+      // outside step 4. Later promotions cannot fill a gap in this prefix.
+      let maxQuality = rule.initialMaxQuality;
+      for (const unlock of rule.sequence) {
+        if (
+          !Number.isSafeInteger(unlock.questId) ||
+          unlock.questId <= 0 ||
+          !Number.isInteger(unlock.maxQuality) ||
+          unlock.maxQuality <= maxQuality ||
+          unlock.maxQuality > 6
+        )
+          return false;
+        if (states.get(unlock.questId) !== rule.completedQuestStep) break;
+        maxQuality = unlock.maxQuality;
+      }
+      return setting.grade <= maxQuality;
+    }
     function vigorCheck(normal = 60, reduced = 30) {
       const value = player.attributes?.[44];
       // The native UI needs 60, or 30 with a particular talent. Until the
@@ -298,7 +330,13 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         const baseCost = Number.isFinite(setting?.skillPointCost)
           ? Math.abs(Math.trunc(setting.skillPointCost))
           : null;
-        if (baseCost !== null)
+        if (guildFreeConsultation(person, setting))
+          checks.push({
+            status: 'met',
+            showWhenMet: true,
+            text: '武学点消耗 0（门派免费请教）',
+          });
+        else if (baseCost !== null)
           checks.push({
             status: Number.isFinite(player.skillPoints) && player.skillPoints >= baseCost ? 'met' : 'unknown',
             showWhenMet: true,

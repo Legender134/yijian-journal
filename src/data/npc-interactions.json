@@ -39,7 +39,12 @@
         "bytes": 13613,
         "sha256": "84030b4746ecbcd7a1faaedf6f752b53f9b4b7c248b11377d313cb26532f41d5"
       }
-    ]
+    ],
+    "guildIdProjection": {
+      "exportSha256": "7a0d829f069714e43e94f476bcac67784a26be0d7eb07daff6b7c7a485b429b5",
+      "identity": "Id",
+      "field": "GuildId"
+    }
   },
   "friendlyLimits": {
     "Compare": 20
@@ -69,7 +74,34 @@
     "easyDifficulty1": "half-adjusted integer cost; exact rounding not asserted",
     "talent105026": "zero cost",
     "levelMultiplier": "none in audited 0x14124c630 and 0x1410578da..0x14105790f",
-    "evidence": "0x14124c630,0x1410576d0"
+    "evidence": "0x14124c630,0x1410576d0",
+    "guildFree": {
+      "targetGuildId": 1,
+      "completedQuestStep": 4,
+      "initialMaxQuality": 0,
+      "sequence": [
+        {
+          "questId": 5218,
+          "maxQuality": 2
+        },
+        {
+          "questId": 5317,
+          "maxQuality": 3
+        },
+        {
+          "questId": 5323,
+          "maxQuality": 4
+        },
+        {
+          "questId": 5748,
+          "maxQuality": 5
+        },
+        {
+          "questId": 5858,
+          "maxQuality": 6
+        }
+      ]
+    }
   },
   "vigorCost": {
     "normal": 60,
@@ -78,1799 +110,2248 @@
   "people": {
     "0": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "5003": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5006": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5007": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5008": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5011": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5013": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5014": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5015": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5022": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5024": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5027": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5028": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5029": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5031": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5037": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5055": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5056": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "5500": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "5501": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "5502": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "5503": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "5504": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "5505": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "5507": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "5508": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "5509": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "5513": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "5516": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "6004": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 9
     },
     "6005": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 9
     },
     "6006": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 9
     },
     "6506": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "6507": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "7500": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 10
     },
     "7501": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 10
     },
     "7502": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 10
     },
     "7506": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 10
     },
     "8000": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 3
     },
     "8001": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 3
     },
     "8500": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "8506": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "8508": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "8509": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "8510": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "8514": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "9000": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 4
     },
     "9001": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 4
     },
     "9004": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 4
     },
     "10000": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10001": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10002": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10003": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10005": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10006": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10007": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10008": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10011": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10015": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10016": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10017": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10019": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 8
     },
     "10023": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10025": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 3
     },
     "10027": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 8
     },
     "10029": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 9
     },
     "10033": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "10034": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10038": {
       "compareRequirements": [],
-      "cannotFight": true
+      "cannotFight": true,
+      "guildId": 0
     },
     "10047": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10048": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 106
     },
     "10101": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10102": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10118": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10119": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10121": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10124": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10125": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10126": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10128": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10129": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10131": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10132": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10201": {
       "compareRequirements": [],
-      "cannotFight": true
+      "cannotFight": true,
+      "guildId": 0
     },
     "10202": {
       "compareRequirements": [],
-      "cannotFight": true
+      "cannotFight": true,
+      "guildId": 0
     },
     "10210": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10212": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10217": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10218": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10219": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10220": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10221": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10226": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10227": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10235": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10236": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10237": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10238": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10239": {
       "compareRequirements": [],
-      "cannotFight": true
+      "cannotFight": true,
+      "guildId": 0
     },
     "10240": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10245": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "10247": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10248": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "10249": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "10250": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "10251": {
       "compareRequirements": [],
-      "cannotFight": true
+      "cannotFight": true,
+      "guildId": 0
     },
     "10253": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 4
     },
     "10254": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10256": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10259": {
       "compareRequirements": [],
-      "cannotFight": true
+      "cannotFight": true,
+      "guildId": 0
     },
     "10260": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10268": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 101
     },
     "10269": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10270": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10271": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10279": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10281": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10282": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10301": {
       "compareRequirements": [],
-      "cannotFight": true
+      "cannotFight": true,
+      "guildId": 0
     },
     "10302": {
       "compareRequirements": [],
-      "cannotFight": true
+      "cannotFight": true,
+      "guildId": 0
     },
     "10304": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10305": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10309": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10310": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10351": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10352": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10353": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10356": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 10
     },
     "10357": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10401": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10402": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10404": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10700": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10701": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10703": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10704": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10705": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10800": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10801": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10802": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10803": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10804": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10805": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "10807": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11100": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 108
     },
     "11101": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 108
     },
     "11106": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 108
     },
     "11107": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 108
     },
     "11200": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 106
     },
     "11201": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 106
     },
     "11202": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 106
     },
     "11203": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 106
     },
     "11205": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 106
     },
     "11300": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11301": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11304": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11400": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11401": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11402": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11403": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11404": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11405": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11506": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11507": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11508": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11509": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "11510": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "11511": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "11512": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11600": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11603": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11604": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11605": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 108
     },
     "11606": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11607": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11608": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11609": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11610": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 105
     },
     "11611": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11617": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11700": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 107
     },
     "11703": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 107
     },
     "11705": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 107
     },
     "11708": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 107
     },
     "11709": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 107
     },
     "11900": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11901": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11902": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11903": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11904": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11905": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11906": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "11907": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12000": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12001": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12002": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12003": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12004": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12005": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12006": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 10
     },
     "12007": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 10
     },
     "12008": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "12010": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 8
     },
     "12011": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 8
     },
     "12013": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12101": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12102": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12103": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12104": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12105": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12106": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 108
     },
     "12502": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12503": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12504": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12505": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12506": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12508": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12600": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 109
     },
     "12602": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12604": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 109
     },
     "12605": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 109
     },
     "12606": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 109
     },
     "12607": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 109
     },
     "12608": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 109
     },
     "12609": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 109
     },
     "12610": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 109
     },
     "12700": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12702": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12703": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12800": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "12803": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13100": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 109
     },
     "13101": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13102": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13103": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13105": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 10
     },
     "13107": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13108": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13200": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13201": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13202": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13203": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13204": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 108
     },
     "13205": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13206": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13207": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "13208": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16005": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16006": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16007": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16009": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16012": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 9
     },
     "16017": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 10
     },
     "16020": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 9
     },
     "16022": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 105
     },
     "16023": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16028": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 104
     },
     "16029": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 104
     },
     "16030": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16033": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16036": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16039": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 9
     },
     "16040": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16041": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16100": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16101": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16200": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16205": {
       "compareRequirements": [],
-      "cannotFight": true
+      "cannotFight": true,
+      "guildId": 0
     },
     "16207": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16208": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16214": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16215": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "16300": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 102
     },
     "16301": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 102
     },
     "16401": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16402": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16403": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16404": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16406": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "16408": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17002": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17005": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 9
     },
     "17008": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17009": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17010": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17012": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17014": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17017": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 8
     },
     "17023": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17027": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17032": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17034": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17036": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17037": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17038": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17039": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "17100": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 9
     },
     "17102": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "17104": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "17107": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 4
     },
     "17115": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 4
     },
     "17120": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 9
     },
     "19001": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19002": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19003": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19103": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19104": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19109": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19111": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19112": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19113": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19114": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19115": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19118": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19121": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19122": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19300": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19303": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19304": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19305": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19306": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19407": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19408": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19409": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19410": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19411": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19500": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19501": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19502": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19503": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19505": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19506": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19507": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19509": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19510": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19511": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19512": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19600": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19602": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19603": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19701": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19702": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 110
     },
     "19703": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 110
     },
     "19706": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 110
     },
     "19714": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 111
     },
     "19722": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 111
     },
     "19754": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 111
     },
     "19821": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19830": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19835": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19837": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19840": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19841": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19846": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19847": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19852": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19881": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19883": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19884": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19887": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19892": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19895": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19896": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19897": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19898": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19950": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19951": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19952": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19954": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19955": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19965": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19967": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19969": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "19970": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28200": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "28201": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "28202": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "28203": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 1
     },
     "28204": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28205": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28206": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28208": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28209": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "28210": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "28211": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "28212": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 5
     },
     "28214": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "28215": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "28216": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 2
     },
     "28217": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 107
     },
     "28218": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 107
     },
     "28219": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 9
     },
     "28220": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28221": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28222": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28223": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 108
     },
     "28224": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 108
     },
     "28225": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 108
     },
     "28226": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 108
     },
     "28227": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 10
     },
     "28228": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 10
     },
     "28229": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28230": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28231": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28232": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 109
     },
     "28233": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28234": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28235": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "28236": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "28237": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "28238": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 7
     },
     "28239": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 106
     },
     "28240": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 106
     },
     "28241": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28242": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28243": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28244": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28245": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28246": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28247": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28248": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28254": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 3
     },
     "28255": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28256": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28257": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28258": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28261": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28262": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "28263": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 4
     },
     "28265": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 4
     },
     "28266": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 4
     },
     "29155": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29156": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29157": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29176": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29214": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29215": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29216": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29305": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29306": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29500": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29501": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29502": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "29503": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "45111": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "45112": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "45113": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "45136": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     },
     "46004": {
       "compareRequirements": [],
-      "cannotFight": false
+      "cannotFight": false,
+      "guildId": 0
     }
   },
   "skills": {
@@ -1879,1932 +2360,2208 @@
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "101": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "102": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "103": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "104": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "105": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "106": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "107": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "108": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "109": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "110": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "111": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "112": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "113": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "114": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "116": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "117": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "118": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "119": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "135": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "137": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "151": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "152": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "153": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "154": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "155": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "156": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "157": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "158": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "159": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "160": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "161": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "162": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "163": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "164": {
       "friendliness": 40,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 40
+      "skillPointCost": 40,
+      "grade": 1
     },
     "165": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "166": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "167": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "168": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "169": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "170": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "181": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "183": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "184": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "200": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "201": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "202": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "203": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "204": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "205": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "206": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "207": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "208": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "209": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "210": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "211": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "212": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "213": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "214": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "215": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "216": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "217": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "218": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "219": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "222": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "223": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "224": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "225": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "226": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "228": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "229": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "230": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "231": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "251": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "252": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "253": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "254": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "255": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "256": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "257": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "258": {
       "friendliness": 40,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 40
+      "skillPointCost": 40,
+      "grade": 1
     },
     "259": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "260": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "261": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "265": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "270": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "300": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "301": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "302": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "303": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "304": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "305": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "306": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "309": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "310": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "311": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "312": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "313": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "314": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "351": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "352": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "353": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "354": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "355": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "356": {
       "friendliness": 40,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 40
+      "skillPointCost": 40,
+      "grade": 1
     },
     "357": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "358": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "359": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "361": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "362": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "363": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "369": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "370": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "371": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "372": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "373": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "374": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "375": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "400": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "401": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "402": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "403": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "404": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "405": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "406": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "407": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "408": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "409": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "410": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "411": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "412": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "413": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "416": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "417": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "418": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "419": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "420": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "421": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "422": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "423": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "424": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "425": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "432": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "433": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "434": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "436": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "437": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "443": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "444": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "451": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "452": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "453": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "454": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "455": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "458": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "459": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "460": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "461": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "463": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "464": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "465": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "466": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "469": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "470": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "471": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "475": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "477": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "478": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "479": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "482": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "483": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "484": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "500": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "501": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "502": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "503": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "505": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "506": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "507": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "508": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "509": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "510": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "511": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "512": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "513": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "551": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "552": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "553": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "554": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "555": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "558": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "560": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "570": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "571": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "572": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "573": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "576": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "577": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "578": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "579": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "700": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "701": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "702": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "703": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "704": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "705": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "706": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "707": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "709": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "710": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "711": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "720": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "721": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "750": {
       "friendliness": 40,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 40
+      "skillPointCost": 40,
+      "grade": 1
     },
     "752": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "753": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "800": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "801": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "802": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "803": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "804": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "805": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "806": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "807": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "808": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "809": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "810": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "811": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "812": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "813": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "814": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "815": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "816": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "818": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "819": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "820": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "823": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "824": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "827": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "828": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "829": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "830": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "831": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "832": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "833": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "834": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "835": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "837": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "840": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "850": {
       "friendliness": 40,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 40
+      "skillPointCost": 40,
+      "grade": 1
     },
     "851": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "853": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "860": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "861": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "862": {
       "friendliness": 40,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 40
+      "skillPointCost": 40,
+      "grade": 1
     },
     "863": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "864": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "865": {
       "friendliness": 60,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 1300
+      "skillPointCost": 1300,
+      "grade": 3
     },
     "866": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": true,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "867": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "869": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "871": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "872": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "873": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "875": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "877": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "878": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "879": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "884": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "885": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "886": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "894": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 6900
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "896": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "897": {
       "friendliness": 70,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 3400
+      "skillPointCost": 3400,
+      "grade": 4
     },
     "899": {
       "friendliness": 50,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 400
+      "skillPointCost": 400,
+      "grade": 2
     },
     "906": {
       "friendliness": 90,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
-      "skillPointCost": 12400
+      "skillPointCost": 12400,
+      "grade": 6
     }
   }
 }

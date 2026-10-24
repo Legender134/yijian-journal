@@ -139,10 +139,25 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
         rows: actions.map((a) => itemEffectText(a, index.itemStats)).filter(Boolean),
       }))
       .filter((r) => r.rows.length);
+    const unlockRequirements = index.codex?.skills?.[entry.gameId]?.levelUnlockRequirements || [];
+    const unlockCondition = (requirement) => {
+      if (requirement.type === 'Item')
+        return `持有 ${link(index, 'item-' + requirement.id) || text(`物品 #${requirement.id}`)} ×${text(requirement.value)}`;
+      if (requirement.type === 'PreQuest') {
+        const quest = link(index, 'quest-' + requirement.id);
+        if (!quest && !requirement.name && requirement.value === 4) return '剧情解锁';
+        const name = quest || text(requirement.name || '剧情条件');
+        return `${name}：${text(['未开始', '进行中', '失败', '未接取', '已完成'][requirement.value] || requirement.value)}`;
+      }
+      return text(`${requirement.name || requirement.type} ${requirement.id} / ${requirement.value}`);
+    };
+    const unlocks = unlockRequirements.length
+      ? `<section class="detail-block skill-level-unlocks"><h3>修炼突破</h3>${unlockRequirements.map((row) => `<div class="codex-source-row"><strong>突破 ${text(row.level)} 级</strong><span>${row.requirements.map(unlockCondition).join('；')}</span></div>`).join('')}</section>`
+      : '';
     const consult = contract
       ? `<details class="detail-block skill-consult"><summary>请教条件${contract.excluded ? ' · 不可常规请教' : ` · 好感 ${text(contract.friendliness)}`}</summary>${contract.excluded ? '' : `<p>基础消耗 ${text(contract.skillPointCost)} 武学点；门派、难度或天赋可能减免。</p>${contract.requirements.length && index.renderRequirements ? index.renderRequirements(contract.requirements, index, { reference: null }) : ''}`}<details><summary>资料来源</summary><p>游戏资料表 · Build ${text(index.build)}</p></details></details>`
       : '';
-    return `${manuals.length ? `<section class="detail-block skill-manuals"><h3>学习秘籍</h3><div class="related-items">${manuals.map((e) => link(index, e.id)).join('')}</div></section>` : ''}${consult}${teachers.length ? `<details class="detail-block skill-teachers" data-persist-detail="skill-teachers-${text(entry.gameId)}"><summary>请教线索 · ${teachers.length} 位${progress && origin !== 'live' ? ' · 保存时状态' : ''}</summary>${more(teachers, teacher)}</details>` : ''}${levels.length ? `<details class="detail-block skill-growth"><summary>各级属性提升</summary><div class="codex-growth">${levels.map((r) => `<div><strong>${r.level} 级</strong><span>${r.rows.map((a) => text(a.name + ' ' + a.value)).join(' · ')}</span></div>`).join('')}</div></details>` : ''}`;
+    return `${manuals.length ? `<section class="detail-block skill-manuals"><h3>学习秘籍</h3><div class="related-items">${manuals.map((e) => link(index, e.id)).join('')}</div></section>` : ''}${unlocks}${consult}${teachers.length ? `<details class="detail-block skill-teachers" data-persist-detail="skill-teachers-${text(entry.gameId)}"><summary>请教线索 · ${teachers.length} 位${progress && origin !== 'live' ? ' · 保存时状态' : ''}</summary>${more(teachers, teacher)}</details>` : ''}${levels.length ? `<details class="detail-block skill-growth"><summary>各级属性提升</summary><div class="codex-growth">${levels.map((r) => `<div><strong>${r.level} 级</strong><span>${r.rows.map((a) => text(a.name + ' ' + a.value)).join(' · ')}</span></div>`).join('')}</div></details>` : ''}`;
   }
   return { quest, item, skill };
 }
