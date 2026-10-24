@@ -96,7 +96,7 @@ export function createGameViews({
       const showCategory = category && category !== kind && category !== type;
       return `<button class="database-card codex-result" data-action="${action}" data-id="${esc(e.id)}">${picture(e.id, 'card')}<span class="codex-result-copy"><span class="codex-result-heading"><strong>${qualityText.name(e, name)}</strong>${showCategory ? `<small>${esc(category)}</small>` : ''}</span>${summary ? `<span class="codex-result-summary${numeric ? ' database-numeric' : ''}">${esc(summary)}</span>` : ''}</span></button>`;
     };
-    return `<section class="codex-browser"><div class="page-header"><h1 class="serif">图鉴</h1></div>
+    return `<section class="codex-browser">
       <div class="database-tabs" role="group" aria-label="图鉴种类">${categories.map((k) => `<button class="database-tab ${kind === k ? 'active' : ''}" data-action="database-kind" data-id="${k}" aria-pressed="${kind === k}">${icon(categoryIcon(k))}<strong>${k}</strong></button>`).join('')}</div>
       <div class="toolbar database-toolbar"><div class="search-input database-search">
         ${icon('search')}<input id="list-search" data-persist="list-search" value="${esc(query)}" placeholder="名称、人物、任务或效果" aria-label="搜索百物图鉴" maxlength="100">

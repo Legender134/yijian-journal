@@ -81,7 +81,7 @@ function renderFoldHarness(compact) {
   const start = source.indexOf('function captureDetailFolds('),
     end = source.indexOf('function intentDraftBanner(', start);
   const p = { id: 'synthetic-profile', referenceMode: 'latest', saveSlot: '', goals: [] };
-  const viewport = { scrollTop: 0, scrollIntoView() {} };
+  const viewport = { scrollTop: 0, scrollIntoView() {}, setAttribute() {} };
   const root = {
     rows: [],
     contains: () => false,

@@ -282,36 +282,9 @@
   justify-content: center;
   padding: 8px 0;
 }
-.companion .codex-browser .page-header h1 {
-  font-size: 20px;
-}
-.companion .codex-browser > .page-header,
-.companion .npc-progress-heading {
-  display: none;
-}
-.companion .npc-progress-page > h2:has(.pill) {
-  margin: 0 0 6px;
-}
-.companion .npc-progress-page > h2:not(:has(.pill)) {
-  display: none;
-}
-.companion .npc-progress-page:has(> h2 .pill) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 6px;
-}
-.companion .npc-progress-page:has(> h2 .pill) > * {
-  grid-column: 1 / -1;
-}
-.companion .npc-progress-page:has(> h2 .pill) > h2 {
-  grid-column: 2;
-  grid-row: 1;
-  align-self: center;
-  margin: 0 0 8px;
-}
-.companion .npc-progress-page:has(> h2 .pill) > .npc-progress-tabs {
-  grid-column: 1;
-  grid-row: 1;
+.companion-subtitle {
+  font-size: 16px;
+  margin: 0 0 10px;
 }
 .companion .npc-progress-card {
   padding: 4px 0;

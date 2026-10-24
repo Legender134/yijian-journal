@@ -1248,6 +1248,13 @@ kbd {
   justify-content: space-between;
   gap: 18px;
 }
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
 .eyebrow {
   font-size: 10px;
   letter-spacing: 2.8px;
@@ -4161,13 +4168,6 @@ kbd {
   font-size: 12px;
   margin-top: 8px;
 }
-.codex-browser .page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
 .codex-browser .database-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -4530,6 +4530,20 @@ details.card:not([open]) {
 }
 .start-panel-compact > details {
   margin-top: 5px;
+}
+.npc-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.npc-progress-header > .pill {
+  flex-shrink: 0;
+}
+.npc-progress-header > .npc-progress-tabs {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
 }
 .npc-progress-tabs {
   display: grid;

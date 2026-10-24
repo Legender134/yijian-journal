@@ -169,7 +169,7 @@ test('curated checklist, index cards and favorites keep entity previews availabl
   Object.assign(view, {
     gameImages: { person: () => '' },
     kindIcon: () => 'book',
-    pageHeader: () => '',
+    pageActions: () => '',
     journeyTrashViews: { entry: () => '' },
     orderedGoals: () => [],
     goalDone: () => false,
@@ -179,7 +179,7 @@ test('curated checklist, index cards and favorites keep entity previews availabl
     empty: () => '',
   });
   for (const [name, endName] of [
-    ['checkRow', 'pageHeader'],
+    ['checkRow', 'pageActions'],
     ['entryRow', 'matchesQuery'],
     ['entryCard', 'itemGoal'],
     ['goalsPage', 'nodeDraftPanel'],

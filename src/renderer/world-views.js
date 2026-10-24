@@ -145,7 +145,7 @@ export function createWorldViews({
         }</button>`;
       })
       .join('');
-    return `<div class="page-header"><div><h1 class="serif">任务与地点</h1></div></div><div class="segmented world-tabs">${[
+    return `<div class="segmented world-tabs">${[
       ['quests', '任务手册'],
       ['places', '地点地图'],
     ]

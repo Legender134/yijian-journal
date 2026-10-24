@@ -2840,8 +2840,8 @@ function checkRow(e) {
   const done = profile().checks[e.id] === 'done';
   return `<div class="check-row ${done ? 'done' : ''}"><button class="check ${done ? 'checked' : ''}" data-action="check" data-id="${e.id}" aria-label="${done ? '取消完成' : '标记完成'} ${esc(e.title)}">${done ? icon('check') : ''}</button><div class="check-body"><div class="check-title">${entityReferences.text(e.title)}</div><div class="check-description">${entityReferences.text(e.location)}</div></div>${e.checkpoint ? pill('核对时机', 'orange') : pill(e.kind)}${iconButton('detail', 'chevron', '查看线索', e.id)}</div>`;
 }
-function pageHeader(eyebrow, title, sub, buttons = '') {
-  return `<div class="page-header"><div><h1 class="serif">${title}</h1></div><div class="row">${buttons}</div></div>`;
+function pageActions(buttons = '') {
+  return buttons ? `<div class="page-actions">${buttons}</div>` : '';
 }
 function startPanel() {
   const connected = !!state.settings.savePath && environment.saves.files.length > 0;
@@ -2914,13 +2914,13 @@ function homePage() {
   const goals = orderedGoals().filter((g) => !goalDone(g));
   const start = startPanel();
   const quickStart = start.startsWith('<section class="start-actions"');
-  return `${recoveryConnectionNotice()}${pageHeader('', '流程', '', quickStart ? start : '')}${quickStart ? '' : start}${environment.preferredSaveMissing ? notice('所选进度暂不可读，请在设置中重新选择。', true) : ''}${flowViews.panel(currentFlow(), { summary: true })}${intentDraftViews.panel(availableIntentDrafts(), gameIndex, false, '', profile())}<details class="home-optional card" data-persist-detail="home-personal"><summary>我的安排${goals.length ? ' · ' + goals.length + ' 项目标' : ''}</summary>${homeJourney()}<div class="dashboard-grid"><section class="card"><div class="card-header"><h2>个人目标</h2>${act('goal-add', '添加', 'text-btn', '', 'plus')}</div>${goals.slice(0, 4).map(goalRow).join('') || '<p class="small muted">暂无目标</p>'}${goals.length > 4 ? act('navigate', '全部目标', 'text-btn', 'goals') : ''}</section>${noteBlock()}</div>${recipeDiscoveryViews.entry()}</details>`;
+  return `${recoveryConnectionNotice()}${pageActions(quickStart ? start : '')}${quickStart ? '' : start}${environment.preferredSaveMissing ? notice('所选进度暂不可读，请在设置中重新选择。', true) : ''}${flowViews.panel(currentFlow(), { summary: true })}${intentDraftViews.panel(availableIntentDrafts(), gameIndex, false, '', profile())}<details class="home-optional card" data-persist-detail="home-personal"><summary>我的安排${goals.length ? ' · ' + goals.length + ' 项目标' : ''}</summary>${homeJourney()}<div class="dashboard-grid"><section class="card"><div class="card-header"><h2>个人目标</h2>${act('goal-add', '添加', 'text-btn', '', 'plus')}</div>${goals.slice(0, 4).map(goalRow).join('') || '<p class="small muted">暂无目标</p>'}${goals.length > 4 ? act('navigate', '全部目标', 'text-btn', 'goals') : ''}</section>${noteBlock()}</div>${recipeDiscoveryViews.entry()}</details>`;
 }
 function stageStrip() {
   return `<div class="stage-strip">${catalog.stages.map((s) => `<button class="stage-step ${s.id === profile().stage && profile().stageConfirmed !== false ? 'active' : s.id < profile().stage ? 'past' : ''}" data-action="stage-change" data-id="${s.id}" title="${esc(s.sub)}"><span class="stage-dot">${s.id + 1}</span><span>${s.short}</span></button>`).join('')}</div>`;
 }
 function checklistPage() {
-  return `${pageHeader('QUEST PROGRESS', '流程任务', '跟随已保存的进度，先看下一步与推进前需要核对的事。')}${flowViews.panel(currentFlow())}<details class="card flow-legacy" data-persist-detail="flow-legacy"><summary>手动精选清单与旧阶段记录</summary>${legacyChecklistPage()}</details>`;
+  return `${flowViews.panel(currentFlow())}<details class="card flow-legacy" data-persist-detail="flow-legacy"><summary>手动精选清单与旧阶段记录</summary>${legacyChecklistPage()}</details>`;
 }
 function legacyChecklistPage() {
   const selectedFilter = filter === 'current' && profile().stageConfirmed === false ? 'all' : filter;
@@ -2934,7 +2934,7 @@ function legacyChecklistPage() {
   if (selectedFilter === 'done') list = list.filter((e) => profile().checks[e.id] === 'done');
   if (selectedFilter === 'skip') list = list.filter((e) => profile().checks[e.id] === 'skip');
   if (query) list = list.filter(matchesQuery);
-  return `${pageHeader('THE JOURNEY', '流程防漏', '在主线向前之前，回头看看值得记住的小事。', act('stage', '调整当前进度', 'btn', '', 'edit'))}${stageStrip()}${notice(profile().stageConfirmed === false ? '尚未标记主线阶段；可先浏览精选提醒并勾选。需要按阶段筛选时，再点「调整当前进度」。' : '阶段由你手动选择。这里只列精选提醒；较早阶段的未处理条目会保留供核对，不代表已经错过。', true)}<div class="toolbar">${[
+  return `${pageActions(act('stage', '调整当前进度', 'btn', '', 'edit'))}${stageStrip()}${notice(profile().stageConfirmed === false ? '尚未标记主线阶段；可先浏览精选提醒并勾选。需要按阶段筛选时，再点「调整当前进度」。' : '阶段由你手动选择。这里只列精选提醒；较早阶段的未处理条目会保留供核对，不代表已经错过。', true)}<div class="toolbar">${[
     ['current', '当前阶段'],
     ['pending', '全部待办'],
     ['done', '已完成'],
@@ -2967,7 +2967,7 @@ function libraryPage() {
   const list = catalog.entries.filter(
     (e) => (kind === '全部' || e.kind === kind) && (!query || matchesQuery(e)),
   );
-  return `${pageHeader('PEOPLE, PLACES & POSSIBILITIES', '江湖索引', '收藏你在意的线索，等走到那里时再翻开。', pill(`${catalog.entries.length} 条精选线索`))}<div class="toolbar">${['全部', '队友', '支线', '武学', '装备', '玩法'].map((k) => `<button class="chip ${kind === k ? 'active' : ''}" data-action="kind" data-id="${k}">${k}</button>`).join('')}<span class="spacer"></span>${searchInput('搜索姓名、物品、地点')}</div>${list.length ? `<div class="card-grid">${list.map(entryCard).join('')}</div>` : empty('没有找到这条线索', '', act('library-search-all', '查全部图鉴与任务', 'btn soft', '', 'search') + act('goal-add', '记为我的目标', 'text-btn', '', 'plus'))}`;
+  return `<div class="toolbar">${['全部', '队友', '支线', '武学', '装备', '玩法'].map((k) => `<button class="chip ${kind === k ? 'active' : ''}" data-action="kind" data-id="${k}">${k}</button>`).join('')}<span class="spacer"></span>${searchInput('搜索姓名、物品、地点')}${pill(`${list.length} 项`)}</div>${list.length ? `<div class="card-grid">${list.map(entryCard).join('')}</div>` : empty('没有找到这条线索', '', act('library-search-all', '查全部图鉴与任务', 'btn soft', '', 'search') + act('goal-add', '记为我的目标', 'text-btn', '', 'plus'))}`;
 }
 function entryCard(e) {
   return `<article class="entry-card" tabindex="0" role="button" aria-label="查看 ${esc(e.title)}" data-action="detail" data-id="${e.id}"><div class="entry-card-top"><h3>${entityReferences.text(e.title)}</h3>${iconButton('favorite', 'star', profile().favorites.includes(e.id) ? '取消收藏' : '收藏线索', e.id, `favorite ${profile().favorites.includes(e.id) ? 'on' : ''}`)}</div><p>${entityReferences.text(e.hint)}</p><div class="entry-card-bottom"><span>${entityReferences.text(e.location)}</span>${pill(e.kind)}</div></article>`;
@@ -3008,7 +3008,7 @@ function goalRow(g) {
 function goalsPage() {
   const p = profile();
   const favorites = p.favorites.map((id) => entry(id)).filter(Boolean);
-  return `${pageHeader('', '行囊目标', '', act('goal-add', '添加目标', 'btn primary', '', 'plus'))}${journeyTrashViews.entry(p)}<div class="saved-goals"><div class="stack"><section class="card"><div class="card-header"><h2>我的待办</h2>${pill(`${p.goals.filter((g) => !goalDone(g)).length} 件未完成`)}</div>${p.goals.length ? orderedGoals().map(goalRow).join('') : '<p class="small muted">还没有目标</p>'}</section><details class="card" data-persist-detail="goal-favorites"${favorites.length ? ' open' : ''}><summary>收藏线索 · ${favorites.length}</summary><div class="row mt">${act('navigate', '查找线索', 'text-btn', 'library', 'search')}</div>${favorites.map((e) => `<div class="check-row"><div class="check-body"><div class="check-title">${entityReferences.text(e.title)}</div><p class="check-description">${entityReferences.text(e.location)} · ${e.kind}</p></div>${iconButton('detail', 'chevron', '查看线索', e.id)}${iconButton('entry-goal', 'plus', '加入待办', e.id)}${iconButton('favorite', 'star', '取消收藏', e.id, 'favorite on')}</div>`).join('')}</details></div><div class="stack">${noteBlock()}<details class="small"><summary>周目说明</summary><p>清单、收藏和随手记按周目分别保存。${compact ? '打开完整手札后可切换或新建周目。' + act('main', '打开完整手札', 'text-btn', '', 'external') : '可在左下角切换或新建周目。'}</p></details></div></div>`;
+  return `${pageActions(act('goal-add', '添加目标', 'btn primary', '', 'plus'))}${journeyTrashViews.entry(p)}<div class="saved-goals"><div class="stack"><section class="card"><div class="card-header"><h2>我的待办</h2>${pill(`${p.goals.filter((g) => !goalDone(g)).length} 件未完成`)}</div>${p.goals.length ? orderedGoals().map(goalRow).join('') : '<p class="small muted">还没有目标</p>'}</section><details class="card" data-persist-detail="goal-favorites"${favorites.length ? ' open' : ''}><summary>收藏线索 · ${favorites.length}</summary><div class="row mt">${act('navigate', '查找线索', 'text-btn', 'library', 'search')}</div>${favorites.map((e) => `<div class="check-row"><div class="check-body"><div class="check-title">${entityReferences.text(e.title)}</div><p class="check-description">${entityReferences.text(e.location)} · ${e.kind}</p></div>${iconButton('detail', 'chevron', '查看线索', e.id)}${iconButton('entry-goal', 'plus', '加入待办', e.id)}${iconButton('favorite', 'star', '取消收藏', e.id, 'favorite on')}</div>`).join('')}</details></div><div class="stack">${noteBlock()}<details class="small"><summary>周目说明</summary><p>清单、收藏和随手记按周目分别保存。${compact ? '打开完整手札后可切换或新建周目。' + act('main', '打开完整手札', 'text-btn', '', 'external') : '可在左下角切换或新建周目。'}</p></details></div></div>`;
 }
 function nodeDraftPanel() {
   const entries = Object.entries(environment.activity?.drafts || {});
@@ -3128,7 +3128,7 @@ function savesPage() {
     backups = environment.backups;
   const warnings = `${environment.game.build && environment.game.build !== gameIndex.build ? notice(`游戏已更新到 Build ${environment.game.build}，手札图鉴资料为 Build ${gameIndex.build}；名称与配方请以游戏内为准。`, true) : ''}${save.error ? notice(save.error) : ''}${files.some((f) => /^\d+\.sav$/i.test(f.name) && !f.metadata) ? notice('部分存档暂时无法读取进度，仍可完整备份原文件。请在游戏里重新保存后刷新，或核对存档目录与游戏版本；没有可读进度时，库存与任务状态不会自动填入。', true) : ''}${environment.autoError && !environment.backupInventoryError ? notice(environment.autoError) : ''}`;
   const connection = `<div class="card mb save-connection"><div class="row between save-connection-header"><div class="row save-connection-description"><div class="save-icon">${icon('folder')}</div><div><h3>${files.length ? '已连接本机存档' : '尚未连接存档'}</h3><p class="small muted">${files.length ? '文件会被只读扫描，备份保存在手札的数据目录。' : '选择游戏的 SaveGames 文件夹即可开始。'}</p></div></div><div class="save-stats"><div><strong>${files.filter((f) => /\.sav$/i.test(f.name)).length}</strong><small>存档文件</small></div><div>${environment.recovery ? '<button class="btn" disabled title="请先核对完整存档恢复">更换目录 · 先核对恢复</button>' : act('choose-saves', '更换目录', 'btn')}</div></div></div><div class="separator"></div><div class="row between save-connection-path"><span class="mono muted">${esc(save.path || '等待选择目录')}</span>${save.path ? act('folder', '打开目录', 'text-btn', 'saves', 'external') : ''}</div></div>`;
-  return `${pageHeader('A PLACE TO RETURN TO', '存档', '重要选择之前，为这一程留一份退路。', `${act('refresh', '刷新', 'btn', '', 'refresh')}${act('backup', '创建备份', 'btn primary', '', 'download')}`)}${restoreRecoveryBanner()}${backupCareBanner()}${warnings}${saveReviewActions()}${timelinePanel()}${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${!save.path || !files.length ? connection : ''}
+  return `${pageActions(`${act('refresh', '刷新', 'btn', '', 'refresh')}${act('backup', '创建备份', 'btn primary', '', 'download')}`)}${restoreRecoveryBanner()}${backupCareBanner()}${warnings}${saveReviewActions()}${timelinePanel()}${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${!save.path || !files.length ? connection : ''}
  <div class="row between mb"><h2>完整备份 <span class="small muted">${environment.backupInventoryError ? '· 数量待核对' : backups.length ? `· ${backups.length} 份` : ''}</span></h2><div class="row"><span class="small muted">完整自动备份 · ${backupStatus()}</span><button role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" class="switch ${state.settings.autoBackup ? 'on' : ''}" data-action="auto-backup"></button></div></div>
  ${backupViews.anomalies(environment.backupAnomalies || [])}${environment.backupInventoryError ? backupViews.unavailable(environment.backupInventoryError, environment.backupRoot) : backups.length ? backupViews.page(backups, backupView) : '<p class="small muted mb">还没有备份</p>'}${protectionViews.controls(protectionView)}${activityPanel()}<details class="save-backup-help mb" data-persist-detail="backup-help"><summary>备份设置与说明</summary><p class="small">完整自动备份 · ${backupStatus()}</p><p class="save-note">原生游戏连接工作时暂停完整自动备份，避免重复复制其他槽位；等待连接或关闭时间线时仍保护文件。关闭时间线后立即检查，之后每分钟核对文件变化；稳定后复制已保存的文件，不会替游戏执行保存。副本不会自动删除。可按名称、类型和日期整理或分批导出；上方完整换机会自动分卷，请一并带走分卷目录。</p></details>
  <details class="card save-files" data-persist-detail="save-files"><summary>存档目录与文件</summary>${save.path && files.length ? connection : ''} <div class="section-heading"><h2>当前存档文件</h2><div class="row"><span class="small muted">共 ${files.length} 个文件 · ${bytes(save.total)}</span>${files.some((f) => f.metadata) ? act('save-compare', '比较两份存档', 'btn', '', 'search') : ''}</div></div>${
@@ -3176,7 +3176,7 @@ function companionSettings() {
     )}</select><label for="companion-opacity">提示透明度</label><select id="companion-opacity" class="input">${options.map((n) => `<option value="${n}" ${n === opacity ? 'selected' : ''}>${Number((n * 100).toFixed(2))}%${presets.includes(n) ? '' : '（当前）'}</option>`).join('')}</select></div><p class="small muted">Esc 关闭详情，再按返回轻提示。使用窗口化或无边框模式。</p></details>`;
 }
 function settingsPage() {
-  return `${pageHeader('MAKE IT YOUR OWN', '手札设置', '轻一点，静一点，按你自己的节奏来。')}<div class="stack"><section class="card"><h2 class="mb">常用设置</h2><div class="setting-row"><div><h3>游戏进度</h3><p>${profile().referenceMode === 'none' ? '仅查资料' : profile().saveSlot ? esc(profile().saveSlot) : '自动使用最新进度'}</p></div>${act('save-slot', '更改', 'btn', '', 'edit')}</div><div class="setting-row"><div><label for="reading-scale" title="Ctrl + / −，Ctrl + 0 恢复默认"><strong>界面大小</strong></label></div><div class="row wrap"><select id="reading-scale" class="input" aria-label="界面大小">${[100, 110, 125, 150].map((size) => `<option value="${size}"${(state.settings.readingScale || 100) === size ? ' selected' : ''}>${size}%${size === 100 ? ' · 默认' : ''}</option>`).join('')}</select>${act('reading-scale-reset', '恢复默认', 'text-btn', '', '', '恢复默认大小')}</div></div><div class="setting-row"><div><h3>使用帮助</h3></div>${act('help', '查看', 'btn', '', 'book', '打开使用说明')}</div><div class="setting-row"><div><h3>少剧透提示</h3></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3 title="Ctrl + Alt + J">随行小窗</h3></div>${act('compact', '打开', 'btn', '', 'pin', '打开随行小窗')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3></div>${act('profiles', '管理', 'btn', '', 'person', '管理周目')}</div></section>
+  return `<div class="stack"><section class="card"><h2 class="mb">常用设置</h2><div class="setting-row"><div><h3>游戏进度</h3><p>${profile().referenceMode === 'none' ? '仅查资料' : profile().saveSlot ? esc(profile().saveSlot) : '自动使用最新进度'}</p></div>${act('save-slot', '更改', 'btn', '', 'edit')}</div><div class="setting-row"><div><label for="reading-scale" title="Ctrl + / −，Ctrl + 0 恢复默认"><strong>界面大小</strong></label></div><div class="row wrap"><select id="reading-scale" class="input" aria-label="界面大小">${[100, 110, 125, 150].map((size) => `<option value="${size}"${(state.settings.readingScale || 100) === size ? ' selected' : ''}>${size}%${size === 100 ? ' · 默认' : ''}</option>`).join('')}</select>${act('reading-scale-reset', '恢复默认', 'text-btn', '', '', '恢复默认大小')}</div></div><div class="setting-row"><div><h3>使用帮助</h3></div>${act('help', '查看', 'btn', '', 'book', '打开使用说明')}</div><div class="setting-row"><div><h3>少剧透提示</h3></div><button class="switch ${state.settings.spoiler === 'hints' ? 'on' : ''}" role="switch" aria-checked="${state.settings.spoiler === 'hints'}" aria-label="少剧透提示" data-action="spoiler"></button></div><div class="setting-row"><div><h3 title="Ctrl + Alt + J">随行小窗</h3></div>${act('compact', '打开', 'btn', '', 'pin', '打开随行小窗')}</div><div class="setting-row"><div><h3>当前周目：${esc(profile().name)}</h3></div>${act('profiles', '管理', 'btn', '', 'person', '管理周目')}</div></section>
  ${windowLayoutSettings()}${companionSettings()}${shortcutSettings()}<details class="card settings-section" data-persist-detail="settings-connection"><summary>本机连接</summary><div class="setting-row"><div><h3>逸剑风云决 ${environment.game.installed ? '· 已找到' : '· 由 Steam 启动'}</h3><p>${esc(environment.game.path || '使用 Steam 游戏入口启动')}${environment.game.build ? ` · Build ${esc(environment.game.build)}` : ''}</p></div>${act('launch', '启动游戏', 'btn', '', 'game')}</div><div class="setting-row"><div><h3>游戏存档目录</h3><p class="mono">${esc(state.settings.savePath || '尚未选择')}</p></div>${act('choose-saves', '选择目录', 'btn', '', 'folder')}</div>${environment.detected.length > 1 ? `<div class="setting-row"><div><h3>检测到多个存档目录</h3><p>请选择你本次游玩的账户目录。</p></div><select id="detected-save" class="input">${environment.detected.map((p) => `<option value="${esc(p)}" ${p === state.settings.savePath ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>` : ''}<div class="setting-row"><div><h3>完整自动备份 · ${backupStatus()}</h3><p>保存后自动留存副本；游戏内自动存档在存档匣设置。</p></div><button class="switch ${state.settings.autoBackup ? 'on' : ''}" role="switch" aria-checked="${state.settings.autoBackup}" aria-label="自动备份" data-action="auto-backup"></button></div></details>
  ${protectionViews.exportResult(protectionView.exportResultOverride || environment.protectionExportResult)}${protectionViews.controls(protectionView)}<details class="card settings-section" data-persist-detail="settings-data"><summary>记录与数据</summary><div class="setting-row"><div><h3>手札备份</h3><p>导出全部周目的记录。导入前会保留当前手札副本；此功能不包含游戏存档。</p></div><div class="row">${act('import', '导入', 'btn', '', 'upload')}${act('export', '导出手札', 'btn', '', 'download')}</div></div><div class="setting-row"><div><h3>本地数据目录</h3><p class="mono">${esc(environment.userData)}</p></div>${act('folder', '打开', 'btn', 'data', 'folder')}</div><div class="setting-row"><div><h3>游戏存档备份目录</h3><p class="mono">${esc(environment.backupRoot)}</p></div>${act('folder', '打开', 'btn', 'backups', 'folder')}</div></details>
  <section class="card"><h2 class="mb">软件更新</h2>${updatePanel()}</section><details class="card settings-section" data-persist-detail="settings-about"><summary>资料与版本 ${pill(`v${version}`)}</summary><p class="small muted mb">${esc(gameIndex.source)} · Build ${esc(gameIndex.build)}。非官方助手。</p><details data-persist-detail="settings-reading-source"><summary>读取方式与资料说明</summary><p>未接入游戏时，保存后更新。接入后，跟随最新进度的任务、人物和已支持对话选择会现场更新。</p><p>背包、铜钱和备料仍按保存记录核对。</p><p>图鉴基础等级与商品资料可能随剧情、难度和培养变化。</p><p>${esc(catalog.notice)}</p></details><details data-persist-detail="settings-sources"><summary>资料来源</summary><div class="source-grid">${catalog.sources.map((s) => `<div class="source-row"><div class="row between"><strong>${esc(s.title)}</strong>${iconButton('source', 'external', '打开资料来源', s.id)}</div><p>${esc(s.author)} · ${esc(s.date)}</p><p>${esc(s.version)}</p></div>`).join('')}</div></details></details></div>`;
@@ -3430,19 +3430,28 @@ function compactPage() {
   document.body.classList.add('companion');
   document.body.classList.toggle('passive', companionMode === 'hint');
   if (companionMode === 'hint') return companionViews.passive(companionData);
+  const frame = (body) =>
+    companionViews.frame(
+      body,
+      healthAlert(),
+      ['home', 'duels', 'database', 'saves', 'recipe-discovery'].includes(route) ||
+        (route === 'journal' && (journalView.trash || journalView.revisions))
+        ? ''
+        : headings[route],
+    );
   const sourceErrors = `${companionData?.error ? notice(companionData.error) : ''}${companionData?.windowError ? notice('窗口跟随暂不可用：' + companionData.windowError) : ''}`;
-  if (route === 'settings') return companionViews.frame(settingsPage(), healthAlert());
-  if (route === 'materials') return companionViews.frame(compactMaterialsPage(), healthAlert());
-  if (route === 'duels') return companionViews.frame(duelsPage(), healthAlert());
-  if (route === 'database') return companionViews.frame(databaseView(), healthAlert());
-  if (route === 'library') return companionViews.frame(libraryPage(), healthAlert());
-  if (route === 'recipe-discovery') return companionViews.frame(recipeDiscoveryPage(), healthAlert());
-  if (route === 'saves') return companionViews.frame(compactSavesPage(), healthAlert());
-  if (route === 'journey') return companionViews.frame(journeyPage(), healthAlert());
-  if (route === 'checklist') return companionViews.frame(checklistPage(), healthAlert());
-  if (route === 'journal') return companionViews.frame(journalPage(), healthAlert());
-  if (route === 'world') return companionViews.frame(worldPage(), healthAlert());
-  if (route === 'goals') return companionViews.frame(goalsPage(), healthAlert());
+  if (route === 'settings') return frame(settingsPage());
+  if (route === 'materials') return frame(compactMaterialsPage());
+  if (route === 'duels') return frame(duelsPage());
+  if (route === 'database') return frame(databaseView());
+  if (route === 'library') return frame(libraryPage());
+  if (route === 'recipe-discovery') return frame(recipeDiscoveryPage());
+  if (route === 'saves') return frame(compactSavesPage());
+  if (route === 'journey') return frame(journeyPage());
+  if (route === 'checklist') return frame(checklistPage());
+  if (route === 'journal') return frame(journalPage());
+  if (route === 'world') return frame(worldPage());
+  if (route === 'goals') return frame(goalsPage());
   const list = pending().slice(0, 5);
   const undo =
     compactUndo?.profileId === profile().id
@@ -3457,7 +3466,7 @@ function compactPage() {
       )
       .join('') || '<p class="small muted">暂无目标</p>'
   }${!companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${companionViews.materials(companionData)}<h3 class="companion-section">${esc(stageTitle())}</h3><p class="small muted">手动阶段的精选清单</p>${list.map(checkRow).join('')}${profile().notes ? `<details class="compact-note" data-compact-detail="note"><summary>江湖随手记</summary><p class="preserve-text">${esc(profile().notes)}</p></details>` : ''}</details>`;
-  return companionViews.frame(body, healthAlert());
+  return frame(body);
 }
 async function showEntityChoice(id, flowReference = null, opener = null, restored = null) {
   const rows = entityReferences.choices(id);
@@ -3835,7 +3844,14 @@ function render(preserve = false, navigationId = null) {
         if (openedDetails.has(el.dataset.persistDetail))
           el.open = openedDetails.get(el.dataset.persistDetail);
     const body = root.querySelector('.compact-body');
-    if (body) body.scrollTop = compactScroll;
+    if (body) {
+      body.scrollTop = compactScroll;
+      body.setAttribute('role', 'main');
+      body.setAttribute(
+        'aria-label',
+        navigation?.querySelector('[aria-current="page"]')?.textContent.trim() || '随行内容',
+      );
+    }
     if (focusId && companionMode === 'expanded') {
       const field = document.getElementById(focusId);
       if (field) {
@@ -3856,7 +3872,7 @@ function render(preserve = false, navigationId = null) {
   }
   const sidebarScroll = root.querySelector('.sidebar-nav')?.scrollTop || 0;
   replaceRoot(
-    `<div class="layout"><aside class="sidebar"><div class="brand"><img class="app-mark" src="../assets/icon.svg" alt=""><div><div class="brand-name">逸剑手札</div></div></div><nav class="sidebar-nav" aria-label="手札页面">${navigationView({ route, headings, icon, goalCount: profile().goals.filter((g) => !goalDone(g)).length })}</nav><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong></div>${iconButton('profiles', 'person', '管理周目')}</div></aside><div class="workspace"><header class="titlebar topbar"><div class="row topbar-tools"><span data-save-health>${healthAlert()}</span><span data-update-badge>${appUpdateViews.badge(environment.updates)}</span><button id="global-search-trigger" class="search-trigger" data-action="search">${icon('search')}搜索<kbd>Ctrl K</kbd></button>${act('compact', '打开随行', 'btn soft', '', 'pin')}</div><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></header><main class="content">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, duels: duelsPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`,
+    `<div class="layout"><aside class="sidebar"><div class="brand"><img class="app-mark" src="../assets/icon.svg" alt=""><div><div class="brand-name">逸剑手札</div></div></div><nav class="sidebar-nav" aria-label="手札页面">${navigationView({ route, headings, icon, goalCount: profile().goals.filter((g) => !goalDone(g)).length })}</nav><div class="profile-box"><div class="avatar">侠</div><div class="profile-info"><strong>${esc(profile().name)}</strong></div>${iconButton('profiles', 'person', '管理周目')}</div></aside><div class="workspace"><header class="titlebar topbar"><div class="row topbar-tools"><span data-save-health>${healthAlert()}</span><span data-update-badge>${appUpdateViews.badge(environment.updates)}</span><button id="global-search-trigger" class="search-trigger" data-action="search">${icon('search')}搜索<kbd>Ctrl K</kbd></button>${act('compact', '打开随行', 'btn soft', '', 'pin')}</div><div class="window-buttons">${iconButton('window-minimize', 'minus', '最小化窗口')}${iconButton('window-maximize', 'maximize', '最大化或还原窗口')}${iconButton('window-close', 'close', '关闭窗口', '', 'close')}</div></header><main class="content" aria-label="${esc(headings[route] || headings.home)}">${availableJournalDrafts().length ? `<div class="notice mb">${act('journal-drafts', `继续写记录 · ${availableJournalDrafts().length} 份草稿`, 'text-btn')}</div>` : ''}${({ home: homePage, checklist: checklistPage, duels: duelsPage, library: libraryPage, database: databaseView, world: worldPage, materials: materialPage, 'recipe-discovery': recipeDiscoveryPage, goals: goalsPage, saves: savesPage, settings: settingsPage, archives: archivesPage, journey: journeyPage, journal: journalPage }[route] || homePage)()}</main></div></div>`,
   );
   root.querySelector('.sidebar-nav').scrollTop = sidebarScroll;
   if (availableIntentDrafts().length && !['home', 'journey'].includes(route))
