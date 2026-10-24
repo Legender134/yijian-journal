@@ -162,7 +162,15 @@ test('every recorded NoQuest boundary closes pickup including zero and not-accep
       assert(!flow.opportunities.some((row) => row.questId === root));
       const notice = warning(flow, ruleId);
       assert(notice && notice.deadlineReached);
-      assert.match(notice.message, /接取条件已不满足.*不表示已接任务失败/);
+      assert.match(notice.message, /接取条件已不满足/);
+      if (main === 5850) assert.match(notice.message, /不表示已接任务失败/);
+      else {
+        assert.match(notice.message, /进行中的.*晋升正常结算时失败/);
+        assert(
+          !warning(flow, main === 5304 ? 'elite-active-quests' : 'chief-active-quests'),
+          'unrecorded affected roots are not current risks',
+        );
+      }
     }
   }
 });
@@ -182,7 +190,7 @@ test('accepted, completed and failed pickup steps retire their own warning', () 
     }
 });
 
-test('NoQuest checks never become failure or completion blockers on an already accepted task', () => {
+test('NoQuest closure keeps accepted progress unchanged while the proved normal-settlement risk remains', () => {
   const flow = snapshot(5304, [...elite, [5323, 0], [14074, 1], [14083, 1], [13824, 1], [13825, 1]]);
   const martial = flow.active
     .find((row) => row.gameId === 14074)
@@ -191,6 +199,15 @@ test('NoQuest checks never become failure or completion blockers on an already a
   assert(!martial.requirements.some((row) => /晋升/.test(row.text)));
   assert(!warning(flow, 'elite-pickup-14074'));
   assert(!warning(flow, 'elite-pickup-13825'));
+  const risk = warning(flow, 'elite-active-quests');
+  assert(risk);
+  assert.deepEqual(
+    risk.affectedTasks.map((task) => task.questId),
+    [14074, 13824],
+  );
+  assert(risk.affectedTasks.every((task) => /正常晋升结算.*失败/.test(task.effect)));
+  assert(flow.active.some((task) => task.gameId === 14074));
+  assert(flow.active.some((task) => task.gameId === 13824));
   assert(
     warning(flow, 'elite-pickup-13826')?.deadlineReached,
     'only the future round loses its pickup condition',
@@ -363,7 +380,11 @@ test('main and companion renderer keep concrete pickup impacts and leave closed/
   for (const compact of [false, true]) {
     const html = views.panel(closed, { compact });
     assert.match(html, /平阳王家：接取条件已不满足/);
-    assert.match(html, /不表示已接任务失败/);
+    assert.match(html, /进行中的平阳王家会在首座晋升正常结算时失败/);
+    assert.match(
+      warning(closed, 'chief-pickup-13511').closedWindowMessage,
+      /进行中的平阳王家会在首座晋升正常结算时失败/,
+    );
   }
 });
 

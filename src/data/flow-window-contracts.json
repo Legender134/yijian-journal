@@ -43,6 +43,54 @@
     {
       "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/LS_CG-5851.uexp",
       "sha256": "992360cfecbe8081bcda182698c8efc85579657e825151b5bb6bd470f63642ab"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5317.uasset",
+      "sha256": "2ee5063e5befa32f9bfe585afe6b659f3f2b76ace1bd7abaab2f6f94ed34d209"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5317.uexp",
+      "sha256": "58f6fddfb8858243c7ada622c055a4767e946a51aa2c8faf533544b271a11005"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5323.uasset",
+      "sha256": "11ae5fc94eb79ccd5a43f62be2bfda829b3f59c33477771b53ccd11ad086229a"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5323.uexp",
+      "sha256": "5b47c8639b7f30540e92bf28c465b4f7fed08fda2325c7c74a3980e0c440438e"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5982.uasset",
+      "sha256": "d4cef03152c9631b88b959e4b5c49e5038e2af5d1a1502866d6700ea16f306fe"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5982.uexp",
+      "sha256": "d862cd46084a0fa8b85b9d0833ed34a4aaa638d61769998c3c8c481d2770cd54"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5314.uasset",
+      "sha256": "91a1ec8a81d550191bd04d4771d9ca4b1e85a69e63a7e3db27717e69292c7473"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5314.uexp",
+      "sha256": "5e67364b6fa7027744bb0cd936169b881c669512523772613d40f10f94ed4472"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5320.uasset",
+      "sha256": "bcebea5873c14429e65b111726d294269a36a353e751fc101951113135432bc1"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5320.uexp",
+      "sha256": "bee138ad65e93d493425c0eefad28011ae8778b624bd47748f3758a592e7fdd3"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Core/Quest/FL_JieKou.uasset",
+      "sha256": "e7c57e2a6383b84b43661e7db8b8045ecffd7f1c0b9205076d210aaf0972c3f4"
+    },
+    {
+      "path": "Wandering_Sword/Content/JH/Core/Quest/FL_JieKou.uexp",
+      "sha256": "0638dcd4ddf8cd98f9566bb8365987981ab8edc645a22c2c36776dd35adeb7e2"
     }
   ],
   "questTable": {
@@ -227,7 +275,7 @@
       "questId": 5980,
       "closedByQuestPresence": [6261],
       "conditionField": "RequestRequirements",
-      "scope": "specified unaccepted steps only; no claim that an accepted quest fails",
+      "scope": "Specified unaccepted pickup predicates; separately pinned chiefPromotionFailures defines the proved active-root failures at normal completion.",
       "entryTransition": { "fromQuestId": 6260, "type": "JumpStep", "id": 6261, "value": 0 },
       "pickups": [
         {
@@ -359,6 +407,179 @@
         ],
         "stoppedSequenceDoesNotEnter": true,
         "scope": "Only roots at saved/runtime step1; existing unfinished children also receive step2. Never infer failure from the pickup predicate alone."
+      }
+    },
+    "seniorPromotionFailures": {
+      "questId": 5242,
+      "completionQuestId": 5317,
+      "blueprint": "/Game/JH/Maps/WuDang/Quest/Quest_5317.Quest_5317_C",
+      "stageSteps": [
+        5243,
+        5244,
+        5316
+      ],
+      "decisionAfterAnyComplete": [
+        5243
+      ],
+      "normalCompletion": {
+        "requiredStep": 4,
+        "nativeCall": "QuestInfo.FinishQuest",
+        "challengeBlueprint": "/Game/JH/Maps/WuDang/Quest/Quest_5314.Quest_5314_C",
+        "path": "Challenge win -> promotion HandleFinishing -> normal FinishSequence.OnFinished (or no sequence) -> FinishQuest -> failure loop",
+        "stoppedSequenceDoesNotFinish": true,
+        "losingFightDoesNotEnterFailures": true
+      },
+      "activeFailures": {
+        "questIds": [
+          11945,
+          14052,
+          14053,
+          14054,
+          14055,
+          14065
+        ],
+        "unnamedQuestIds": [],
+        "requiredStep": 1,
+        "action": "QuestManager.FailQuest",
+        "failedStep": 2,
+        "scope": "Only the explicitly listed roots at step1; existing unfinished child records fail, completed children remain complete and missing child records are not created."
+      }
+    },
+    "elitePromotionFailures": {
+      "questId": 5304,
+      "completionQuestId": 5323,
+      "blueprint": "/Game/JH/Maps/WuDang/Quest/Quest_5323.Quest_5323_C",
+      "stageSteps": [
+        5305,
+        5322
+      ],
+      "decisionAfterAnyComplete": [
+        5305
+      ],
+      "normalCompletion": {
+        "requiredStep": 4,
+        "nativeCall": "QuestInfo.FinishQuest",
+        "challengeBlueprint": "/Game/JH/Maps/WuDang/Quest/Quest_5320.Quest_5320_C",
+        "path": "Challenge win -> promotion HandleFinishing -> normal FinishSequence.OnFinished (or no sequence) -> FinishQuest -> failure loop",
+        "stoppedSequenceDoesNotFinish": true,
+        "losingFightDoesNotEnterFailures": true
+      },
+      "activeFailures": {
+        "questIds": [
+          14072,
+          14073,
+          14074,
+          14075,
+          14090,
+          13824,
+          12400,
+          12230
+        ],
+        "unnamedQuestIds": [],
+        "requiredStep": 1,
+        "action": "QuestManager.FailQuest",
+        "failedStep": 2,
+        "scope": "Only the explicitly listed roots at step1; existing unfinished child records fail, completed children remain complete and missing child records are not created."
+      }
+    },
+    "chiefPromotionFailures": {
+      "questId": 5980,
+      "completionQuestId": 6261,
+      "blueprint": "/Game/JH/Maps/WuDang/Quest/Quest_5982.Quest_5982_C",
+      "stageSteps": [
+        6251,
+        6253,
+        6254,
+        6255,
+        6256,
+        6257,
+        6258,
+        6259,
+        6260,
+        6263
+      ],
+      "decisionAfterAnyComplete": [
+        6260
+      ],
+      "normalCompletion": {
+        "requiredStep": 4,
+        "nativeCall": "QuestInfo.FinishQuest",
+        "path": "HandleFinishing -> difficulty fight -> bWinOrLose=true -> FinishingDlgs -> normal OnDlgClosed -> FinishQuest -> failure loop",
+        "stoppedSequenceDoesNotFinish": true,
+        "losingFightDoesNotEnterFailures": true
+      },
+      "activeFailures": {
+        "questIds": [
+          11825,
+          11840,
+          11855,
+          11867,
+          11875,
+          11885,
+          11895,
+          11910,
+          11920,
+          12000,
+          12015,
+          12020,
+          12030,
+          11405,
+          12120,
+          13500,
+          13510,
+          12780,
+          12815,
+          12880,
+          12915,
+          12935,
+          13000,
+          13280,
+          13290,
+          13300,
+          12575,
+          30140,
+          30150,
+          30360,
+          30380,
+          30692
+        ],
+        "unnamedQuestIds": [
+          30380,
+          30692
+        ],
+        "requiredStep": 1,
+        "action": "QuestManager.FailQuest",
+        "failedStep": 2,
+        "scope": "Only the explicitly listed roots at step1; existing unfinished child records fail, completed children remain complete and missing child records are not created.",
+        "teamRemoval": {
+          "questId": 12110,
+          "requiredStep": 1,
+          "action": "QuestManager.FailQuest",
+          "npcId": 17012,
+          "teamAction": "FL_JieKou.RemoveNpc_Team",
+          "teamActionBlueprint": "/Game/JH/Core/Quest/FL_JieKou.FL_JieKou_C",
+          "permanentRecruitmentLossProved": false
+        }
+      },
+      "retry": {
+        "conditionQuestId": 6266,
+        "ownerQuestId": 5850,
+        "requirements": [
+          {
+            "type": "PreQuest",
+            "id": 6263,
+            "value": 1
+          }
+        ],
+        "option": "立刻挑战",
+        "action": {
+          "type": "JumpStep",
+          "id": 6261,
+          "value": 4
+        },
+        "waitOption": "再等等",
+        "waitActions": [],
+        "scope": "Saved6263 step1 is the verified retry window even with an existing6261 record; NPC presence and unsaved menus still require game confirmation."
       }
     }
   },

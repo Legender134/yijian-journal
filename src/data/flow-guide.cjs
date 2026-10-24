@@ -20,21 +20,26 @@ const pickupRule = (window, pickup, detail) => ({
     ...(detail.independentStep ? { independentStep: true } : {}),
   },
   closedWindowSummary: `${detail.affectedName}：接取条件已不满足`,
-  closedWindowMessage: `对应剧情已有记录，${detail.affectedName}所列步骤的接取条件已不满足；这不表示已接任务失败。`,
+  closedWindowMessage: `对应剧情已有记录，${detail.affectedName}所列步骤的接取条件已不满足；${detail.acceptedEffect || '这不表示已接任务失败。'}`,
   advanceEffects: [
     {
       questId: detail.effectQuestId || pickup.conditionQuestId,
       name: detail.affectedName,
       scope: 'accept',
       effect: detail.effect,
-      closedEffect: `${detail.affectedName}所列步骤的接取条件已不满足；这不表示已接任务失败。`,
+      ...(detail.acceptedEffect ? { acceptedEffect: detail.acceptedEffect } : {}),
+      closedEffect: `${detail.affectedName}所列步骤的接取条件已不满足；${detail.acceptedEffect || '这不表示已接任务失败。'}`,
       evidence: `Build 21798996：步骤${pickup.conditionQuestId}的RequestRequirements。`,
     },
   ],
   choices: [],
   sourceIds: ['rankPickupWindowsGame', 'flowR2PickupRoute'],
-  uncertainty:
-    '只核对所列步骤的接取条件；缺少记录不证明可接，人物当前在场及其他触发条件仍需游戏内确认。已接步骤不据此判失败，也不把可选支线未接等同于永久缺失。',
+  ...(detail.acceptedEffect
+    ? {}
+    : {
+        uncertainty:
+          '只核对所列步骤的接取条件；缺少记录不证明可接，人物当前在场及其他触发条件仍需游戏内确认。已接步骤不据此判失败，也不把可选支线未接等同于永久缺失。',
+      }),
   ...detail,
 });
 const elitePickupRules = flowWindows.elitePromotionPickups.pickups.map((pickup, index) => {
@@ -59,8 +64,9 @@ const elitePickupRules = flowWindows.elitePromotionPickups.pickups.map((pickup, 
     deadlineLabel: '挑战道通、晋升精英弟子之前',
     affectedName: name,
     effect: challenge
-      ? '晋升精英剧情出现后，这一轮尚未接取的挑战不再满足接取条件；已接的当前轮次不据此判失败。'
+      ? '晋升精英剧情出现后，这一轮尚未接取的挑战不再满足接取条件；进行中的武林挑战会在精英晋升正常结算时失败，请先完成。'
       : '晋升精英剧情出现后，尚未接取的演武试艺不再满足接取条件；本段可收集八卦刀法，也是武当元启的任务前置。',
+    acceptedEffect: `进行中的${challenge ? '武林挑战' : '演武试艺'}会在精英晋升正常结算时失败；请先完成。`,
     pickup: {
       place: challenge ? '武当派 · 试剑台附近（社区线索）' : '武当派 · 元风 → 试剑台元启（社区线索）',
       person: challenge ? '元启' : '元风；元启',
@@ -141,6 +147,53 @@ const enforcementActiveRule = {
   uncertainty: '仅列已读取为进行中的命名任务；已完成任务不受此失败分支影响。',
 };
 
+const promotionActiveRules = [
+  ['senior-active-quests', '资深', flowWindows.seniorPromotionFailures],
+  ['elite-active-quests', '精英', flowWindows.elitePromotionFailures],
+  ['chief-active-quests', '首座', flowWindows.chiefPromotionFailures],
+].map(([id, rank, window]) => ({
+  id,
+  kind: 'stage',
+  questId: window.questId,
+  title: `晋升${rank}前：完成这些任务`,
+  compactWarning: `晋升${rank}后会失败`,
+  warning: '挑战道通前先完成下列仍在进行中的任务；晋升正常结算会将它们判为失败。',
+  chapterRoots: [window.questId],
+  stageSteps: window.stageSteps,
+  decisionSteps: window.stageSteps,
+  decisionAfterAnyComplete: window.decisionAfterAnyComplete,
+  requireDecisionWindow: true,
+  requireAffectedTasks: true,
+  afterAllComplete: [],
+  untilAnyStarted: [],
+  untilAnyComplete: [window.completionQuestId],
+  deadlineLabel: `挑战道通、晋升${rank}之前`,
+  choices: [],
+  recommendation: {
+    action: '先完成下列进行中的任务，再挑战道通。',
+    reason: '正常晋升结算时，这些进行中的任务会失败。',
+    goal: '保留当前已接任务的剧情与奖励',
+    tradeoff: '需要先跑图、战斗和交付；不保留这些任务时可继续晋升。',
+  },
+  advanceEffects: [
+    ...window.activeFailures.questIds.filter(
+      (questId) => !window.activeFailures.unnamedQuestIds.includes(questId),
+    ),
+    ...(window.activeFailures.teamRemoval ? [window.activeFailures.teamRemoval.questId] : []),
+  ].map((questId) => ({
+    questId,
+    scope: 'continue',
+    onlyWhileActive: true,
+    ...(questId === window.activeFailures.teamRemoval?.questId ? { compactEffect: '吕仙儿离队' } : {}),
+    effect:
+      questId === window.activeFailures.teamRemoval?.questId
+        ? '正常晋升结算时仍在进行的四大武家会失败，吕仙儿离队。'
+        : '正常晋升结算时，仍在进行的任务会失败。',
+    evidence: `${window.blueprint}：仅对根任务状态1调用FailQuest；完成条件为${window.completionQuestId}状态4。`,
+  })),
+  sourceIds: ['rankPickupWindowsGame'],
+}));
+
 const winePickup = flowWindows.fiveFairyWine;
 const fiveFairyPickupRule = pickupRule(winePickup, winePickup, {
   id: 'five-fairy-wine-pickup',
@@ -187,7 +240,7 @@ const chiefPickupDetails = [
     place: '甘泉村（社区线索）',
     person: '小娥；亮银锤·裴庆',
     action: '到甘泉村先向小娥核对诊治委托，再按任务栏找裴庆。',
-    effect: '回复道通建立首座晋升对话后，尚未接取的寻找裴庆不再满足接取条件；已接任务保留原状态。',
+    effect: '回复道通建立首座晋升对话后，尚未接取的寻找裴庆不再满足接取条件。',
   },
   {
     name: '平阳王家',
@@ -208,7 +261,8 @@ const chiefPickupRules = flowWindows.chiefPromotionPickups.pickups.map((pickup, 
     deadlineLabel: '首座流程「回复道通师叔」之前',
     affectedName: detail.name,
     independentStep: pickup.conditionQuestId === 12016,
-    effect: detail.effect,
+    effect: `${detail.effect}进行中的${detail.name}会在首座晋升正常结算时失败；请先完成。`,
+    acceptedEffect: `进行中的${detail.name}会在首座晋升正常结算时失败；请先完成。`,
     pickup: { place: detail.place, person: detail.person, action: detail.action },
     warning: `若还想做${detail.name}，先按所列人物核对，再回复道通。回复会直接建立首座晋升对话，接取边界早于晋升战结束。`,
   });
@@ -1022,6 +1076,7 @@ module.exports = {
     ...elitePickupRules,
     enforcementPickupRule,
     enforcementActiveRule,
+    ...promotionActiveRules,
     fiveFairyPickupRule,
     ...chiefPickupRules,
     {

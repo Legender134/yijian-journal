@@ -637,7 +637,8 @@ function createFlowProjector({
             name: effect.name || cleanName(task?.name || '任务名称待核对'),
             effect:
               effect.scope === 'accept' && accepted
-                ? '这份存档已有进行中记录；资料只限制未接取的窗口，没有证明推进后已接任务会失败。'
+                ? effect.acceptedEffect ||
+                  '这份存档已有进行中记录；资料只限制未接取的窗口，没有证明推进后已接任务会失败。'
                 : effect.effect,
           };
         });
@@ -656,7 +657,9 @@ function createFlowProjector({
       return {
         ...rule,
         ...(rule.requireAffectedTasks && affectedTasks.length
-          ? { compactWarning: `${affectedTasks.map((task) => task.name).join('、')}：${rule.compactWarning}` }
+          ? {
+              compactWarning: `${affectedTasks.map((task) => (task.compactEffect ? `${task.name}（${task.compactEffect}）` : task.name)).join('、')}：${rule.compactWarning}`,
+            }
           : {}),
         ...(recordedWindowMessage
           ? {

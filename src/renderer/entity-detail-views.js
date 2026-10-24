@@ -61,11 +61,13 @@ export function createEntityDetailViews({ esc, act, pill, guide = () => [], rich
     const requirementRow = (row) =>
       `<div class="entity-relation-row">${link(row.entity)}<p class="small">${row.type === 'NoQuest' ? '排除条件' : '所需状态：' + esc(['未开始', '进行中', '已失败', '未接取', '已完成'][row.value] || row.value)} · ${pill(questStatus(row.entity.gameId, reference))}</p><details><summary>哪些步骤有此条件</summary>${steps(row.via)}</details></div>`;
     const ids = new Set(related.group.map((step) => step.gameId));
-    const curated = guide().filter(
-      (row) =>
-        ids.has(Number(String(row.questId || '').replace('quest-', ''))) ||
-        (row.affectedTasks || []).some((t) => ids.has(Number(String(t.questId || '').replace('quest-', '')))),
-    );
+    const inGroup = (id) => ids.has(Number(String(id || '').replace('quest-', '')));
+    const direct = (row) => inGroup(row.questId);
+    const effects = (row) => (row.affectedTasks || []).filter((effect) => inGroup(effect.questId));
+    const curated = guide()
+      .filter((row) => direct(row) || effects(row).length)
+      .map((row) => (direct(row) ? row : { ...row, affectedTasks: effects(row) }))
+      .sort((a, b) => Number(direct(b)) - Number(direct(a)));
     const locations = pickupLocations(
       index,
       guide().filter((row) => {
