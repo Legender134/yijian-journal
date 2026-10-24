@@ -108,6 +108,9 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
         ...choice,
         shown: effectList(index, choice.actions, q),
       }));
+      const blueprintOutcomes = (detail.blueprintOutcomes || [])
+        .map((outcome) => ({ ...outcome, shown: effectList(index, outcome.actions, q) }))
+        .filter((outcome) => outcome.shown.length);
       const events = [
         { label: '任务失败后', shown: effectList(index, detail.failed || [], q) },
         ...(detail.events || []).flatMap((event) => [
@@ -115,16 +118,32 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
           { label: '剧情事件失败后', index: event.index, shown: effectList(index, event.failure, q) },
         ]),
       ].filter((event) => event.shown.length);
-      return finish.some((items) => items.length) || choices.length || events.length
-        ? [{ q, detail, finish, choices, events }]
+      return finish.some((items) => items.length) ||
+        choices.length ||
+        events.length ||
+        blueprintOutcomes.length
+        ? [{ q, detail, finish, choices, events, blueprintOutcomes }]
         : [];
     });
     if (!rows.length) return '';
     const list = (items) => `<ul class="codex-effects">${items.map((s) => `<li>${s}</li>`).join('')}</ul>`;
-    const render = ({ q, detail, finish, choices, events }) => {
+    const render = ({ q, detail, finish, choices, events, blueprintOutcomes }) => {
+      const promotionConditions = {
+        'promotion-story-finished': '完成晋升剧情后',
+        'promotion-story-followup-finished': '完成晋升剧情及后续结算后',
+        'promotion-victory-dialogue-closed': '晋升比武胜利，结束结算对话后',
+      };
+      const promotions = blueprintOutcomes
+        .map(
+          (outcome) =>
+            `<section class="codex-promotion-outcome"><h4>晋升收益</h4><p>${text(promotionConditions[outcome.condition])}</p>${list(outcome.shown)}<details><summary>资料来源</summary><p>游戏晋升剧情</p></details></section>`,
+        )
+        .join('');
       const same = finish.every((items) => JSON.stringify(items) === JSON.stringify(finish[0]));
       const result = same
-        ? list(finish[0])
+        ? finish[0].length
+          ? list(finish[0])
+          : ''
         : finish
             .map((items, n) => (items.length ? `<h4>${['普通', '困难', '极难'][n]}</h4>${list(items)}` : ''))
             .join('');
@@ -140,11 +159,12 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
             )
             .join('')
         : '';
+      const tableShown = finish.some((items) => items.length) || choices.length || events.length;
       const heading =
         q.related?.gameId === entry.gameId
           ? '相关剧情结算'
           : `${sourceLink(index, q)}${q.related ? ' · 相关剧情结算' : ''}`;
-      return `<div class="codex-outcome-step" data-quest-step="${text(q.gameId)}">${q.gameId !== entry.gameId ? `<h4>${heading}</h4>` : ''}${gates}${result}${events.map((event) => `<details><summary>${text(event.label)}</summary>${list(event.shown)}${sourceDetails(q, [q.gameId], event.index)}</details>`).join('')}${choices.map((choice) => `<details><summary>选择「${text(choice.text)}」</summary>${choice.requirements.length ? `<details><summary>选项出现条件</summary>${conditions(index, choice.requirements, reference)}</details>` : ''}${choice.shown.length ? list(choice.shown) : '<p class="small muted">后续影响需结合剧情判断。</p>'}</details>`).join('')}${sourceDetails(q)}</div>`;
+      return `<div class="codex-outcome-step" data-quest-step="${text(q.gameId)}">${q.gameId !== entry.gameId && tableShown ? `<h4>${heading}</h4>` : ''}${gates}${result}${promotions}${events.map((event) => `<details><summary>${text(event.label)}</summary>${list(event.shown)}${sourceDetails(q, [q.gameId], event.index)}</details>`).join('')}${choices.map((choice) => `<details><summary>选择「${text(choice.text)}」</summary>${choice.requirements.length ? `<details><summary>选项出现条件</summary>${conditions(index, choice.requirements, reference)}</details>` : ''}${choice.shown.length ? list(choice.shown) : '<p class="small muted">后续影响需结合剧情判断。</p>'}</details>`).join('')}${tableShown ? sourceDetails(q) : ''}</div>`;
     };
     return `<details class="detail-block codex-outcomes" data-persist-detail="quest-outcomes-${text(entry.gameId)}"><summary>奖励与选择影响${rows.length > 1 ? ` · ${rows.length} 个步骤` : ''}</summary><p class="small muted">各步骤独立结算，需触发对应剧情；不同分支不累计，主任务完成不代表全部奖励均已获得。</p>${more(rows, render)}</details>`;
   }

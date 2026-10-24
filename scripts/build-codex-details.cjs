@@ -6,6 +6,7 @@ const path = require('node:path');
 const { value } = require('./inspect-tables.cjs');
 const game = require('../src/data/game-index.json');
 const world = require('../src/data/world-index.json');
+const blueprintSource = require('./codex-blueprint-outcomes.json');
 const pins = {
   questsFullTableData: 'f1ddf79d01d5d143512ce55b1007b19cd8dc5c57c48ff00cb3ee396f5ef5fecf',
   skills: '1ef5e9f6debaaab410d11b331ea3869ba09f6f90926ee079200df34523e29313',
@@ -76,6 +77,33 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
     rows.push(raw);
     byId.set(raw.QuestId, rows);
   }
+  // These four static outcomes were verified in this Build's Blueprint bytecode.
+  // Match the original unique row, owner and full class path before attaching;
+  // synthetic or other-build inputs must not acquire invented production rows.
+  const detailFor = (raw) => {
+    const detail = outcome(raw);
+    const verified = blueprintSource.steps.find((step) => step.questId === raw.QuestId);
+    if (
+      verified &&
+      String(gameData.build) === blueprintSource.build &&
+      byId.get(raw.QuestId)?.length === 1 &&
+      raw.OwnerQuestId === verified.ownerId &&
+      raw.Blueprint?.AssetPath?.AssetName === verified.blueprint
+    )
+      detail.blueprintOutcomes = [
+        {
+          condition: verified.condition,
+          actions: verified.actions.map((action) => ({ ...action })),
+          source: {
+            ...blueprintSource.source,
+            build: blueprintSource.build,
+            blueprint: verified.blueprint,
+            ...verified.source,
+          },
+        },
+      ];
+    return detail;
+  };
   for (const entry of worldData.quests) {
     // One source ID is reused by an unnamed internal row. Match the shipped
     // name and parent as well; never silently select one of two named variants.
@@ -83,8 +111,9 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
       (r) => r.QuestId === entry.gameId && clean(r.Name) === entry.name && r.OwnerQuestId === entry.parentId,
     );
     if (matches.length !== 1) throw Error(`Quest identity mismatch: ${entry.id}`);
-    const detail = outcome(matches[0]);
+    const detail = detailFor(matches[0]);
     if (
+      detail.blueprintOutcomes?.length ||
       detail.choices.length ||
       actionLists(detail).some((rows) => rows.some((a) => effectTypes.has(a.type)))
     )
@@ -92,8 +121,9 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
   }
   for (const raw of questRows) {
     if (published.has(raw.QuestId) || byId.get(raw.QuestId).length !== 1) continue;
-    const detail = outcome(raw);
+    const detail = detailFor(raw);
     if (
+      !detail.blueprintOutcomes?.length &&
       !detail.choices.length &&
       !actionLists(detail).some((rows) => rows.some((a) => rewardTypes.has(a.type)))
     )

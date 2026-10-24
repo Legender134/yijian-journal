@@ -1,0 +1,186 @@
+{
+  "schema": 1,
+  "build": "21798996",
+  "source": {
+    "kind": "owned-installed-game-blueprint",
+    "engine": "VER_UE4_26",
+    "decoderLibraries": {
+      "UAssetAPI.dll": "d7b9fd4341ac22dd9ab8d9f49455ea5ebcf571abced64313ab15eb1944de07d9",
+      "Newtonsoft.Json.dll": "22c649f75fce5be7c7ccda8880473b634ef69ecf33f5d1ab8ad892caf47d5a07",
+      "ZstdSharp.dll": "5d597fb07c93f99bcbbcf1265bfc60de1f1f8fc070a3acc36f0371a86c326b16"
+    },
+    "actionProgramSha256": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c",
+    "target": {
+      "npcId": 0,
+      "resourceName": "Hero",
+      "name": "宇文逸",
+      "members": {
+        "NPCs.uasset": "9a450475646b2b267fe39178cb9ac2c27b9bb51d0500a0282a194f534490ead8",
+        "NPCs.uexp": "0c3dcfdb36901efc70d65446064c5a97d44c1629d1e2cf418eb586ff3c131ec3"
+      }
+    },
+    "native": {
+      "actionType": 4,
+      "attributeId": 45,
+      "attributeKey": "MaxJingLi",
+      "operation": "Additive",
+      "operationId": 0,
+      "applyAction": "0x140f75390",
+      "cattr": "0x140f75415",
+      "modifier": "0x140f78500"
+    }
+  },
+  "steps": [
+    {
+      "questId": 5317,
+      "ownerId": 5242,
+      "blueprint": "/Game/JH/Maps/WuDang/Quest/Quest_5317.Quest_5317_C",
+      "condition": "promotion-story-finished",
+      "actions": [
+        {
+          "type": "CAttr",
+          "id": 45,
+          "value": 10
+        }
+      ],
+      "source": {
+        "members": {
+          "uasset": {
+            "member": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5317.uasset",
+            "sha256": "2ee5063e5befa32f9bfe585afe6b659f3f2b76ace1bd7abaab2f6f94ed34d209"
+          },
+          "uexp": {
+            "member": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5317.uexp",
+            "sha256": "58f6fddfb8858243c7ada622c055a4767e946a51aa2c8faf533544b271a11005"
+          }
+        },
+        "decodedRawSha256": "c5f3907cc9424962983ea88cb1bbff5a623cad047fd8c0e2415fd8cd875b483a",
+        "expressionSizesSha256": "dfaaae85d88fadd3b006b4b43676c8c5e2b1d051a21b295e6e23a7c007a6183c",
+        "function": "ExecuteUbergraph_Quest_5317",
+        "actionOffset": 1342,
+        "gates": {
+          "sequenceFinishedEntry": 1457
+        },
+        "normalPath": [1457, 673, 1164, 1342],
+        "excludedEntries": {
+          "OnStop": 1456,
+          "OnDlgSelectedOption": 15
+        }
+      }
+    },
+    {
+      "questId": 5323,
+      "ownerId": 5304,
+      "blueprint": "/Game/JH/Maps/WuDang/Quest/Quest_5323.Quest_5323_C",
+      "condition": "promotion-story-finished",
+      "actions": [
+        {
+          "type": "CAttr",
+          "id": 45,
+          "value": 10
+        }
+      ],
+      "source": {
+        "members": {
+          "uasset": {
+            "member": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5323.uasset",
+            "sha256": "11ae5fc94eb79ccd5a43f62be2bfda829b3f59c33477771b53ccd11ad086229a"
+          },
+          "uexp": {
+            "member": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5323.uexp",
+            "sha256": "5b47c8639b7f30540e92bf28c465b4f7fed08fda2325c7c74a3980e0c440438e"
+          }
+        },
+        "decodedRawSha256": "c47e88fc09f81d7328e53444bc4e77bb16d65029a15ace5273a53eb6b813c226",
+        "expressionSizesSha256": "8a69a3bd1868d45d6b41101d4cadc4b2242f812c1bd21f4253d59199a8dff3df",
+        "function": "ExecuteUbergraph_Quest_5323",
+        "actionOffset": 1342,
+        "gates": {
+          "sequenceFinishedEntry": 1457
+        },
+        "normalPath": [1457, 673, 1164, 1342],
+        "excludedEntries": {
+          "OnStop": 1456,
+          "OnDlgSelectedOption": 15
+        }
+      }
+    },
+    {
+      "questId": 5858,
+      "ownerId": 5850,
+      "blueprint": "/Game/JH/Maps/WuDang/Quest/Quest_5851.Quest_5851_C",
+      "condition": "promotion-story-followup-finished",
+      "actions": [
+        {
+          "type": "CAttr",
+          "id": 45,
+          "value": 10
+        }
+      ],
+      "source": {
+        "members": {
+          "uasset": {
+            "member": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5851.uasset",
+            "sha256": "a760c0ee2174a827f8c5aa11779cb98e0bdbbf5dd6a34676ac5f3eb339f906e2"
+          },
+          "uexp": {
+            "member": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5851.uexp",
+            "sha256": "ca91a17484883bfafed8d9547b653078c02a87e1e8b3b1250a425dffb9a2562e"
+          }
+        },
+        "decodedRawSha256": "36b26f4e889d5531e8f9c381d68f38f60df5972c5c9fd35a708cd566c410c8a7",
+        "expressionSizesSha256": "e16ba5d2c4fa53b357a79c97c4973cb19ed5b728c79fd7e8312572e0bbac6dae",
+        "function": "ExecuteUbergraph_Quest_5851",
+        "actionOffset": 672,
+        "gates": {
+          "sequenceFinishedEntry": 1602
+        },
+        "normalPath": [1602, 1416, 15, 494, 672],
+        "excludedEntries": {
+          "OnStop": 1601,
+          "OnDlgSelectedOption": 1607
+        }
+      }
+    },
+    {
+      "questId": 6261,
+      "ownerId": 5980,
+      "blueprint": "/Game/JH/Maps/WuDang/Quest/Quest_5982.Quest_5982_C",
+      "condition": "promotion-victory-dialogue-closed",
+      "actions": [
+        {
+          "type": "CAttr",
+          "id": 45,
+          "value": 10
+        }
+      ],
+      "source": {
+        "members": {
+          "uasset": {
+            "member": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5982.uasset",
+            "sha256": "d4cef03152c9631b88b959e4b5c49e5038e2af5d1a1502866d6700ea16f306fe"
+          },
+          "uexp": {
+            "member": "Wandering_Sword/Content/JH/Maps/WuDang/Quest/Quest_5982.uexp",
+            "sha256": "d862cd46084a0fa8b85b9d0833ed34a4aaa638d61769998c3c8c481d2770cd54"
+          }
+        },
+        "decodedRawSha256": "ba85ed39e85881fc857861ac1773f6dedbb1354dde8764ea34ebc4fc2f0a22a9",
+        "expressionSizesSha256": "319b8423bd1ec0ce1ded5e82b12d994dac48a7217f2a41b56f9cade0fa46e1ad",
+        "function": "ExecuteUbergraph_Quest_5982",
+        "actionOffset": 1952,
+        "gates": {
+          "victoryEntries": [15, 1992],
+          "openDialogueOffset": 59,
+          "dialogueClosedEntry": 995
+        },
+        "normalPath": [995, 1022, 1774, 1952],
+        "excludedEntries": {
+          "OnStop": 339,
+          "OnDlgSelectedOption": 967,
+          "defeat": 316
+        }
+      }
+    }
+  ]
+}
