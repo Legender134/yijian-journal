@@ -122,24 +122,27 @@ export function createWorldViews({
       if (view.status === 'recorded') return group.some((c) => saved.has(c.gameId));
       return group.every((c) => !saved.has(c.gameId));
     });
-    const pages = Math.max(1, Math.ceil(filtered.length / 24)),
+    const pageSize = 96;
+    const pages = Math.max(1, Math.ceil(filtered.length / pageSize)),
       current = Math.min(view.page, pages - 1);
     const cards = filtered
-      .slice(current * 24, current * 24 + 24)
+      .slice(current * pageSize, current * pageSize + pageSize)
       .map((t) => {
         if (view.kind === 'places') {
           const related = index.world.quests.filter((q) => q.placements.some((p) => p.mapKey === t.key));
-          return `<button class="database-card world-place-card" data-action="world-place" data-id="${esc(placeEntityId(t, index.world.maps))}"><span class="database-symbol">${icon('map')}</span><h3>${esc(t.name)}</h3><p>${esc(variantSummary(placeEntityId(t, index.world.maps), view.reference) || (related.length ? `${related.length} 条任务关联地点` : '查看此地点的资料关联'))}${t.cave ? ' · 洞穴场景' : ''}</p><div class="database-card-foot">${t.cave ? '洞穴' : '地点'}${icon('chevron')}</div></button>`;
+          const detail = variantSummary(placeEntityId(t, index.world.maps), view.reference);
+          return `<button class="database-card world-place-card" data-action="world-place" data-id="${esc(placeEntityId(t, index.world.maps))}"><span class="world-result-title">${icon('map')}<h3>${esc(t.name)}</h3>${t.cave ? pill('洞穴') : ''}</span>${detail || related.length ? `<p>${esc(detail || `${related.length} 条关联任务`)}</p>` : ''}</button>`;
         }
         const active = family(t).filter((c) => c !== t && isActiveQuest(c, saved));
-        return `<button class="database-card world-quest-card" data-action="world-quest" data-id="${t.id}"><div class="row between"><span class="database-symbol">${icon('scroll')}</span>${pill(status(t, view), saved.get(t.gameId)?.step === 4 ? 'green' : '')}</div><h3>${esc(t.name)}</h3>${
+        const state = status(t, view);
+        return `<button class="database-card world-quest-card" data-action="world-quest" data-id="${t.id}" aria-label="${esc(t.name)}"><span class="world-result-title">${icon('scroll')}<h3>${esc(t.name.replace(/^【(?:主线|支线)】\s*/, ''))}</h3>${state === '未记录' ? '' : pill(state, saved.get(t.gameId)?.step === 4 ? 'green' : '')}</span><span class="small muted">${t.parentId ? '步骤' : t.kind === 'Primary' ? '主线' : '支线'}</span>${
           active.length
             ? `<p>进行中的步骤：${active
                 .slice(0, 2)
                 .map((c) => esc(c.name))
                 .join('、')}</p>`
             : ''
-        }${t.parentId || !/^【(?:主线|支线)】/.test(t.name) ? `<div class="database-card-foot">${t.kind === 'Primary' ? '主线' : '支线'}${t.parentId ? '步骤' : '任务'}${icon('chevron')}</div>` : ''}</button>`;
+        }</button>`;
       })
       .join('');
     return `<div class="page-header"><div><h1 class="serif">任务与地点</h1></div></div><div class="segmented world-tabs">${[
@@ -174,7 +177,7 @@ export function createWorldViews({
               '',
             )}</select><select id="world-scope" aria-label="任务显示范围"><option value="roots" ${view.roots ? 'selected' : ''}>主任务</option><option value="all" ${!view.roots ? 'selected' : ''}>任务与步骤</option></select>`
         : ''
-    }${pill(searchError ? '搜索条件待修改' : `${filtered.length} 项`)}</div>${searchError ? `<div id="world-search-error" role="alert">${notice(searchError, true)}</div>` : cards ? `${view.kind === 'places' && !view.query.trim() ? `<details data-persist-detail="world-places-list"><summary>地点列表 · ${filtered.length}</summary>` : ''}<div class="database-grid">${cards}</div>${pages > 1 ? `<div class="pagination">${current > 0 ? act('world-page', '上一页', 'btn', String(current - 1)) : ''}<span>第 ${current + 1} / ${pages} 页</span>${current < pages - 1 ? act('world-page', '下一页', 'btn', String(current + 1)) : ''}</div>` : ''}${view.kind === 'places' && !view.query.trim() ? '</details>' : ''}` : empty('没有匹配的线索', view.status !== 'all' && !view.reference ? '先选择可读存档，或切换为所有资料。' : '调整搜索、记录筛选或显示范围。')}`;
+    }${pill(searchError ? '搜索条件待修改' : `${filtered.length} 项`)}</div>${searchError ? `<div id="world-search-error" role="alert">${notice(searchError, true)}</div>` : cards ? `${view.kind === 'places' && !view.query.trim() ? `<details data-persist-detail="world-places-list"><summary>地点列表 · ${filtered.length}</summary>` : ''}<div class="database-grid world-result-grid">${cards}</div>${pages > 1 ? `<div class="pagination">${current > 0 ? act('world-page', '上一页', 'btn', String(current - 1)) : ''}<span>${current + 1} / ${pages}</span>${current < pages - 1 ? act('world-page', '下一页', 'btn', String(current + 1)) : ''}</div>` : ''}${view.kind === 'places' && !view.query.trim() ? '</details>' : ''}` : empty('没有匹配的线索', view.status !== 'all' && !view.reference ? '先选择可读存档，或切换为所有资料。' : '调整搜索、记录筛选或显示范围。')}`;
   }
   function requirementRows(list, index, view) {
     prepare(index);

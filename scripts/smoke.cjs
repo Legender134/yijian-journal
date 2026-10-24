@@ -1853,7 +1853,7 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="check"]').first().click();
     await openMainPage(win, 'library');
     await win.locator('#list-search').fill('上官虹');
-    await win.locator('.entry-card [data-action="detail"]').first().click();
+    await win.locator('.entry-card').first().press('Enter');
     assert.equal(await win.locator('.drawer [data-action="reveal"]').count(), 1);
     await win.locator('[data-action="reveal"]').click();
     assert.ok((await win.locator('.steps li').count()) > 0);
