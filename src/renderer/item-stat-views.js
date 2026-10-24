@@ -75,6 +75,8 @@ export function createItemStatViews({ esc, act }) {
       }
       if (action.type === 'CItem')
         return `<div class="item-effect-row"><span>${action.value < 0 ? '消耗物品' : '获得物品'}：${link('item-' + action.id, '未收录物品')}</span><strong>× ${text(numberText(Math.abs(action.value)))}</strong></div>`;
+      if (['ARandItem', 'ANormalRandItem'].includes(action.type))
+        return `<div class="item-effect-row"><span>获得物品：${link('item-' + action.id, '未收录物品')}（随机词条）</span><strong>× ${text(numberText(action.value))}</strong></div>`;
       if (action.type === 'AUpgradeExclusiveWeapon')
         return `<p class="small">专属武器强化：${link('item-' + action.id, '待核对武器')} → ${link('item-' + action.value, '强化结果待核对')}</p>`;
       if (action.type === 'ASkill')

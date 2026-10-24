@@ -70,7 +70,7 @@ node --test tests/item-stats.test.cjs
 
 `attributes` 中的 ID 与英文键来自静态枚举，中文名称结合相同版本程序的中文属性文字与物品描述核对；百分数格式依据 `AffixDisplay`。`Percent_*` 使用原值，`Percent100_*` 展示时乘 100。没有确定单位的移动速度及倍率参数保留原数值，不擅自换算。显示最多两位小数的静态参考值，不能声称是游戏实际取整或随机词条结算后的面板。`EquipmentRank` 保留原值，未核定其用途，不直接称为装备等级或品级。
 
-`CAttr`、`CAllAttr`、百分比恢复等动作类型分别保留，不能把所有动作都解释为永久增加属性。`CAllAttr` 的作用范围，以及 `CHealthAttrPercent` / `CBlueAttrPercent` 的百分比基准尚未核定，不能宣称全队恢复或按上限、当前值、缺失值计算。`ABuff` 等动作的 `value` 保留原参数；`ABattleCountBuff` / `RealTimeBuff` 的参数单位尚未核定，不能直接写成战斗场数或秒。增益描述中的 `{0}` 等占位符，以及 `modifiers` / `durations` 原始参数数组，在未验证等级代入规则前不自动替换。`ARandItem` 引用的是掉落池，不能链接为随机词缀池。普通材料确实没有数值效果时保留空 `effects`。
+`CAttr`、`CAllAttr`、百分比恢复等动作类型分别保留，不能把所有动作都解释为永久增加属性。`CAllAttr` 的作用范围，以及 `CHealthAttrPercent` / `CBlueAttrPercent` 的百分比基准尚未核定，不能宣称全队恢复或按上限、当前值、缺失值计算。`ABuff` 等动作的 `value` 保留原参数；`ABattleCountBuff` / `RealTimeBuff` 的参数单位尚未核定，不能直接写成战斗场数或秒。增益描述中的 `{0}` 等占位符，以及 `modifiers` / `durations` 原始参数数组，在未验证等级代入规则前不自动替换。`ARandItem` 的 Id 是物品模板编号，按 Fusion 模式生成随机词条；`ANormalRandItem` 按 Normal 模式生成。两者均不能将 Id 链接为 DropPools 或 RandActionPools 编号，具体词条候选应从该物品模板继续追踪。普通材料确实没有数值效果时保留空 `effects`。
 
 使用条件中的 `Item` 逐项显示物品与数量，不把多项条件吞成泛化提示；这表示模板要求，不代表已经核对玩家库存。`WeaponRequirement` 的类型名称依据同构建静态程序的 `EWeaponType` 枚举（0 Default、1 Sword、2 Sabre、3 Spear、4 Fist、5 HiddenWeapon、6 OtherWeapons），程序 SHA-256 为 `946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c`。枚举只能确认兵器类型，未核定具体判定对象，不宣称必须装备对应武器。`CheckNeiGong`、`CurrentSkillLv` 等比较逻辑未核定时，保留已知对象、参数和待核定说明，不把原始参数擅自解释为最低等级。
 
@@ -162,12 +162,30 @@ NPC头像资源名、地图名与解锁头像数组均经 `FObjectAndNameAsStrin
 
 ## 图鉴奖励、选择与武学详情
 
-`scripts/build-codex-details.cjs` 从 Build 21798996 的 Quests 与 Skills 静态表生成 `src/data/codex-details.json`。输入分别是按已发布任务 ID 选择的 UAssetAPI 属性数组和 Skills 的 UAssetAPI JSON；脚本校验输入 SHA-256，再按 ID、名称、任务父级匹配现有索引。任务表有一个 ID 同时用于未命名内部行，不能仅按 ID 取最后一行。生成结果不含本机路径、玩家状态或原始全表。
+`scripts/build-codex-details.cjs` 从 Build 21798996 的 Quests 与 Skills 静态表生成 `src/data/codex-details.json`。任务输入现为完整的 6437 行 `Table.Data` UAssetAPI 属性数组，不能再使用按已发布任务 ID 选择的旧输入。脚本逐行读取并核对完整输入的 SHA-256，命名任务继续按 ID、名称、任务父级匹配现有索引。任务表有一个 ID 同时用于未命名内部行，不能仅按 ID 取最后一行。生成结果不含本机路径、玩家状态或原始全表。
 
-```text
-node scripts/build-codex-details.cjs <quest-properties.json> <Skills.json>
+用相同版本 UAssetAPI 的 `SerializeJson` 导出完整 `Quests.json` 后，可在 Windows PowerShell 中提取完整数组。使用 Newtonsoft 保留 `4.0` 等原始浮点类型的 JSON 形式；UTF-8 无 BOM、CRLF 换行、末尾无换行是当前固定输入的字节格式。不同序列化器产生的字节不能沿用该摘要。
+
+```powershell
+[Reflection.Assembly]::LoadFrom('<Newtonsoft.Json.dll>') | Out-Null
+$questExport = [Newtonsoft.Json.Linq.JObject]::Parse([IO.File]::ReadAllText('<Quests.json>'))
+$questTable = $questExport['Exports'] | Where-Object { $null -ne $_['Table'] } | Select-Object -First 1
+$questArray = $questTable['Table']['Data'].ToString([Newtonsoft.Json.Formatting]::Indented)
+$questArray = $questArray.Replace("`r`n", "`n").Replace("`n", "`r`n")
+[IO.File]::WriteAllText('<Quests.Table.Data.json>', $questArray, [Text.UTF8Encoding]::new($false))
+Get-FileHash -Algorithm SHA256 -LiteralPath '<Quests.Table.Data.json>'
 ```
 
-固定任务属性输入 SHA-256 为 `45303fedd1778387ecfc26ff842251ba83e2057f9dbe90c3803a074a44c131d1`，Skills JSON 为 `1ef5e9f6debaaab410d11b331ea3869ba09f6f90926ee079200df34523e29313`。原 Quests.uasset / .uexp 分别为 `ca4fb2762930e4473fa10301678874e9ebbe4d0ee97b4a193b6ae71badcf3e41` / `2d84daae1fc93fc6f098fd5897091704960581d305adffd2f42a26315a881a86`；Skills.uasset / .uexp 分别为 `fc7018b0b3644f5ffbbae6aea40bfefc3b7990abdcbba9d2ea4fa254936d0d81` / `a2fd448cc404f316f3013611b94b131e7489a7fad3d363153dbc670be2bd6c88`。来源许可沿用游戏数据说明，不当作项目原创代码授权。
+```text
+node scripts/build-codex-details.cjs <Quests.Table.Data.json> <Skills.json>
+```
 
-当前投影覆盖 490 个有已识别结果的任务或步骤，以及 276 项武学的各级属性动作。普通、困难、极难的完成动作分开保存；只有三组展示结果完全相同时才合并显示一次。选项要求及动作保留在各自选项下，不把互斥结果相加；物品反向获取链接同样保留难度和选项标签。只展示已识别的动作及精确关联实体，不推演尚未核实的全剧情结果。请教消耗与好感复用 `npc-interactions.json`；静态教师或秘籍关系是学习线索，只有现有人物状态明确满足时才显示“可请教”。材料采集与掉落复用既有 `material-guide.cjs`，保留可展开的来源与版本，不新增掉率或效率假设。
+完整任务数组 SHA-256 为 `f1ddf79d01d5d143512ce55b1007b19cd8dc5c57c48ff00cb3ee396f5ef5fecf`，独立记录在 `source.inputs.questsFullTableData`；旧选择输入摘要 `45303fedd1778387ecfc26ff842251ba83e2057f9dbe90c3803a074a44c131d1` 不再作为当前输入接受。Skills JSON 仍为 `1ef5e9f6debaaab410d11b331ea3869ba09f6f90926ee079200df34523e29313`。原 Quests.uasset / .uexp 分别为 `ca4fb2762930e4473fa10301678874e9ebbe4d0ee97b4a193b6ae71badcf3e41` / `2d84daae1fc93fc6f098fd5897091704960581d305adffd2f42a26315a881a86`；Skills.uasset / .uexp 分别为 `fc7018b0b3644f5ffbbae6aea40bfefc3b7990abdcbba9d2ea4fa254936d0d81` / `a2fd448cc404f316f3013611b94b131e7489a7fad3d363153dbc670be2bd6c88`。来源许可沿用游戏数据说明，不当作项目原创代码授权。
+
+当前投影保留 545 个命名任务结果、622 个内部奖励或选择步骤，以及 276 项武学的各级属性动作。`hiddenSteps` 保留实际编号、`ownerId`、经唯一原表 Owner 链得到的 `ownerPath` / `relatedQuestId`、接取与完成条件；缺失、重复或成环的 Owner 链不关联公开任务。内部步骤不获得伪造的正式名称，界面用公开关联任务及结算语境导航，原始编号只放在资料来源折叠与内部属性中。
+
+普通、困难、极难的完成动作分开保存；只有三组展示结果完全相同时才合并显示一次。选项要求及动作保留在各自选项下，失败结算和各个剧情处理事件分别列出，不把互斥结果相加，也不把根任务完成视为全部内部奖励均已获得。相同公开任务、相同触发语境和相同数量的重复内部物品来源可合并展示一行，但保留全部原始步骤编号，不合计数量。未识别动作的原始三元组仍保留；界面只展示已核对的动作及精确关联实体，不把未知或复合动作展开成推测奖励。
+
+`CGuildHonor` 展示为门派贡献变化。`ARandItem` / `ANormalRandItem` 的物品目标和数量由已pin程序的 `ApplyAction` 分发核对：31号动作在 `0x140f75bc5` 设置 Fusion 模式2，32号设置 Normal 模式1，均与 CItem 的模式0汇入 `0x1411ff790`；`0x14121cc70` 按原始 Id 经 `0x14124f380` 查询 ItemResManager 的 ItemDataTable（偏移0x30、行类型 ItemInfoSetting），不是 DropPoolDataTable（偏移0x40）。随机词条来自所选物品模板，界面不承诺最终词条数量、组合、属性或掉率。当前命名与隐藏任务的35个唯一随机物品Id均在Items表中有对应行，同构建DropPools表549行不含这些Id；DropPools.uexp 摘要为 `e43eb18bba381dfb574c96fdde6afefd868951935838c7f2bb3216297602e76a`，程序摘要为 `946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c`。
+
+请教消耗与好感复用 `npc-interactions.json`；静态教师或秘籍关系是学习线索，只有现有人物状态明确满足时才显示“可请教”。材料采集与掉落复用既有 `material-guide.cjs`，保留可展开的来源与版本，不新增掉率或效率假设。

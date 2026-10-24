@@ -283,7 +283,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
               )
                 .map(
                   (row) =>
-                    `<li>${questButton(row.id, row.taskName + ' · ' + row.name)} · ${text(row.required)}</li>`,
+                    `<li>${questButton(row.detailId || row.id, row.taskName + ' · ' + row.name)} · ${text(row.required)}</li>`,
                 )
                 .join('')}</ul></details>`,
           )
@@ -354,7 +354,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
         ? needs
             .map(
               ({ task, row }) =>
-                `<article data-flow-quest="${text(task.id)}"><h3>${questButton(task.id, task.name) || text(task.name)}</h3>${!compact && row.id !== task.id && row.name !== task.name ? `<p class="small">${questButton(row.id, row.name) || text(row.name)}</p>` : ''}${compact ? compactMaterials(row.materials, flow.sharedMaterials, { scope: `${task.id}-${row.id}` }) : materials(row.materials, flow.sharedMaterials, '', `${task.id}-${row.id}`)}</article>`,
+                `<article data-flow-quest="${text(task.id)}"><h3>${questButton(task.id, task.name) || text(task.name)}</h3>${!compact && row.id !== task.id && row.name !== task.name ? `<p class="small">${questButton(row.detailId || row.id, row.name) || text(row.name)}</p>` : ''}${compact ? compactMaterials(row.materials, flow.sharedMaterials, { scope: `${task.id}-${row.id}` }) : materials(row.materials, flow.sharedMaterials, '', `${task.id}-${row.id}`)}</article>`,
             )
             .join('')
         : recommended.length
@@ -374,7 +374,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
     const upcoming = list(row.upcoming);
     const completing = list(row.completionRequirements);
     return persist(
-      `<div class="flow-step">${(summaryInLead && !row.targets?.materialState) || row.id === rootId || row.name === row.nextAction ? '' : `<h4>${questButton(row.id, row.name || '当前步骤') || prose(row.name || '当前步骤')}</h4>`}${summaryInLead ? '' : `<p class="flow-next-action"><span class="small muted">当前行动 </span>${stepAction(row) || prose('请打开任务资料，核对当前要求。')}</p>`}${row.description && row.description !== row.nextAction ? `<details><summary>任务说明 · 可能涉及剧情</summary><p class="preserve-text">${prose(row.description)}</p></details>` : ''}${summaryInLead ? '' : stepPeople(row) + stepPlaces(row)}${conditions(row.requirements)}${completing.length ? `<h4>完成条件</h4>${conditions(completing)}` : ''}${summaryInLead ? '' : materials(row.materials, sharedMaterials)}${upcoming.length ? `<details class="flow-upcoming"><summary>后续相关步骤与分支 · 涉及剧情</summary><ul>${upcoming.map((next) => `<li>${questButton(next.id, next.name) || text(next.name)}${next.reason ? `<p class="small muted">${text(next.reason)}</p>` : ''}</li>`).join('')}</ul></details>` : ''}</div>`,
+      `<div class="flow-step">${(summaryInLead && !row.targets?.materialState) || row.id === rootId || row.name === row.nextAction ? '' : `<h4>${questButton(row.detailId || row.id, row.name || '当前步骤') || prose(row.name || '当前步骤')}</h4>`}${summaryInLead ? '' : `<p class="flow-next-action"><span class="small muted">当前行动 </span>${stepAction(row) || prose('请打开任务资料，核对当前要求。')}</p>`}${row.description && row.description !== row.nextAction ? `<details><summary>任务说明 · 可能涉及剧情</summary><p class="preserve-text">${prose(row.description)}</p></details>` : ''}${summaryInLead ? '' : stepPeople(row) + stepPlaces(row)}${conditions(row.requirements)}${completing.length ? `<h4>完成条件</h4>${conditions(completing)}` : ''}${summaryInLead ? '' : materials(row.materials, sharedMaterials)}${upcoming.length ? `<details class="flow-upcoming"><summary>后续相关步骤与分支 · 涉及剧情</summary><ul>${upcoming.map((next) => `<li>${questButton(next.detailId || next.id, next.name) || text(next.name)}${next.reason ? `<p class="small muted">${text(next.reason)}</p>` : ''}</li>`).join('')}</ul></details>` : ''}</div>`,
       'step-' + row.id,
     );
   }
@@ -408,7 +408,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       .map((row) => `${row.status} ${row.count}`)
       .join(' · ');
     return persist(
-      `<article class="flow-task"${summaryInLead ? '' : ` data-flow-quest="${text(task.id || '')}"`}>${summaryInLead ? '' : `<div class="row between"><h3>${questButton(task.id, task.name) || text(task.name)}</h3>${pill(task.kind === 'Primary' ? '主线' : '支线', task.kind === 'Primary' ? 'green' : '')}</div>`}${steps.length ? steps.map((row, index) => step(row, task.id, { summaryInLead: summaryInLead && index === 0, sharedMaterials })).join('') : '<p class="small muted">这份存档只有任务记录，尚无可展示的当前步骤；请核对任务资料。</p>'}${progress.length ? `<details class="flow-task-progress"><summary>已记录的步骤 · ${text(counts)}</summary><ul class="flow-progress-list">${progress.map((row) => `<li>${questButton(row.id, row.name)}${pill(row.status, row.status === '已完成' ? 'green' : row.status === '已失败' ? 'orange' : '')}</li>`).join('')}</ul></details>` : ''}</article>`,
+      `<article class="flow-task"${summaryInLead ? '' : ` data-flow-quest="${text(task.id || '')}"`}>${summaryInLead ? '' : `<div class="row between"><h3>${questButton(task.id, task.name) || text(task.name)}</h3>${pill(task.kind === 'Primary' ? '主线' : '支线', task.kind === 'Primary' ? 'green' : '')}</div>`}${steps.length ? steps.map((row, index) => step(row, task.id, { summaryInLead: summaryInLead && index === 0, sharedMaterials })).join('') : '<p class="small muted">这份存档只有任务记录，尚无可展示的当前步骤；请核对任务资料。</p>'}${progress.length ? `<details class="flow-task-progress"><summary>已记录的步骤 · ${text(counts)}</summary><ul class="flow-progress-list">${progress.map((row) => `<li>${questButton(row.detailId || row.id, row.name)}${pill(row.status, row.status === '已完成' ? 'green' : row.status === '已失败' ? 'orange' : '')}</li>`).join('')}</ul></details>` : ''}</article>`,
       'task-' + task.id,
     );
   }

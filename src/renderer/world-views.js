@@ -185,6 +185,13 @@ export function createWorldViews({
     return (
       list
         .map((r) => {
+          if (r.type === 'ItemMax') {
+            const item = index.entries.find((entry) => entry.id === `item-${r.id}`);
+            const target = item
+              ? act('database-detail', esc(item.name), 'text-btn', item.id)
+              : esc(r.name || '未收录物品');
+            return `<div class="world-rule"><span class="small muted">物品要求</span><span>${target} · 数量条件待确认</span></div>`;
+          }
           if (r.type === 'Money' || r.type === 'TeamMember') {
             const check = completionChecks(
               [{ ...r, ...(r.type === 'Money' ? { comparison: 'gt' } : {}) }],

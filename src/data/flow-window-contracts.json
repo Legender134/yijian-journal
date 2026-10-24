@@ -23,7 +23,14 @@
   ],
   "questTable": {
     "uassetSha256": "ca4fb2762930e4473fa10301678874e9ebbe4d0ee97b4a193b6ae71badcf3e41",
-    "uexpSha256": "2d84daae1fc93fc6f098fd5897091704960581d305adffd2f42a26315a881a86"
+    "uexpSha256": "2d84daae1fc93fc6f098fd5897091704960581d305adffd2f42a26315a881a86",
+    "tableDataSha256": "f1ddf79d01d5d143512ce55b1007b19cd8dc5c57c48ff00cb3ee396f5ef5fecf",
+    "decoder": {
+      "engine": "UE4.26",
+      "UAssetAPI.dll": "d7b9fd4341ac22dd9ab8d9f49455ea5ebcf571abced64313ab15eb1944de07d9",
+      "Newtonsoft.Json.dll": "22c649f75fce5be7c7ccda8880473b634ef69ecf33f5d1ab8ad892caf47d5a07",
+      "ZstdSharp.dll": "5d597fb07c93f99bcbbcf1265bfc60de1f1f8fc070a3acc36f0371a86c326b16"
+    }
   },
   "windows": {
     "lotusMeeting": {
@@ -81,6 +88,161 @@
           { "type": "NoQuest", "id": 5603, "value": 0 }
         ]
       }
+    },
+    "elitePromotionPickups": {
+      "questId": 5304,
+      "closedByQuestPresence": [5323],
+      "conditionField": "RequestRequirements",
+      "scope": "each unaccepted step only; accepting one challenge does not accept later rounds",
+      "pickups": [
+        {
+          "questId": 14074,
+          "conditionQuestId": 14074,
+          "requestNPCIds": [5031],
+          "requirements": {
+            "operator": "all",
+            "values": [
+              { "type": "PreQuest", "id": 5302, "value": 4 },
+              { "type": "PreQuest", "id": 12230, "value": 4 },
+              { "type": "NoQuest", "id": 5323, "value": 0 }
+            ]
+          }
+        },
+        {
+          "questId": 13824,
+          "conditionQuestId": 13825,
+          "requestNPCIds": [5008],
+          "requirements": {
+            "operator": "all",
+            "values": [
+              { "type": "PreQuest", "id": 5317, "value": 4 },
+              { "type": "NoQuest", "id": 5323, "value": 0 }
+            ]
+          }
+        },
+        {
+          "questId": 13824,
+          "conditionQuestId": 13826,
+          "requestNPCIds": [5008],
+          "requirements": {
+            "operator": "all",
+            "values": [
+              { "type": "PreQuest", "id": 13825, "value": 4 },
+              { "type": "NoQuest", "id": 5323, "value": 0 }
+            ]
+          }
+        },
+        {
+          "questId": 13824,
+          "conditionQuestId": 13827,
+          "requestNPCIds": [5008],
+          "requirements": {
+            "operator": "all",
+            "values": [
+              { "type": "PreQuest", "id": 13826, "value": 4 },
+              { "type": "NoQuest", "id": 5323, "value": 0 }
+            ]
+          }
+        },
+        {
+          "questId": 13824,
+          "conditionQuestId": 13828,
+          "requestNPCIds": [5008],
+          "requirements": {
+            "operator": "all",
+            "values": [
+              { "type": "PreQuest", "id": 13827, "value": 4 },
+              { "type": "NoQuest", "id": 5323, "value": 0 }
+            ]
+          }
+        },
+        {
+          "questId": 13824,
+          "conditionQuestId": 13829,
+          "requestNPCIds": [5008],
+          "requirements": {
+            "operator": "all",
+            "values": [
+              { "type": "PreQuest", "id": 13828, "value": 4 },
+              { "type": "NoQuest", "id": 5323, "value": 0 }
+            ]
+          }
+        }
+      ],
+      "dependentPickup": {
+        "questId": 14185,
+        "conditionQuestId": 14186,
+        "requirements": {
+          "operator": "all",
+          "values": [
+            { "type": "Friendliness", "id": 5008, "value": 70 },
+            { "type": "PreQuest", "id": 14074, "value": 4 },
+            { "type": "NoQuest", "id": 21502, "value": 0 }
+          ]
+        }
+      }
+    },
+    "fiveFairyWine": {
+      "questId": 11237,
+      "conditionQuestId": 11238,
+      "conditionField": "RequestRequirements",
+      "scope": "initial dialog pickup only; an accepted quest is not declared failed",
+      "requestNPCIds": [10245],
+      "closedByQuestPresence": [5863],
+      "requirements": {
+        "operator": "all",
+        "values": [
+          { "type": "PreQuest", "id": 5175, "value": 4 },
+          { "type": "NoQuest", "id": 5863, "value": 0 }
+        ]
+      },
+      "entryTransitions": [5932, 5933, 5935, 5936],
+      "transition": { "type": "JumpStep", "id": 5863, "value": 1 }
+    },
+    "chiefPromotionPickups": {
+      "questId": 5980,
+      "closedByQuestPresence": [6261],
+      "conditionField": "RequestRequirements",
+      "scope": "specified unaccepted steps only; no claim that an accepted quest fails",
+      "entryTransition": { "fromQuestId": 6260, "type": "JumpStep", "id": 6261, "value": 0 },
+      "pickups": [
+        {
+          "questId": 12000,
+          "conditionQuestId": 12001,
+          "requestNPCIds": [10131],
+          "requirements": { "operator": "all", "values": [{ "type": "NoQuest", "id": 6261, "value": 0 }] }
+        },
+        {
+          "questId": 12015,
+          "conditionQuestId": 12016,
+          "requestNPCIds": [10131],
+          "requirements": {
+            "operator": "all",
+            "values": [
+              { "type": "PreQuest", "id": 12014, "value": 1 },
+              { "type": "NoQuest", "id": 6261, "value": 0 }
+            ]
+          }
+        },
+        {
+          "questId": 12780,
+          "conditionQuestId": 12781,
+          "requestNPCIds": [],
+          "requirements": { "operator": "all", "values": [{ "type": "NoQuest", "id": 6261, "value": 0 }] }
+        },
+        {
+          "questId": 13510,
+          "conditionQuestId": 13511,
+          "requestNPCIds": [16300],
+          "requirements": {
+            "operator": "all",
+            "values": [
+              { "type": "PreQuest", "id": 12118, "value": 4 },
+              { "type": "NoQuest", "id": 6261, "value": 0 }
+            ]
+          }
+        }
+      ]
     },
     "qiluoDeparture": {
       "questId": 30150,

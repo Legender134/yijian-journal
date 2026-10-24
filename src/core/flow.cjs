@@ -40,6 +40,11 @@ function createFlowProjector({
   materials: materialContent = materialGuide,
 }) {
   const quests = new Map(w.quests.map((q) => [q.gameId, q]));
+  // A few verified pickup dialogs have no visible title in the quest table.
+  // Keep their narrow projection with the flow contract, not the world index.
+  for (const q of content.pickupQuests || [])
+    if (!quests.has(q.gameId) && quests.has(q.parentId))
+      quests.set(q.gameId, { ...q, detailId: quests.get(q.parentId).id });
   const people = new Map(w.people.map((p) => [p.gameId, p]));
   const items = new Map(g.entries.map((e) => [e.id, e]));
   const maps = new Map(w.maps.map((p) => [p.key, p]));
@@ -285,7 +290,7 @@ function createFlowProjector({
     }
     function requirement(r) {
       const target = quests.get(r.id),
-        name = r.name || target?.name || `记录 #${r.id}`;
+        name = content.questLabels?.[r.id] || r.name || target?.name || `记录 #${r.id}`;
       if (r.type === 'PreQuest')
         return {
           text: `${cleanName(name)}：需${labels[r.value] || '状态 ' + r.value}`,
@@ -370,6 +375,7 @@ function createFlowProjector({
       }
       return {
         id: q.id,
+        ...(q.detailId ? { detailId: q.detailId } : {}),
         name: cleanName(q.name),
         targets,
         blockedWindow,
@@ -400,6 +406,7 @@ function createFlowProjector({
           )
           .map((next) => ({
             id: next.id,
+            ...(next.detailId ? { detailId: next.detailId } : {}),
             name: cleanName(next.name),
             reason: '资料明确列出此步骤完成为前置；其他条件仍需核对。',
           })),
@@ -441,7 +448,12 @@ function createFlowProjector({
           kind: root.kind,
           progress: family(root)
             .filter((q) => q.gameId !== root.gameId && labels[step(q.gameId)])
-            .map((q) => ({ id: q.id, name: cleanName(q.name), status: labels[step(q.gameId)] })),
+            .map((q) => ({
+              id: q.id,
+              ...(q.detailId ? { detailId: q.detailId } : {}),
+              name: cleanName(q.name),
+              status: labels[step(q.gameId)],
+            })),
           steps: (actualSteps.length ? actualSteps : rows).sort((a, b) => rank(a) - rank(b)).map(projectStep),
           rank: Math.min(...rows.map(rank)),
         };
@@ -463,6 +475,7 @@ function createFlowProjector({
           demand.required += material.required;
           demand.steps.push({
             id: current.id,
+            ...(current.detailId ? { detailId: current.detailId } : {}),
             name: current.name,
             taskName: task.name,
             required: material.required,
@@ -534,7 +547,29 @@ function createFlowProjector({
     const projectedRules = (content.rules || []).map((rule) => {
       const status = rule.questId ? step(rule.questId) : undefined;
       const knownFamily = rule.questId && quests.get(rule.questId) ? family(quests.get(rule.questId)) : [];
-      const activeRule = status === 1 || knownFamily.some((q) => step(q.gameId) === 1 && !blocked(q));
+      const pickupWindow = rule.pickupWindow;
+      const activeFamily = status === 1 || knownFamily.some((q) => step(q.gameId) === 1 && !blocked(q));
+      const activeRule = pickupWindow?.independentStep ? step(pickupWindow.stepId) === 1 : activeFamily;
+      const pickupRetired =
+        !!pickupWindow &&
+        ([1, 2, 4].includes(step(pickupWindow.stepId)) || (!pickupWindow.independentStep && activeFamily));
+      const pickupConditions = (pickupWindow?.requirements || []).map(requirement);
+      // An active challenge can precede an unaccepted next round. This keeps
+      // its future boundary visible without labeling the next round unlocked.
+      const pendingRound = (row) =>
+        pickupWindow?.independentStep &&
+        row.type === 'PreQuest' &&
+        row.value === 4 &&
+        step(row.id) === 1 &&
+        rootOf(quests.get(row.id))?.gameId === rule.questId;
+      const pickupPrerequisitesKnown = (pickupWindow?.requirements || []).every(
+        (row, index) =>
+          row.type !== 'PreQuest' || pickupConditions[index].status === 'met' || pendingRound(row),
+      );
+      const pickupBlocked = (pickupWindow?.requirements || []).some(
+        (row, index) =>
+          row.type !== 'NoQuest' && pickupConditions[index].status === 'unmet' && !pendingRound(row),
+      );
       const done = status === 4;
       const failed = status === 2;
       const anchors = rule.afterAllComplete || [];
@@ -550,10 +585,11 @@ function createFlowProjector({
         const place = w.maps.find((entry) => entry.id === id);
         return place && [place.key, place.name].includes(metadata.mapName);
       });
-      const relevant =
-        activeRule ||
-        locationMatch ||
-        (rule.requireStageMatch ? stageMatch && (!anchors.length || anchorsMet) : stageMatch || anchorsMet);
+      const relevant = pickupWindow
+        ? stageMatch && pickupPrerequisitesKnown && (!anchors.length || anchorsMet)
+        : activeRule ||
+          locationMatch ||
+          (rule.requireStageMatch ? stageMatch && (!anchors.length || anchorsMet) : stageMatch || anchorsMet);
       const deadlineReached =
         (rule.untilAnyRecorded || []).some((id) => records.has(id)) ||
         (rule.untilAnyStarted || []).some((id) => [1, 2, 4].includes(step(id))) ||
@@ -638,6 +674,8 @@ function createFlowProjector({
           : undefined,
         name: rule.title,
         activeRule,
+        pickupRetired,
+        pickupBlocked,
         activeWindowBlocked: active.some(
           (task) => task.gameId === rule.questId && task.steps.some((step) => step.blockedWindow),
         ),
@@ -671,10 +709,12 @@ function createFlowProjector({
                 : status === 0
                   ? 'not-started'
                   : 'unrecorded',
-        conditions: anchors.map((id) => ({
-          text: `${rule.afterLabels?.[id] || cleanName(quests.get(id)?.name || '未命名剧情记录')}：需已完成`,
-          status: step(id) === 4 ? 'met' : step(id) === undefined ? 'unknown' : 'unmet',
-        })),
+        conditions: pickupWindow
+          ? pickupConditions
+          : anchors.map((id) => ({
+              text: `${rule.afterLabels?.[id] || cleanName(quests.get(id)?.name || '未命名剧情记录')}：需已完成`,
+              status: step(id) === 4 ? 'met' : step(id) === undefined ? 'unknown' : 'unmet',
+            })),
         sources: (rule.sourceIds || [])
           .filter((id) => content.sources[id])
           .map((id) => ({ ...content.sources[id], id: 'flow:' + id })),
@@ -686,6 +726,8 @@ function createFlowProjector({
         r.relevant &&
         !r.done &&
         !r.failed &&
+        !r.pickupRetired &&
+        !r.pickupBlocked &&
         !r.decisionResolved &&
         (!r.requireDecisionWindow || r.decisionActive),
     );
@@ -869,7 +911,9 @@ function createFlowProjector({
         : null,
       changes,
       coverage: {
-        tasks: quests.size,
+        // This is the published world-index count; hidden pickup dialogs are
+        // supplemental contracts, not new entries in the offline index.
+        tasks: w.quests.length,
         mainRoots: [...quests.values()].filter(
           (q) => !q.parentId && q.kind === 'Primary' && !q.name.includes('试玩版'),
         ).length,

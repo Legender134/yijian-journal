@@ -3,6 +3,147 @@ const duelGuide = require('./duel-guide.cjs');
 const materialGuide = require('./material-guide.cjs');
 const flowWindows = require('./flow-window-contracts.json').windows;
 const lotusWindow = flowWindows.lotusMeeting;
+const pickupQuestLabels = {
+  5317: '晋升资深弟子剧情',
+  5323: '晋升精英弟子剧情',
+  6261: '首座晋升对话（回复道通后）',
+};
+const pickupRule = (window, pickup, detail) => ({
+  questId: pickup.questId,
+  afterAllComplete: [],
+  untilAnyStarted: [],
+  untilAnyRecorded: window.closedByQuestPresence,
+  pickupWindow: {
+    stepId: pickup.conditionQuestId,
+    requirements: pickup.requirements.values,
+    ...(detail.independentStep ? { independentStep: true } : {}),
+  },
+  closedWindowSummary: `${detail.affectedName}：接取条件已不满足`,
+  closedWindowMessage: `对应剧情已有记录，${detail.affectedName}所列步骤的接取条件已不满足；这不表示已接任务失败。`,
+  advanceEffects: [
+    {
+      questId: detail.effectQuestId || pickup.conditionQuestId,
+      name: detail.affectedName,
+      scope: 'accept',
+      effect: detail.effect,
+      closedEffect: `${detail.affectedName}所列步骤的接取条件已不满足；这不表示已接任务失败。`,
+      evidence: `Build 21798996：步骤${pickup.conditionQuestId}的RequestRequirements。`,
+    },
+  ],
+  choices: [],
+  sourceIds: ['rankPickupWindowsGame', 'flowR2PickupRoute'],
+  uncertainty:
+    '只核对所列步骤的接取条件；缺少记录不证明可接，人物当前在场及其他触发条件仍需游戏内确认。已接步骤不据此判失败，也不把可选支线未接等同于永久缺失。',
+  ...detail,
+});
+const elitePickupRules = flowWindows.elitePromotionPickups.pickups.map((pickup, index) => {
+  const challenge = index > 0;
+  const name = [
+    '演武试艺',
+    '武林挑战·少年侠客',
+    '武林挑战·江湖女侠',
+    '武林挑战·江湖高手',
+    '武林挑战·武林前辈',
+    '武林挑战·武林名宿',
+  ][index];
+  return pickupRule(flowWindows.elitePromotionPickups, pickup, {
+    id: `elite-pickup-${pickup.conditionQuestId}`,
+    title: `晋升精英前：核对${name}`,
+    compactWarning: challenge
+      ? `晋升精英前：核对${name}的接取`
+      : '晋升精英前：先核对演武试艺，保留八卦刀法与元启线索',
+    chapterRoots: [5242, 5246, 5275, 5304],
+    stageSteps: [5322, ...(challenge ? [13824] : [])],
+    independentStep: challenge,
+    deadlineLabel: '挑战道通、晋升精英弟子之前',
+    affectedName: name,
+    effect: challenge
+      ? '晋升精英剧情出现后，这一轮尚未接取的挑战不再满足接取条件；已接的当前轮次不据此判失败。'
+      : '晋升精英剧情出现后，尚未接取的演武试艺不再满足接取条件；本段可收集八卦刀法，也是武当元启的任务前置。',
+    pickup: {
+      place: challenge ? '武当派 · 试剑台附近（社区线索）' : '武当派 · 元风 → 试剑台元启（社区线索）',
+      person: challenge ? '元启' : '元风；元启',
+      action: challenge
+        ? `向元启核对「${name}」。若当前一轮仍在进行，先按任务栏完成，再核对下一轮；接受过前一轮不代表后续轮次已经接取。`
+        : '晋升前先找元风核对演武试艺，再按任务栏找元启；想继续元启个人线，还需单独核对好感与后续对话。',
+    },
+    warning: challenge
+      ? '武林挑战各轮分别检查晋升边界；想保留后续挑战时，先完成当前轮次并向元启核对下一轮，再晋升。'
+      : '演武试艺尚未接取时，先找元风核对；晋升会限制本段接取，并影响八卦刀法及元启个人线的这一前置。',
+  });
+});
+const winePickup = flowWindows.fiveFairyWine;
+const fiveFairyPickupRule = pickupRule(winePickup, winePickup, {
+  id: 'five-fairy-wine-pickup',
+  title: '南疆出发授武前：回平康核对五仙花酿',
+  compactWarning: '执法晋升后出发授武前：先核对平康客栈的五仙花酿',
+  chapterRoots: [5850],
+  stageSteps: [5857],
+  deadlineLabel: '执法晋升后，接受南疆出发授武之前',
+  affectedName: '五仙花酿的首次交谈',
+  effectQuestId: 11237,
+  effect:
+    '执法晋升后的授武分支会建立「前往名剑山庄」记录，此后首次交谈的接取条件不再满足；已接花酿按当前任务继续核对。',
+  pickup: {
+    place: '平康城 · 客栈二楼（社区线索）',
+    person: '幻紫',
+    action:
+      '到平康城客栈二楼找幻紫，询问小彤下落或五仙教地址，再决定是否答应收集毒虫；这是接取线索，不是幻紫当前在场的证明。',
+  },
+  warning:
+    '还未接五仙花酿时，先到平康客栈二楼找幻紫核对。执法晋升后接受授武就会推进这道接取边界，不要等实际抵达名剑山庄才检查。',
+  steps: [
+    '答应委托后，按任务栏到碧幽林收集蜘蛛、蜈蚣各10份，再回幻紫处交付。',
+    '本段有二转洗髓丹、武学心得与铜钱奖励；是否完成以当前任务和实际结算为准。',
+  ],
+  sourceIds: ['rankPickupWindowsGame', 'flowR2PickupRoute', 'flowR2WineOriginal'],
+});
+const chiefPickupDetails = [
+  {
+    name: '重回碗子山',
+    place: '洛村 · 客栈门口',
+    person: '白锦',
+    action: '若尚未与白锦合作，先回洛村与客栈外的白锦交谈，核对重回碗子山。',
+    effect: '回复道通建立首座晋升对话后，白锦的好奇不再满足接取条件；此段及锦蛇青梅关系白锦招募与人物后续。',
+  },
+  {
+    name: '锦蛇青梅',
+    place: '落英林 → 谭城客栈',
+    person: '白锦',
+    action: '沿落英之约到落英林找白锦，核对锦蛇青梅；答应后按任务栏去谭城购买青梅酒。',
+    effect: '回复道通建立首座晋升对话后，尚未接取的寻找食材不再满足接取条件；想保留白锦人物后续时先核对。',
+  },
+  {
+    name: '诊治裴庆',
+    place: '甘泉村（社区线索）',
+    person: '小娥；亮银锤·裴庆',
+    action: '到甘泉村先向小娥核对诊治委托，再按任务栏找裴庆。',
+    effect: '回复道通建立首座晋升对话后，尚未接取的寻找裴庆不再满足接取条件；已接任务保留原状态。',
+  },
+  {
+    name: '平阳王家',
+    place: '平阳堡',
+    person: '王道明',
+    action: '向王道明核对平阳王家及寒铁矿委托，再按任务栏继续王天聪的后续。',
+    effect: '回复道通建立首座晋升对话后，尚未接取的寒铁矿委托不再满足接取条件；本段是王家人物后续的线索。',
+  },
+];
+const chiefPickupRules = flowWindows.chiefPromotionPickups.pickups.map((pickup, index) => {
+  const detail = chiefPickupDetails[index];
+  return pickupRule(flowWindows.chiefPromotionPickups, pickup, {
+    id: `chief-pickup-${pickup.conditionQuestId}`,
+    title: `回复道通前：核对${detail.name}`,
+    compactWarning: `回复道通前：核对未接的${detail.name}`,
+    chapterRoots: [5980],
+    stageSteps: [6260],
+    deadlineLabel: '首座流程「回复道通师叔」之前',
+    affectedName: detail.name,
+    independentStep: pickup.conditionQuestId === 12016,
+    effect: detail.effect,
+    pickup: { place: detail.place, person: detail.person, action: detail.action },
+    warning: `若还想做${detail.name}，先按所列人物核对，再回复道通。回复会直接建立首座晋升对话，接取边界早于晋升战结束。`,
+  });
+});
 const goldenScorpionRoute = materialGuide.items[10498].routes[0];
 const wudangNightChest = {
   title: '武当夜间 · 祖师殿右侧宝箱',
@@ -59,6 +200,21 @@ const tianshanTravelWindow = {
 };
 // Community flow clues; unknown task records never prove availability.
 module.exports = {
+  questLabels: pickupQuestLabels,
+  pickupQuests: [
+    {
+      id: `quest-${winePickup.conditionQuestId}`,
+      gameId: winePickup.conditionQuestId,
+      parentId: winePickup.questId,
+      kind: 'Secondary',
+      name: '五仙花酿：与幻紫交谈',
+      description: '向幻紫询问小彤下落，是否接受委托以当前交谈为准。',
+      requestNPCs: winePickup.requestNPCIds,
+      finishNPCs: [],
+      requirements: winePickup.requirements.values,
+      placements: [],
+    },
+  ],
   stepRequirements: {
     [flowWindows.qiluoDeparture.conditionQuestId]: {
       requirements: flowWindows.qiluoDeparture.requirements.values.map((row) => ({
@@ -96,6 +252,28 @@ module.exports = {
     10498: [{ ...goldenScorpionRoute, title: goldenScorpionRoute.label, questId: 16000 }],
   },
   sources: {
+    rankPickupWindowsGame: {
+      title: '游戏资料：精英晋升、五仙花酿与首座接取边界',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-window-contracts.json',
+      version: 'Build 21798996',
+      confidence: '同构建Quests原表的接取条件与推进动作；只限定所列步骤，不把已接任务判失败。',
+    },
+    flowR2PickupRoute: {
+      title: '力拔山兮气盖世呐：门派任务、五仙花酿与人物支线顺序',
+      author: '力拔山兮气盖世呐',
+      url: 'https://www.bilibili.com/opus/1083911628004524051',
+      date: '2026-05-21（编辑）',
+      version: '正文声明 v1.24.25，含碧海仙踪与武家旧事',
+      confidence: '用于交谈人物、地点和推荐顺序的社区对照；精确关闭条件以同构建原表为准。',
+    },
+    flowR2WineOriginal: {
+      title: '无敌大白熊丶：平康客栈二楼五仙花酿',
+      author: '无敌大白熊丶',
+      url: 'https://www.bilibili.com/opus/842046184003469316',
+      date: '2023-10-07（编辑）',
+      version: '旧正式版流程，具体构建未标',
+      confidence: '只交叉核对客栈二楼、幻紫与毒虫交付路线；不套用旧版属性奖励或关闭时点。',
+    },
     otherWindowsGame: {
       title: '游戏资料：反攻前奏与绮罗筵的推进条件',
       url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-window-contracts.json',
@@ -765,6 +943,9 @@ module.exports = {
     24000: { next: 24020, sourceIds: ['biliLateFlow', 'gs52'] },
   },
   rules: [
+    ...elitePickupRules,
+    fiveFairyPickupRule,
+    ...chiefPickupRules,
     {
       id: 'jinli-coin-before-accepting',
       title: '津鲤村古钱：先决定帮小蝶还是司马相',

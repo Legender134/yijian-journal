@@ -50,6 +50,29 @@ test('medicine, permanent stats, armor and materials render different benefits h
   assert.match(html(8094), /随机池在当前原始资料中缺失/);
 });
 
+test('gift packs name the awarded equipment rather than hiding it as an unknown effect', async () => {
+  const { createItemStatViews } = await load,
+    index = encyclopedia(),
+    view = createItemStatViews({ esc, act });
+  for (const [source, target, name] of [
+    [248, 8082, '逸剑风云决'],
+    [332, 2063, '万法唯识'],
+  ]) {
+    const entry = index.entries.find((row) => row.id === 'item-' + source);
+    assert.deepEqual(
+      entry.stats.effects.filter((row) => row.type === 'ARandItem'),
+      [{ type: 'ARandItem', id: target, value: 1 }],
+    );
+    const html = view.detail(index, entry);
+    assert.match(
+      html,
+      new RegExp(`获得物品：<button[^>]+data-id="item-${target}">${name}</button>（随机词条）`),
+    );
+    assert.match(html, /× 1/);
+    assert.doesNotMatch(html, /掉落池|学习或剧情物品/);
+  }
+});
+
 test('fractional percentages and unverified parameters do not receive invented units', async () => {
   const { itemEffectText } = await load,
     { itemStats } = encyclopedia();
