@@ -732,3 +732,47 @@ test('compact challenge summaries expose names, places and rewards with stable p
   assert.match(views.page({ duels }, { compact: true, scope: 'second' }), /duel-card-second-inn-window/);
   assert.doesNotMatch(views.page({ duels }), /duel-compact-card/);
 });
+
+
+test('early private-item leads bind exact current-build entities in main and compact views', async () => {
+  const facts = require('../src/data/npc-facts.json').people;
+  const expected = [
+    [10017, 5001, '金钱镖'],
+    [10034, 100032, '虬龙拳套精良图纸'],
+    [10048, 100316, '下品凝元丹丹方'],
+    [5007, 100016, '灵宝刀精良图纸'],
+    [5011, 115, '癸水丹'],
+    [5011, 100036, '寂灭爪精良图纸'],
+    [5013, 100005, '鱼肠剑精良图纸'],
+    [10131, 100041, '破甲锥精良图纸'],
+  ];
+  const projected = createDuelProjector({ guide: curatedGuide, world, game })({
+    available: true, states: [], mainQuestId: 5062,
+  });
+  const { createDuelViews } = await import(pathToFileURL(path.join(__dirname, '../src/renderer/duel-views.js')).href);
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const views = createDuelViews({ esc, pill: esc, act: (action, title, cls, id) =>
+    '<button data-action="' + esc(action) + '" data-id="' + esc(id) + '">' + title + '</button>' });
+  for (const [npcId, itemId, name] of expected) {
+    const row = projected.guide.find(entry => entry.npcId === npcId);
+    const reward = row.rewards.find(entry => entry.itemId === itemId);
+    assert.equal(reward?.name, name);
+    assert.equal(reward.method, '切磋私物');
+    assert.match(reward.condition, /初始私物1份/);
+    assert.match(reward.probability, /随机.*不保证首胜/);
+    assert(facts[npcId].fixedItems.some(item => item.id === itemId && item.count === 1));
+    assert.equal(game.entries.find(entry => entry.id === 'item-' + itemId)?.name, name);
+    const isolated = { ...projected, candidates: [row], guide: [row] };
+    for (const compact of [false, true]) {
+      const html = views.page({ duels: isolated }, { compact });
+      assert(html.includes('data-id="item-' + itemId + '">' + name + '</button>'));
+      assert.doesNotMatch(html, /5000\/5001\/5002|确切图纸名需观察|葵水丹/);
+    }
+  }
+  const xiaotong = projected.guide.find(row => row.npcId === 10017);
+  assert.equal(xiaotong.rewards.find(row => row.name === '金钱镖').itemId, 5001);
+  assert.match(xiaotong.rewards.find(row => row.itemId === 5001).condition, /绿品/);
+  const weihuo = projected.guide.find(row => row.npcId === 10047);
+  assert.match(weihuo.rewards.find(row => row.itemId === 13352).condition, /买酒首战.*剧情结算.*不抽普通私物.*之后切磋/);
+  assert.equal(weihuo.rewards.find(row => row.name === '高粱酒').method, '剧情');
+});

@@ -439,8 +439,9 @@ module.exports = {
       rewards: [
         {
           name: '金钱镖',
+          itemId: 5001,
           method: '切磋私物',
-          condition: '先观察品质；本地同名装备有5000/5001/5002多个模板',
+          condition: '绿品；初始私物1份',
           probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知，先观察当前背包。',
         },
         {
@@ -481,7 +482,7 @@ module.exports = {
         {
           name: '蟠龙棍法秘籍',
           method: '切磋私物',
-          condition: '',
+          condition: '买酒首战走剧情结算，不抽普通私物；之后切磋再收集',
           probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知，先观察当前背包。',
           itemId: 13352,
         },
@@ -544,16 +545,17 @@ module.exports = {
       untilAnyComplete: [5072],
       rewards: [
         {
-          name: '七品拳套图纸',
+          name: '虬龙拳套精良图纸',
+          itemId: 100032,
           method: '切磋私物',
-          condition: '零雨其霖1.24.31路线；确切图纸名先观察',
+          condition: '七品·上；初始私物1份',
           probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知，先观察当前背包。',
         },
       ],
       preparation:
         '可选高风险挑战。GaGLA21726正式版路线约需2932武学点，练满镇山心法/江湖心法并点冲、任脉；用即时制错位躲招、耗空对方内力。作者耗时约3小时，不代表普通新档当前能打。',
       recommendation: {
-        action: '想收集七品拳套图纸时，在交酒前观察雷万钧并量力挑战。',
+        action: '想收集虬龙拳套精良图纸时，在交酒前观察雷万钧并量力挑战。',
         reason: '来源明确指向一份早期拳套图纸。',
         tradeoff: '高配继承路线证据，不应成为普通新手的必做目标。',
       },
@@ -574,8 +576,9 @@ module.exports = {
       rewards: [
         {
           name: '下品凝元丹丹方',
+          itemId: 100316,
           method: '切磋私物',
-          condition: '零雨其霖1.24.31路线',
+          condition: '初始私物1份',
           probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知，先观察当前背包。',
         },
       ],
@@ -782,9 +785,10 @@ module.exports = {
           itemId: 10315,
         },
         {
-          name: '三品刀图纸',
+          name: '灵宝刀精良图纸',
+          itemId: 100016,
           method: '切磋私物',
-          condition: '确切图纸名需观察',
+          condition: '三品·上；初始私物1份',
           probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知，先观察当前背包。',
         },
         {
@@ -816,15 +820,17 @@ module.exports = {
       untilAnyComplete: [],
       rewards: [
         {
-          name: '葵水丹',
+          name: '癸水丹',
+          itemId: 115,
           method: '切磋私物',
-          condition: '作者标1枚',
+          condition: '初始私物1份',
           probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知，先观察当前背包。',
         },
         {
-          name: '三品拳套图纸',
+          name: '寂灭爪精良图纸',
+          itemId: 100036,
           method: '切磋私物',
-          condition: '确切图纸名需观察',
+          condition: '三品·上；初始私物1份',
           probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知，先观察当前背包。',
         },
         {
@@ -856,9 +862,10 @@ module.exports = {
       untilAnyComplete: [],
       rewards: [
         {
-          name: '四品剑图纸',
+          name: '鱼肠剑精良图纸',
+          itemId: 100005,
           method: '切磋私物',
-          condition: '确切图纸名需观察',
+          condition: '四品·上；初始私物1份',
           probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知，先观察当前背包。',
         },
         {
@@ -870,7 +877,7 @@ module.exports = {
       ],
       preparation: '模板65级，多项拳掌10级。先领取弟子袍服、完成请教教学；切磋等强度足够。',
       recommendation: {
-        action: '先去执事堂问好领袍服，再核对武道之始；需要四品剑图纸时回访切磋。',
+        action: '先去执事堂问好领袍服，再核对武道之始；需要鱼肠剑精良图纸时回访切磋。',
         reason: '能用低风险教学推进成长，同时留下清晰装备目标。',
         tradeoff: '图纸私物随机；教学结算与一般请教仍需分开。',
       },
@@ -897,9 +904,10 @@ module.exports = {
           itemId: 13552,
         },
         {
-          name: '八品暗器图纸',
+          name: '破甲锥精良图纸',
+          itemId: 100041,
           method: '切磋私物',
-          condition: '确切图纸名需观察',
+          condition: '八品·上；初始私物1份',
           probability: '胜利后随机取得私物，不保证首胜获得；单件概率未知，先观察当前背包。',
         },
         {

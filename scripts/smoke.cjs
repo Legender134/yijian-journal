@@ -1339,7 +1339,7 @@ async function companionHomeInventorySync(page) {
     );
     const innChallenge = choiceCompact.locator('[data-duel-current] [data-duel="npc051-inn-lei"]');
     await innChallenge.waitFor({ timeout: 18000 });
-    assert.match(await innChallenge.innerText(), /初始等级 30.*梧桐村.*客栈.*七品拳套图纸/s);
+    assert.match(await innChallenge.innerText(), /初始等级 30.*梧桐村.*客栈.*虬龙拳套精良图纸/s);
     await choiceCompact.locator('.companion-tabs [data-action="navigate"][data-id="home"]').click();
     await choiceCompact.locator('.flow-risks').waitFor();
     await choiceCompact.locator('.flow-compact-risks').evaluate((el) => {
@@ -1417,8 +1417,11 @@ async function companionHomeInventorySync(page) {
     const baiReward = rewardPreview.locator('[data-entity-id="item-13552"]');
     assert.equal(await baiReward.count(), 1);
     assert.equal(await baiReward.locator('.game-picture').count(), 1);
-    assert.match(await rewardPreview.innerText(), /无影飞箭秘籍.*切磋私物.*八品暗器图纸/s);
-    assert.equal(await rewardPreview.locator('[data-entity-id]').count(), 1);
+    assert.match(await rewardPreview.innerText(), /无影飞箭秘籍.*切磋私物.*破甲锥精良图纸/s);
+    const baiRecipe = rewardPreview.locator('[data-entity-id="item-100041"]');
+    assert.equal(await baiRecipe.count(), 1);
+    assert.equal(await baiRecipe.locator('.game-picture').count(), 1);
+    assert.equal(await rewardPreview.locator('[data-entity-id]').count(), 2);
     await baiReward.hover();
     await choiceCompact.locator('#entity-preview').waitFor({ state: 'visible' });
     assert.match(await choiceCompact.locator('#entity-preview').innerText(), /无影飞箭/);
