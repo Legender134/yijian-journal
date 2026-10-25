@@ -72,6 +72,27 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
     ];
   };
   const sourceLink = (index, q) => link(index, q.related?.id || q.id);
+  const sequenceConditions = {
+    'opening-jade-gift': '开局在江吟风家中获赠',
+    'opening-heart-manual': '夺回木剑后，回江家领取秘籍',
+    'opening-heart-teaching': '夺回木剑后，回江家接受江吟风传授',
+  };
+  const sequenceSourceDetails = '<details><summary>资料来源</summary><p>游戏开局剧情</p></details>';
+  const sequenceSources = (index, entry, type) =>
+    outcomeRows(index).flatMap(({ q, detail }) =>
+      (detail.sequenceOutcomes || []).flatMap((outcome) => {
+        const actions = outcome.actions.filter(
+          (action) =>
+            action.type === type &&
+            action.id === entry.gameId &&
+            Number.isSafeInteger(action.value) &&
+            action.value > 0,
+        );
+        return actions.length && sequenceConditions[outcome.condition]
+          ? [{ q, label: sequenceConditions[outcome.condition], actions }]
+          : [];
+      }),
+    );
   const sourceDetails = (q, steps = [q.gameId], event) =>
     q.related || event
       ? `<details><summary>资料来源</summary><p>游戏任务表 · 原始步骤 ${steps.map(text).join('、')}${event ? ` · 事件序号 ${text(event)}` : ''}</p></details>`
@@ -111,6 +132,12 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
       const blueprintOutcomes = (detail.blueprintOutcomes || [])
         .map((outcome) => ({ ...outcome, shown: effectList(index, outcome.actions, q) }))
         .filter((outcome) => outcome.shown.length);
+      const sequenceOutcomes = (detail.sequenceOutcomes || [])
+        .map((outcome) => ({
+          label: sequenceConditions[outcome.condition],
+          shown: effectList(index, outcome.actions, q),
+        }))
+        .filter((outcome) => outcome.label && outcome.shown.length);
       const events = [
         { label: '任务失败后', shown: effectList(index, detail.failed || [], q) },
         ...(detail.events || []).flatMap((event) => [
@@ -121,13 +148,14 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
       return finish.some((items) => items.length) ||
         choices.length ||
         events.length ||
-        blueprintOutcomes.length
-        ? [{ q, detail, finish, choices, events, blueprintOutcomes }]
+        blueprintOutcomes.length ||
+        sequenceOutcomes.length
+        ? [{ q, detail, finish, choices, events, blueprintOutcomes, sequenceOutcomes }]
         : [];
     });
     if (!rows.length) return '';
     const list = (items) => `<ul class="codex-effects">${items.map((s) => `<li>${s}</li>`).join('')}</ul>`;
-    const render = ({ q, detail, finish, choices, events, blueprintOutcomes }) => {
+    const render = ({ q, detail, finish, choices, events, blueprintOutcomes, sequenceOutcomes }) => {
       const promotionConditions = {
         'promotion-story-finished': '完成晋升剧情后',
         'promotion-story-followup-finished': '完成晋升剧情及后续结算后',
@@ -137,6 +165,12 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
         .map(
           (outcome) =>
             `<section class="codex-promotion-outcome"><h4>晋升收益</h4><p>${text(promotionConditions[outcome.condition])}</p>${list(outcome.shown)}<details><summary>资料来源</summary><p>游戏晋升剧情</p></details></section>`,
+        )
+        .join('');
+      const sequences = sequenceOutcomes
+        .map(
+          (outcome) =>
+            `<section class="codex-sequence-outcome"><h4>${text(outcome.label)}</h4>${list(outcome.shown)}${sequenceSourceDetails}</section>`,
         )
         .join('');
       const same = finish.every((items) => JSON.stringify(items) === JSON.stringify(finish[0]));
@@ -164,7 +198,7 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
         q.related?.gameId === entry.gameId
           ? '相关剧情结算'
           : `${sourceLink(index, q)}${q.related ? ' · 相关剧情结算' : ''}`;
-      return `<div class="codex-outcome-step" data-quest-step="${text(q.gameId)}">${q.gameId !== entry.gameId && tableShown ? `<h4>${heading}</h4>` : ''}${gates}${result}${promotions}${events.map((event) => `<details><summary>${text(event.label)}</summary>${list(event.shown)}${sourceDetails(q, [q.gameId], event.index)}</details>`).join('')}${choices.map((choice) => `<details><summary>选择「${text(choice.text)}」</summary>${choice.requirements.length ? `<details><summary>选项出现条件</summary>${conditions(index, choice.requirements, reference)}</details>` : ''}${choice.shown.length ? list(choice.shown) : '<p class="small muted">后续影响需结合剧情判断。</p>'}</details>`).join('')}${tableShown ? sourceDetails(q) : ''}</div>`;
+      return `<div class="codex-outcome-step" data-quest-step="${text(q.gameId)}">${q.gameId !== entry.gameId && tableShown ? `<h4>${heading}</h4>` : ''}${gates}${result}${promotions}${sequences}${events.map((event) => `<details><summary>${text(event.label)}</summary>${list(event.shown)}${sourceDetails(q, [q.gameId], event.index)}</details>`).join('')}${choices.map((choice) => `<details><summary>选择「${text(choice.text)}」</summary>${choice.requirements.length ? `<details><summary>选项出现条件</summary>${conditions(index, choice.requirements, reference)}</details>` : ''}${choice.shown.length ? list(choice.shown) : '<p class="small muted">后续影响需结合剧情判断。</p>'}</details>`).join('')}${tableShown ? sourceDetails(q) : ''}</div>`;
     };
     return `<details class="detail-block codex-outcomes" data-persist-detail="quest-outcomes-${text(entry.gameId)}"><summary>奖励与选择影响${rows.length > 1 ? ` · ${rows.length} 个步骤` : ''}</summary><p class="small muted">各步骤独立结算，需触发对应剧情；不同分支不累计，主任务完成不代表全部奖励均已获得。</p>${more(rows, render)}</details>`;
   }
@@ -209,11 +243,20 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
         }
       }
     }
+    for (const source of sequenceSources(index, entry, 'CItem'))
+      rows.push({
+        q: source.q,
+        label: `${source.label} ×${source.actions.reduce((sum, action) => sum + action.value, 0)}`,
+        steps: [source.q.gameId],
+        sequence: true,
+      });
     const grouped = new Map();
     for (const row of rows) {
       // Identical internal sources share a public navigation row. Preserve all
       // original step identities in provenance; do not add their quantities.
-      const key = row.q.related ? JSON.stringify([row.q.related.id, row.label, row.event]) : Symbol();
+      const key = row.q.related
+        ? JSON.stringify([row.q.related.id, row.label, row.event, row.sequence])
+        : Symbol();
       const previous = grouped.get(key);
       if (previous) previous.steps = [...new Set([...previous.steps, ...row.steps])];
       else grouped.set(key, row);
@@ -225,11 +268,12 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
       : '';
     return (
       (sources.length
-        ? `<section class="detail-block item-quest-sources"><h3>任务获取</h3><p class="small muted">各来源需触发对应步骤，不同分支不累计。</p>${more(sources, (r) => `<div class="codex-source-row" data-quest-step="${text(r.q.gameId)}" data-quest-steps="${r.steps.map(text).join(',')}">${sourceLink(index, r.q)}<span>${text(r.label)}${r.steps.length > 1 ? ` · ${r.steps.length} 处独立剧情结算` : ''}</span>${sourceDetails(r.q, r.steps, r.event)}</div>`)}</section>`
+        ? `<section class="detail-block item-quest-sources"><h3>任务获取</h3><p class="small muted">各来源需触发对应步骤，不同分支不累计。</p>${more(sources, (r) => `<div class="codex-source-row" data-quest-step="${text(r.q.gameId)}" data-quest-steps="${r.steps.map(text).join(',')}">${sourceLink(index, r.q)}<span>${text(r.label)}${r.steps.length > 1 ? ` · ${r.steps.length} 处独立剧情结算` : ''}</span>${r.sequence ? sequenceSourceDetails : sourceDetails(r.q, r.steps, r.event)}</div>`)}</section>`
         : '') + routes
     );
   }
   function skill(index, entry, progress, origin = 'saved') {
+    const story = sequenceSources(index, entry, 'ASkill');
     const manuals = index.entries.filter(
       (e) => e.kind === '物品' && e.stats?.effects.some((a) => a.type === 'ASkill' && a.id === entry.gameId),
     );
@@ -285,7 +329,7 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
     const consult = contract
       ? `<details class="detail-block skill-consult"><summary>请教条件${!canConsult ? ' · 不可常规请教' : ` · 好感 ${text(contract.friendliness)}`}</summary>${!canConsult ? '' : `<p>基础消耗 ${text(contract.skillPointCost)} 武学点；门派、难度或天赋可能减免。</p>${contract.requirements.length && index.renderRequirements ? index.renderRequirements(contract.requirements, index, { reference: null }) : ''}`}<details><summary>资料来源</summary><p>游戏资料表 · Build ${text(index.build)}</p></details></details>`
       : '';
-    return `${manuals.length ? `<section class="detail-block skill-manuals"><h3>学习秘籍</h3><div class="related-items">${manuals.map((e) => link(index, e.id)).join('')}</div></section>` : ''}${unlocks}${consult}${teachers.length ? `<details class="detail-block skill-teachers" data-persist-detail="skill-teachers-${text(entry.gameId)}"><summary>请教线索 · ${teachers.length} 位${progress && origin !== 'live' ? ' · 保存时状态' : ''}</summary>${more(teachers, teacher)}</details>` : ''}${levels.length ? `<details class="detail-block skill-growth"><summary>各级属性提升</summary><div class="codex-growth">${levels.map((r) => `<div><strong>${r.level} 级</strong><span>${r.rows.map((a) => text(a.name + ' ' + a.value)).join(' · ')}</span></div>`).join('')}</div></details>` : ''}`;
+    return `${manuals.length ? `<section class="detail-block skill-manuals"><h3>学习秘籍</h3><div class="related-items">${manuals.map((e) => link(index, e.id)).join('')}</div></section>` : ''}${story.length ? `<section class="detail-block skill-story-sources"><h3>剧情传授</h3>${more(story, (row) => `<div class="codex-source-row" data-quest-step="${text(row.q.gameId)}">${sourceLink(index, row.q)}<span>${text(row.label)}</span>${sequenceSourceDetails}</div>`)}</section>` : ''}${unlocks}${consult}${teachers.length ? `<details class="detail-block skill-teachers" data-persist-detail="skill-teachers-${text(entry.gameId)}"><summary>请教线索 · ${teachers.length} 位${progress && origin !== 'live' ? ' · 保存时状态' : ''}</summary>${more(teachers, teacher)}</details>` : ''}${levels.length ? `<details class="detail-block skill-growth"><summary>各级属性提升</summary><div class="codex-growth">${levels.map((r) => `<div><strong>${r.level} 级</strong><span>${r.rows.map((a) => text(a.name + ' ' + a.value)).join(' · ')}</span></div>`).join('')}</div></details>` : ''}`;
   }
   return { quest, item, skill };
 }

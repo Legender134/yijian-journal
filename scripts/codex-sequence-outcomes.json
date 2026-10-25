@@ -1,0 +1,169 @@
+{
+  "schema": 1,
+  "build": "21798996",
+  "source": {
+    "kind": "owned-installed-game-sequence",
+    "engine": "VER_UE4_26",
+    "questTableDataSha256": "f1ddf79d01d5d143512ce55b1007b19cd8dc5c57c48ff00cb3ee396f5ef5fecf",
+    "decoderSha256": "d7b9fd4341ac22dd9ab8d9f49455ea5ebcf571abced64313ab15eb1944de07d9",
+    "actionProgramSha256": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c"
+  },
+  "steps": [
+    {
+      "questId": 5021,
+      "ownerId": 5020,
+      "name": null,
+      "blueprint": "None",
+      "finishSequence": "/Game/JH/Maps/JiangNan/Map25/Quest/LS_CG-5021.LS_CG-5021",
+      "source": {
+        "members": [
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5021.uasset",
+            "sha256": "2bc47e0370780192b5dae92c4cbc2a7ca04eb3bf5d295666e38919f41adce514"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5021.uexp",
+            "sha256": "b823825888d34ef7e122b272d58b3ff4a040c78bb91c64c83a65a60713dcd480"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5021B.uasset",
+            "sha256": "bb0224b7c0850a70eb9889c995fe9114fb2778fd4ce2430db696e3cd8889a73d"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5021B.uexp",
+            "sha256": "de9494c98c3aceba7b1148d6983309ff87024b8bd4c2b3a5b682def1a4d133b9"
+          }
+        ],
+        "subSequence": "/Game/JH/Maps/JiangNan/Map25/Quest/LS_CG-5021B.LS_CG-5021B",
+        "subSequenceRange": {
+          "lowerInclusive": 156000,
+          "upperExclusive": 1056000
+        },
+        "tickResolution": 24000
+      },
+      "outcomes": [
+        {
+          "condition": "opening-jade-gift",
+          "actions": [
+            {
+              "type": "CItem",
+              "id": 8065,
+              "value": 1
+            }
+          ],
+          "source": {
+            "event": {
+              "trackExport": 237,
+              "sectionExport": 250,
+              "frame": 859200,
+              "entryFunction": "SequenceEvent__ENTRYPOINTSequenceDirector_25",
+              "callback": "玉佩",
+              "ubergraph": "ExecuteUbergraph_SequenceDirector",
+              "path": [756, 10, 26]
+            },
+            "native": {
+              "function": "AddItemsAndOpenResultWin",
+              "implementation": "0x140f73d30",
+              "itemIds": [8065],
+              "money": 0,
+              "itemRandPoolType": "None",
+              "quantityPerId": 1,
+              "quantitySetAt": "0x140f73dc8",
+              "addItem": "0x1411ff790"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "questId": 5039,
+      "ownerId": 5020,
+      "name": null,
+      "blueprint": "None",
+      "finishSequence": "/Game/JH/Maps/JiangNan/Map25/Quest/LS_CG-5039.LS_CG-5039",
+      "source": {
+        "members": [
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5039.uasset",
+            "sha256": "511f3593f21a91fa7aa77acb9b363be6b4a130dbbd71f7975ca436a1a10c6836"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5039.uexp",
+            "sha256": "77cf3d1d7f7b4deb70e22bc18540894705d6ede4d0d6163197deef9f14dfebb6"
+          }
+        ],
+        "tickResolution": 24000
+      },
+      "outcomes": [
+        {
+          "condition": "opening-heart-manual",
+          "actions": [
+            {
+              "type": "CItem",
+              "id": 13850,
+              "value": 1
+            }
+          ],
+          "source": {
+            "event": {
+              "trackExport": 159,
+              "sectionExport": 171,
+              "frame": 168000,
+              "entryFunction": "SequenceEvent__ENTRYPOINTSequenceDirector_10",
+              "callback": "SequenceEvent_0",
+              "ubergraph": "ExecuteUbergraph_SequenceDirector",
+              "entryOffset": 571,
+              "callOffset": 587
+            },
+            "native": {
+              "function": "AddItemsAndOpenResultWin",
+              "implementation": "0x140f73d30",
+              "itemIds": [13850],
+              "money": 0,
+              "itemRandPoolType": "None",
+              "quantityPerId": 1,
+              "quantitySetAt": "0x140f73dc8",
+              "addItem": "0x1411ff790"
+            }
+          }
+        },
+        {
+          "condition": "opening-heart-teaching",
+          "actions": [
+            {
+              "type": "ASkill",
+              "id": 850,
+              "value": 1
+            }
+          ],
+          "source": {
+            "event": {
+              "trackExport": 159,
+              "sectionExport": 171,
+              "frame": 324800,
+              "entryFunction": "SequenceEvent__ENTRYPOINTSequenceDirector_12",
+              "callback": "基础心法",
+              "ubergraph": "ExecuteUbergraph_SequenceDirector",
+              "entryOffset": 619,
+              "callOffset": 793
+            },
+            "native": {
+              "actionType": "ASkill",
+              "actionTypeId": 10,
+              "skillId": 850,
+              "requestedLevel": 1,
+              "dispatcher": "0x140f75390",
+              "branch": "0x140f75ddc",
+              "objectState": "SceneHero",
+              "acceptedObjectClass": "TeamInfo",
+              "fallbackNpcId": 0,
+              "npcLookup": "0x14120fa50",
+              "skillGrant": "0x1412427a0",
+              "skipsAlreadyKnown": true
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

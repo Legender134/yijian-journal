@@ -7,6 +7,7 @@ const { value } = require('./inspect-tables.cjs');
 const game = require('../src/data/game-index.json');
 const world = require('../src/data/world-index.json');
 const blueprintSource = require('./codex-blueprint-outcomes.json');
+const sequenceSource = require('./codex-sequence-outcomes.json');
 const pins = {
   questsFullTableData: 'f1ddf79d01d5d143512ce55b1007b19cd8dc5c57c48ff00cb3ee396f5ef5fecf',
   skills: '1ef5e9f6debaaab410d11b331ea3869ba09f6f90926ee079200df34523e29313',
@@ -102,6 +103,27 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
           },
         },
       ];
+    const sequence = sequenceSource.steps.find((step) => step.questId === raw.QuestId);
+    if (
+      sequence &&
+      String(gameData.build) === sequenceSource.build &&
+      byId.get(raw.QuestId)?.length === 1 &&
+      raw.OwnerQuestId === sequence.ownerId &&
+      raw.Name === sequence.name &&
+      raw.Blueprint?.AssetPath?.AssetName === sequence.blueprint &&
+      raw.FinishSequence?.AssetPath?.AssetName === sequence.finishSequence
+    )
+      detail.sequenceOutcomes = sequence.outcomes.map((event) => ({
+        condition: event.condition,
+        actions: event.actions.map((action) => ({ ...action })),
+        source: {
+          ...sequenceSource.source,
+          build: sequenceSource.build,
+          finishSequence: sequence.finishSequence,
+          ...sequence.source,
+          ...event.source,
+        },
+      }));
     return detail;
   };
   for (const entry of worldData.quests) {
@@ -114,6 +136,7 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
     const detail = detailFor(matches[0]);
     if (
       detail.blueprintOutcomes?.length ||
+      detail.sequenceOutcomes?.length ||
       detail.choices.length ||
       actionLists(detail).some((rows) => rows.some((a) => effectTypes.has(a.type)))
     )
@@ -124,6 +147,7 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
     const detail = detailFor(raw);
     if (
       !detail.blueprintOutcomes?.length &&
+      !detail.sequenceOutcomes?.length &&
       !detail.choices.length &&
       !actionLists(detail).some((rows) => rows.some((a) => rewardTypes.has(a.type)))
     )
