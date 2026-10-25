@@ -72,10 +72,10 @@ function createDuelReadiness(game, world = { people: [] }) {
       '好感与交互',
       Number.isInteger(friendship) && friendship < 20 ? 'unmet' : 'unknown',
       Number.isInteger(friendship)
-        ? `存档原始好感 ${friendship}${friendship < 20 ? `，距常见切磋门槛20还差 ${20 - friendship}` : '；仍须核对剧情好感锁与切磋按钮'}`
-        : '未读到该人物的有效好感；到场观察互动按钮',
+        ? `保存时比武好感 ${friendship}${friendship < 20 ? `，距切磋门槛20还差 ${20 - friendship}` : '；另看精力与切磋按钮'}`
+        : '好感未读取，先看切磋按钮',
       row.preparationPlan?.interaction ||
-        '先观察是否开放切磋。一般需有效好感20；送礼还受双方境界与剧情锁限制，按钮未开放时先看游戏给出的原因。',
+        '先看切磋按钮；常规切磋需好感20及足够精力。需要送礼补好感时，另看赠礼境界与上限。',
     );
     for (const skill of row.preparationPlan?.skills || []) {
       const entry = entries.get('skill-' + skill.id),

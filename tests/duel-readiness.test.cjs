@@ -65,13 +65,13 @@ test('actual native save details reach the stage duel with actionable gaps, not 
   assert.equal(check('skill-700').optional, true);
 });
 
-test('newly saved recovery and equipment retire old gaps; raw good friendship never certifies story gates', () => {
+test('newly saved recovery and equipment retire old gaps; raw good friendship never certifies other interaction gates', () => {
   const ready = cheng(player()).duels.candidates.find((n) => n.npcId === 5037).readiness;
   assert.equal(ready.status, 'verify');
   assert(!ready.checks.some((c) => c.status === 'unmet'));
   assert.match(ready.action, /基础记录未发现明显缺口.*保留可回读存档/);
   assert.equal(ready.checks.find((c) => c.id === 'friendship').status, 'unknown');
-  assert.match(ready.checks.find((c) => c.id === 'friendship').detail, /32.*剧情好感锁/);
+  assert.match(ready.checks.find((c) => c.id === 'friendship').detail, /32.*精力.*切磋按钮/);
   assert.match(ready.basis, /最近一次保存.*未保存.*不.*实战面板/);
   const advanced = cheng(player({ skills: [{ id: 9999, level: 10 }] })).duels.candidates.find(
     (n) => n.npcId === 5037,
