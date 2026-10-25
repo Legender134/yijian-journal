@@ -169,6 +169,88 @@ function renderFoldHarness(compact) {
   };
 }
 
+test('a newly reached critical choice opens its task group despite an older closed fold, then respects a deliberate close', async () => {
+  const { createFlowViews } = await import(
+    pathToFileURL(path.join(__dirname, '../src/renderer/flow-views.js')).href
+  );
+  const roots = [100, 200, 300, 500];
+  const quests = roots.flatMap((root) => [
+    { id: 'quest-' + root, gameId: root, parentId: 0, name: '任务' + root },
+    { id: 'quest-' + (root + 1), gameId: root + 1, parentId: root, name: '普通行动' + root },
+    { id: 'quest-' + (root + 2), gameId: root + 2, parentId: root, name: '关键行动' + root },
+  ]);
+  const index = {
+    entries: [],
+    world: { quests, people: [], maps: [] },
+    codex: {
+      quests: Object.fromEntries(
+        roots.flatMap((root) => [
+          [
+            root + 1,
+            {
+              choices: [
+                { text: '继续', actions: [{ type: 'CMoney', id: 1, value: 100 }] },
+                { text: '稍后', actions: [] },
+              ],
+            },
+          ],
+          [
+            root + 2,
+            {
+              choices: [
+                { text: '放弃', actions: [{ type: 'CQuestStep', id: root + 2, value: 2 }] },
+                { text: '稍后', actions: [] },
+              ],
+            },
+          ],
+        ]),
+      ),
+      hiddenSteps: {},
+    },
+  };
+  const view = createFlowViews({ ...options, index: () => index });
+  const task = (root, critical = false) => ({
+    id: 'quest-' + root,
+    gameId: root,
+    rootState: 1,
+    name: '任务' + root,
+    steps: [
+      {
+        id: 'quest-' + (root + (critical ? 2 : 1)),
+        choiceStepId: root + (critical ? 2 : 1),
+        name: '当前行动',
+        nextAction: '与测试人物交谈',
+        targets: { people: [], places: [] },
+      },
+    ],
+  });
+  for (const [compact, ids, changed, prefix] of [
+    [true, [100], 100, 'flow-task-peek-'],
+    [true, [100, 200, 500], 500, 'compact-other-active'],
+    [false, [100, 200, 300, 500], 500, 'main-other-active'],
+  ]) {
+    let flow = {
+      available: true,
+      active: ids.map((id) => task(id)),
+      decisions: [{ id: 'curated-front', name: '先做当前目标', warning: '当前建议', choices: [] }],
+    };
+    const harness = renderFoldHarness(compact);
+    harness.context.currentFlow = () => flow;
+    harness.context[compact ? 'compactPage' : 'homePage'] = () => view.panel(flow, { compact });
+    harness.render();
+    const find = () => harness.root.rows.find((row) => row.dataset.persistDetail.startsWith(prefix));
+    const previousKey = find().dataset.persistDetail;
+    find().open = false;
+    flow = { ...flow, active: ids.map((id) => task(id, id === changed)) };
+    harness.render(true);
+    assert.notEqual(find().dataset.persistDetail, previousKey);
+    assert.equal(find().open, true, 'a different new consequence cannot inherit an old closed group');
+    find().open = false;
+    harness.render(true);
+    assert.equal(find().open, false, 'the same already-read consequence is not repeatedly forced open');
+  }
+});
+
 test('repeated shipped guide entries keep independent stable folds in risks, advice, opportunities and the full index', async () => {
   const { flowSnapshot } = require('../src/core/flow.cjs');
   const view = await views;

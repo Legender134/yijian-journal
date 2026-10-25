@@ -210,6 +210,8 @@ let tray,
   quitPromise;
 const rendererReady = new Set(),
   pendingActions = new Map();
+const nativePaintReady = new WeakSet(),
+  mainPaintWaiters = new WeakMap();
 const backgroundAllowed = !isTest || process.env.YIJIAN_TEST_TRAY === '1';
 function autoBackupBlocked(
   care = saves ? pendingBackupCare({ saves }).filter((p) => p.blocking !== false) : [],
@@ -552,6 +554,7 @@ function makeWindow(compact = false) {
     win.setIgnoreMouseEvents(true);
   }
   win.once('ready-to-show', () => {
+    nativePaintReady.add(win);
     if (!compact) applyBounds(win, initial);
     if (!compact && savedLayout?.maximized) win.maximize();
     if (!compact && (!isTest || !process.env.YIJIAN_TEST_HIDDEN)) win.show();
@@ -600,7 +603,7 @@ function showMain() {
     mainWindow.on('closed', () => {
       mainWindow = null;
     });
-  } else {
+  } else if (nativePaintReady.has(mainWindow)) {
     mainWindow.show();
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
@@ -2035,8 +2038,48 @@ app.whenReady().then(async () => {
         const reading = context === undefined ? null : handbookContext(context);
         if (reading && reading.profileId !== store.get().activeProfileId)
           throw Error('手札周目已变化，请重新打开');
-        if (w === companion.window) await companion.collapse(false);
         const main = showMain();
+        // Restore the destination before hiding the window handling this click.
+        if (w === companion.window) {
+          if (!nativePaintReady.has(main)) {
+            let waiting = mainPaintWaiters.get(main);
+            if (!waiting) {
+              waiting = new Promise((resolve, reject) => {
+                const contents = main.webContents;
+                const finish = (error) => {
+                  clearTimeout(timer);
+                  mainPaintWaiters.delete(main);
+                  main.removeListener('ready-to-show', ready);
+                  main.removeListener('closed', closed);
+                  contents.removeListener('did-fail-load', failed);
+                  if (error) {
+                    // A failed fresh window must not be reused as a ready page
+                    // by the next request. The companion still owns the edits.
+                    if (!main.isDestroyed()) main.destroy();
+                    reject(error);
+                  } else resolve();
+                };
+                const ready = () => {
+                  nativePaintReady.add(main);
+                  main.show();
+                  main.focus();
+                  finish();
+                };
+                const closed = () => finish(Error('主窗口已关闭，请重试'));
+                const failed = () => finish(Error('主窗口加载失败，请重试'));
+                const timer = setTimeout(() => finish(Error('主窗口打开超时，请重试')), 30000);
+                main.once('ready-to-show', ready);
+                main.once('closed', closed);
+                contents.once('did-fail-load', failed);
+              });
+              mainPaintWaiters.set(main, waiting);
+            }
+            await waiting;
+          }
+          if (reading && reading.profileId !== store.get().activeProfileId)
+            throw Error('手札周目已变化，请重新打开');
+          await companion.collapse(false);
+        }
         if (reading) {
           const message = { action: 'handbook', context: reading };
           if (rendererReady.has(main.webContents.id)) main.webContents.send('journal:action', message);

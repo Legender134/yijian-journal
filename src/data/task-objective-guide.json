@@ -388,6 +388,13 @@
       }
     ]
   },
+  "11080": {
+    "evidenceQuestIds": [
+      11079,
+      11080
+    ],
+    "instruction": "与铁匠交谈，决定是否替他转交信物"
+  },
   "11109": {
     "collectionPlaces": [
       {
@@ -433,6 +440,13 @@
   "11373": {
     "evidenceQuestIds": [11370, 11373],
     "instruction": "到城隍庙左侧跟上老猿，看看它要做什么"
+  },
+  "11392": {
+    "evidenceQuestIds": [
+      11388,
+      11392
+    ],
+    "instruction": "询问周嗣缘由，决定是否继续追查"
   },
   "11406": {
     "evidenceQuestIds": [11406],

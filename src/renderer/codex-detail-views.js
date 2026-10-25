@@ -1,11 +1,12 @@
 import { entityCatalog } from './entity-catalog.js';
 import { itemEffectText } from './item-stat-views.js';
-import { questJumpEventText } from '../shared/task-completion.mjs';
+import { createQuestEffectViews } from './quest-effect-views.js';
 import { martialConsultation, martialConsultationHint } from '../shared/martial-consultation.mjs';
 
 // All cross-links use shipped entity IDs. Static outcomes never mutate or
 // forecast the active quest state, and rewards from branches are never added.
-export function createCodexDetailViews({ esc, act, richText = esc }) {
+export function createCodexDetailViews({ esc, act, richText = esc, guide = () => [] }) {
+  const { effectList, choiceRows } = createQuestEffectViews({ esc, act });
   const text = (v) => esc(String(v ?? ''));
   const shortName = (s) => String(s || '').replace(/^【[^】]+】\s*/, '');
   const link = (index, id) => {
@@ -24,41 +25,6 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
     (rows.length > limit
       ? `<details><summary>其余 ${rows.length - limit} 项</summary>${rows.slice(limit).map(render).join('')}</details>`
       : '');
-  function effect(index, a, quest) {
-    const amount = `${a.value > 0 ? '+' : ''}${a.value.toLocaleString('zh-CN')}`;
-    const target = (kind) => link(index, kind + '-' + a.id);
-    if (a.type === 'CAttr') {
-      const change = itemEffectText(a, index.itemStats);
-      if (change) return `${text(change.name)} <strong>${text(change.value)}</strong>`;
-    }
-    if (a.type === 'CItem' && target('item'))
-      return `${target('item')} <strong>${a.value < 0 ? '−' : '+'}${Math.abs(a.value)}</strong>`;
-    if (
-      ['ARandItem', 'ANormalRandItem'].includes(a.type) &&
-      target('item') &&
-      Number.isSafeInteger(a.value) &&
-      a.value > 0
-    )
-      return `${target('item')} <strong>+${a.value}</strong>（${a.type === 'ARandItem' ? '随机词条' : '普通随机词条'}）`;
-    if (a.type === 'CYHD' && target('npc')) return `${target('npc')} 好感 ${amount}`;
-    if (a.type === 'CMoney') return `铜钱 ${amount}`;
-    if (a.type === 'ASExp') return `武学点 ${amount}`;
-    if (a.type === 'AJingMaiPoint') return `经脉点 ${amount}`;
-    if (a.type === 'CGuildHonor') return `门派贡献 ${amount}`;
-    if (a.type === 'ASkill' && target('skill')) return `学会 ${target('skill')}`;
-    if (['ATeam', 'RTeam'].includes(a.type) && target('npc'))
-      return `${target('npc')} ${a.type === 'ATeam' ? '入队' : '离队'}`;
-    if (a.type === 'CQuestStep' && a.id !== quest?.gameId && a.id !== quest?.parentId && target('quest')) {
-      const state = ['未开始', '进行中', '失败', '未接取', '完成'][a.value];
-      return state ? `${target('quest')} → ${state}` : '';
-    }
-    if (a.type === 'JumpStep' && target('quest')) {
-      const event = questJumpEventText(a.value);
-      return event ? `${target('quest')}：${text(event)}` : '';
-    }
-    return '';
-  }
-  const effectList = (index, actions, quest) => actions.map((a) => effect(index, a, quest)).filter(Boolean);
   const outcomeRows = (index) => {
     const published = new Map((index.world?.quests || []).map((q) => [q.gameId, q]));
     return [
@@ -124,16 +90,72 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
       ? index.renderRequirements(rows, index, { reference })
       : `<p>${rows.map((r) => text(`${r.name} · ${r.type === 'PreQuest' ? ['未开始', '进行中', '失败', '未接取', '完成'][r.value] || r.value : r.value}`)).join('；')}</p>`;
   };
+  function collectionSources(index, entry) {
+    const catalog = entityCatalog(index);
+    const root = entry.kind === '任务' || entry.id?.startsWith('quest-') ? catalog.root(entry)?.gameId : null;
+    const boxes = new Map();
+    for (const rule of guide()) {
+      if (root !== null && rule.questId !== root) continue;
+      for (const stop of rule.collectionStops || []) {
+        if (!Number.isSafeInteger(stop.gatherId)) continue;
+        if (root === null && !stop.targets?.items?.some((item) => item.id === entry.id)) continue;
+        const prior = boxes.get(stop.gatherId);
+        if (prior) {
+          prior.contexts.add(rule.title || rule.name);
+          continue;
+        }
+        boxes.set(stop.gatherId, { rule, stop, contexts: new Set([rule.title || rule.name]) });
+      }
+    }
+    if (!boxes.size) return '';
+    const groups = new Map();
+    for (const row of boxes.values()) {
+      if (!groups.has(row.rule.id)) groups.set(row.rule.id, []);
+      groups.get(row.rule.id).push(row);
+    }
+    return `<details class="detail-block codex-collection-sources" data-persist-detail="collection-sources-${text(entry.id)}"><summary>${root === null ? '宝箱获取' : '相关宝箱'} · ${boxes.size}</summary>${[
+      ...groups.values(),
+    ]
+      .map((rows) => {
+        const rule = rows[0].rule;
+        const quest = catalog.entries.get('quest-' + rule.questId);
+        const title = richText(rule.title || rule.name, rule.recommendation?.targets);
+        const contexts = [...new Set(rows.flatMap((row) => [...row.contexts]))].filter(
+          (value) => value !== (rule.title || rule.name),
+        );
+        return `<section><h4>${title}</h4><ol class="flow-guide-steps">${rows.map(({ stop }) => `<li data-gather-id="${text(stop.gatherId)}"><strong>${richText(stop.label, stop.targets)}</strong><p>${richText(stop.effect, stop.targets)}</p></li>`).join('')}</ol>${contexts.length ? `<details><summary>其他核对时点</summary>${contexts.map((value) => `<p>${text(value)}</p>`).join('')}</details>` : ''}${root === null && quest ? link(index, quest.id) : ''}${rule.sources?.length ? `<details><summary>资料来源</summary>${rule.sources.map((source) => `<p>${act('source', text(source.title), 'text-btn', source.id)}</p>`).join('')}${rule.uncertainty ? `<p>${text(rule.uncertainty)}</p>` : ''}</details>` : ''}</section>`;
+      })
+      .join('')}</details>`;
+  }
+  function relatedItemFlow(index, entry) {
+    const catalog = entityCatalog(index);
+    const groups = new Map();
+    const namesItem = (targets) => targets?.items?.some((item) => item.id === entry.id);
+    for (const row of guide()) {
+      const advice = row.recommendation;
+      const hint = advice?.hint || advice?.summary || advice?.action;
+      if (
+        !hint ||
+        !namesItem(advice.targets) ||
+        (row.collectionStops || []).some((stop) => namesItem(stop.targets))
+      )
+        continue;
+      const quest = catalog.entries.get('quest-' + row.questId);
+      if (!quest) continue;
+      if (!groups.has(quest.id)) groups.set(quest.id, { quest, hints: new Map() });
+      groups.get(quest.id).hints.set(hint, advice.targets);
+    }
+    return groups.size
+      ? `<details class="detail-block codex-item-flow" data-persist-detail="item-flow-${text(entry.id)}"><summary>相关流程 · ${groups.size}</summary>${more([...groups.values()], ({ quest, hints }) => `<section><h4>${link(index, quest.id)}</h4><ul>${[...hints].map(([hint, targets]) => `<li>${richText(hint, targets)}</li>`).join('')}</ul></section>`)}</details>`
+      : '';
+  }
   function quest(index, entry, reference) {
     const catalog = entityCatalog(index);
     const family = new Set(catalog.family(entry).map((q) => q.gameId));
     const rows = outcomeRows(index).flatMap(({ q, detail }) => {
       if (!family.has(q.related?.gameId ?? q.gameId)) return [];
       const finish = detail.finish.map((actions) => effectList(index, actions, q));
-      const choices = detail.choices.map((choice) => ({
-        ...choice,
-        shown: effectList(index, choice.actions, q),
-      }));
+      const choices = choiceRows(index, detail, q, { all: true });
       const blueprintOutcomes = (detail.blueprintOutcomes || [])
         .map((outcome) => ({ ...outcome, shown: effectList(index, outcome.actions, q) }))
         .filter((outcome) => outcome.shown.length);
@@ -212,7 +234,9 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
     return (
       (rows.length
         ? `<details class="detail-block codex-outcomes" data-persist-detail="quest-outcomes-${text(entry.gameId)}"><summary>奖励与选择影响${rows.length > 1 ? ` · ${rows.length} 个步骤` : ''}</summary><p class="small muted">各步骤独立结算，需触发对应剧情；不同分支不累计，主任务完成不代表全部奖励均已获得。</p>${more(rows, render)}</details>`
-        : '') + chestBlock
+        : '') +
+      chestBlock +
+      collectionSources(index, entry)
     );
   }
   function item(index, entry) {
@@ -299,7 +323,9 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
         ? `<section class="detail-block item-quest-sources"><h3>任务获取</h3><p class="small muted">各来源需触发对应步骤，不同分支不累计。</p>${more(sources, (r) => `<div class="codex-source-row" data-quest-step="${text(r.q.gameId)}" data-quest-steps="${r.steps.map(text).join(',')}">${sourceLink(index, r.q)}<span>${text(r.label)}${r.steps.length > 1 ? ` · ${r.steps.length} 处独立剧情结算` : ''}</span>${r.sequence ? sequenceSourceDetails : sourceDetails(r.q, r.steps, r.event)}</div>`)}</section>`
         : '') +
       chests +
-      routes
+      routes +
+      collectionSources(index, entry) +
+      relatedItemFlow(index, entry)
     );
   }
   function skill(index, entry, progress, origin = 'saved') {

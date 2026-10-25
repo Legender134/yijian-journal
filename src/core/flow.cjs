@@ -2,6 +2,7 @@
 const world = require('../data/world-index.json');
 const game = require('../data/game-index.json');
 const guide = require('../data/flow-guide.cjs');
+const nativeChoices = require('../data/codex-details.json');
 const materialGuide = require('../data/material-guide.cjs');
 const { selectedReference } = require('./goal-progress.cjs');
 const { withLiveDialogue } = require('./live-guidance.cjs');
@@ -37,6 +38,7 @@ function createFlowProjector({
   world: w,
   game: g,
   guide: content,
+  nativeChoices: choiceData = null,
   materials: materialContent = materialGuide,
 }) {
   const quests = new Map(w.quests.map((q) => [q.gameId, q]));
@@ -376,6 +378,9 @@ function createFlowProjector({
       return {
         id: q.id,
         ...(q.detailId ? { detailId: q.detailId } : {}),
+        // State 1 on a root can only establish an accepted quest. Its pickup
+        // options must not reappear as though the player were accepting it now.
+        ...(q.parentId && step(q.gameId) === 1 && !blocked(q) ? { choiceStepId: q.gameId } : {}),
         name: cleanName(q.name),
         targets,
         blockedWindow,
@@ -444,6 +449,7 @@ function createFlowProjector({
         return {
           id: root.id,
           gameId: root.gameId,
+          rootState: step(root.gameId),
           name: cleanName(root.name),
           kind: root.kind,
           progress: family(root)
@@ -585,11 +591,15 @@ function createFlowProjector({
         const place = w.maps.find((entry) => entry.id === id);
         return place && [place.key, place.name].includes(metadata.mapName);
       });
-      const relevant = pickupWindow
-        ? stageMatch && pickupPrerequisitesKnown && (!anchors.length || anchorsMet)
-        : activeRule ||
-          locationMatch ||
-          (rule.requireStageMatch ? stageMatch && (!anchors.length || anchorsMet) : stageMatch || anchorsMet);
+      const relevant =
+        (!rule.requireActiveRoot || status === 1) &&
+        (pickupWindow
+          ? stageMatch && pickupPrerequisitesKnown && (!anchors.length || anchorsMet)
+          : activeRule ||
+            locationMatch ||
+            (rule.requireStageMatch
+              ? stageMatch && (!anchors.length || anchorsMet)
+              : stageMatch || anchorsMet));
       const deadlineReached =
         (rule.untilAnyRecorded || []).some((id) => records.has(id)) ||
         (rule.untilAnyStarted || []).some((id) => [1, 2, 4].includes(step(id))) ||
@@ -597,10 +607,32 @@ function createFlowProjector({
         (rule.untilAnyComplete || []).some((id) => step(id) === 4);
       const recordedWindowMessage =
         deadlineReached && (rule.recordedWindowMessages || []).find((row) => records.has(row.questId));
-      const decisionStepActive = (rule.decisionSteps || []).some((id) => {
-        const task = quests.get(id);
-        return task && rootOf(task)?.gameId === rule.questId && step(id) === 1 && !blocked(task);
-      });
+      const hiddenDecisionStepBelongs = (id) => {
+        const hidden = choiceData?.hiddenSteps?.[id];
+        const owner = hidden && quests.get(hidden.ownerId);
+        const related = hidden && quests.get(hidden.relatedQuestId);
+        return !!(
+          hidden &&
+          owner &&
+          related &&
+          Array.isArray(hidden.ownerPath) &&
+          hidden.ownerPath[0] === hidden.ownerId &&
+          hidden.ownerPath.includes(hidden.relatedQuestId) &&
+          rootOf(owner)?.gameId === rule.questId &&
+          rootOf(related)?.gameId === rule.questId &&
+          !blocked(owner) &&
+          !blocked(related)
+        );
+      };
+      const decisionStepActive =
+        (rule.decisionSteps || []).some((id) => {
+          const task = quests.get(id);
+          return task && rootOf(task)?.gameId === rule.questId && step(id) === 1 && !blocked(task);
+        }) ||
+        (status === 1 &&
+          (rule.trackedDecisionSteps || []).some(
+            (id) => metadata.trackingQuest === id && step(id) === 1 && hiddenDecisionStepBelongs(id),
+          ));
       // Some choices follow a completed visible step and use an unnamed dialog record.
       // Only curated, verified windows may bridge that gap, until a saved branch closes it.
       const decisionAnchors = rule.decisionAfterAllComplete || [];
@@ -619,10 +651,17 @@ function createFlowProjector({
         ((decisionAnchors.length > 0 && decisionAnchors.every(completedDecisionAnchor)) ||
           decisionAnyAnchors.some(completedDecisionAnchor));
       const decisionActive =
+        (!rule.requireActiveRoot || status === 1) &&
+        (rule.decisionRequiresAllComplete || []).every(
+          (id) => completedDecisionAnchor(id) || (step(id) === 4 && hiddenDecisionStepBelongs(id)),
+        ) &&
         !deadlineReached &&
         (decisionStepActive || decisionWindowActive || (rule.decisionOnArrival === true && locationMatch));
       const decisionResolved =
-        !decisionActive && (rule.decisionSteps || []).some((id) => [2, 4].includes(step(id)));
+        !decisionActive &&
+        [...(rule.decisionSteps || []), ...(rule.trackedDecisionSteps || [])].some((id) =>
+          [2, 4].includes(step(id)),
+        );
       const affectedTasks = (rule.advanceEffects || [])
         .filter(
           (effect) =>
@@ -892,7 +931,9 @@ function createFlowProjector({
           ),
       ),
       decisions: relevantRules
-        .filter((r) => r.decisionActive && !r.deadlineReached && r.choices?.length)
+        .filter(
+          (r) => r.decisionActive && !r.deadlineReached && (r.choices?.length || r.collectionStops?.length),
+        )
         .sort(
           (a, b) =>
             active.findIndex((row) => row.gameId === a.questId) -
@@ -955,5 +996,5 @@ function createFlowProjector({
   }
   return { flowSnapshot: snapshot };
 }
-const { flowSnapshot } = createFlowProjector({ world, game, guide });
+const { flowSnapshot } = createFlowProjector({ world, game, guide, nativeChoices });
 module.exports = { createFlowProjector, flowSnapshot };

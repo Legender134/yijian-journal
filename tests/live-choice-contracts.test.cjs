@@ -34,6 +34,15 @@ const packets = [
   [24070, 'tianji-rebuild-choice', ['重建天机宫', '回绝此事']],
   [12297, 'kongliang-choice', ['帮助孔亮', '袖手旁观']],
   [12079, 'chenlinxi-critical-choice', ['好言相劝', '义正辞严']],
+  [5516, 'xungu-night-breakout-choice', ['放下兵器', '突出重围']],
+  [5538, 'xungu-find-yaoji-choice', ['先找瑶姬', '先回辽城']],
+  [11276, 'murder-clue-continue-choice', ['帮忙找线索', '就此作罢']],
+  [11430, 'gusu-wonton-food-record-choice', ['安慰', '打岔']],
+  [13416, 'lost-heirloom-return-choice', ['原物奉还', '要价五千']],
+  [5409, 'sword-festival-lantern-fair-chest', ['离开', '再逛逛']],
+  [5707, 'wanjie-ask-before-fighting-choice', ['询问原委', '直接动手']],
+  [5710, 'wanjie-cooperate-choice', ['同意', '拒绝']],
+  [18022, 'huainan-dream-cure-choice', ['拒绝解蛊', '同意解蛊']],
 ];
 test('proved native hidden rows match actual short buttons without a public world-index row or guessed speaker', () => {
   for (const [questId, id, options] of packets) {
@@ -107,5 +116,62 @@ test('the narrow contract builder rejects conditional, incomplete and mismatched
     const row = structuredClone(base);
     change(row);
     assert.throws(() => project(row));
+  }
+});
+
+test('new exact choices survive opening, retire on closure or interruption and ignore live data for fixed references', () => {
+  const { isKnownChoiceStep } = require('../src/core/live-guidance.cjs');
+  const specs = [
+    [5516, 5500, 5514, 'xungu-night-breakout-choice', ['放下兵器', '突出重围']],
+    [5538, 5500, 5536, 'xungu-find-yaoji-choice', ['先找瑶姬', '先回辽城']],
+    [11276, 11272, 11276, 'murder-clue-continue-choice', ['帮忙找线索', '就此作罢']],
+    [11430, 11427, 11430, 'gusu-wonton-food-record-choice', ['安慰', '打岔']],
+    [13416, 13415, 13416, 'lost-heirloom-return-choice', ['原物奉还', '要价五千']],
+    [5409, 5368, 5408, 'sword-festival-lantern-fair-chest', ['离开', '再逛逛']],
+    [5707, 5700, 5704, 'wanjie-ask-before-fighting-choice', ['询问原委', '直接动手']],
+    [5710, 5700, 5710, 'wanjie-cooperate-choice', ['同意', '拒绝']],
+    [18022, 18000, 18022, 'huainan-dream-cure-choice', ['拒绝解蛊', '同意解蛊']],
+  ];
+  for (const [questId, root, lead, id, options] of specs) {
+    assert(isKnownChoiceStep(questId), 'bridge closure must recognize ' + questId);
+    const reference = {
+      name: 'Synthetic.sav',
+      hash: 'synthetic-' + id,
+      metadata: {
+        trackingQuest: questId,
+        quests: [
+          { id: root, step: 1 },
+          { id: lead, step: 1 },
+        ],
+        inventory: [],
+      },
+    };
+    const before = JSON.stringify(reference);
+    const dialogue = {
+      schema: 1,
+      sequence: 4,
+      questId,
+      npcId: 0,
+      options: options.map((text, i) => ({ index: i + 1, text })),
+    };
+    const open = flowSnapshot(profile, reference, '', { dialogue });
+    assert(open.decisions.some((row) => row.id === id && row.live));
+    const mismatch = structuredClone(dialogue);
+    mismatch.options[1].text = '另一场对话';
+    assert.deepEqual(flowSnapshot(profile, reference, '', { dialogue: mismatch }).decisions, []);
+    const closed = flowSnapshot(profile, reference, '', { dialogue: null, suppressedQuestIds: [questId] });
+    assert(!closed.decisions.some((row) => row.id === id));
+    assert(!closed.active.some((task) => task.steps.some((step) => step.id === 'quest-' + lead)));
+    const interrupted = flowSnapshot(profile, reference, '', { suppressedQuestIds: [questId] });
+    assert(!interrupted.decisions.some((row) => row.id === id));
+    const fixed = flowSnapshot(
+      { ...profile, referenceMode: 'slot', saveSlot: 'Synthetic.sav' },
+      reference,
+      '',
+      { dialogue: mismatch, suppressedQuestIds: [questId] },
+    );
+    assert.equal(fixed.liveDialogue, undefined);
+    assert(fixed.decisions.some((row) => row.id === id && !row.live));
+    assert.equal(JSON.stringify(reference), before);
   }
 });

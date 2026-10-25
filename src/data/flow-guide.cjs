@@ -354,6 +354,21 @@ const tianshanTravelWindow = {
     '只随烟尘回响玉龙吟中已保存的「前往天山」出现。2025碧海仙踪社区路线，当前构建的暗道入口、交通限制和精确失效时点未实测；不能识别挑战是否已完成，也不据此判定所有未完支线永久失败。',
 };
 // Community flow clues; unknown task records never prove availability.
+const swordFestivalNightStops = [
+  {
+    gatherId: 1612,
+    label: '名剑山庄 · 客房附近假山后（夜晚）',
+    effect: '蜂王浆×1、四品宁神丹×1、名剑剑法秘籍×1。',
+    targets: {
+      items: [
+        { id: 'item-156', name: '蜂王浆' },
+        { id: 'item-161', name: '四品宁神丹' },
+        { id: 'item-13106', name: '名剑剑法' },
+      ],
+    },
+  },
+];
+
 module.exports = {
   questLabels: pickupQuestLabels,
   pickupQuests: [
@@ -407,6 +422,107 @@ module.exports = {
     10498: [{ ...goldenScorpionRoute, title: goldenScorpionRoute.label, questId: 16000 }],
   },
   sources: {
+    swordFestivalWindowsGame: {
+      title: '游戏资料：品剑大会的黄昏、夜晚与灯会宝箱',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-guide.cjs',
+      version: 'Build 21798996',
+      confidence:
+        'Quests与Quest_5388、5394、5398、5399、5410、5417核对活动步骤及跳图；LV_MJSZ_P1/SD、P2/SN和LV_32_P3/SN1核对宝箱DefId1631、1612、1663，奖励来自同构建Gathers与Items。未读取当前开箱记录。',
+    },
+    swordFestivalStarRoute: {
+      title: '星1辰2之3羽：崭露头角篇的时段收集',
+      author: '星1辰2之3羽',
+      url: 'https://www.bilibili.com/opus/1013648290866003991',
+      date: '2025-01-20（编辑）',
+      version: '流程提示，具体构建未标',
+      confidence:
+        '分别记载客房假山后的黄昏心法箱、夜晚剑法箱，以及灯会小贩上方的心火丹与丹方箱；同时指出名剑剑法还有欧阳雪携带来源。另记载慈石剧情后回折右侧密洞与左侧箱；具体阶段和奖励依当前构建核对。',
+    },
+    swordFestivalTeaRoute: {
+      title: '虚饮茶：碧海仙踪路线的名剑山庄、灯会与万劫窟',
+      author: '虚饮茶',
+      url: 'https://www.bilibili.com/opus/1090176314524041253',
+      date: '2025-07-16',
+      version: '碧海仙踪路线，含武家旧事；具体构建未标',
+      confidence:
+        '另一位原作者独立记载同位置随时段出现不同秘籍箱，并提醒赴灯会前回客房核对夜箱；灯会目标箱位于小贩后方。亦记录慈石剧情后回折密洞与左侧箱，以及欧阳雪持有名剑剑法，未把宝箱当作秘籍唯一来源。',
+    },
+    wanjieYaojiWindowGame: {
+      title: '游戏资料：万劫窟回折密洞与宝箱的条件',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-guide.cjs',
+      version: 'Build 21798996',
+      confidence:
+        'LV_31_S3的JHTriggerBox_4要求5719完成、5722和5742均无记录，触发5742并切至LV_31_P2；5743段落含瑶姬好感事件。P2常驻子图S5的宝箱DefId1591奖励核对Gathers与Items。未读取开箱状态，未证明离洞后可一直返回。',
+    },
+    wanjieCooperationGame: {
+      title: '游戏资料：朱九戒的询问、合作与自行采矿分支',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-guide.cjs',
+      version: 'Build 21798996',
+      confidence:
+        'Quests核对5707和5710的完整按钮及5708至5720后继；Quest_5709、5712战胜回调均进入5713，随后5714自行采矿并开启5720。对应完成序列未补写5719；合作线经5715、5718、5719到5720。密洞入口另要求5719完成。',
+    },
+    huainanChoiceGame: {
+      title: '游戏资料：槐南一梦的解蛊抉择与分阶段回报',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-guide.cjs',
+      version: 'Build 21798996',
+      confidence:
+        'Quests核对18022完整按钮、18027、18030、18031、18035、18036动作；Quest_18023、18024、18025完成序列后依次进入18024、18025、18026，18026开启白首不相离。18027仅开启后续对话，18030与18031各在完成时给奖励；未累加为选答即时收益。',
+    },
+    huainanTeaRoute: {
+      title: '虚饮茶：百药谷槐南一梦的两路抉择',
+      author: '虚饮茶',
+      url: 'https://www.bilibili.com/opus/1090176752596025364',
+      date: '2025-07-16 19:22',
+      version: '碧海仙踪流程；具体构建未标',
+      confidence:
+        '百药谷段落建议先存档，选择银梳后比较拒绝解蛊的问明真相、人物重聚与两人后续对话，以及同意解蛊后的回村交付。奖励数量以当前构建的独立剧情步骤为准。',
+    },
+    huainanFlowerCombGame: {
+      title: '游戏资料：百药谷槐树的拾花与石堆交互',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-guide.cjs',
+      version: 'Build 21798996',
+      confidence:
+        'LV_903_P常驻Map903_Baiyaogu_S1；拾花演员和石堆演员均检查18002活动，分别派发18003与18010。场景18007完成会隐藏两处交互，18008完成另隐藏石堆。LS_CG-18010取得银梳；Quest_18010只有战胜且娜乌8506在队才到18020、18021、18022，失败或无娜乌则归还银梳、返回拾花。18003与18004按独立完成动作核对快速交付和结算。',
+    },
+    earlyBranchesGame: {
+      title: '游戏资料：峋谷分支、瑶姬好感与天龙帮暗道六箱',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/flow-guide.cjs',
+      version: 'Build 21798996',
+      confidence:
+        '同构建Quests核对5516、5538及后继；LS_CG-5540的好感事件执行CYHD(17115,20)。LV_TLB_P1常驻子图Map_TianLongBang6绑定六箱1281至1286，奖励核对Gathers与Items。未读取本次开箱状态，未以任务完成推断已收齐。',
+    },
+    earlyBranchesRoute2026: {
+      title: '全流程完美攻略（上）：关外风云',
+      url: 'https://www.vgover.com/news/233691',
+      date: '2026-09-03',
+      version: '正文声明 ver.1.24.32，含碧海仙踪与武家旧事',
+      confidence:
+        '社区流程记载将军府左侧放下兵器进入坐牢结局、突出重围连战三场，并提醒暗道是一次性地图。这里只据此提示路线风险，不保证结局组合或已验证当前构建的封路实现。',
+    },
+    earlyPassageKeyChests: {
+      title: '星1辰2之3羽：天龙帮暗道易漏宝物',
+      author: '星1辰2之3羽',
+      url: 'https://www.bilibili.com/opus/1013648290866003991',
+      date: '2025-01-20（编辑）',
+      version: '流程提示，具体构建未标',
+      confidence: '补充尖刺左侧、双排地火中段、第二场杂兵战后台阶上的三处定位；具体奖励依同构建地图与Gathers。',
+    },
+    earlyPassageRoute: {
+      title: '详尽图文剧情攻略10：天龙帮暗道路线',
+      author: '爱生活（整理发布）',
+      url: 'https://jis520.com/article-1280-1.html',
+      date: '2024-11-28',
+      version: '2024年流程，具体构建未标',
+      confidence:
+        '只补充沿路、避过火球后与杂物堆旁并排箱的路线描述；旧文漏列地火中段一箱，六箱数量及完整奖励另据同构建地图与Gathers核对。',
+    },
+    sideChoiceRewardsGame: {
+      title: '游戏资料：灭门之案、百味馄饨与失而复得的当场选择',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/codex-details.json',
+      version: 'Build 21798996',
+      confidence:
+        '同构建Quests原表11276、11430、13416的完整选项与完成动作；物品身份核对Items。RQuest的任务及关联步骤移除语义已核对同构建原生处理，不据此判断重接条件。',
+    },
     sunHomesicknessGame: {
       title: '游戏资料：孙老思乡、药谷取蜜与睹物思乡',
       url: 'https://github.com/Legender134/yijian-journal/blob/main/src/data/codex-details.json',
@@ -1132,6 +1248,621 @@ module.exports = {
     fiveFairyPickupRule,
     ...chiefPickupRules,
     {
+      id: 'sword-festival-dusk-chest',
+      kind: 'stage',
+      title: '品剑大会黄昏：核对名剑心法宝箱',
+      questId: 5368,
+      chapterRoots: [],
+      decisionSteps: [5390, 5394],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyStarted: [5395, 5396, 5397, 5398, 5399, 5400, 5401, 5408, 5410, 5411, 5412, 5417, 5418, 5419, 5424, 5426, 5439, 5441, 5443, 5444, 5446, 5501],
+      untilAnyComplete: [5394],
+      untilAnyFailed: [5394],
+      deadlineLabel: '寻找琴声、与欧阳雪交谈并完成灯会邀约之前',
+      detailLabel: '黄昏宝箱位置与奖励',
+      compactWarning: '邀约后，这一处会换成夜晚宝箱。',
+      warning: '5390与5394仍在黄昏场景；先核对客房附近假山后的宝箱，再推进剑心亭的邀约剧情。',
+      recommendation: {
+        hint: '名剑山庄黄昏：到客房假山后拿名剑心法秘籍',
+        action: '先到客房附近假山后核对黄昏宝箱，再继续练武、寻找琴声和邀约剧情。',
+        reason:
+          '黄昏场景的这一箱含名剑心法秘籍、三品宁神丹丹方和金疮药。完成灯会邀约后会切到夜晚场景，同位置改为另一份箱子。',
+        tradeoff: '需要先绕回客房附近；当前进度不能判断箱子是否已开，已拿过即可继续剧情。',
+        goal: '保留黄昏场景中的这次收集机会',
+        targets: { places: [{ id: 'place-1006', name: '名剑山庄' }], items: [{ id: 'item-13808', name: '名剑心法' }] },
+      },
+      pickup: { place: '名剑山庄 · 客房附近假山后', action: '黄昏时先核对宝箱，再完成灯会邀约。' },
+      choices: [],
+      collectionStops: [
+        {
+          gatherId: 1631,
+          label: '名剑山庄 · 客房附近假山后（黄昏）',
+          effect: '金疮药×2、三品宁神丹丹方×1、名剑心法秘籍×1。',
+          targets: {
+            items: [
+              { id: 'item-133', name: '金疮药' },
+              { id: 'item-100332', name: '三品宁神丹丹方' },
+              { id: 'item-13808', name: '名剑心法' },
+            ],
+          },
+        },
+      ],
+      sourceIds: ['swordFestivalWindowsGame', 'swordFestivalStarRoute', 'swordFestivalTeaRoute'],
+      uncertainty:
+        '位置由两位社区原作者交叉核对，箱子及奖励来自Build 21798996；这里只覆盖这一处时段箱。未读取当前开箱状态，也不把该箱写成名剑心法的唯一来源。',
+    },
+    {
+      id: 'sword-festival-night-before-fair',
+      kind: 'stage',
+      title: '赴灯会前：核对名剑剑法宝箱',
+      questId: 5368,
+      chapterRoots: [],
+      decisionSteps: [5399],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyStarted: [5400, 5401, 5408, 5409, 5410, 5411, 5412, 5417, 5418, 5419, 5424, 5426, 5439, 5441, 5443, 5444, 5446, 5501],
+      deadlineLabel: '到码头乘船前往姑苏灯会之前',
+      detailLabel: '夜晚宝箱位置与奖励',
+      compactWarning: '黄昏拿过后，夜晚仍有另一份箱子。',
+      warning: '灯会邀约已将山庄切到夜晚；先核对客房附近假山后的新箱，再去码头乘船。',
+      recommendation: {
+        hint: '名剑山庄乘船前：拿客房假山后的名剑剑法秘籍',
+        action: '先到客房附近假山后核对夜晚宝箱，再去码头乘船。',
+        reason: '同位置的夜晚箱含名剑剑法秘籍、四品宁神丹与蜂王浆。名剑剑法也有欧阳雪携带来源。',
+        tradeoff: '黄昏箱与夜晚箱分别记录；无法据背包或当前任务判断本箱是否已开，已拿过即可继续。',
+        goal: '在赴灯会前顺路核对夜晚收集',
+        targets: { places: [{ id: 'place-1007', name: '名剑山庄' }], items: [{ id: 'item-13106', name: '名剑剑法' }] },
+      },
+      pickup: { place: '名剑山庄 · 客房附近假山后', action: '先核对夜晚箱，再到码头。' },
+      choices: [],
+      collectionStops: swordFestivalNightStops,
+      sourceIds: ['swordFestivalWindowsGame', 'swordFestivalStarRoute', 'swordFestivalTeaRoute'],
+      uncertainty:
+        '本次只读核对场景与奖励，没有本周目开箱记录；名剑剑法另有欧阳雪携带来源。赴灯会后本提醒退场，回到山庄时会在休息前提供另一道核对。',
+    },
+    {
+      id: 'sword-festival-lantern-fair-chest',
+      kind: 'stage',
+      title: '姑苏灯会：离开前核对宝箱',
+      questId: 5368,
+      chapterRoots: [],
+      decisionSteps: [5401, 5408],
+      trackedDecisionSteps: [5409],
+      coveredChoiceSteps: [5409],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyStarted: [5410, 5411, 5412, 5417, 5418, 5419, 5424, 5426, 5439, 5441, 5443, 5444, 5446, 5501],
+      untilAnyComplete: [5409],
+      untilAnyFailed: [5409],
+      deadlineLabel: '在西边桥头选择离开灯会、返回山庄之前',
+      detailLabel: '灯会宝箱位置与奖励',
+      warning: '猜谜和继续逛灯会时，先到花灯小贩后方核对宝箱，再决定是否离开。',
+      recommendation: {
+        hint: '灯会：核对花灯小贩身后的心火丹、上品纯阳丹丹方；没拿时桥头选「再逛逛」',
+        action: '先到花灯小贩后方核对宝箱，再继续灯会活动或从西边桥头离开。',
+        reason: '这一箱位于姑苏夜市专用场景，含心火丹与上品纯阳丹丹方；离开灯会会切回山庄夜景。',
+        tradeoff: '这里只列两位原作者共同指出的一箱；不能从任务是否完成推断已经开箱，也不是灯会全部宝物清单。',
+        goal: '在灯会仍可探索时核对这一处易漏宝箱',
+        targets: { places: [{ id: 'place-30', name: '姑苏夜市' }], items: [{ id: 'item-109', name: '心火丹' }, { id: 'item-100310', name: '上品纯阳丹丹方' }] },
+      },
+      pickup: { place: '姑苏夜市 · 花灯小贩后方（画面上侧）', action: '离开灯会前先核对宝箱。' },
+      choices: [
+        { label: '离开', effect: '结束这次灯会，随后返回名剑山庄夜景。' },
+        { label: '再逛逛', effect: '不推进离开剧情，可继续核对灯会宝箱和活动。' },
+      ],
+      collectionStops: [
+        {
+          gatherId: 1663,
+          label: '姑苏灯会 · 花灯小贩后方（画面上侧）',
+          effect: '心火丹×1、上品纯阳丹丹方×1。',
+          targets: {
+            items: [
+              { id: 'item-109', name: '心火丹' },
+              { id: 'item-100310', name: '上品纯阳丹丹方' },
+            ],
+          },
+        },
+      ],
+      sourceIds: ['swordFestivalWindowsGame', 'swordFestivalStarRoute', 'swordFestivalTeaRoute'],
+      uncertainty:
+        '活动窗口和专用地图来自Build 21798996，具体位置由两位原作者交叉核对。只提醒这次灯会中的一处宝箱；不据未读开箱状态断言漏拿，也不将其奖励写成唯一来源。',
+    },
+    {
+      id: 'sword-festival-night-before-rest',
+      kind: 'stage',
+      title: '灯会归来：休息前再核对夜晚宝箱',
+      questId: 5368,
+      chapterRoots: [],
+      decisionSteps: [5412],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyStarted: [5417, 5418, 5419, 5424, 5426, 5439, 5441, 5443, 5444, 5446, 5501],
+      deadlineLabel: '返回客房休息、进入次日品剑大会之前',
+      detailLabel: '夜晚宝箱位置与奖励',
+      compactWarning: '睡下后会进入次日场景。',
+      warning: '灯会回来仍是山庄夜景；若出发前没有拿夜晚箱，先到客房附近假山后核对，再回房休息。',
+      recommendation: {
+        hint: '名剑山庄休息前：核对客房假山后的名剑剑法秘籍',
+        action: '若赴灯会前没拿，先到客房附近假山后核对夜晚宝箱，再回房休息。',
+        reason: '返回山庄后仍使用同一夜晚场景与同一份宝箱记录；休息后会切回白天。名剑剑法还有欧阳雪携带来源。',
+        tradeoff: '这是赴灯会前同一只夜晚箱的补查，已经拿过不会重新刷新；本助手未读取开箱状态。',
+        goal: '在次日开始前补查夜晚收集',
+        targets: { places: [{ id: 'place-1007', name: '名剑山庄' }], items: [{ id: 'item-13106', name: '名剑剑法' }] },
+      },
+      pickup: { place: '名剑山庄 · 客房附近假山后', action: '出发前未拿夜晚箱时，休息前再核对。' },
+      choices: [],
+      collectionStops: swordFestivalNightStops,
+      sourceIds: ['swordFestivalWindowsGame', 'swordFestivalStarRoute', 'swordFestivalTeaRoute'],
+      uncertainty:
+        '当前构建的灯会返程回到LV_MJSZ_P2，休息后Quest_5417切回LV_MJSZ_P。两处夜晚提醒共用箱1612，不表示返回山庄会刷新奖励；没有开箱记录，不能认定尚未收集。',
+    },
+    {
+      id: 'wanjie-ask-before-fighting-choice',
+      kind: 'stage',
+      title: '万劫窟初遇朱九戒：先询问原委',
+      questId: 5700,
+      chapterRoots: [],
+      decisionSteps: [5704],
+      trackedDecisionSteps: [5707],
+      coveredChoiceSteps: [5707],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyComplete: [5707],
+      untilAnyFailed: [5707],
+      untilAnyRecorded: [5722, 5742],
+      untilAnyStarted: [5708, 5709, 5710, 5711, 5712, 5713, 5714, 5715, 5718, 5719, 5720, 5721],
+      deadlineLabel: '初遇朱九戒、决定询问原委或直接动手之前',
+      detailLabel: '合作路线、密洞条件与各选项影响',
+      warning: '想收集瑶姬密洞的宝箱，初遇朱九戒先询问原委，再在下一次选答同意合作；得到慈石后先回折，别急着离洞。',
+      recommendation: {
+        hint: '先选「询问原委」，再同意合作，保留万劫窟密洞的瑶姬互动、四转洗髓丹与两张丹方。',
+        action: '遇到朱九戒先选「询问原委」，听完缘由后再选「同意」；完成击败匪首、回报朱九戒的委托，得到慈石后回折深处右侧密洞。',
+        reason: '完成合作回报后，才满足本次密洞入口的前置条件；还须尚未触发这段密洞、未推进离洞后续。密洞内可核对瑶姬互动，以及四转洗髓丹、上品凝元丹丹方、上品清灵丹丹方宝箱。',
+        tradeoff: '合作需要先去洞穴深处击败匪首兄弟并返回交差；直接动手改走击退朱九戒、自行采矿的路线，不经过这次密洞所需的合作回报。',
+        goal: '在选择分支前保留本次密洞互动与收集路线',
+        targets: { places: [{ id: 'place-69', name: '万劫窟密洞' }], people: [{ id: 'npc-45136', name: '朱九戒' }, { id: 'npc-17115', name: '瑶姬' }], items: [{ id: 'item-142', name: '四转洗髓丹' }, { id: 'item-100318', name: '上品凝元丹丹方' }, { id: 'item-100306', name: '上品清灵丹丹方' }] },
+      },
+      choices: [
+        { label: '询问原委', effect: '先听朱九戒说明缘由，开启下一次同意或拒绝合作的选择；仅询问还没有完成合作，也没有领取密洞奖励。' },
+        { label: '直接动手', effect: '与朱九戒战斗，胜利后进入自行采集慈石原矿、返回武当的路线；这条后继不经过本次密洞入口要求完成的合作回报。' },
+      ],
+      sourceIds: ['wanjieCooperationGame', 'wanjieYaojiWindowGame', 'swordFestivalStarRoute'],
+      uncertainty: '两项都可继续找慈石；这里只比较本次分歧与密洞入口条件，不据此宣称丹方是全局唯一来源或其他阶段永久无法再进。密洞宝箱仍需实际进入后开启。',
+    },
+    {
+      id: 'wanjie-cooperate-choice',
+      kind: 'stage',
+      title: '朱九戒提出交换：同意合作后再回折密洞',
+      questId: 5700,
+      chapterRoots: [],
+      decisionSteps: [],
+      trackedDecisionSteps: [5710],
+      coveredChoiceSteps: [5710],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyRecorded: [5722, 5742],
+      untilAnyStarted: [5711, 5712, 5713, 5714, 5715, 5718, 5719, 5720, 5721],
+      deadlineLabel: '朱九戒提出以慈石换取帮忙、选择同意或拒绝之前',
+      detailLabel: '委托后续、密洞条件与各选项影响',
+      warning: '想保留瑶姬密洞的收集路线，选同意合作；完成击败匪首并回报朱九戒后，得到慈石时先回折密洞。',
+      recommendation: {
+        hint: '选「同意」帮朱九戒击败匪首，取慈石后回折万劫窟密洞，核对瑶姬互动与两张丹方、四转洗髓丹。',
+        action: '选「同意」，到洞穴深处击败匪首兄弟，再回去告知朱九戒；完成合作回报、取得慈石后，先回折深处右侧密洞，再核对左侧宝箱。',
+        reason: '同意开启击败匪首的委托，随后完成回报剧情；回折密洞需要这段合作回报已完成，且尚未触发这段密洞、未推进离洞后续。密洞左侧宝箱的四转洗髓丹、上品凝元丹丹方、上品清灵丹丹方，须进入密洞并实际开箱时取得。',
+        tradeoff: '需要先打匪首兄弟并回报；拒绝会改成与朱九戒战斗，胜利后自行采矿、返回武当，不经过合作回报。',
+        goal: '完成本次密洞入口需要的合作回报',
+        targets: { places: [{ id: 'place-69', name: '万劫窟密洞' }], people: [{ id: 'npc-45136', name: '朱九戒' }, { id: 'npc-17115', name: '瑶姬' }], items: [{ id: 'item-142', name: '四转洗髓丹' }, { id: 'item-100318', name: '上品凝元丹丹方' }, { id: 'item-100306', name: '上品清灵丹丹方' }] },
+      },
+      choices: [
+        { label: '同意', effect: '开启击败匪首兄弟的委托；完成战斗、回报朱九戒并取得慈石后，才具备回折密洞所需的合作回报条件，另须尚未触发这段密洞、未推进离洞后续。' },
+        { label: '拒绝', effect: '与朱九戒战斗，胜利后进入自行采矿、返回武当的路线；不经过本次密洞入口要求完成的合作回报。' },
+      ],
+      sourceIds: ['wanjieCooperationGame', 'wanjieYaojiWindowGame', 'swordFestivalStarRoute'],
+      uncertainty: '这里只在明确追踪的当前合作选答或真实原生按钮出现时提示；取得慈石本身不证明走过合作回报，进入过密洞也不证明宝箱已开。',
+    },
+    {
+      id: 'huainan-dream-flower-comb-route',
+      kind: 'stage',
+      title: '槐南一梦采集前：先探查石堆找银梳',
+      questId: 18000,
+      chapterRoots: [],
+      decisionSteps: [18002],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyComplete: [18007, 18008],
+      untilAnyStarted: [18003, 18004, 18005, 18010, 18011, 18012, 18015, 18020, 18021, 18022, 18023, 18024, 18025, 18026, 18027, 18030, 18031, 18035, 18036, 18037, 18041],
+      deadlineLabel: '百药谷东侧槐树下，拾花或探查石堆之前',
+      detailLabel: '两处场景交互、准备条件与后续收益',
+      compactWarning: '先拾花会走快速交差，跳过本次银梳后续。',
+      warning: '先拾槐花会进入快速交差，跳过本次银梳后续；想继续雅姑剧情，先带娜乌到槐树右侧石堆探查，并准备打赢雅姑。',
+      recommendation: {
+        hint: '带娜乌到百药谷东侧槐树右侧石堆，按 E「探查此处」找银梳，保留战胜雅姑后的重聚或解蛊路线。',
+        action: '交互前先另存；带娜乌到百药谷东侧槐树右侧、蝴蝶附近的石堆，按 E「探查此处」找银梳，随后打赢雅姑；想看人物重聚，之后的解蛊选答再选拒绝解蛊。',
+        reason: '先拾取树左下的槐花，会结束本次石堆交互并直接开启回村交花；先探查石堆才会拿到银梳、遇见雅姑。战斗胜利且娜乌在队，才能继续问明往事并进入重聚或解蛊的选择。',
+        tradeoff: '拾花路线省去这场战斗；将槐花交给石屏村寨阿龙、完成交付后得铜钱1000、蜂王浆×2并结束本任务。银梳路线需要娜乌在队并战胜雅姑，后续重聚对话或解蛊交付各自结算，不在拾梳时发放整路奖励。',
+        goal: '在采集前保留银梳、人物往事与后续抉择',
+        targets: { people: [{ id: 'npc-8506', name: '娜乌' }, { id: 'npc-12700', name: '寨阿龙' }], places: [{ id: 'place-903', name: '百药谷' }, { id: 'place-901', name: '石屏村' }], items: [{ id: 'item-10464', name: '银梳' }, { id: 'item-10463', name: '槐花' }, { id: 'item-156', name: '蜂王浆' }] },
+      },
+      choices: [
+        { label: '先探查槐树右侧石堆，走银梳路线', effect: '交互显示为 E「探查此处」，取得银梳后会与雅姑战斗；胜利且娜乌在队才继续往事与解蛊选答。选拒绝解蛊可继续促成两人重聚，选同意则走解蛊交付；具体奖励分别在后续剧情或交谈完成时结算。', targets: { people: [{ id: 'npc-8506', name: '娜乌' }], items: [{ id: 'item-10464', name: '银梳' }] } },
+        { label: '拾取槐树左下落花，直接回村交差', effect: '取得槐花并关闭本次石堆交互；回石屏村交给寨阿龙、完成交付后得铜钱1000、蜂王浆×2，随后结束本任务，不进入本次银梳的重聚或解蛊后续。', targets: { people: [{ id: 'npc-12700', name: '寨阿龙' }], places: [{ id: 'place-901', name: '石屏村' }], items: [{ id: 'item-10463', name: '槐花' }, { id: 'item-156', name: '蜂王浆' }] } },
+      ],
+      sourceIds: ['huainanFlowerCombGame', 'huainanTeaRoute'],
+      uncertainty: '这里比较槐树下的两个场景交互。若与雅姑的战斗失败，或胜利时娜乌不在队，本段会归还银梳并返回拾花方向；不能把拿到银梳本身当成已保留重聚后续，也不据此宣称其他周目全局绝版。',
+    },
+    {
+      id: 'huainan-dream-cure-choice',
+      kind: 'stage',
+      title: '槐南一梦：先决定重聚还是解蛊',
+      questId: 18000,
+      chapterRoots: [],
+      decisionSteps: [],
+      trackedDecisionSteps: [18022],
+      coveredChoiceSteps: [18022],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyStarted: [18023, 18024, 18025, 18026, 18027, 18030, 18031, 18035, 18036, 18037, 18041],
+      deadlineLabel: '拿到银梳、听完雅姑往事，决定是否解蛊之前',
+      detailLabel: '人物剧情、各阶段条件与奖励',
+      warning: '选择前先另存；想促成雅姑与寨阿龙重聚，选拒绝解蛊继续问明真相。想走解蛊交付、取得乙木丹的路线则选同意解蛊。',
+      recommendation: {
+        hint: '选「拒绝解蛊」继续促成雅姑与寨阿龙重聚；若更想要乙木丹×2，可走「同意解蛊」并完成其剧情。',
+        action: '想看两人解开误会，先选「拒绝解蛊」，继续回村问明真相、完成白首不相离，再分别与两人交谈；若选择解蛊，按槐花和银梳的回村交付继续。',
+        reason: '拒绝后依次经过回村问明真相与劝说剧情，完成白首不相离后开启两人的后续对话；同意则进入解蛊剧情及另一条回村交付，剧情和回报分别结算。',
+        tradeoff: '同意路线完成解蛊剧情可得武学感悟×2、乙木丹×2及交付用槐花×1；再把槐花与银梳交回石屏村、完成交付，才得铜钱5000、蜂王浆×5。拒绝路线的后续对话不给这两枚乙木丹。',
+        goal: '按人物剧情与乙木丹需求选择本次分支',
+        targets: { people: [{ id: 'npc-12700', name: '寨阿龙' }], places: [{ id: 'place-901', name: '石屏村' }], items: [{ id: 'item-114', name: '乙木丹' }, { id: 'item-136', name: '武学感悟' }, { id: 'item-10463', name: '槐花' }, { id: 'item-10464', name: '银梳' }, { id: 'item-156', name: '蜂王浆' }] },
+      },
+      choices: [
+        {
+          label: '拒绝解蛊',
+          effect: '开启回村问明真相的后续，继续劝说雅姑；完成白首不相离才开启两人的后续对话。随后分别完成雅姑对话得没药×1、武学感悟×3；完成寨阿龙对话得龙骨×1、铜钱10000、蜂王浆×10。开启对话时尚未领取这些奖励。',
+          targets: { people: [{ id: 'npc-12700', name: '寨阿龙' }], items: [{ id: 'item-10315', name: '没药' }, { id: 'item-136', name: '武学感悟' }, { id: 'item-10570', name: '龙骨' }, { id: 'item-156', name: '蜂王浆' }] },
+        },
+        {
+          label: '同意解蛊',
+          effect: '进入解蛊剧情；完成这段剧情时得武学感悟×2、乙木丹×2及槐花×1，并开启回村交付。再交出槐花与银梳、完成交付时得铜钱5000、蜂王浆×5并结束本任务；不走白首不相离后的两人对话路线。',
+          targets: { items: [{ id: 'item-136', name: '武学感悟' }, { id: 'item-114', name: '乙木丹' }, { id: 'item-10463', name: '槐花' }, { id: 'item-10464', name: '银梳' }, { id: 'item-156', name: '蜂王浆' }] },
+        },
+      ],
+      sourceIds: ['huainanChoiceGame', 'huainanTeaRoute'],
+      uncertainty: '本提示对应银梳后出现的解蛊选答；选项只开启后继剧情，没有在按下按钮时合并发放整路奖励。两人重聚由白首不相离的当前构建任务说明确认，不扩写为具体剩余寿命或以后重入场景的保证。',
+    },
+    {
+      id: 'wanjie-yaoji-hidden-cave',
+      kind: 'stage',
+      title: '万劫窟离洞前：核对瑶姬密洞与宝箱',
+      questId: 5700,
+      chapterRoots: [],
+      decisionSteps: [5720],
+      decisionRequiresAllComplete: [5719],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyRecorded: [5722],
+      untilAnyStarted: [5721],
+      deadlineLabel: '得到慈石、准备回武当前；最迟在推进名剑探病后续之前',
+      detailLabel: '密洞路线、条件与宝箱奖励',
+      warning: '得到慈石、回到万劫窟入口后，离洞前先核对是否已回折进入瑶姬所在的密洞，以及密洞左侧的宝箱。',
+      recommendation: {
+        hint: '离洞前核对万劫窟密洞：瑶姬互动、两张丹方与四转洗髓丹',
+        action: '还没回折触发瑶姬互动时，先到洞穴深处的右侧洞口；已经回折进入密洞时，再核对左侧宝箱。',
+        reason:
+          '回折入口要求已完成5719、尚无5722和5742记录；进入过这段剧情后，不再把入口首次触发当作未做事项。密洞内有四转洗髓丹与两张上品丹方宝箱。',
+        tradeoff:
+          '需要回折探索并准备战斗；这里只提醒这一段互动与箱子，不推算当前总好感、不保证任何结局，也未证明离洞后仍能随时返回。',
+        goal: '在当前探病步骤仍进行时核对密洞互动与收集',
+        targets: { places: [{ id: 'place-69', name: '万劫窟密洞' }], people: [{ id: 'npc-17115', name: '瑶姬' }], items: [{ id: 'item-100318', name: '上品凝元丹丹方' }, { id: 'item-100306', name: '上品清灵丹丹方' }, { id: 'item-142', name: '四转洗髓丹' }] },
+      },
+      pickup: {
+        place: '万劫窟 · 深处右侧洞口 → 密洞左侧',
+        person: '瑶姬',
+        action: '尚未回折时先核对入口条件；已进入过密洞时只核对实际互动和宝箱。',
+      },
+      choices: [],
+      collectionStops: [
+        {
+          gatherId: 1591,
+          label: '万劫窟密洞 · 见到瑶姬后的左侧宝箱',
+          effect: '上品凝元丹丹方×1、上品清灵丹丹方×1、四转洗髓丹×1。',
+          targets: {
+            items: [
+              { id: 'item-100318', name: '上品凝元丹丹方' },
+              { id: 'item-100306', name: '上品清灵丹丹方' },
+              { id: 'item-142', name: '四转洗髓丹' },
+            ],
+          },
+        },
+      ],
+      sourceIds: ['wanjieYaojiWindowGame', 'swordFestivalStarRoute', 'swordFestivalTeaRoute'],
+      uncertainty:
+        '仅在名剑探病进行中、5719已完成且5720仍活动时提醒；直接动手或拒绝朱九戒的路线不能据5720单独推定可触发。回折首次触发另须5742无记录；5742已有记录不证明箱1591已开。具体位置由两位原作者补足，未验证离洞后永久可返。',
+    },
+    {
+      id: 'xungu-night-breakout-choice',
+      kind: 'stage',
+      title: '夜探将军府：留意坐牢分支',
+      questId: 5500,
+      chapterRoots: [],
+      decisionSteps: [5514],
+      trackedDecisionSteps: [5516],
+      coveredChoiceSteps: [5516],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyStarted: [5517, 5518, 5519, 5525, 5526, 5532, 5536],
+      deadlineLabel: '夜探将军府、决定是否放下兵器之前',
+      compactWarning: '「放下兵器」会进入坐牢结局。',
+      warning: '想继续主线，夜探将军府先走右侧；若在左侧被围，选突出重围并准备连续战斗。',
+      recommendation: {
+        hint: '夜探将军府：走右侧；被围时选「突出重围」',
+        action: '夜探将军府先去右侧房间；若在左侧遇到围堵，想继续主线就选「突出重围」。选答前先另存。',
+        reasonBrief: '突出重围需连战三场，先补好状态再进屋。',
+        reason:
+          '社区流程将放下兵器记为坐牢结局；突出重围需要三场战斗，之后可继续这段主线。当前任务原表也确认两项进入不同后继。',
+        tradeoff: '想体验坐牢分支，可用选择前的独立存档；想省去这组战斗，进入将军府时先按右侧路线寻找黄宗政。',
+        goal: '保留本次主线推进路线',
+      },
+      pickup: { place: '峋谷关 · 将军府', action: '夜探时先辨清左右房间；遇到围堵再按是否继续主线选择。' },
+      choices: [
+        { label: '放下兵器', effect: '进入放下兵器的剧情；社区ver.1.24.32流程记为坐牢结局。' },
+        { label: '突出重围', effect: '社区流程记载需连战三场，之后可继续主线。' },
+      ],
+      sourceIds: ['earlyBranchesGame', 'earlyBranchesRoute2026'],
+      uncertainty:
+        '提示只在夜探将军府的活动步骤，或明确追踪到本次活动选答时出现；坐牢与三战来自所引版本攻略，本次未运行游戏核验结局实现。',
+    },
+    {
+      id: 'xungu-find-yaoji-choice',
+      kind: 'stage',
+      title: '离开将军府：先找瑶姬',
+      questId: 5500,
+      chapterRoots: [],
+      decisionSteps: [5536],
+      trackedDecisionSteps: [5538],
+      coveredChoiceSteps: [5538],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyStarted: [5539, 5540, 5541, 5542, 5543, 5550, 5551],
+      deadlineLabel: '离开将军府、选择先找瑶姬或先回辽城之前',
+      compactWarning: '直接回辽城会跳过这次城内寻找与好感奖励。',
+      warning: '想保留这次瑶姬互动，先选先找瑶姬，再在峋谷关内找到她、完成剧情。',
+      recommendation: {
+        hint: '离开将军府：选「先找瑶姬」，再完成城内寻找',
+        action: '选「先找瑶姬」，在峋谷关城内找到她并完成剧情，再启程回辽城。',
+        reasonBrief: '完成寻找瑶姬的剧情后，好感+20。',
+        reason:
+          '先找瑶姬会开启在城内寻找瑶姬；完成这段剧情时，序列执行瑶姬好感+20。另一项直接结束峋谷风云，不经过这次寻找。',
+        tradeoff:
+          '需要先在城内寻找她；好感奖励发生在寻找剧情中，选按钮时不会立即到账，也不保证单凭此项达成某个结局。',
+        goal: '保留本次瑶姬互动与好感奖励',
+        targets: { people: [{ id: 'npc-17115', name: '瑶姬' }] },
+      },
+      pickup: { place: '峋谷关', person: '瑶姬', action: '离开将军府时决定是否先在城内寻找瑶姬。' },
+      choices: [
+        {
+          label: '先找瑶姬',
+          effect: '开启城内寻找；完成寻找剧情时瑶姬好感+20，随后结束峋谷风云并继续主线。',
+          targets: { people: [{ id: 'npc-17115', name: '瑶姬' }] },
+        },
+        { label: '先回辽城', effect: '直接走返回路线并结束峋谷风云，跳过这次城内寻找与其+20好感事件。' },
+      ],
+      sourceIds: ['earlyBranchesGame', 'earlyBranchesRoute2026'],
+      uncertainty:
+        '路线来自Quests，+20来自5540完成序列的好感事件；这里只提示这一次互动，不据此推定瑶姬当前总好感或任何结局条件已经满足。',
+    },
+    {
+      id: 'tianlong-hidden-passage-chests',
+      kind: 'stage',
+      title: '天龙帮暗道：追击前核对六箱',
+      questId: 5600,
+      chapterRoots: [],
+      decisionSteps: [5647, 5652],
+      requireActiveRoot: true,
+      requireDecisionWindow: true,
+      untilAnyStarted: [5653, 5654, 5655, 5657],
+      untilAnyComplete: [5652],
+      deadlineLabel: '在暗道尽头追上曹煜天、开始战斗之前',
+      detailLabel: '六处宝箱与奖励',
+      compactWarning: '暗道按一次性路线收集，推进后可能无法返回补箱。',
+      warning: '追上曹煜天前先核对暗道六处宝箱，尤其是菜谱、洗髓丹与永久属性丹所在的三处。',
+      recommendation: {
+        hint: '追上曹煜天前，先核对天龙帮暗道六箱',
+        action: '先沿暗道核对六处宝箱，确认想收的物品已拿，再到尽头追上曹煜天。',
+        reasonBrief: '可收红烩盘龙菜谱、一转洗髓丹，以及丁火丹、庚金丸。',
+        reason:
+          '同构建暗道常驻子图有六个宝箱；社区流程提醒这里是一次性地图。把核对放在尽头战斗之前，可避免剧情推进后再找补箱路线。',
+        tradeoff: '需要绕路并避过机关；这份任务进度不能判断哪些箱已开，请以场景箱子和实际背包核对。',
+        goal: '在暗道仍可探索时收齐本次想要的箱中物品',
+        targets: { places: [{ id: 'place-308', name: '天龙帮暗道' }] },
+      },
+      pickup: { place: '天龙帮暗道', action: '先核对六箱，再追上曹煜天。' },
+      choices: [],
+      collectionStops: [
+        {
+          gatherId: 1283,
+          label: '尖刺机关左侧',
+          effect: '二转聚灵丹×1、犀角×1、红烩盘龙菜谱×1。',
+          targets: {
+            items: [
+              { id: 'item-121', name: '二转聚灵丹' },
+              { id: 'item-10297', name: '犀角' },
+              { id: 'item-100244', name: '红烩盘龙菜谱' },
+            ],
+          },
+        },
+        {
+          gatherId: 1285,
+          label: '过尖刺后，继续沿路可见的宝箱',
+          effect: '完整的古钱×1、坐隐楸枰×1、兽面吞云甲×1、金疮药×3。',
+          targets: {
+            items: [
+              { id: 'item-10053', name: '完整的古钱' },
+              { id: 'item-10100', name: '坐隐楸枰' },
+              { id: 'item-9017', name: '兽面吞云甲' },
+              { id: 'item-133', name: '金疮药' },
+            ],
+          },
+        },
+        {
+          gatherId: 1286,
+          label: '避过火球机关后，继续沿路可见的宝箱',
+          effect: '蓝田玉如意×1、擎箜篌×1、极品兽皮×1。',
+          targets: {
+            items: [
+              { id: 'item-10178', name: '蓝田玉如意' },
+              { id: 'item-10160', name: '擎箜篌' },
+              { id: 'item-10292', name: '极品兽皮' },
+            ],
+          },
+        },
+        {
+          gatherId: 1284,
+          label: '双排地火机关中段',
+          effect: '二品宁神丹×3、辰砂矿×3、一转洗髓丹×2。',
+          targets: {
+            items: [
+              { id: 'item-159', name: '二品宁神丹' },
+              { id: 'item-10208', name: '辰砂矿' },
+              { id: 'item-139', name: '一转洗髓丹' },
+            ],
+          },
+        },
+        {
+          gatherId: 1282,
+          label: '第二场杂兵战后上台阶，杂物堆左边',
+          effect: '铅锭×1、朱砂×1、丁火丹×1、庚金丸×1。',
+          targets: {
+            items: [
+              { id: 'item-10224', name: '铅锭' },
+              { id: 'item-10222', name: '朱砂' },
+              { id: 'item-113', name: '丁火丹' },
+              { id: 'item-116', name: '庚金丸' },
+            ],
+          },
+        },
+        {
+          gatherId: 1281,
+          label: '杂物堆旁与上一箱并排的另一箱',
+          effect: '枸杞×2、檀香×2、虫草×2、灵宝刀×1。',
+          targets: {
+            items: [
+              { id: 'item-10264', name: '枸杞' },
+              { id: 'item-10271', name: '檀香' },
+              { id: 'item-10278', name: '虫草' },
+              { id: 'item-2019', name: '灵宝刀' },
+            ],
+          },
+        },
+      ],
+      sourceIds: ['earlyBranchesGame', 'earlyBranchesRoute2026', 'earlyPassageKeyChests', 'earlyPassageRoute'],
+      uncertainty:
+        '六箱及奖励已核对同构建地图演员与Gathers；文字地标来自所引社区路线。一次性回返限制尚未逐个核对当前构建场景触发器，因此以追上曹煜天前核对作为保守边界。只在暗道探索或休整活动步骤提示；步骤结束不表示宝箱已收齐。',
+    },
+    {
+      id: 'murder-clue-continue-choice',
+      kind: 'stage',
+      title: '灭门之案：继续调查还是就此作罢',
+      questId: 11272,
+      chapterRoots: [],
+      decisionSteps: [11276],
+      requireDecisionWindow: true,
+      untilAnyStarted: [11278, 11279, 11280],
+      deadlineLabel: '宋仵作请你帮忙寻找线索、保存选答之前',
+      compactWarning: '就此作罢会从任务列表移除本任务及关联步骤。',
+      warning: '想继续这次调查时先核对选项；就此作罢会移除灭门之案 - 线索及关联步骤记录。',
+      recommendation: {
+        hint: '想继续调查，选「帮忙找线索」',
+        action: '想继续调查，选「帮忙找线索」；对话前可先另存。',
+        reasonBrief: '帮忙找线索会开启下一组调查，继续追查灭门案。',
+        reason: '帮忙找线索会进入下一组调查步骤；就此作罢则移除当前灭门之案 - 线索任务及其关联步骤记录。',
+        tradeoff: '作罢后的重接条件未确认；想探索这一选项，可保留选择前的独立记录。',
+        goal: '继续灭门之案的线索调查',
+      },
+      pickup: { person: '宋仵作', action: '帮忙寻找线索的对话中，先核对是否继续调查。' },
+      steps: ['宋仵作请你寻找线索时，想继续调查就选帮忙找线索，再按任务栏推进。'],
+      choices: [
+        { label: '帮忙找线索', effect: '完成当前步骤，并开启下一组调查步骤。' },
+        { label: '就此作罢', effect: '从任务列表移除灭门之案 - 线索及关联步骤记录；能否重接尚待核对。' },
+      ],
+      sourceIds: ['sideChoiceRewardsGame'],
+      uncertainty: '提示只随已保存的帮忙寻找线索步骤出现；任务移除后的重接条件与其他人物后果未确认。',
+    },
+    {
+      id: 'gusu-wonton-food-record-choice',
+      kind: 'stage',
+      title: '百味馄饨：告别萧大爷时核对食录',
+      questId: 11427,
+      chapterRoots: [],
+      decisionSteps: [11430],
+      requireDecisionWindow: true,
+      untilAnyComplete: [11430, 11463],
+      deadlineLabel: '告别萧大爷、保存安慰或打岔选答之前',
+      compactWarning: '打岔不含这次萧家食录奖励。',
+      warning: '告别时的安慰与打岔有食录奖励差异；二十四气馄饨是两路共同的完成奖励。',
+      recommendation: {
+        action: '想收萧家食录，告别萧大爷时选「安慰」。',
+        reasonBrief: '安慰多得萧家食录1份；两项完成均得二十四气馄饨1份。',
+        reason:
+          '本次安慰选项另给萧家食录×1，打岔没有这项奖励。两路共用的完成结算另发二十四气馄饨×1，不属于安慰独占奖励。',
+        tradeoff: '若想看打岔的对话，可按剧情偏好选择；这次表内选项不发食录，其他剧情效果仍以当前游戏为准。',
+        goal: '取得本次选择中的萧家食录',
+        targets: {
+          items: [
+            { id: 'item-10410', name: '萧家食录' },
+            { id: 'item-163', name: '二十四气馄饨' },
+          ],
+        },
+      },
+      pickup: { person: '萧大爷', action: '品尝馄饨后，告别对话选答前核对食录奖励。' },
+      steps: ['告别萧大爷时，按是否希望取得萧家食录选择安慰或打岔。'],
+      choices: [
+        { label: '安慰', effect: '本选项额外取得萧家食录×1；完成结算另给共同奖励二十四气馄饨×1。' },
+        { label: '打岔', effect: '本选项不发萧家食录；完成结算仍给二十四气馄饨×1。' },
+      ],
+      sourceIds: ['sideChoiceRewardsGame'],
+      uncertainty: '仅核对本次选项和共同完成奖励；没有证明食录的全局来源、成就用途或灯会精确结束时间。',
+    },
+    {
+      id: 'lost-heirloom-return-choice',
+      kind: 'stage',
+      title: '失而复得：归还珊瑚时核对药材奖励',
+      questId: 13415,
+      chapterRoots: [],
+      decisionSteps: [13416],
+      requireDecisionWindow: true,
+      untilAnyComplete: [13416],
+      deadlineLabel: '向成老交付传家之宝、保存选答之前',
+      compactWarning: '两路都交出赤血珊瑚1份；要价五千不含这两份药材。',
+      warning: '两项都给5000铜钱；原物奉还还给犀角、沉香各1份，完成交付会交出赤血珊瑚。',
+      recommendation: {
+        action: '偏重本次奖励，向成老选「原物奉还」。',
+        reasonBrief: '原物奉还额外给犀角、沉香各1份，两项铜钱均为5000。',
+        reason:
+          '原物奉还与要价五千都给5000铜钱；前者另给犀角×1、沉香×1，后者没有这两种药材。两路完成均交出赤血珊瑚×1。',
+        tradeoff: '按本次表内奖励推荐原物奉还；想看要价对话时可另选，其他剧情取舍尚未核定。',
+        goal: '按当场铜钱与药材奖励选择',
+        targets: {
+          items: [
+            { id: 'item-10297', name: '犀角' },
+            { id: 'item-10296', name: '沉香' },
+            { id: 'item-10358', name: '赤血珊瑚' },
+          ],
+        },
+      },
+      pickup: {
+        place: '黎城',
+        person: { id: 'npc-19303', name: '成老' },
+        action: '持有赤血珊瑚时，向成老归还传家之宝。',
+      },
+      steps: ['向成老交付赤血珊瑚前，核对两项铜钱相同、药材不同的奖励。'],
+      choices: [
+        { label: '原物奉还', effect: '5000铜钱，另给犀角×1、沉香×1；完成时交出赤血珊瑚×1。' },
+        { label: '要价五千', effect: '5000铜钱，不含犀角与沉香；完成时同样交出赤血珊瑚×1。' },
+      ],
+      sourceIds: ['sideChoiceRewardsGame'],
+      uncertainty: '只按本次选项的铜钱、药材与共同交付动作说明收益，不据此保证所有后续剧情取舍。',
+    },
+    {
       id: 'jinli-coin-before-accepting',
       title: '津鲤村古钱：先决定帮小蝶还是司马相',
       kind: 'stage',
@@ -1147,6 +1878,7 @@ module.exports = {
         hint: '津鲤村：偏重武学收益，先接小蝶之心',
         action:
           '尚未答应任何一方时，偏重武学收益可先接小蝶之心，再把精美的古钱交给小蝶；想看司马相剧情或收集陶瓷塑像时，改接司马相之心。',
+        reasonBrief: '两条委托互斥：小蝶偏武学，司马相换陶瓷塑像。',
         reason: '两位社区作者都记载两条任务互斥；小蝶路线有武学收益，司马相路线换得陶瓷塑像。',
         goal: '优先武学成长，或按本周目缺少的剧情与物品调整',
         caution: '接取一方后，另一条委托就不能接。',
@@ -1689,6 +2421,7 @@ module.exports = {
     },
     {
       id: 'mowen-thankyou-gift-choice',
+      coveredChoiceSteps: [12406],
       kind: 'stage',
       title: '莫问的喜好：送礼前比较剑、茶与棋盘',
       questId: 12400,
@@ -1926,6 +2659,7 @@ module.exports = {
     },
     {
       id: 'early-jingyin-weapon-choice',
+      coveredChoiceSteps: [5078],
       compactWarning: '选系决定当场武器与山寨宝箱奖励',
       decisionSteps: [5076],
       decisionAfterAllComplete: [5076],
@@ -1936,6 +2670,7 @@ module.exports = {
         goal: '普通新档顺畅推进；继承或收集档按缺少的秘籍调整',
         action:
           '普通新档可先选「剑系武器」；已有流派、继承或专门收集时，先核对剑、刀、拳对应秘籍，再选缺少的一系。',
+        reasonBrief: '新档剑系可收长虹剑与惊雷剑法；继承档按缺项调整。',
         reason: '新档攻略沿剑系推进，可取得长虹剑与惊雷剑法秘籍；已有流派时按缺项调整。',
         tradeoff: '选系影响当场武器和这个位置的宝箱；以后仍可学习其他流派。',
       },
@@ -1976,6 +2711,7 @@ module.exports = {
         caution: '直接交军情会让白锦身亡；与霹雳雷火弹、绝笔图鉴分支不能同次兼得。',
         goal: '保留白锦存活与后续队友内容',
         action: '先留一份可回读进度；去临昌左下的渊军营寨找白锦，完成救人战斗后再回峋谷关将军府。',
+        reasonBrief: '临昌救人保留白锦，并可取得天罗地网钉。',
         reason: '葬龙谷取军情只是其中一路；临昌救人走「危机解除」，保留白锦并获得天罗地网钉。',
         tradeoff:
           '需要额外救人战斗；葬龙谷路线的霹雳雷火弹与绝笔图鉴是另一分支。想看两路请用分支前的不同存档，不能在一次结算兼得。',
@@ -2054,6 +2790,7 @@ module.exports = {
     // exact native contracts may activate branch-specific recommendations.
     {
       id: 'gusu-performer-three-bowls-followup-choice',
+      coveredChoiceSteps: [11454],
       title: '街头卖艺·吞天虎：吃三盆后的追问',
       questId: 11447,
       chapterRoots: [],
@@ -2080,6 +2817,7 @@ module.exports = {
     },
     {
       id: 'gusu-performer-six-bowls-followup-choice',
+      coveredChoiceSteps: [11455],
       title: '街头卖艺·吞天虎：吃六盆后及时认输',
       questId: 11447,
       chapterRoots: [],
@@ -2133,6 +2871,7 @@ module.exports = {
     },
     {
       id: 'chengyu-stay-choice',
+      coveredChoiceSteps: [5826],
       compactWarning: '送走程钰会失去这段武当对话与切磋',
       title: '程钰去留：留在武当可继续人物内容',
       questId: 5820,
@@ -2147,6 +2886,7 @@ module.exports = {
         hint: '程钰去留：想保留人物后续，赞成留下',
         goal: '优先保留程钰的对话、武学与切磋机会',
         action: '先留一份可回读进度；想多看程钰内容，选「赞成留下程钰」，之后再找他交谈。',
+        reasonBrief: '留人后可继续秘籍、复仇对话与武当切磋线索。',
         reason: '流程在留人后安排一气纯阳指秘籍、复仇对话，以及清蒸赤鳞鱼菜谱、凤凰金瓶的切磋线索。',
         tradeoff:
           '送走会进入「不告而别」，不走这段留在武当的后续。若专收掌门分支图鉴，还须核对前面认同清霄、李天宝等选择，留人不是所有结局的通解。',
@@ -2289,7 +3029,7 @@ module.exports = {
         action: '铁匠委托转交虎头佩后，到河边说媒，再回来说明结果。',
       },
       severity: 'reminder',
-      warning: '转交信物后记得回铁匠报告；不能仅凭主线推进就认定这条任务已失效。',
+      warning: '转交信物后，回铁匠处报告。',
     },
     {
       id: 'early-sun-homesickness-choice',
@@ -2747,6 +3487,7 @@ module.exports = {
     },
     {
       id: 'chenlinxi-critical-choice',
+      coveredChoiceSteps: [12079],
       compactWarning: '北山寒尸：好感与选项影响陈麟熙生死、入队',
       decisionSteps: [12078],
       recommendation: {
@@ -2754,6 +3495,7 @@ module.exports = {
         caution: '共饮时好感≥70：取胜后陈麟熙离场，进行中的灭门之案线索失败。',
         goal: '保留陈麟熙入队与后续剧情',
         action: '先另存，再选「义正辞严」降低10好感；回武馆共饮前保持好感低于70。',
+        reasonBrief: '共饮时才重查70好感门槛，选答后的赠礼仍会改变结果。',
         reason:
           '游戏在后续共饮时重新检查当前好感：低于70走心灰意冷分支，大于等于70则进入对战。选择前的好感不是最终判定。',
         tradeoff:
@@ -2906,6 +3648,7 @@ module.exports = {
         caution: '本次不能兼得娜乌的挂坠或商人的截脉三式。',
         goal: '一周目优先药圣剧情与治疗武学',
         action: '先保留选择前的存档；默认拒绝娜乌索蝎，把金蝎交柳麻衣，继续药圣线。',
+        reasonBrief: '交柳麻衣可得岐黄剑术，并继续药圣与治疗武学线。',
         reason: '可获得岐黄剑术并继续药圣之约；独立流程还记有后续救治与治疗武学机会，适合保留这条人物线。',
         tradeoff:
           '本次交付不能兼走娜乌的灵蝎挂坠或商人的截脉三式路线。想收集对应奖励应改选；三条线都可继续接触商葶苧，不能把药圣线说成唯一入队途径。',
@@ -2947,6 +3690,7 @@ module.exports = {
     },
     {
       id: 'kongliang-choice',
+      coveredChoiceSteps: [12297],
       compactWarning: '救孔亮影响冷鹰合作，也放弃漫天花雨分支',
       decisionSteps: [12293],
       recommendation: {
@@ -2954,6 +3698,7 @@ module.exports = {
         caution: '救孔亮会放弃本分支的漫天花雨收集线。',
         goal: '本周目优先保留队友与同行剧情',
         action: '默认建议「帮助孔亮」，保留招募路线。',
+        reasonBrief: '帮助可续孔亮招募、天罡刀法与同行剧情。',
         reason: '可继续招募孔亮、请教天罡刀法并看同行内容，符合尽量不漏人物剧情的目标。',
         tradeoff:
           '放弃这一分支中冷鹰合作的漫天花雨路线。若一周目优先这本可继承武学，所引作者建议不救，多周目再救；主线均可继续。',
@@ -3283,6 +4028,7 @@ module.exports = {
     },
     {
       id: 'changsheng-formation-choice',
+      coveredChoiceSteps: [8553],
       compactWarning: '赴战人数影响乘黄御风与鞋图；还需第二战速杀',
       kind: 'stage',
       title: '禁地前：按收集目标决定赴战人数',
@@ -3312,6 +4058,7 @@ module.exports = {
         },
         goal: '保留乘黄御风秘籍的收集路线，并有燕未还、荀杳杳协助',
         action: '先另存；想收集乘黄御风时优先选三人赴战，再准备第二战的速杀目标。',
+        reasonBrief: '燕未还、荀杳杳协战并保留轻功机会；获奖还需第二战速杀。',
         reason:
           '三人路线可保留乘黄御风的收集机会，并由燕未还、荀杳杳协战，比孤身多两位同伴。奖励仍需满足后续战斗条件。',
         tradeoff:
@@ -3399,6 +4146,7 @@ module.exports = {
     })),
     {
       id: 'changsheng-rescue-choice',
+      coveredChoiceSteps: [8861, 8867],
       kind: 'stage',
       title: '长生殿决战：先留档，再按目标决定救援',
       questId: 8830,
@@ -3419,6 +4167,7 @@ module.exports = {
         caution: '不兼得不救分支的油尽灯枯图鉴；救援还受此前剧情与好感影响，不保证全员存活。',
         goal: '优先保留人物存活与长生殿的后续剧情',
         action: '出发前另存可回读记录；若战后出现「出手相救」，保留人物路线优先选它。',
+        reasonBrief: '救援可续白惟一与皓首族后续，仍需前情及好感条件。',
         reason: '两位作者均采用救援路线；任务文字也将救治白惟一与为皓首一族作保相连。',
         tradeoff:
           '不兼得不救分支的图鉴；救援能否出现并成功还受此前剧情与好感影响，不保证只选一次就全员存活。',
@@ -3536,6 +4285,7 @@ module.exports = {
     },
     {
       id: 'yanfu-investigation-choice',
+      coveredChoiceSteps: [21132, 21141],
       compactWarning: '阎浮镇选放弃调查，会关闭查明真相路线',
       title: '阎浮镇凶案：勘验尸体后是否继续调查',
       questId: 21050,
@@ -3587,6 +4337,7 @@ module.exports = {
     },
     {
       id: 'cold-wuqing-night-choice',
+      coveredChoiceSteps: [22132],
       compactWarning: '冷无情夜谈关系隐藏路线；也须核对先前调查',
       title: '赴天佛窟前夜：冷无情夜谈别跳过',
       questId: 22100,
@@ -3725,6 +4476,7 @@ module.exports = {
         goal: '优先保留天机宫、救商颂与武学收集路线',
         action:
           '玄火神丹回报后、与清虚作初次掌门表态时，先另存一份，默认选「不愿意」；后续仍须核对重建天机宫。',
+        reasonBrief: '暂不承诺可保留天机宫与救商颂方向，仍须后续重建。',
         reason:
           '答应掌门会关闭天机宫主方向，并影响救商颂；暂不承诺可保留这些后续，所引流程还记贪狼枪法收益。',
         tradeoff: '这一周目不走掌门承诺路线。若目标就是掌门，改选愿意；两条互斥，不能保证一份进度同时完成。',
@@ -3764,6 +4516,7 @@ module.exports = {
     },
     {
       id: 'tianji-rebuild-choice',
+      coveredChoiceSteps: [24063, 24070],
       compactWarning: '回绝重建影响天机宫收益与商颂后续；先另存',
       kind: 'stage',
       title: '欧阳衡的请求：选择是否重建天机宫',
@@ -3786,6 +4539,7 @@ module.exports = {
         caution: '回绝放弃天机宫收益，并有攻略记商颂身亡；先另存，早先掌门承诺可能限制选项。',
         goal: '优先保留重建天机宫、商颂后续与武学收集路线',
         action: '先另存；若游戏提供该选项且想保留这条路线，选「重建天机宫」，随后按任务栏完成剧情。',
+        reasonBrief: '攻略记重建可续贪狼枪法、天机再现与商颂救援方向。',
         reason: '两位独立作者都记同意路线可得贪狼枪法秘籍与天机再现成就；虚饮茶还将回绝与后续商颂身亡关联。',
         tradeoff:
           '同意与回绝不能在同一份进度同时选择。若想看回绝剧情，先留另一份记录；早先掌门承诺可能限制选项，不能保证当前可选或一次选择就满足所有结局条件。',

@@ -63,7 +63,24 @@
           "uexpSha256": "0c3dcfdb36901efc70d65446064c5a97d44c1629d1e2cf418eb586ff3c131ec3"
         }
       },
-      "notice": "Original game data and blueprint behavior are third-party material. Only minimum field/behavior projections are intended for source; no raw assets or complete dialogue."
+      "notice": "Original game data and blueprint behavior are third-party material. Only minimum field/behavior projections are intended for source; no raw assets or complete dialogue.",
+      "additionalRows": {
+        "questIds": [
+          5409,
+          5516,
+          5538,
+          11276,
+          11430,
+          13416
+        ],
+        "decodedQuestTableSha256": "f1ddf79d01d5d143512ce55b1007b19cd8dc5c57c48ff00cb3ee396f5ef5fecf",
+        "scope": "Exact same-Build owner rows and complete unconditional options; the event NPC remains contextual."
+      },
+      "wanjieHuainanRows": {
+        "questIds": [5707, 5710, 18022],
+        "decodedQuestTableSha256": "f1ddf79d01d5d143512ce55b1007b19cd8dc5c57c48ff00cb3ee396f5ef5fecf",
+        "scope": "Exact same-Build root ownership and complete unconditional native options. Branch outcomes remain in the curated guide."
+      }
     },
     "npcPolicy": "The event NPC is context, not the dialogue speaker. Matching uses the proved quest row and complete native option set."
   },
@@ -384,6 +401,150 @@
         },
         {
           "text": "义正辞严",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "xungu-night-breakout-choice",
+      "questId": 5516,
+      "rootQuestId": 5500,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "放下兵器",
+          "choiceIndex": 0
+        },
+        {
+          "text": "突出重围",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "xungu-find-yaoji-choice",
+      "questId": 5538,
+      "rootQuestId": 5500,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "先找瑶姬",
+          "choiceIndex": 0
+        },
+        {
+          "text": "先回辽城",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "murder-clue-continue-choice",
+      "questId": 11276,
+      "rootQuestId": 11272,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "帮忙找线索",
+          "choiceIndex": 0
+        },
+        {
+          "text": "就此作罢",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "gusu-wonton-food-record-choice",
+      "questId": 11430,
+      "rootQuestId": 11427,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "安慰",
+          "choiceIndex": 0
+        },
+        {
+          "text": "打岔",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "lost-heirloom-return-choice",
+      "questId": 13416,
+      "rootQuestId": 13415,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "原物奉还",
+          "choiceIndex": 0
+        },
+        {
+          "text": "要价五千",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "sword-festival-lantern-fair-chest",
+      "questId": 5409,
+      "rootQuestId": 5368,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "离开",
+          "choiceIndex": 0
+        },
+        {
+          "text": "再逛逛",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "wanjie-ask-before-fighting-choice",
+      "questId": 5707,
+      "rootQuestId": 5700,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "询问原委",
+          "choiceIndex": 0
+        },
+        {
+          "text": "直接动手",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "wanjie-cooperate-choice",
+      "questId": 5710,
+      "rootQuestId": 5700,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "同意",
+          "choiceIndex": 0
+        },
+        {
+          "text": "拒绝",
+          "choiceIndex": 1
+        }
+      ]
+    },
+    {
+      "ruleId": "huainan-dream-cure-choice",
+      "questId": 18022,
+      "rootQuestId": 18000,
+      "npcPolicy": "contextual",
+      "options": [
+        {
+          "text": "拒绝解蛊",
+          "choiceIndex": 0
+        },
+        {
+          "text": "同意解蛊",
           "choiceIndex": 1
         }
       ]

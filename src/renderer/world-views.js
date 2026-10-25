@@ -20,8 +20,9 @@ export function createWorldViews({
   variantSummary = () => '',
   taskRelations = () => '',
   placeMap = () => '',
+  guide = () => [],
 }) {
-  const codexDetails = createCodexDetailViews({ esc, act, richText });
+  const codexDetails = createCodexDetailViews({ esc, act, richText, guide });
   let cached, quests, people, maps, children, families;
   const labels = ['未开始', '进行中', '已失败', '未接取', '已完成'];
   function prepare(index) {

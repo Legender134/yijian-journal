@@ -38,9 +38,10 @@ export function createGameViews({
   variantSummary = () => '',
   personRelations = () => '',
   placeMap = () => '',
+  guide = () => [],
 }) {
   const itemStats = createItemStatViews({ esc, act });
-  const codexDetails = createCodexDetailViews({ esc, act, richText });
+  const codexDetails = createCodexDetailViews({ esc, act, richText, guide });
   const npcFacts = createNpcFactViews({ esc, act });
   const npcProgress = createNpcProgressViews({ esc, act, richText });
   const byId = (index, id) => index.entries.find((e) => e.id === id);

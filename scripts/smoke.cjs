@@ -58,17 +58,176 @@ fs.utimesSync(path.join(fakeSaves, '2.sav'), new Date('2025-01-01'), new Date('2
 new Store(data, catalog).setPath('savePath', fakeSaves);
 const originalSave = fs.readFileSync(path.join(fakeSaves, '1.sav'));
 const errors = [];
+const nativeHandoffs = [];
 let app;
+let appPid;
 let savedWindowLayouts;
 async function launch() {
   const env = { ...process.env, YIJIAN_TEST_DATA: data };
   delete env.ELECTRON_RUN_AS_NODE;
-  return electron.launch({
+  const instance = await electron.launch({
     executablePath: process.env.YIJIAN_EXECUTABLE || require('electron'),
     args: process.env.YIJIAN_EXECUTABLE ? [] : [base],
     env,
     timeout: 30000,
   });
+  instance.context().setDefaultTimeout(30000);
+  const identity = await instance.evaluate(({ app }) => ({
+    pid: process.pid,
+    data: app.getPath('userData'),
+  }));
+  assert.equal(identity.data, path.resolve(data), 'Smoke may only control its isolated application');
+  appPid = identity.pid;
+  return instance;
+}
+async function closeApp() {
+  const closing = app;
+  const closingPid = appPid;
+  if (!closing) return;
+  let timer, exitTimer;
+  let closed = false;
+  closing.once('close', () => {
+    closed = true;
+  });
+  try {
+    await Promise.race([
+      closing.close(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(Error('Smoke application did not finish graceful shutdown')), 15000);
+      }),
+    ]);
+  } catch (error) {
+    // A failed synthetic run must not wait forever or leave another test instance.
+    try {
+      await Promise.race([
+        closing.evaluate(({ app }, expected) => {
+          if (app.getPath('userData') !== expected)
+            throw Error('Refusing to force-close a foreign application');
+          app.exit(1);
+        }, path.resolve(data)),
+        new Promise((_, reject) => {
+          exitTimer = setTimeout(() => reject(Error('Smoke forced exit timed out')), 2000);
+        }),
+      ]);
+    } catch {}
+    if (!closed && Number.isSafeInteger(closingPid)) {
+      try {
+        process.kill(closingPid, 'SIGKILL');
+      } catch {}
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    clearTimeout(exitTimer);
+    if (app === closing) {
+      app = null;
+      appPid = null;
+    }
+  }
+}
+async function handoffToMain(trigger) {
+  // Minimize an existing destination on every handoff. The closed-main case
+  // must create its destination through the real click, not test setup.
+  await app.evaluate(({ BrowserWindow }) => {
+    const main = BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().includes('compact=1'));
+    const source = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('compact=1'));
+    globalThis.smokeHandoffPreparation = main ? 'minimized' : 'closed';
+    if (main) main.minimize();
+    globalThis.smokeNativeHandoff = null;
+    source.once('hide', () => {
+      const destination = BrowserWindow.getAllWindows().find(
+        (w) => !w.webContents.getURL().includes('compact=1'),
+      );
+      globalThis.smokeNativeHandoff = {
+        visible: !!destination?.isVisible(),
+        minimized: destination?.isMinimized() ?? null,
+        focused: !!destination?.isFocused(),
+      };
+    });
+  });
+  await trigger.click();
+  const native = await app.evaluate(async ({ BrowserWindow }) => {
+    if (!globalThis.smokeNativeHandoff)
+      await new Promise((resolve, reject) => {
+        const source = BrowserWindow.getAllWindows().find((w) =>
+          w.webContents.getURL().includes('compact=1'),
+        );
+        const done = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        const timer = setTimeout(() => {
+          source.removeListener('hide', done);
+          reject(Error('The source did not finish its native handoff'));
+        }, 10000);
+        source.once('hide', done);
+      });
+    const main = BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().includes('compact=1'));
+    return {
+      preparation: globalThis.smokeHandoffPreparation,
+      atSourceHide: globalThis.smokeNativeHandoff,
+      destination: { visible: !!main?.isVisible(), minimized: main?.isMinimized() ?? null },
+    };
+  });
+  nativeHandoffs.push(native);
+  assert(native.atSourceHide, 'The source must complete its native handoff');
+  assert(native.atSourceHide.visible && !native.atSourceHide.minimized, JSON.stringify(native));
+  assert(native.destination.visible && !native.destination.minimized, JSON.stringify(native));
+}
+async function captureFailureState() {
+  if (!app || !Number.isSafeInteger(appPid)) return;
+  const probe = async (read) => {
+    let timer;
+    try {
+      return await Promise.race([
+        Promise.resolve().then(read),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(Error('Failure-state probe timed out')), 1500);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const reads = [
+    [
+      'main-process',
+      () =>
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().map((win) => ({
+            id: win.id,
+            rendererPid: win.webContents.getOSProcessId(),
+            visible: win.isVisible(),
+            minimized: win.isMinimized(),
+            focused: win.isFocused(),
+          })),
+        ),
+    ],
+    ...app.windows().map((page) => [
+      page.url().includes('compact=1') ? 'companion-renderer' : 'main-renderer',
+      () =>
+        page.evaluate(() => ({
+          visibility: document.visibilityState,
+          clock: performance.now(),
+          handoffButtons: [...document.querySelectorAll('[data-action="main"]')].map((button) => ({
+            disabled: button.disabled,
+            busy: button.getAttribute('aria-busy'),
+          })),
+        })),
+    ]),
+  ];
+  const results = await Promise.allSettled(reads.map(([, read]) => probe(read)));
+  fs.writeFileSync(
+    path.join(data, 'failure-state.json'),
+    JSON.stringify(
+      results.map((result, i) => ({
+        target: reads[i][0],
+        ...(result.status === 'fulfilled' ? { value: result.value } : { error: String(result.reason) }),
+      })),
+      null,
+      2,
+    ),
+  );
 }
 async function attach() {
   const win = await app.firstWindow();
@@ -585,7 +744,7 @@ async function guideAndSearchHandoff(main, compact) {
   });
   assert((await compact.locator('.drawer-body').evaluate((el) => el.scrollTop)) > 0);
   await compact.locator('.drawer [data-action="detail"][data-id="wei-huo"]').click();
-  await compact.locator('.drawer [data-action="main"]').click();
+  await handoffToMain(compact.locator('.drawer [data-action="main"]'));
   await main.locator('.drawer h1').getByText('卫霍', { exact: true }).waitFor();
   await main.locator('[data-action="drawer-back"]').click();
   await main.locator('.drawer h1').getByText('卫霍 · 砥砺精进', { exact: true }).waitFor();
@@ -632,7 +791,7 @@ async function guideAndSearchHandoff(main, compact) {
   assert.equal(await compact.locator('.search-result[data-action="search-goal"]').count(), 8);
   await compact.locator('[data-action="search-personal-all"]').click();
   assert.equal(await compact.locator('.search-result[data-action="search-goal"]').count(), 9);
-  await compact.locator('.search-modal [data-action="main"]').click();
+  await handoffToMain(compact.locator('.search-modal [data-action="main"]'));
   await main.locator('[data-action="search-personal-short"]').waitFor();
   assert.equal(await main.locator('.search-result[data-action="search-goal"]').count(), 9);
   await captureNative(main, {
@@ -916,7 +1075,7 @@ async function companionHomeInventorySync(page) {
     const taskMaterialText = (
       await choiceCompact.locator('[data-flow-task-materials] .flow-material').first().textContent()
     ).replace(/\s+/g, '');
-    await choiceCompact.locator('[data-action="main"]').first().click();
+    await handoffToMain(choiceCompact.locator('[data-action="main"]').first());
     await win.locator('[data-flow-task-materials]').waitFor();
     assert.equal(
       (await win.locator('[data-flow-task-materials] .flow-material').first().textContent()).replace(
@@ -931,7 +1090,7 @@ async function companionHomeInventorySync(page) {
     });
     await win.locator('[data-action="compact"]').first().click();
     await choiceCompact.locator('.companion-tabs [data-id="home"]').click();
-    await choiceCompact.locator('[data-action="main"]').first().click();
+    await handoffToMain(choiceCompact.locator('[data-action="main"]').first());
     await win.locator('.flow-panel:not(.flow-summary)').waitFor();
     assert.equal(await win.locator('.nav-btn.active').getAttribute('data-id'), 'checklist');
     await win.locator('[data-action="compact"]').first().click();
@@ -944,7 +1103,7 @@ async function companionHomeInventorySync(page) {
       el.querySelector('[data-persist-detail^="duel-readiness-"]').open = true;
       el.scrollIntoView({ block: 'start' });
     });
-    await choiceCompact.locator('[data-action="main"]').first().click();
+    await handoffToMain(choiceCompact.locator('[data-action="main"]').first());
     const targetDuel = win.locator(`[data-duel="${duelId}"]`);
     await targetDuel.waitFor();
     assert.equal(
@@ -977,14 +1136,14 @@ async function companionHomeInventorySync(page) {
       .first()
       .click();
     await choiceCompact.locator('[aria-label="选择同名资料"]').waitFor();
-    await choiceCompact.locator('.drawer [data-action="main"]').click();
+    await handoffToMain(choiceCompact.locator('.drawer [data-action="main"]'));
     await win.locator('[aria-label="选择同名资料"]').waitFor();
     assert.equal(await win.locator('.entity-relation-row').count(), 3);
     await win.locator('[data-action="close-overlay"]').first().click();
     await win.locator('[data-action="compact"]').first().click();
     await choiceCompact.locator('[aria-label="选择同名资料"]').waitFor();
     await choiceCompact.locator('.entity-relation-row [data-action="database-detail"]').first().click();
-    await choiceCompact.locator('.drawer [data-action="main"]').click();
+    await handoffToMain(choiceCompact.locator('.drawer [data-action="main"]'));
     await win.locator('[data-action="drawer-back"]').click();
     await win.locator('[aria-label="选择同名资料"]').waitFor();
     assert.equal(await win.locator('.entity-relation-row').count(), 3);
@@ -1010,7 +1169,7 @@ async function companionHomeInventorySync(page) {
       .locator('.person-gifts .history-pagination')
       .getByText('共 69 种 · 第 3 / 3 页')
       .waitFor();
-    await choiceCompact.locator('.drawer [data-action="main"]').click();
+    await handoffToMain(choiceCompact.locator('.drawer [data-action="main"]'));
     await win.locator('.person-gifts .history-pagination').getByText('共 69 种 · 第 3 / 3 页').waitFor();
     await captureNative(win, {
       animations: 'disabled',
@@ -1022,7 +1181,7 @@ async function companionHomeInventorySync(page) {
     await guideAndSearchHandoff(win, choiceCompact);
     await choiceCompact.locator('.compact-title [data-action="search"]').click();
     await choiceCompact.locator('#global-search').fill('金疮药');
-    await choiceCompact.locator('.search-modal [data-action="main"]').click();
+    await handoffToMain(choiceCompact.locator('.search-modal [data-action="main"]'));
     await win.locator('#global-search').waitFor();
     assert.equal(await win.locator('#global-search').inputValue(), '金疮药');
     await win.locator('[data-action="close-overlay"]').click();
@@ -1038,7 +1197,7 @@ async function companionHomeInventorySync(page) {
     await choiceCompact.locator('.drawer-body').evaluate((el) => {
       el.scrollTop = el.scrollHeight;
     });
-    await choiceCompact.locator('.drawer [data-action="main"]').click();
+    await handoffToMain(choiceCompact.locator('.drawer [data-action="main"]'));
     await win.locator('.drawer h1').getByText('金疮药').waitFor();
     assert.equal(
       await win
@@ -1078,7 +1237,7 @@ async function companionHomeInventorySync(page) {
       const stock = choiceCompact.locator('.item-usage-stock > div').first().locator('dd');
       if (sourceReference === '@none') assert.equal(await stock.innerText(), '—');
       else assert.match(await stock.innerText(), /^\d[\d,]*$/);
-      await choiceCompact.locator('.drawer [data-action="main"]').click();
+      await handoffToMain(choiceCompact.locator('.drawer [data-action="main"]'));
       await win.locator('.item-usage').waitFor();
       assert.equal(
         await win.locator('.item-usage-stock > div').first().locator('dd').innerText(),
@@ -1178,7 +1337,7 @@ async function companionHomeInventorySync(page) {
     await choiceCompact
       .locator('.companion-material details[data-compact-detail]')
       .waitFor({ state: 'detached' });
-    await choiceCompact.locator('details.flow-personal > summary').click();
+    await choiceCompact.locator('details.flow-personal').waitFor({ state: 'detached' });
     await choiceCompact.locator('.compact-body').evaluate((el) => {
       el.scrollTop = 0;
     });
@@ -1422,7 +1581,14 @@ async function companionHomeInventorySync(page) {
     assert.equal(await baiRecipe.count(), 1);
     assert.equal(await baiRecipe.locator('.game-picture').count(), 1);
     assert.equal(await rewardPreview.locator('[data-entity-id]').count(), 2);
+    await choiceCompact.mouse.move(2, 2);
     await baiReward.hover();
+    await choiceCompact.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-duel-current] [data-duel="npc051-baijin"] [data-entity-id="item-13552"]')
+          ?.getAttribute('aria-describedby') === 'entity-preview',
+    );
     await choiceCompact.locator('#entity-preview').waitFor({ state: 'visible' });
     assert.match(await choiceCompact.locator('#entity-preview').innerText(), /无影飞箭/);
     await choiceCompact.keyboard.press('Escape');
@@ -2140,7 +2306,7 @@ async function companionHomeInventorySync(page) {
     const companion = app.windows().find((w) => w !== win);
     await companion.waitForSelector('.compact-shell');
     await win.locator('[data-action="window-close"]').click();
-    await companion.locator('[data-action="main"]').click();
+    await handoffToMain(companion.locator('[data-action="main"]'));
     win = app.windows().find((w) => w !== companion);
     if (!win) win = await app.waitForEvent('window');
     await win.waitForSelector('.layout');
@@ -2198,7 +2364,7 @@ async function companionHomeInventorySync(page) {
       await layoutCompanion.locator('[data-action="window-layout-reset"]').innerText(),
       '恢复默认位置与大小',
     );
-    await app.close();
+    await closeApp();
     const handoffTimeline = new Timeline(path.join(data, 'game-timeline'));
     handoffTimeline.configure(fakeSaves, false, 10);
     const handoffNode = handoffTimeline.record(originalSave, 'manual');
@@ -2253,7 +2419,7 @@ async function companionHomeInventorySync(page) {
     );
     await restoredCompanion.locator('.timeline-node-editor > summary').click();
     await restoredCompanion.locator('#timeline-note').fill('随行历史备注草稿');
-    await restoredCompanion.locator('.drawer [data-action="main"]').click();
+    await handoffToMain(restoredCompanion.locator('.drawer [data-action="main"]'));
     await win.locator('#timeline-note').waitFor();
     assert.equal(await win.locator('#timeline-note').inputValue(), '随行历史备注草稿');
     assert.equal(await win.locator('[data-action="timeline-load"]').getAttribute('data-id'), handoffNode.id);
@@ -2566,8 +2732,15 @@ async function companionHomeInventorySync(page) {
       ),
     );
     console.log('Electron smoke PASS; isolated data:', data);
+  } catch (error) {
+    console.error('Electron smoke failed before cleanup:', error);
+    try {
+      await captureFailureState();
+    } catch {}
+    throw error;
   } finally {
-    if (app) await app.close();
+    await closeApp();
+    fs.writeFileSync(path.join(data, 'window-handoffs.json'), JSON.stringify(nativeHandoffs, null, 2));
   }
 })().catch((e) => {
   console.error(e);

@@ -1014,6 +1014,7 @@ const headings = {
   'recipe-discovery': '用现有材料找配方',
 };
 const gameViews = createGameViews({
+  guide: () => currentFlow()?.guide || [],
   esc,
   icon,
   act,
@@ -1065,6 +1066,7 @@ const entityDetailViews = createEntityDetailViews({
 const placeMapViews = createPlaceMapViews({ esc, icon });
 const placeMapScopes = new Map();
 const worldViews = createWorldViews({
+  guide: () => currentFlow()?.guide || [],
   placeMap: (index, id, options = {}) =>
     placeMapViews.render(index, id, { compact, scope: placeMapScopes.get(id) || 'region', ...options }),
   esc,
@@ -1082,6 +1084,7 @@ const worldViews = createWorldViews({
   taskRelations: (index, quest, reference) => entityDetailViews.task(index, quest, reference),
 });
 const flowViews = createFlowViews({
+  index: () => gameIndex,
   esc,
   act,
   icon,
@@ -3469,16 +3472,30 @@ function compactPage() {
     compactUndo?.profileId === profile().id
       ? `<div class="notice"><span>已完成：${esc(compactUndo.title)}</span>${act('compact-undo', '撤销这次完成', 'text-btn')}</div>`
       : '';
-  const body = `${sourceErrors}${flowViews.panel(currentFlow(), { compact: true, sections: state.settings.companionSections })}<details class="flow-personal" data-compact-detail="flow-personal"><summary>个人目标、行程与备料</summary><div class="row wrap">${act('navigate', '备料清单', 'text-btn', 'materials', 'bag')}${act('navigate', '地图', 'text-btn', 'world', 'map')}</div>${companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${undo}<h3 class="companion-section">我的目标</h3>${
-    orderedGoals()
-      .filter((g) => !goalDone(g))
+  const personalGoals = orderedGoals().filter((g) => !goalDone(g));
+  const p = profile();
+  const hasPersonal =
+    undo ||
+    personalGoals.length ||
+    p.notes ||
+    p.stageConfirmed ||
+    p.stage > 0 ||
+    Object.keys(p.checks || {}).length ||
+    companionData?.itinerary?.steps.length ||
+    companionData?.nextActions?.some((action) => action.kind !== 'quest') ||
+    companionData?.materials?.recipes?.length ||
+    companionData?.materialsCompleted;
+  const personal = `<details class="flow-personal" data-compact-detail="flow-personal"><summary>个人目标、行程与备料</summary><div class="row wrap">${act('navigate', '备料清单', 'text-btn', 'materials', 'bag')}${act('navigate', '地图', 'text-btn', 'world', 'map')}</div>${companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${undo}<h3 class="companion-section">我的目标</h3>${
+    personalGoals
       .map(
         (g) =>
           `<div class="compact-goal"><div class="row"><button class="check" data-action="goal-toggle" data-id="${g.id}" aria-label="完成目标 ${esc(g.title)}"></button><strong>${esc(g.title)}</strong>${iconButton('goal-pin', 'pin', (g.pinned ? '取消优先提示 ' : '优先提示 ') + g.title, g.id)}</div>${g.source ? act('goal-source', '查看当前详情', 'text-btn', g.id, 'book') : ''}${g.detail ? `<details data-compact-detail="${esc(g.id)}"><summary>添加时的备忘（不自动更新）</summary><p class="preserve-text">${esc(g.detail)}</p></details>` : ''}</div>`,
       )
       .join('') || '<p class="small muted">暂无目标</p>'
   }${!companionData?.itinerary?.steps.length ? companionViews.actions(companionData) : ''}${companionViews.materials(companionData)}<h3 class="companion-section">${esc(stageTitle())}</h3><p class="small muted">手动阶段的精选清单</p>${list.map(checkRow).join('')}${profile().notes ? `<details class="compact-note" data-compact-detail="note"><summary>江湖随手记</summary><p class="preserve-text">${esc(profile().notes)}</p></details>` : ''}</details>`;
-  return frame(body);
+  return frame(
+    `${sourceErrors}${flowViews.panel(currentFlow(), { compact: true, sections: state.settings.companionSections })}${hasPersonal ? personal : ''}`,
+  );
 }
 async function showEntityChoice(id, flowReference = null, opener = null, restored = null) {
   const rows = entityReferences.choices(id);
