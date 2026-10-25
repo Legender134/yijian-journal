@@ -355,3 +355,66 @@ test('the trade fold respects prohibited items and preserves ordinary or unknown
     'truthy unverified flags must not imply a restriction or permission',
   );
 });
+
+
+test('random buff candidates show verified base modifiers, including negative and zero source values', async () => {
+  const { createItemStatViews } = await load, index = encyclopedia();
+  const view = createItemStatViews({ esc, act });
+  const render = (id, value, description) => {
+    const entry = structuredClone(index.entries.find(e => e.id === 'item-1029'));
+    entry.stats.effects = [];
+    entry.stats.requirements = [];
+    entry.stats.random = [{ poolIds: [999999], source: 'RandActionPools', range: [1, 1] }];
+    const buffs = description === undefined ? index.itemStats.buffs :
+      { ...index.itemStats.buffs, [id]: { ...index.itemStats.buffs[id], description } };
+    const data = { ...index, itemStats: { ...index.itemStats, buffs, pools: {
+      ...index.itemStats.pools, 999999: { candidates: [{ type: 'ABuff', id, value, weight: 1 }] },
+    } } };
+    return view.detail(data, entry);
+  };
+  for (const [id, level, expected] of [
+    [100001, 1, '攻击恢复本次造成伤害的3%气血'],
+    [100054, 1, '攻击恢复本次造成伤害的13%气血'],
+    [100003, 1, '攻击使目标流血100'],
+    [100007, 10, '闪避后增加集气值170'],
+    [100015, 1, '攻击降低目标移动0'],
+  ]) {
+    const html = render(id, level);
+    assert(html.includes(expected));
+    assert.doesNotMatch(html, /效果数值待核定|\{0\}/);
+  }
+  for (const value of [0, 11, 1.5, NaN]) assert.match(render(100001, value), /效果数值待核定/);
+  assert.match(render(100001, 1, '参数{0}/{1}'), /参数〔效果数值待核定〕\/〔效果数值待核定〕/);
+  const mixed = render(100001, 1, '<img src=x onerror=evil()>{0}');
+  assert.match(mixed, /&lt;img[^<]*&gt;3/);
+  assert.doesNotMatch(mixed, /<img/);
+});
+
+test('all current raw equipment placeholder candidates resolve inside folded random stats only', async () => {
+  const { createItemStatViews, itemNumericSummary } = await load, index = encyclopedia();
+  const view = createItemStatViews({ esc, act });
+  const affectedPools = new Set();
+  let candidates = 0;
+  for (const [id, pool] of Object.entries(index.itemStats.pools))
+    for (const action of pool.candidates || [])
+      if (action.type === 'ABuff' && /\{\d+\}/.test(index.itemStats.buffs[action.id]?.description || '')) {
+        candidates++;
+        affectedPools.add(Number(id));
+      }
+  const affected = index.entries.filter(e => e.kind === '物品' &&
+    e.stats.random.some(group => group.poolIds.some(id => affectedPools.has(id))));
+  assert.equal(candidates, 198);
+  assert.equal(affected.length, 152);
+  for (const entry of affected) {
+    const html = view.detail(index, entry);
+    assert.match(html, /<details class="item-random-stats"><summary>随机词条<\/summary>/);
+    assert.doesNotMatch(html, /效果数值待核定|\{\d+\}/, entry.id);
+    assert(!itemNumericSummary(entry, index).includes('攻击恢复本次造成伤害'));
+  }
+  for (const id of [241, 242]) {
+    const entry = index.entries.find(e => e.id === 'item-' + id);
+    const html = view.detail(index, entry);
+    assert(html.includes(id === 241 ? '10分钟' : '5分钟'));
+    assert.doesNotMatch(html, /等级600|等级300|效果等级/);
+  }
+});

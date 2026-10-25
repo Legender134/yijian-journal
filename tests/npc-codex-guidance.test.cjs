@@ -236,3 +236,34 @@ test('item trade details fold without hiding a usage cap, including missing nume
     assert(html.slice(folded).includes(item.sellPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })));
   }
 });
+
+
+test('Bu Weiyue initial fan mastery remains visible without becoming a current teaching opportunity', async () => {
+  const { createGameViews } = await import('../src/renderer/game-views.js');
+  const index = encyclopedia(), view = createGameViews(helpers);
+  const person = index.entries.find(e => e.id === 'npc-19830');
+  assert.deepEqual(person.skills.map(s => s.id),
+    ['skill-477', 'skill-478', 'skill-479', 'skill-480', 'skill-851', 'skill-750', 'skill-899']);
+  assert.deepEqual(person.skills[3], { id: 'skill-480', level: 10 });
+  assert.match(view.detail(index, person.id), /初始武学.*data-id="skill-480">青云扇法 · 10<\/button>/s);
+  assert.equal(contracts.skills[480].openForPlayer, false);
+  for (const origin of ['saved', 'live']) {
+    const actor = personState(19830);
+    actor.skills = [{ id: 480, level: 10 }, { id: 477, level: 10 }];
+    const input = metadata([actor]);
+    if (origin === 'live') input.combat.origin = origin;
+    const before = structuredClone(input);
+    const result = project(input);
+    const learning = result.people[0].learning.filter(s => s.kind === 'martial');
+    assert(!learning.some(s => s.id === 480));
+    assert(learning.some(s => s.id === 477));
+    assert.deepEqual(input, before);
+    input.combat.player.skills = [{ id: 477, level: 1 }];
+    assert.equal(project(input).people[0].learning.filter(s => s.kind === 'martial').length, 0);
+    actor.skills = [];
+    input.combat.player.skills = [];
+    assert.equal(project(input).people[0].learning.filter(s => s.kind === 'martial').length, 0);
+    input.combat.npcStates = [];
+    assert.equal(project(input).people.length, 0);
+  }
+});

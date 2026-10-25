@@ -74,7 +74,16 @@ export function createItemStatViews({ esc, act }) {
         return `<div class="item-effect-row"><span>${text(numeric.name)}</span><strong>${text(numeric.value)}</strong></div>`;
       if (buffActions.has(action.type)) {
         const buff = data.buffs[action.id];
-        const description = buff?.description?.replace(/\{\d+\}/g, '〔效果数值待核定〕');
+        // Raw pool levels 1..10 select the verified base modifier; other contexts remain unresolved.
+        const level = action.value;
+        const modifier = Number.isInteger(level) && level >= 1 && level <= 10
+          ? buff?.modifiers?.[level - 1]
+          : null;
+        const placeholders = buff?.description?.match(/\{\d+\}/g) || [];
+        const resolved = candidate && action.type === 'ABuff' && Number.isSafeInteger(modifier) &&
+          placeholders.every(token => token === '{0}');
+        const description = buff?.description?.replace(/\{\d+\}/g, () =>
+          resolved ? numberText(Math.abs(modifier)) : '〔效果数值待核定〕');
         return `<div class="item-effect-buff"><strong>${text(buff?.name || '附加效果')}</strong>${description ? `<p class="small">${text(description)}</p>` : ''}</div>`;
       }
       if (action.type === 'CItem')
