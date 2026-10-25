@@ -151,7 +151,7 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
           ? match[0].slice(0, -1)
           : '';
       const nestedMention =
-        [...(targets?.people || []), ...(targets?.places || [])]
+        [...(targets?.people || []), ...(targets?.places || []), ...(targets?.items || [])]
           .filter((entry) => data.entries.has(entry.id) || entry.mapKeys?.length)
           .flatMap((entry) => [...new Set([entry.name, ...(entry.mentions || [])])])
           .filter((name) => name?.length > 1 && name !== match[0] && match[0].includes(name))
@@ -177,9 +177,11 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
         at = match.index + match[0].length;
         continue;
       }
-      const preferred = [...(targets?.people || []), ...(targets?.places || [])].filter(
-        (entry) => entry.id && (entry.name === match[0] || entry.mentions?.includes(match[0])),
-      );
+      const preferred = [
+        ...(targets?.people || []),
+        ...(targets?.places || []),
+        ...(targets?.items || []),
+      ].filter((entry) => entry.id && (entry.name === match[0] || entry.mentions?.includes(match[0])));
       const ids = [...new Set(preferred.map((entry) => entry.id))];
       const exact = ids.length === 1 ? data.entries.get(ids[0]) : null;
       const placeTarget = (targets?.places || []).find(

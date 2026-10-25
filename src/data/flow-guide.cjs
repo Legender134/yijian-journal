@@ -3,6 +3,38 @@ const duelGuide = require('./duel-guide.cjs');
 const materialGuide = require('./material-guide.cjs');
 const flowWindows = require('./flow-window-contracts.json').windows;
 const lotusWindow = flowWindows.lotusMeeting;
+const openingCodex = require('./codex-details.json');
+const openingItems = new Map(
+  require('./game-index.json')
+    .entries.filter((entry) => entry.kind === '物品')
+    .map((entry) => [entry.gameId, entry]),
+);
+const openingItemLabel = (action) => {
+  const entry = openingItems.get(action.id);
+  return entry
+    ? `${entry.name}${/秘籍$/.test(entry.type) && !/秘籍$/.test(entry.name) ? '秘籍' : ''}×${action.value}`
+    : '';
+};
+const openingWeaponChoices = [5079, 5081, 5080].flatMap((id) => {
+  const chest = (openingCodex.gatherSources || []).find((source) => source.selectionQuestId === id);
+  const initial = (openingCodex.hiddenSteps[id]?.sequenceOutcomes || [])
+    .flatMap((outcome) => outcome.actions)
+    .filter((action) => action.type === 'CItem' && action.value > 0);
+  if (!chest || !initial.length) return [];
+  const actions = [...initial, ...chest.actions];
+  return [
+    {
+      label: chest.choice,
+      effect: `当场：${initial.map(openingItemLabel).join('、')}；山寨宝箱：${chest.actions.map(openingItemLabel).join('、')}。`,
+      targets: {
+        items: [...new Set(actions.map((action) => action.id))].flatMap((id) => {
+          const entry = openingItems.get(id);
+          return entry ? [{ id: entry.id, name: entry.name }] : [];
+        }),
+      },
+    },
+  ];
+});
 const pickupQuestLabels = {
   5317: '晋升资深弟子剧情',
   5323: '晋升精英弟子剧情',
@@ -610,6 +642,13 @@ module.exports = {
       date: '2024-10-30 20:08',
       version: '个人继承档；具体构建未标',
       confidence: '未在本任务启动或附加游戏；作者路线不是当前存档可接证明。',
+    },
+    openingWeaponGame: {
+      title: '开局选系与山寨宝箱',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/scripts/codex-opening-choice-outcomes.json',
+      date: '2026-10-25 核对',
+      version: 'Build 21798996 · 原始成员摘要见投影',
+      confidence: '按任务分支核对当场武器、宝箱装备与秘籍；选择不限制以后学习其他流派。',
     },
     gsEarly1: {
       title: '全图鉴全成就流程：葬龙谷、梧桐村',
@@ -1887,46 +1926,31 @@ module.exports = {
     },
     {
       id: 'early-jingyin-weapon-choice',
-      compactWarning: '江吟风授武三选一，改变碗子山宝箱秘籍',
+      compactWarning: '选系决定当场武器与山寨宝箱奖励',
       decisionSteps: [5076],
       decisionAfterAllComplete: [5076],
       recommendation: {
         hint: '江吟风授武：新档可选剑；收集档先查缺哪本',
-        caution: '会决定碗子山宝箱秘籍，三选一。',
+        targets: { items: openingWeaponChoices.flatMap((choice) => choice.targets.items) },
+        caution: '决定当场武器，以及山寨宝箱的装备和秘籍。',
         goal: '普通新档顺畅推进；继承或收集档按缺少的秘籍调整',
         action:
           '普通新档可先选「剑系武器」；已有流派、继承或专门收集时，先核对剑、刀、拳对应秘籍，再选缺少的一系。',
-        reason: '所引流程推荐新档剑系，并接着使用惊雷剑法；这次授武也决定碗子山头领旁宝箱的三选一秘籍。',
-        tradeoff:
-          '该宝箱同次只能取一本。继承档的缺项可能不同，不一律推荐刀；这也不证明其他两系在所有版本都永久绝版。',
+        reason: '新档攻略沿剑系推进，可取得长虹剑与惊雷剑法秘籍；已有流派时按缺项调整。',
+        tradeoff: '选系影响当场武器和这个位置的宝箱；以后仍可学习其他流派。',
       },
-      title: '江吟风授武：选择会改变后续宝箱秘籍',
+      title: '洞口选系：当场武器与山寨宝箱',
       questId: 5074,
       chapterRoots: [5074],
       afterAllComplete: [],
-      untilAnyStarted: [5087],
-      untilAnyComplete: [5079, 5080, 5081],
+      untilAnyStarted: [5087, 5079, 5080, 5081],
       deadlineLabel: '在后山洞口选择武器之前',
       steps: [
         '后山洞口选剑、刀或拳，再到木桩演练。',
-        '日后狂风寨救人击败头领后，旁边宝箱的秘籍随此次授武改变。',
+        '碗子山救人时，记得打开山寨头领旁宝箱，领取对应装备和秘籍。',
       ],
-      choices: [
-        {
-          label: '剑系武器',
-          effect: '对应碗子山宝箱的惊雷剑法秘籍。',
-        },
-        {
-          label: '刀系武器',
-          effect: '对应霹雳霸刀秘籍。',
-        },
-        {
-          label: '拳系武器',
-          effect: '对应化功绵掌秘籍。',
-        },
-      ],
-      uncertainty: '该宝箱三选一，不代表另外两种武学在其他途径也永久无法获得。具体选择需核对当前剧情对话。',
-      sourceIds: ['gsEarly1', 'gsEarly3', 'biliWeapon'],
+      choices: openingWeaponChoices,
+      sourceIds: ['openingWeaponGame', 'gsEarly1', 'gsEarly3', 'biliWeapon'],
       pickup: {
         place: '梧桐村后山山洞口',
         person: '江吟风',
@@ -2275,8 +2299,10 @@ module.exports = {
         caution: '返乡取丹药并留下秋海棠后续；另一答法送花换铜钱与铁匠好感。',
         goal: '前期培养与孙老的秋海棠后续',
         action: '优先劝「趁着还硬朗，回去看看吧」。',
-        reason: '先获丹药、武学笔记和孙老好感；日后在石屏村完成药谷取蜜，还能拿到秋海棠，带回梧桐村交孙老可获二转洗髓丹、武学感悟和好感等奖励。',
-        tradeoff: '另一答法把天青花交给铁匠，换600铜钱与铁匠好感+10；仍有药谷取蜜分支，但该次取蜜结算不附赠秋海棠。',
+        reason:
+          '先获丹药、武学笔记和孙老好感；日后在石屏村完成药谷取蜜，还能拿到秋海棠，带回梧桐村交孙老可获二转洗髓丹、武学感悟和好感等奖励。',
+        tradeoff:
+          '另一答法把天青花交给铁匠，换600铜钱与铁匠好感+10；仍有药谷取蜜分支，但该次取蜜结算不附赠秋海棠。',
       },
       title: '孙老思乡：劝返乡可续秋海棠心愿',
       questId: 11060,
@@ -2314,10 +2340,7 @@ module.exports = {
       chapterRoots: [],
       afterAllComplete: [],
       untilAnyStarted: [],
-      steps: [
-        '从石屏村向西前往百药谷，自蜂群处收集蜂蜜×5。',
-        '回石屏村把蜂蜜交给龙桑加，结算药谷取蜜。',
-      ],
+      steps: ['从石屏村向西前往百药谷，自蜂群处收集蜂蜜×5。', '回石屏村把蜂蜜交给龙桑加，结算药谷取蜜。'],
       choices: [],
       sourceIds: ['sunHomesicknessGame', 'sunHoneyLocation'],
       pickup: {

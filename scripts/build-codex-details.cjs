@@ -8,6 +8,7 @@ const game = require('../src/data/game-index.json');
 const world = require('../src/data/world-index.json');
 const blueprintSource = require('./codex-blueprint-outcomes.json');
 const sequenceSource = require('./codex-sequence-outcomes.json');
+const openingChoiceSource = require('./codex-opening-choice-outcomes.json');
 const pins = {
   questsFullTableData: 'f1ddf79d01d5d143512ce55b1007b19cd8dc5c57c48ff00cb3ee396f5ef5fecf',
   skills: '1ef5e9f6debaaab410d11b331ea3869ba09f6f90926ee079200df34523e29313',
@@ -78,6 +79,38 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
     rows.push(raw);
     byId.set(raw.QuestId, rows);
   }
+  const sequenceSteps = new Map();
+  for (const source of [sequenceSource, openingChoiceSource]) {
+    if (String(gameData.build) !== source.build) continue;
+    for (const step of source.steps) {
+      const rows = byId.get(step.questId);
+      const raw = rows?.[0];
+      if (
+        rows?.length !== 1 ||
+        raw.OwnerQuestId !== step.ownerId ||
+        raw.Name !== step.name ||
+        raw.Blueprint?.AssetPath?.AssetName !== step.blueprint ||
+        raw.FinishSequence?.AssetPath?.AssetName !== step.finishSequence
+      )
+        continue;
+      if (source === openingChoiceSource) {
+        const selection = source.selection;
+        const choices = byId.get(selection.questId);
+        const choice = choices?.[0];
+        if (
+          choices?.length !== 1 ||
+          choice.OwnerQuestId !== selection.ownerId ||
+          choice.Name !== selection.name ||
+          choice.Blueprint?.AssetPath?.AssetName !== selection.blueprint ||
+          choice['OptionText' + step.choice.index] !== step.choice.text ||
+          JSON.stringify(triples(choice['OptionActions' + step.choice.index])) !==
+            JSON.stringify(step.choice.actions)
+        )
+          continue;
+      }
+      sequenceSteps.set(step.questId, { step, source });
+    }
+  }
   // These four static outcomes were verified in this Build's Blueprint bytecode.
   // Match the original unique row, owner and full class path before attaching;
   // synthetic or other-build inputs must not acquire invented production rows.
@@ -103,24 +136,16 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
           },
         },
       ];
-    const sequence = sequenceSource.steps.find((step) => step.questId === raw.QuestId);
-    if (
-      sequence &&
-      String(gameData.build) === sequenceSource.build &&
-      byId.get(raw.QuestId)?.length === 1 &&
-      raw.OwnerQuestId === sequence.ownerId &&
-      raw.Name === sequence.name &&
-      raw.Blueprint?.AssetPath?.AssetName === sequence.blueprint &&
-      raw.FinishSequence?.AssetPath?.AssetName === sequence.finishSequence
-    )
-      detail.sequenceOutcomes = sequence.outcomes.map((event) => ({
+    const verifiedSequence = sequenceSteps.get(raw.QuestId);
+    if (verifiedSequence)
+      detail.sequenceOutcomes = verifiedSequence.step.outcomes.map((event) => ({
         condition: event.condition,
         actions: event.actions.map((action) => ({ ...action })),
         source: {
-          ...sequenceSource.source,
-          build: sequenceSource.build,
-          finishSequence: sequence.finishSequence,
-          ...sequence.source,
+          ...verifiedSequence.source.source,
+          build: verifiedSequence.source.build,
+          finishSequence: verifiedSequence.step.finishSequence,
+          ...verifiedSequence.step.source,
           ...event.source,
         },
       }));
@@ -193,6 +218,37 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
       ...(levelUnlockRequirements.length ? { levelUnlockRequirements } : {}),
     };
   }
+  const collection = openingChoiceSource.collectionIdentity;
+  const collectionMatches =
+    collection.steps.every((step) => {
+      const matches = byId.get(step.questId);
+      const raw = matches?.[0];
+      return (
+        matches?.length === 1 &&
+        raw.OwnerQuestId === step.ownerId &&
+        raw.Name === step.name &&
+        raw.Blueprint?.AssetPath?.AssetName === step.blueprint
+      );
+    }) &&
+    ['FinishedActions', 'FinishedActionsForDifficulty', 'FinishedActionsForHell'].every(
+      (key) =>
+        JSON.stringify(triples(byId.get(collection.finishingStep)?.[0]?.[key])) ===
+        JSON.stringify(collection.finishedActions),
+    );
+  const gatherSources =
+    collectionMatches && published.has(collection.publicQuestId)
+      ? openingChoiceSource.gathers
+          .filter(
+            (source) =>
+              sequenceSteps.get(source.selectionQuestId)?.source === openingChoiceSource &&
+              (worldData.maps || []).some((map) => map.id === source.placeId && map.key === source.mapKey),
+          )
+          .map((source) => ({
+            ...source,
+            actions: source.actions.map((action) => ({ ...action })),
+            source: { ...openingChoiceSource.source, build: openingChoiceSource.build, ...source.source },
+          }))
+      : [];
   return {
     schema: 1,
     build: gameData.build,
@@ -207,6 +263,7 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
     },
     quests,
     hiddenSteps,
+    ...(gatherSources.length ? { gatherSources } : {}),
     skills,
   };
 }

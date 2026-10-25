@@ -3,7 +3,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   const text = (value) => esc(String(value ?? ''));
   const roleText = (role) =>
     !role || ['交互配置', '任务文字提及', '交互'].includes(role) ? '' : text(role) + ' ';
-  const prose = (value) => richText(String(value ?? ''));
+  const prose = (value, targets) => richText(String(value ?? ''), targets);
   const stepAction = (row) => richText(String(row.nextAction || row.description || ''), row.targets);
   const stateNotice = (flow) =>
     flow?.stateNotice
@@ -67,7 +67,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
   function recommendation(row, { actionShown = false, materialsShown = false } = {}) {
     const value = row.recommendation;
     if (!value?.action || !value.reason) return '';
-    return `<div class="flow-recommendation">${actionShown ? '' : `<p class="flow-recommended-action"><strong>推荐做法：</strong>${prose(value.action)}</p>`}<p><strong>为什么：</strong>${prose(value.reason)}</p>${value.goal ? `<p class="small muted">适合：${text(value.goal)}</p>` : ''}${value.tradeoff && value.tradeoff !== value.caution ? `<p class="small"><strong>取舍：</strong>${prose(value.tradeoff)}</p>` : ''}${materialsShown ? '' : choiceMaterials(row)}</div>`;
+    return `<div class="flow-recommendation">${actionShown ? '' : `<p class="flow-recommended-action"><strong>推荐做法：</strong>${prose(value.action, value.targets)}</p>`}<p><strong>为什么：</strong>${prose(value.reason, value.targets)}</p>${value.goal ? `<p class="small muted">适合：${text(value.goal)}</p>` : ''}${value.tradeoff && value.tradeoff !== value.caution ? `<p class="small"><strong>取舍：</strong>${prose(value.tradeoff, value.targets)}</p>` : ''}${materialsShown ? '' : choiceMaterials(row)}</div>`;
   }
   function delivery(row) {
     const options = list(row.deliveryOptions);
@@ -121,7 +121,7 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
         ? `<div class="flow-pickup">${location || person ? `<p>${location}${location && person ? ' · ' : ''}${person}</p>` : ''}${pickup.action ? `<p>${prose(pickup.action)}</p>` : ''}${pickup.executionPlace ? `<p class="small">前往 ${prose(pickup.executionPlace)}</p>` : ''}</div>`
         : '';
     const affected = list(row.affectedTasks);
-    const routeBody = `${recommendation(row, { actionShown: actionShown && !warning && (row.recommendation?.hint || row.recommendation?.action) === row.recommendation?.action })}${delivery(row)}${steps.length ? `<ol class="flow-guide-steps">${steps.map((step) => `<li>${prose(step)}</li>`).join('')}</ol>` : ''}${choices.length ? `<div class="flow-choices"><h4>选择与影响</h4><dl>${choices.map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响未知')}</dd>`).join('')}</dl></div>` : ''}`;
+    const routeBody = `${recommendation(row, { actionShown: actionShown && !warning && (row.recommendation?.hint || row.recommendation?.action) === row.recommendation?.action })}${delivery(row)}${steps.length ? `<ol class="flow-guide-steps">${steps.map((step) => `<li>${prose(step)}</li>`).join('')}</ol>` : ''}${choices.length ? `<div class="flow-choices"><h4>选择与影响</h4><dl>${choices.map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响未知', choice.targets)}</dd>`).join('')}</dl></div>` : ''}`;
     const routeDetails =
       closedWindow && routeBody
         ? `<details class="flow-previous-route"><summary>此前做法与分支</summary>${routeBody}</details>`
@@ -392,7 +392,10 @@ export function createFlowViews({ esc, act, icon, pill, when, richText = esc }) 
       `<aside class="flow-decision" data-flow-decision="${text(row.id)}"><p class="flow-recommended-action">${prose(action)}</p>${caution && caution !== action ? `<p class="flow-caution">${prose(caution)}</p>` : ''}${list(value?.materials).length && value.materialLabel ? `<p class="small flow-choice-material-label">${text(materialLabel[0])}</p>` : ''}${compactMaterials(value?.materials, [], { details: false, sources: value?.materialSources, scope: row.id })}<details class="flow-choice-details" data-persist-detail="flow-choice-${text(row.id)}${row.live ? `-${text(row.liveSequence)}` : ''}"><summary>为什么这样选 · 各选项影响</summary><h3>${questButton(row.questId, row.name) || prose(row.name)}</h3>${recommendation(row, { actionShown: action === value?.action, materialsShown: true })}${materialLabel.length > 1 ? `<p class="small">${text(materialLabel.slice(1).join('；'))}</p>` : ''}${acquisition ? `<section data-flow-choice-acquisition><h4>材料获取详情</h4>${acquisition}</section>` : ''}${row.pickup?.place || row.pickup?.person ? `<p class="flow-choice-location">${target(row.pickup.place, 'world-place', 'place')}${row.pickup.person ? ` · ${target(row.pickup.person, 'database-detail', 'npc')}` : ''}</p>` : ''}<p>${prose(row.warning)}</p>${conditions(row.conditions)}<dl class="flow-choices">${list(
         row.choices,
       )
-        .map((choice) => `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响待核对')}</dd>`)
+        .map(
+          (choice) =>
+            `<dt>${prose(choice.label)}</dt><dd>${prose(choice.effect || '影响待核对', choice.targets)}</dd>`,
+        )
         .join(
           '',
         )}</dl>${row.uncertainty ? `<details><summary>资料说明</summary><p class="small save-note">${text(row.uncertainty)}</p></details>` : ''}${sources(row.sources)}</details></aside>`,

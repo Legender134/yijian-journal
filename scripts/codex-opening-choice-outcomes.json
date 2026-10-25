@@ -1,0 +1,746 @@
+{
+  "schema": 1,
+  "build": "21798996",
+  "source": {
+    "kind": "owned-installed-game-sequence",
+    "engine": "VER_UE4_26",
+    "actionProgramSha256": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c",
+    "questTableDataSha256": "f1ddf79d01d5d143512ce55b1007b19cd8dc5c57c48ff00cb3ee396f5ef5fecf",
+    "decoderSha256": "d7b9fd4341ac22dd9ab8d9f49455ea5ebcf571abced64313ab15eb1944de07d9"
+  },
+  "selection": {
+    "questId": 5078,
+    "ownerId": 5074,
+    "name": null,
+    "blueprint": "None",
+    "otherSchoolsAllowedDialogue": "5079_2"
+  },
+  "steps": [
+    {
+      "questId": 5079,
+      "ownerId": 5074,
+      "name": null,
+      "blueprint": "None",
+      "finishSequence": "/Game/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.LS_CG-5079",
+      "choice": {
+        "index": 1,
+        "text": "剑系武器",
+        "actions": [
+          {
+            "type": "CQuestStep",
+            "id": 5079,
+            "value": 1
+          },
+          {
+            "type": "JumpStep",
+            "id": 5079,
+            "value": 4
+          }
+        ]
+      },
+      "source": {
+        "members": [
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uasset",
+            "sha256": "0d96d885a599e5b26bcc083de2325d2b04eba54a5e650242b59da64e04a219f1"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uexp",
+            "sha256": "66176e6ccb5cbf9d0206240c73003a7827779fe20eef5cbe8cd62194a900e2bf"
+          }
+        ],
+        "tickResolution": 24000
+      },
+      "outcomes": [
+        {
+          "condition": "opening-sword-choice",
+          "actions": [
+            {
+              "type": "CItem",
+              "id": 1000,
+              "value": 1
+            }
+          ],
+          "source": {
+            "event": {
+              "movieScene": 43,
+              "trackExport": 129,
+              "sectionExport": 139,
+              "frame": 51200,
+              "entryFunction": "SequenceEvent__ENTRYPOINTSequenceDirector_7",
+              "callback": "武器",
+              "ubergraph": "ExecuteUbergraph_SequenceDirector",
+              "entryOffset": 538
+            },
+            "requirements": [
+              {
+                "type": "PreQuest",
+                "id": 5079,
+                "value": 1
+              }
+            ],
+            "path": {
+              "questId": 5079,
+              "kind": "剑系武器",
+              "itemId": 1000,
+              "get": 538,
+              "equal": 571,
+              "branch": 602,
+              "array": 616,
+              "call": 632,
+              "next": 664,
+              "requiresState": 1,
+              "normalizedOutcome": {
+                "type": "CItem",
+                "id": 1000,
+                "value": 1
+              }
+            },
+            "native": {
+              "function": "AddItemsAndOpenResultWin",
+              "implementation": "0x140f73d30",
+              "quantityPerId": 1,
+              "itemRandPoolType": "None"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "questId": 5080,
+      "ownerId": 5074,
+      "name": null,
+      "blueprint": "None",
+      "finishSequence": "/Game/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.LS_CG-5079",
+      "choice": {
+        "index": 2,
+        "text": "拳系武器",
+        "actions": [
+          {
+            "type": "CQuestStep",
+            "id": 5080,
+            "value": 1
+          },
+          {
+            "type": "JumpStep",
+            "id": 5080,
+            "value": 4
+          }
+        ]
+      },
+      "source": {
+        "members": [
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uasset",
+            "sha256": "0d96d885a599e5b26bcc083de2325d2b04eba54a5e650242b59da64e04a219f1"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uexp",
+            "sha256": "66176e6ccb5cbf9d0206240c73003a7827779fe20eef5cbe8cd62194a900e2bf"
+          }
+        ],
+        "tickResolution": 24000
+      },
+      "outcomes": [
+        {
+          "condition": "opening-fist-choice",
+          "actions": [
+            {
+              "type": "CItem",
+              "id": 4000,
+              "value": 1
+            }
+          ],
+          "source": {
+            "event": {
+              "movieScene": 43,
+              "trackExport": 129,
+              "sectionExport": 139,
+              "frame": 51200,
+              "entryFunction": "SequenceEvent__ENTRYPOINTSequenceDirector_7",
+              "callback": "武器",
+              "ubergraph": "ExecuteUbergraph_SequenceDirector",
+              "entryOffset": 538
+            },
+            "requirements": [
+              {
+                "type": "PreQuest",
+                "id": 5080,
+                "value": 1
+              }
+            ],
+            "path": {
+              "questId": 5080,
+              "kind": "拳系武器",
+              "itemId": 4000,
+              "get": 664,
+              "equal": 697,
+              "branch": 728,
+              "array": 742,
+              "call": 758,
+              "next": 790,
+              "requiresState": 1,
+              "normalizedOutcome": {
+                "type": "CItem",
+                "id": 4000,
+                "value": 1
+              }
+            },
+            "native": {
+              "function": "AddItemsAndOpenResultWin",
+              "implementation": "0x140f73d30",
+              "quantityPerId": 1,
+              "itemRandPoolType": "None"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "questId": 5081,
+      "ownerId": 5074,
+      "name": null,
+      "blueprint": "None",
+      "finishSequence": "/Game/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.LS_CG-5079",
+      "choice": {
+        "index": 3,
+        "text": "刀系武器",
+        "actions": [
+          {
+            "type": "CQuestStep",
+            "id": 5081,
+            "value": 1
+          },
+          {
+            "type": "JumpStep",
+            "id": 5081,
+            "value": 4
+          }
+        ]
+      },
+      "source": {
+        "members": [
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uasset",
+            "sha256": "0d96d885a599e5b26bcc083de2325d2b04eba54a5e650242b59da64e04a219f1"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uexp",
+            "sha256": "66176e6ccb5cbf9d0206240c73003a7827779fe20eef5cbe8cd62194a900e2bf"
+          }
+        ],
+        "tickResolution": 24000
+      },
+      "outcomes": [
+        {
+          "condition": "opening-knife-choice",
+          "actions": [
+            {
+              "type": "CItem",
+              "id": 2000,
+              "value": 1
+            }
+          ],
+          "source": {
+            "event": {
+              "movieScene": 43,
+              "trackExport": 129,
+              "sectionExport": 139,
+              "frame": 51200,
+              "entryFunction": "SequenceEvent__ENTRYPOINTSequenceDirector_7",
+              "callback": "武器",
+              "ubergraph": "ExecuteUbergraph_SequenceDirector",
+              "entryOffset": 538
+            },
+            "requirements": [
+              {
+                "type": "PreQuest",
+                "id": 5081,
+                "value": 1
+              }
+            ],
+            "path": {
+              "questId": 5081,
+              "kind": "刀系武器",
+              "itemId": 2000,
+              "get": 790,
+              "equal": 823,
+              "branch": 854,
+              "array": 10,
+              "call": 26,
+              "next": 873,
+              "requiresState": 1,
+              "normalizedOutcome": {
+                "type": "CItem",
+                "id": 2000,
+                "value": 1
+              }
+            },
+            "native": {
+              "function": "AddItemsAndOpenResultWin",
+              "implementation": "0x140f73d30",
+              "quantityPerId": 1,
+              "itemRandPoolType": "None"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "gathers": [
+    {
+      "gatherId": 312,
+      "placeId": "place-14",
+      "mapKey": "LV_23_P",
+      "relatedQuestId": 5176,
+      "selectionQuestId": 5079,
+      "choice": "剑系武器",
+      "actions": [
+        {
+          "type": "CItem",
+          "id": 1008,
+          "value": 1
+        },
+        {
+          "type": "CItem",
+          "id": 13155,
+          "value": 1
+        }
+      ],
+      "source": {
+        "kind": "owned-installed-game-level-gather",
+        "members": [
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherBase.uasset",
+            "sha256": "f7aff2a8f15df0dbf0d7f075d66ef5beaa6ca4f5a99989f40eb49e38f9eb07f8"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherBase.uexp",
+            "sha256": "ef97092934fadeef48153725aec1a447ae96883323948cc93e7a51da9ff6d84b"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherStaticMesh.uasset",
+            "sha256": "a058248630c944a8d426bcb21955bd35fba718e2fb4384bf98816d36e2f0799b"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherStaticMesh.uexp",
+            "sha256": "ac971a01fa6ee520e285b73e73b60ee86d50feb05a97224b2887045954c69af0"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Gathers/BP_GatherStaticMesh_BaoXiang2.uasset",
+            "sha256": "85baeae0c795b21c9b794a74d8cf2fbce87c188662282d678d626de9dba355be"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Gathers/BP_GatherStaticMesh_BaoXiang2.uexp",
+            "sha256": "942b57f72f53eb78ca45c0ed73c8165c439f987d999781d538dc8868f36fb4cb"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_P.uexp",
+            "sha256": "cc5fad0a30e465d678fb1ce600928f6d15961f0c3083f2bed94d49789a3c5b16"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_P.umap",
+            "sha256": "cee169890d2649f6f8142c77a4e30e820694f92ab27e793f2e03dd19b805a3cf"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_S1.uexp",
+            "sha256": "bb678340110f941611d648050b6c925d493d18cef312dd1e565ca986fdff42d5"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_S1.umap",
+            "sha256": "5e6071188566409552dbb2242889ed600eb807e1f2158acf5319b04cafab08cf"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uasset",
+            "sha256": "0d96d885a599e5b26bcc083de2325d2b04eba54a5e650242b59da64e04a219f1"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uexp",
+            "sha256": "66176e6ccb5cbf9d0206240c73003a7827779fe20eef5cbe8cd62194a900e2bf"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/Gathers.uasset",
+            "sha256": "7ceaf7217d16d042f82faab0f6bbad61a6dbdb74ec29485d66b48980b3a25387"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/Gathers.uexp",
+            "sha256": "149fe1903fafb3a036337a4daa673a9a51173e876c8b21b95952030bddc656a9"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/QuestDlgs.uasset",
+            "sha256": "86116957ed47265b653d3d3e6508efbdfb6cbda451d554a311031e89664b3f86"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/QuestDlgs.uexp",
+            "sha256": "0110e347b2798b3f186f882cf592d2509f6a305db208c48d4f00645c22d65033"
+          }
+        ],
+        "actor": {
+          "name": "BP_GatherStaticMesh_BaoXiang4_2",
+          "guid": "{79E519AD-433E-2161-C5F3-2894B2E23640}",
+          "export": 544,
+          "defId": 312
+        },
+        "selection": {
+          "persistentLevel": "LV_23_P",
+          "level": "LV_23_S1",
+          "entry": "ReceiveBeginPlay",
+          "ubergraphEntry": 81,
+          "requiredQuest": 5079,
+          "requiredState": 4,
+          "orderedBranches": [
+            {
+              "if": "5081 Finished",
+              "offsets": [81, 114, 145, 159, 225, 462],
+              "false_target": 230,
+              "actor_export": 543
+            },
+            {
+              "else_if": "5080 Finished",
+              "offsets": [230, 263, 294, 308, 374, 462],
+              "false_target": 379,
+              "actor_export": 542
+            },
+            {
+              "else_if": "5079 Finished",
+              "offsets": [379, 412, 443, 457, 10, 76, 462],
+              "false_target": 462,
+              "actor_export": 544
+            }
+          ],
+          "location": [274, 6497, 838]
+        },
+        "collection": {
+          "type": "Static",
+          "typeId": 6,
+          "gather": "0x140f81520",
+          "canGather": "0x140f7ce30",
+          "addItem": "0x1411ff790",
+          "stateClear": "0x14120c090",
+          "postGather": {
+            "ifQuestId": 5178,
+            "ifState": 1,
+            "jumpStep": 5179,
+            "jumpType": 4,
+            "finishedAction": {
+              "type": "CQuestStep",
+              "id": 5178,
+              "value": 4
+            }
+          }
+        }
+      }
+    },
+    {
+      "gatherId": 311,
+      "placeId": "place-14",
+      "mapKey": "LV_23_P",
+      "relatedQuestId": 5176,
+      "selectionQuestId": 5080,
+      "choice": "拳系武器",
+      "actions": [
+        {
+          "type": "CItem",
+          "id": 4008,
+          "value": 1
+        },
+        {
+          "type": "CItem",
+          "id": 13465,
+          "value": 1
+        }
+      ],
+      "source": {
+        "kind": "owned-installed-game-level-gather",
+        "members": [
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherBase.uasset",
+            "sha256": "f7aff2a8f15df0dbf0d7f075d66ef5beaa6ca4f5a99989f40eb49e38f9eb07f8"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherBase.uexp",
+            "sha256": "ef97092934fadeef48153725aec1a447ae96883323948cc93e7a51da9ff6d84b"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherStaticMesh.uasset",
+            "sha256": "a058248630c944a8d426bcb21955bd35fba718e2fb4384bf98816d36e2f0799b"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherStaticMesh.uexp",
+            "sha256": "ac971a01fa6ee520e285b73e73b60ee86d50feb05a97224b2887045954c69af0"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Gathers/BP_GatherStaticMesh_BaoXiang2.uasset",
+            "sha256": "85baeae0c795b21c9b794a74d8cf2fbce87c188662282d678d626de9dba355be"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Gathers/BP_GatherStaticMesh_BaoXiang2.uexp",
+            "sha256": "942b57f72f53eb78ca45c0ed73c8165c439f987d999781d538dc8868f36fb4cb"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_P.uexp",
+            "sha256": "cc5fad0a30e465d678fb1ce600928f6d15961f0c3083f2bed94d49789a3c5b16"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_P.umap",
+            "sha256": "cee169890d2649f6f8142c77a4e30e820694f92ab27e793f2e03dd19b805a3cf"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_S1.uexp",
+            "sha256": "bb678340110f941611d648050b6c925d493d18cef312dd1e565ca986fdff42d5"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_S1.umap",
+            "sha256": "5e6071188566409552dbb2242889ed600eb807e1f2158acf5319b04cafab08cf"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uasset",
+            "sha256": "0d96d885a599e5b26bcc083de2325d2b04eba54a5e650242b59da64e04a219f1"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uexp",
+            "sha256": "66176e6ccb5cbf9d0206240c73003a7827779fe20eef5cbe8cd62194a900e2bf"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/Gathers.uasset",
+            "sha256": "7ceaf7217d16d042f82faab0f6bbad61a6dbdb74ec29485d66b48980b3a25387"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/Gathers.uexp",
+            "sha256": "149fe1903fafb3a036337a4daa673a9a51173e876c8b21b95952030bddc656a9"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/QuestDlgs.uasset",
+            "sha256": "86116957ed47265b653d3d3e6508efbdfb6cbda451d554a311031e89664b3f86"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/QuestDlgs.uexp",
+            "sha256": "0110e347b2798b3f186f882cf592d2509f6a305db208c48d4f00645c22d65033"
+          }
+        ],
+        "actor": {
+          "name": "BP_GatherStaticMesh_BaoXiang2_6",
+          "guid": "{3E8A7A1D-484B-DE6A-2402-7AAA92BEFFA0}",
+          "export": 542,
+          "defId": 311
+        },
+        "selection": {
+          "persistentLevel": "LV_23_P",
+          "level": "LV_23_S1",
+          "entry": "ReceiveBeginPlay",
+          "ubergraphEntry": 81,
+          "requiredQuest": 5080,
+          "requiredState": 4,
+          "orderedBranches": [
+            {
+              "if": "5081 Finished",
+              "offsets": [81, 114, 145, 159, 225, 462],
+              "false_target": 230,
+              "actor_export": 543
+            },
+            {
+              "else_if": "5080 Finished",
+              "offsets": [230, 263, 294, 308, 374, 462],
+              "false_target": 379,
+              "actor_export": 542
+            },
+            {
+              "else_if": "5079 Finished",
+              "offsets": [379, 412, 443, 457, 10, 76, 462],
+              "false_target": 462,
+              "actor_export": 544
+            }
+          ],
+          "location": [274, 6497, 838]
+        },
+        "collection": {
+          "type": "Static",
+          "typeId": 6,
+          "gather": "0x140f81520",
+          "canGather": "0x140f7ce30",
+          "addItem": "0x1411ff790",
+          "stateClear": "0x14120c090",
+          "postGather": {
+            "ifQuestId": 5178,
+            "ifState": 1,
+            "jumpStep": 5179,
+            "jumpType": 4,
+            "finishedAction": {
+              "type": "CQuestStep",
+              "id": 5178,
+              "value": 4
+            }
+          }
+        }
+      }
+    },
+    {
+      "gatherId": 310,
+      "placeId": "place-14",
+      "mapKey": "LV_23_P",
+      "relatedQuestId": 5176,
+      "selectionQuestId": 5081,
+      "choice": "刀系武器",
+      "actions": [
+        {
+          "type": "CItem",
+          "id": 2008,
+          "value": 1
+        },
+        {
+          "type": "CItem",
+          "id": 13255,
+          "value": 1
+        }
+      ],
+      "source": {
+        "kind": "owned-installed-game-level-gather",
+        "members": [
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherBase.uasset",
+            "sha256": "f7aff2a8f15df0dbf0d7f075d66ef5beaa6ca4f5a99989f40eb49e38f9eb07f8"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherBase.uexp",
+            "sha256": "ef97092934fadeef48153725aec1a447ae96883323948cc93e7a51da9ff6d84b"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherStaticMesh.uasset",
+            "sha256": "a058248630c944a8d426bcb21955bd35fba718e2fb4384bf98816d36e2f0799b"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Core/Gathers/BP_GatherStaticMesh.uexp",
+            "sha256": "ac971a01fa6ee520e285b73e73b60ee86d50feb05a97224b2887045954c69af0"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Gathers/BP_GatherStaticMesh_BaoXiang2.uasset",
+            "sha256": "85baeae0c795b21c9b794a74d8cf2fbce87c188662282d678d626de9dba355be"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Gathers/BP_GatherStaticMesh_BaoXiang2.uexp",
+            "sha256": "942b57f72f53eb78ca45c0ed73c8165c439f987d999781d538dc8868f36fb4cb"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_P.uexp",
+            "sha256": "cc5fad0a30e465d678fb1ce600928f6d15961f0c3083f2bed94d49789a3c5b16"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_P.umap",
+            "sha256": "cee169890d2649f6f8142c77a4e30e820694f92ab27e793f2e03dd19b805a3cf"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_S1.uexp",
+            "sha256": "bb678340110f941611d648050b6c925d493d18cef312dd1e565ca986fdff42d5"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map23/LV_23_S1.umap",
+            "sha256": "5e6071188566409552dbb2242889ed600eb807e1f2158acf5319b04cafab08cf"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uasset",
+            "sha256": "0d96d885a599e5b26bcc083de2325d2b04eba54a5e650242b59da64e04a219f1"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Maps/JiangNan/Map25/Quest/LS_CG-5079.uexp",
+            "sha256": "66176e6ccb5cbf9d0206240c73003a7827779fe20eef5cbe8cd62194a900e2bf"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/Gathers.uasset",
+            "sha256": "7ceaf7217d16d042f82faab0f6bbad61a6dbdb74ec29485d66b48980b3a25387"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/Gathers.uexp",
+            "sha256": "149fe1903fafb3a036337a4daa673a9a51173e876c8b21b95952030bddc656a9"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/QuestDlgs.uasset",
+            "sha256": "86116957ed47265b653d3d3e6508efbdfb6cbda451d554a311031e89664b3f86"
+          },
+          {
+            "member": "Wandering_Sword/Content/JH/Tables/QuestDlgs.uexp",
+            "sha256": "0110e347b2798b3f186f882cf592d2509f6a305db208c48d4f00645c22d65033"
+          }
+        ],
+        "actor": {
+          "name": "BP_GatherStaticMesh_BaoXiang3_9",
+          "guid": "{0CC89E78-4370-E53C-7D30-A38F4670EFAA}",
+          "export": 543,
+          "defId": 310
+        },
+        "selection": {
+          "persistentLevel": "LV_23_P",
+          "level": "LV_23_S1",
+          "entry": "ReceiveBeginPlay",
+          "ubergraphEntry": 81,
+          "requiredQuest": 5081,
+          "requiredState": 4,
+          "orderedBranches": [
+            {
+              "if": "5081 Finished",
+              "offsets": [81, 114, 145, 159, 225, 462],
+              "false_target": 230,
+              "actor_export": 543
+            },
+            {
+              "else_if": "5080 Finished",
+              "offsets": [230, 263, 294, 308, 374, 462],
+              "false_target": 379,
+              "actor_export": 542
+            },
+            {
+              "else_if": "5079 Finished",
+              "offsets": [379, 412, 443, 457, 10, 76, 462],
+              "false_target": 462,
+              "actor_export": 544
+            }
+          ],
+          "location": [274, 6497, 838]
+        },
+        "collection": {
+          "type": "Static",
+          "typeId": 6,
+          "gather": "0x140f81520",
+          "canGather": "0x140f7ce30",
+          "addItem": "0x1411ff790",
+          "stateClear": "0x14120c090",
+          "postGather": {
+            "ifQuestId": 5178,
+            "ifState": 1,
+            "jumpStep": 5179,
+            "jumpType": 4,
+            "finishedAction": {
+              "type": "CQuestStep",
+              "id": 5178,
+              "value": 4
+            }
+          }
+        }
+      }
+    }
+  ],
+  "collectionIdentity": {
+    "publicQuestId": 5176,
+    "steps": [
+      {
+        "questId": 5178,
+        "ownerId": 5176,
+        "name": null,
+        "blueprint": "None"
+      },
+      {
+        "questId": 5179,
+        "ownerId": 5176,
+        "name": null,
+        "blueprint": "None"
+      }
+    ],
+    "finishingStep": 5179,
+    "finishedActions": [
+      {
+        "type": "CQuestStep",
+        "id": 5178,
+        "value": 4
+      }
+    ]
+  }
+}

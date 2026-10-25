@@ -76,8 +76,12 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
     'opening-jade-gift': '开局在江吟风家中获赠',
     'opening-heart-manual': '夺回木剑后，回江家领取秘籍',
     'opening-heart-teaching': '夺回木剑后，回江家接受江吟风传授',
+    'opening-sword-choice': '洞口选择「剑系武器」',
+    'opening-fist-choice': '洞口选择「拳系武器」',
+    'opening-knife-choice': '洞口选择「刀系武器」',
   };
   const sequenceSourceDetails = '<details><summary>资料来源</summary><p>游戏开局剧情</p></details>';
+  const gatherSourceDetails = '<details><summary>资料来源</summary><p>游戏地图与宝箱资料</p></details>';
   const sequenceSources = (index, entry, type) =>
     outcomeRows(index).flatMap(({ q, detail }) =>
       (detail.sequenceOutcomes || []).flatMap((outcome) => {
@@ -153,7 +157,8 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
         ? [{ q, detail, finish, choices, events, blueprintOutcomes, sequenceOutcomes }]
         : [];
     });
-    if (!rows.length) return '';
+    const chests = (index.codex?.gatherSources || []).filter((source) => family.has(source.relatedQuestId));
+    if (!rows.length && !chests.length) return '';
     const list = (items) => `<ul class="codex-effects">${items.map((s) => `<li>${s}</li>`).join('')}</ul>`;
     const render = ({ q, detail, finish, choices, events, blueprintOutcomes, sequenceOutcomes }) => {
       const promotionConditions = {
@@ -200,7 +205,14 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
           : `${sourceLink(index, q)}${q.related ? ' · 相关剧情结算' : ''}`;
       return `<div class="codex-outcome-step" data-quest-step="${text(q.gameId)}">${q.gameId !== entry.gameId && tableShown ? `<h4>${heading}</h4>` : ''}${gates}${result}${promotions}${sequences}${events.map((event) => `<details><summary>${text(event.label)}</summary>${list(event.shown)}${sourceDetails(q, [q.gameId], event.index)}</details>`).join('')}${choices.map((choice) => `<details><summary>选择「${text(choice.text)}」</summary>${choice.requirements.length ? `<details><summary>选项出现条件</summary>${conditions(index, choice.requirements, reference)}</details>` : ''}${choice.shown.length ? list(choice.shown) : '<p class="small muted">后续影响需结合剧情判断。</p>'}</details>`).join('')}${tableShown ? sourceDetails(q) : ''}</div>`;
     };
-    return `<details class="detail-block codex-outcomes" data-persist-detail="quest-outcomes-${text(entry.gameId)}"><summary>奖励与选择影响${rows.length > 1 ? ` · ${rows.length} 个步骤` : ''}</summary><p class="small muted">各步骤独立结算，需触发对应剧情；不同分支不累计，主任务完成不代表全部奖励均已获得。</p>${more(rows, render)}</details>`;
+    const chestBlock = chests.length
+      ? `<details class="detail-block codex-chest-outcomes" data-persist-detail="quest-chests-${text(entry.gameId)}"><summary>山寨宝箱 · 按洞口选系</summary><p>${link(index, chests[0].placeId)} · 打开对应宝箱领取</p>${more(chests, (source) => `<section data-gather-id="${text(source.gatherId)}"><h4>${text(source.choice)}</h4>${list(effectList(index, source.actions, entry))}</section>`)}${gatherSourceDetails}</details>`
+      : '';
+    return (
+      (rows.length
+        ? `<details class="detail-block codex-outcomes" data-persist-detail="quest-outcomes-${text(entry.gameId)}"><summary>奖励与选择影响${rows.length > 1 ? ` · ${rows.length} 个步骤` : ''}</summary><p class="small muted">各步骤独立结算，需触发对应剧情；不同分支不累计，主任务完成不代表全部奖励均已获得。</p>${more(rows, render)}</details>`
+        : '') + chestBlock
+    );
   }
   function item(index, entry) {
     const rows = [];
@@ -262,6 +274,21 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
       else grouped.set(key, row);
     }
     const sources = [...grouped.values()];
+    const chestRows = (index.codex?.gatherSources || []).flatMap((source) => {
+      const amount = source.actions
+        .filter(
+          (action) =>
+            action.type === 'CItem' &&
+            action.id === entry.gameId &&
+            Number.isSafeInteger(action.value) &&
+            action.value > 0,
+        )
+        .reduce((sum, action) => sum + action.value, 0);
+      return amount ? [{ ...source, amount }] : [];
+    });
+    const chests = chestRows.length
+      ? `<section class="detail-block item-chest-sources"><h3>宝箱获取</h3>${more(chestRows, (source) => `<div class="codex-source-row" data-gather-id="${text(source.gatherId)}">${link(index, source.placeId)}<span>洞口选择「${text(source.choice)}」后，开山寨宝箱 ×${text(source.amount)}</span>${gatherSourceDetails}</div>`)}</section>`
+      : '';
     const gathering = entry.gatheringRoutes || [];
     const routes = gathering.length
       ? `<section class="detail-block item-gathering"><h3>采集与掉落</h3>${more(gathering, (r) => `<div class="codex-source-row">${r.placeId && link(index, r.placeId) ? `${link(index, r.placeId)}<span>${r.kind === 'gather' ? '采集' : '掉落'}</span>` : text(r.label)}</div>`)}<details><summary>获取详情与来源</summary>${gathering.map((r) => `<h4>${text(r.label)}</h4><p>${richText(r.detail)}</p>${r.sources.map((s) => `<p>${act('source', text(s.title), 'text-btn', s.id)}<span class="small muted"> · ${text(s.date)} · ${text(s.version)}</span></p>`).join('')}`).join('')}</details></section>`
@@ -269,7 +296,9 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
     return (
       (sources.length
         ? `<section class="detail-block item-quest-sources"><h3>任务获取</h3><p class="small muted">各来源需触发对应步骤，不同分支不累计。</p>${more(sources, (r) => `<div class="codex-source-row" data-quest-step="${text(r.q.gameId)}" data-quest-steps="${r.steps.map(text).join(',')}">${sourceLink(index, r.q)}<span>${text(r.label)}${r.steps.length > 1 ? ` · ${r.steps.length} 处独立剧情结算` : ''}</span>${r.sequence ? sequenceSourceDetails : sourceDetails(r.q, r.steps, r.event)}</div>`)}</section>`
-        : '') + routes
+        : '') +
+      chests +
+      routes
     );
   }
   function skill(index, entry, progress, origin = 'saved') {

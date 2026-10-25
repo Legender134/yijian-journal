@@ -29,7 +29,13 @@ const count = (data) =>
   );
 
 test('opening story grants retain separate timeline events and do not become tutorial or three-difficulty rewards', () => {
-  assert.equal(count(codex), 3);
+  assert.equal(
+    source.steps.reduce(
+      (sum, step) => sum + (codex.hiddenSteps[step.questId]?.sequenceOutcomes?.length || 0),
+      0,
+    ),
+    3,
+  );
   const jade = codex.hiddenSteps[5021];
   const heart = codex.hiddenSteps[5039];
   for (const detail of [jade, heart]) {

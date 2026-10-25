@@ -1990,21 +1990,33 @@ test('weapon choice is recommended before the dialog and retires as soon as a sa
     assert.match(choice.choices.map((row) => row.effect).join(' '), /惊雷剑法.*霹雳霸刀.*化功绵掌/);
   }
   for (const exit of [5079, 5080, 5081, 5087]) {
-    const after = project([
-      { id: 5074, step: 1 },
-      { id: 5076, step: 1 },
-      { id: exit, step: 4 },
-    ]);
-    assert(
-      !after.decisions.some((row) => row.id === id),
-      `recorded branch ${exit} supersedes a stale active anchor`,
-    );
-    assert(!after.warnings.some((row) => row.id === id));
-    assert(
-      after.guide.some((row) => row.id === id),
-      'reward reference remains searchable',
-    );
+    for (const state of [1, 2, 4]) {
+      const after = project([
+        { id: 5074, step: 1 },
+        { id: 5076, step: 1 },
+        { id: exit, step: state },
+      ]);
+      assert(
+        !after.decisions.some((row) => row.id === id),
+        `recorded branch ${exit}/${state} supersedes a stale active anchor`,
+      );
+      assert(!after.warnings.some((row) => row.id === id));
+      assert(
+        after.guide.some((row) => row.id === id),
+        'reward reference remains searchable',
+      );
+    }
   }
+  for (const exit of [5079, 5080, 5081])
+    for (const state of [0, 3])
+      assert(
+        project([
+          { id: 5074, step: 1 },
+          { id: 5076, step: 4 },
+          { id: exit, step: state },
+        ]).decisions.some((row) => row.id === id),
+        'unstarted flags do not retire a pending choice',
+      );
   for (const records of [
     [],
     [{ id: 5074, step: 1 }],
