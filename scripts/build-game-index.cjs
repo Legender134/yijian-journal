@@ -104,7 +104,7 @@ const items = rawItems
     quality: quality[enumName(r.Quality)] || '',
     buyPrice: r.BuyPrice,
     sellPrice: r.SellPrice,
-    giftable: !r.bCantGift,
+    giftable: !r.bCantGift && enumName(r.ItemType) !== 'QuestItem',
     useLimit: r.UsedCountLimit || 0,
   }));
 const itemById = Object.fromEntries(items.map((r) => [r.gameId, r]));

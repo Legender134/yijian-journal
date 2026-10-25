@@ -159,7 +159,8 @@ function createJourneyStateTools({ world: worldIndex, game: gameIndex }) {
       exact(row, ['id', 'npcId', 'itemId', 'quantity', 'placeId', 'note', 'done'], '赠礼意图');
       id(row.id);
       if (!people.has(row.npcId)) throw Error('赠礼人物不存在');
-      if (items.get(row.itemId)?.giftable !== true) throw Error('赠礼物品不存在或资料未列为可赠送');
+      // Known historical items remain readable after a data correction.
+      if (!items.has(row.itemId)) throw Error('赠礼物品不存在');
       if (!Number.isSafeInteger(row.quantity) || row.quantity < 1 || row.quantity > 999)
         throw Error('赠礼数量须为 1 至 999');
       placeId(row.placeId, true);
@@ -286,6 +287,12 @@ function createJourneyStateTools({ world: worldIndex, game: gameIndex }) {
       } else {
         if (kind === 'gift' && giftless.has(command.npcId) && (at < 0 || list[at].npcId !== command.npcId))
           throw Error('该人物暂无赠礼入口，请改选人物。');
+        if (
+          kind === 'gift' &&
+          items.get(command.itemId)?.giftable !== true &&
+          (at < 0 || list[at].npcId !== command.npcId || list[at].itemId !== command.itemId)
+        )
+          throw Error('该物品不可赠送，请改选物品。');
         const { type, ...row } = command;
         if (at < 0) list.push(row);
         else list[at] = row;

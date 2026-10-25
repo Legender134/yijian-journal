@@ -10,7 +10,7 @@ function companionSnapshot(state, catalog, reference, error = '', dialogue = nul
   const allocations = resourceBudget(profile, reference, { error });
   const journey = journeyPlan(profile, reference, allocations);
   const allPendingActions = journey.actions.filter(
-    (a) => !a.gameComplete && !a.userDone && !a.handled && !a.prepared,
+    (a) => !a.gameComplete && !a.userDone && !a.handled && !a.prepared && a.gift?.giftable !== false,
   );
   const itinerary = journey.itinerary;
   const nextActions =

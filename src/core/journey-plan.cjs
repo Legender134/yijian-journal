@@ -973,10 +973,12 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
         person = entries.get(g.npcId) || worldIndex.people.find((p) => p.id === g.npcId);
       const definition = worldIndex.people.find((p) => p.id === g.npcId) || person;
       const noGiftEntry = Array.isArray(definition?.functions) && !definition.functions.includes('Gift');
+      const ungiftable = item?.giftable === false;
       const matchingRows =
         budgetBound && Array.isArray(budget.gifts) ? budget.gifts.filter((row) => row.id === g.id) : [];
       const granted = matchingRows.length === 1 ? matchingRows[0] : null;
       const allocationKnown = !!(
+        !ungiftable &&
         granted &&
         granted.npcId === g.npcId &&
         granted.itemId === g.itemId &&
@@ -988,12 +990,13 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
       );
       const allocated = allocationKnown ? granted.allocated : null;
       addAction('gift', [g.id], {
-        title: `赠礼意图：${giftPersonLabel(person, giftPersonEntries)} · ${giftItemLabel(item)} × ${g.quantity}${noGiftEntry ? ' · 暂无赠礼入口' : ''}`,
+        title: `赠礼意图：${giftPersonLabel(person, giftPersonEntries)} · ${giftItemLabel(item)} × ${g.quantity}${noGiftEntry ? ' · 暂无赠礼入口' : ''}${ungiftable ? ' · 物品不可赠送' : ''}`,
         detail: g.note,
         userDone: g.done,
         gift: {
           npcId: g.npcId,
           itemId: g.itemId,
+          ...(ungiftable ? { giftable: false } : {}),
           quantity: g.quantity,
           available: allocated,
           allocated,
@@ -1011,24 +1014,26 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
         ],
         places: explicitPlace(g.placeId, sourceForUser(g.id)),
         navigation: [nav('database-detail', g.npcId), nav('database-detail', g.itemId)],
-        unknowns: [
-          uncertainty(
-            'gift-execution-unknown',
-            '赠礼只是一项用户意图；当前人物位置、可赠礼与实际好感变化须游戏内确认。',
-          ),
-          uncertainty(
-            'gift-execution-not-consumed',
-            '这是统一资源预算为此意图分配的物品，不代表已经赠送或消费游戏库存。',
-          ),
-          ...(!allocationKnown
-            ? [
-                uncertainty(
-                  'gift-budget-unknown',
-                  '当前统一预算没有此赠礼意图的可核对分配；可用量与缺量未知。',
-                ),
-              ]
-            : []),
-        ],
+        unknowns: ungiftable
+          ? []
+          : [
+              uncertainty(
+                'gift-execution-unknown',
+                '赠礼只是一项用户意图；当前人物位置、可赠礼与实际好感变化须游戏内确认。',
+              ),
+              uncertainty(
+                'gift-execution-not-consumed',
+                '这是统一资源预算为此意图分配的物品，不代表已经赠送或消费游戏库存。',
+              ),
+              ...(!allocationKnown
+                ? [
+                    uncertainty(
+                      'gift-budget-unknown',
+                      '当前统一预算没有此赠礼意图的可核对分配；可用量与缺量未知。',
+                    ),
+                  ]
+                : []),
+            ],
       });
     }
     // An action may appear in multiple location groups. They are alternative
@@ -1254,6 +1259,9 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
         } else if (handled.has(handledActionId)) {
           status = 'handled';
           reason = '你已将这项行动记为个人已处理；这不是游戏完成，可撤回。';
+        } else if (action?.gift?.giftable === false) {
+          status = 'unavailable';
+          reason = '此物品不可赠送，请改选物品。';
         } else if (progressConflict) {
           status = 'unavailable';
           reason = conflictMessage(progressConflict);

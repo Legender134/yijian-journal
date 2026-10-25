@@ -60,7 +60,9 @@ export function createJourneyViews({
       return `<section class="card mb home-journey" data-home-itinerary>${header}<div class="row between wrap"><h3>${esc(trip.name)}</h3>${pill(status)}</div><p class="small muted">依你选定的顺序 · 还剩 ${trip.summary.remaining} 项</p>${body}${trip.status === 'draft' ? act('journey-itinerary-status', '开始这一程', 'btn primary', 'active') : ''}</section>`;
     }
     const actions = plan.actions
-      .filter((a) => !a.gameComplete && !a.userDone && !a.handled && !a.prepared)
+      .filter(
+        (a) => !a.gameComplete && !a.userDone && !a.handled && !a.prepared && a.gift?.giftable !== false,
+      )
       .slice(0, 3);
     return `<section class="card mb home-journey">${header}${actions.length ? actions.map((a) => `<div class="world-rule"><span>${summaries.actionTitle(a)} ${act('journey-focus', '步骤', 'text-btn', a.id, 'arrow')}</span><small>${esc(a.progress?.label || '待处理')}</small></div>`).join('') : '<p class="small muted">当前没有待处理行动。图鉴中的目标、备料清单和个人打算会汇集在这里。</p>'}</section>`;
   }
@@ -205,6 +207,8 @@ export function createJourneyViews({
     const summaries = createJourneySummaryViews({ esc, act, index: () => index });
     const closed = a.gameComplete || a.userDone || a.handled || a.prepared;
     const userId = a.sources.find((s) => s.type === 'user')?.id;
+    const gift = a.gift,
+      ungiftable = gift?.giftable === false;
     const status = a.gameComplete
       ? '游戏已完成'
       : a.userDone
@@ -212,19 +216,27 @@ export function createJourneyViews({
         : a.handled
           ? '手动已处理'
           : a.kind === 'gift'
-            ? '待赠送'
+            ? ungiftable
+              ? '不可赠送'
+              : '待赠送'
             : a.progress?.label || '待处理';
     const material = a.material;
-    const gift = a.gift;
     const collection = a.kind === 'collection' && material;
     const collectionReference = collection && (a.sources.find((s) => s.type === 'save') || plan.reference);
     const chosen = plan.itinerary?.steps.some((s) => s.actionId === a.id);
-    const selection = chosen
-      ? '<span class="small muted">已加入行程</span>'
-      : `<details class="journey-selection" data-persist-detail="journey-selection-${esc(a.id)}"><summary>加入行程</summary><div class="row wrap" data-itinerary-choice>${placeChoice(a, index, null, 'add')}${actionButton(a, 'journey-itinerary-add', '加入本次行程', 'btn soft', a.id, 'plus')}</div></details>`;
+    const selection = ungiftable
+      ? chosen
+        ? '<span class="small muted">已保留在本次行程</span>'
+        : ''
+      : chosen
+        ? '<span class="small muted">已加入行程</span>'
+        : `<details class="journey-selection" data-persist-detail="journey-selection-${esc(a.id)}"><summary>加入行程</summary><div class="row wrap" data-itinerary-choice>${placeChoice(a, index, null, 'add')}${actionButton(a, 'journey-itinerary-add', '加入本次行程', 'btn soft', a.id, 'plus')}</div></details>`;
+    const actionTitle = ungiftable ? a.title.replace(/ · 物品不可赠送$/, '') : a.title;
     const title = summaries.actionTitle(
       a,
-      a.kind === 'gift' ? a.title.replace(/^赠礼意图：/, '赠送：') : a.title,
+      a.kind === 'gift'
+        ? actionTitle.replace(/^赠礼意图：/, ungiftable ? '赠礼安排：' : '赠送：')
+        : actionTitle,
     );
     const places = summaries.places(a);
     const placeCount = new Set(a.places.flatMap((place) => place.mapIds || [])).size;
@@ -245,7 +257,7 @@ export function createJourneyViews({
         { action: 'database-detail', id: 'item-' + id },
         index.entries.find((e) => e.id === 'item-' + id)?.name || '物品 #' + id,
       );
-    return `<article class="card journey-action ${closed ? 'journey-handled' : ''}" data-journey-id="${esc(a.id)}"><div class="row between"><h3>${title}</h3>${pill(status, closed ? 'green' : '')}</div>${gift ? '' : locations + selection}${a.ownerName ? `<p class="small muted">用于：${esc(a.ownerName)}</p>` : ''}${material ? `<p class="small">需 ${material.count} · ${collection ? (material.onHand == null ? '已保存持有量待核对' : '已保存持有 ' + material.onHand) : material.allocationKnown ? '已分配 ' + material.allocation.reduce((sum, x) => sum + x.count, 0) + ' · 还缺 ' + material.missing : '可用库存待核对'}${material.alternatives ? ' · 可替代材料共用总量' : ''}</p>` : ''}${collection ? `<p class="save-note">仅收藏目标，未预留库存；可用数量另核对。</p>` : ''}${gift && !closed ? `<p class="small">${gift.allocationKnown ? (gift.missing > 0 ? '已备 ' + gift.allocated + ' · 还缺 ' + gift.missing : '已备齐 ' + gift.allocated + ' 件') : '赠礼数量待核对'}</p>` : ''}<div class="row wrap">${visibleNavigation.map((n) => navigation(n, n.action === 'world-quest' ? (a.kind === 'quest' && n.id !== a.questId ? '查看所属任务' : '查看任务步骤') : n.action === 'world-place' ? '查看地点' : n.action.startsWith('journey-') ? '查看个人记录' : index.entries.find((e) => e.id === n.id)?.name || '查看资料')).join('')}${planCompletion({ action: a })}${a.kind !== 'gift' && !a.gameComplete && !a.userDone ? actionButton(a, 'journey-handle', a.handled ? '恢复待处理' : a.craftPlanId ? '仅个人已处理 · 不释放用料' : '标为已处理', 'btn soft', a.id, a.handled ? 'refresh' : 'check') : ''}${a.kind === 'gift' && userId ? `${!a.userDone ? `<span data-gift-completion>${actionButton(a, 'journey-gift-complete', '赠送完成…', 'btn soft', userId, 'check')}</span>` : ''}${actionButton(a, 'journey-gift-edit', a.userDone ? '查看与重新安排' : '调整安排', 'text-btn', userId, 'edit')}` : ''}${a.kind === 'todo' && userId ? actionButton(a, 'journey-todo-dialog', '编辑待办', 'text-btn', userId, 'edit') : ''}${a.kind === 'place' && userId && !a.places.length ? actionButton(a, 'journey-place-dialog', '编辑原地点记录', 'text-btn', userId, 'edit') : ''}</div><details class="journey-evidence"><summary>步骤与条件${a.unknowns.length ? ' · 有待核对的信息' : ''}</summary>${gift ? `${selection}<div class="row wrap">${giftNavigation.map((n) => navigation(n, index.entries.find((e) => e.id === n.id)?.name || '查看资料')).join('')}${!a.userDone ? actionButton(a, 'journey-handle', a.handled ? '恢复待处理' : '标记已处理 · 释放预留', 'text-btn', a.id, a.handled ? 'refresh' : 'check') : ''}</div>` : ''}${a.detail ? `<p class="preserve-text">${a.detailIsPublic ? richText(a.detail) : esc(a.detail)}</p>` : ''}${(a.materials || []).map((m) => `<div class="world-rule"><span>${itemLink(m.id)} × ${m.count}</span><span>${m.allocationKnown ? '为本任务预留 ' + m.reserved + ' · 已分配 ' + m.allocated + ' · 需求还缺 ' + m.missing : m.onHand === null ? '持有量未知' : '存档持有 ' + m.onHand + ' · 可用量另核对'}</span></div>`).join('')}${a.questId && a.materials?.length ? act('navigate', '核对任务物资预留', 'btn', 'materials', 'shield') : ''}${recipeInfo(a, index)}${processingInfo(a, index)}${a.prerequisites.map((r) => `<div class="detail-block"><strong>${esc(r.label)}</strong>${r.observedProgress ? '<p class="small">关联任务在存档中：' + esc(r.observedProgress) + '</p>' : ''}${r.navigation ? navigation(r.navigation, '查看关联资料') : ''}<p class="save-note">${r.semantics === 'uninterpreted' ? '条件值为原始资料，尚未解释为当前解锁或执行条件。' : r.satisfied === null ? '当前是否满足待核对。' : r.satisfied ? '选定存档已记录。' : '选定存档尚未记录。'}</p></div>`).join('')}${material?.hints?.map((h) => `<div class="detail-block"><h4>${esc(h.name)}的获取线索</h4><p class="preserve-text small">${richText(h.description || '资料尚未列出获取说明')}</p>${(h.merchants || []).map((m) => (m.navigation ? navigation(m.navigation, '售卖资料：' + m.name) : '')).join('')}</div>`).join('') || ''}${a.unknowns.map((u) => `<p class="save-note">${icon('info')} ${esc(u.message)}</p>`).join('')}</details></article>`;
+    return `<article class="card journey-action ${closed ? 'journey-handled' : ''}" data-journey-id="${esc(a.id)}"><div class="row between"><h3>${title}</h3>${pill(status + (ungiftable && closed ? ' · 不可赠送' : ''), closed ? 'green' : '')}</div>${gift ? '' : locations + selection}${a.ownerName ? `<p class="small muted">用于：${esc(a.ownerName)}</p>` : ''}${material ? `<p class="small">需 ${material.count} · ${collection ? (material.onHand == null ? '已保存持有量待核对' : '已保存持有 ' + material.onHand) : material.allocationKnown ? '已分配 ' + material.allocation.reduce((sum, x) => sum + x.count, 0) + ' · 还缺 ' + material.missing : '可用库存待核对'}${material.alternatives ? ' · 可替代材料共用总量' : ''}</p>` : ''}${collection ? `<p class="save-note">仅收藏目标，未预留库存；可用数量另核对。</p>` : ''}${gift && !ungiftable && !closed ? `<p class="small">${gift.allocationKnown ? (gift.missing > 0 ? '已备 ' + gift.allocated + ' · 还缺 ' + gift.missing : '已备齐 ' + gift.allocated + ' 件') : '赠礼数量待核对'}</p>` : ''}<div class="row wrap">${visibleNavigation.map((n) => navigation(n, n.action === 'world-quest' ? (a.kind === 'quest' && n.id !== a.questId ? '查看所属任务' : '查看任务步骤') : n.action === 'world-place' ? '查看地点' : n.action.startsWith('journey-') ? '查看个人记录' : index.entries.find((e) => e.id === n.id)?.name || '查看资料')).join('')}${planCompletion({ action: a })}${a.kind !== 'gift' && !a.gameComplete && !a.userDone ? actionButton(a, 'journey-handle', a.handled ? '恢复待处理' : a.craftPlanId ? '仅个人已处理 · 不释放用料' : '标为已处理', 'btn soft', a.id, a.handled ? 'refresh' : 'check') : ''}${a.kind === 'gift' && userId ? `${!a.userDone && !ungiftable ? `<span data-gift-completion>${actionButton(a, 'journey-gift-complete', '赠送完成…', 'btn soft', userId, 'check')}</span>` : ''}${actionButton(a, 'journey-gift-edit', a.userDone ? '查看与重新安排' : '调整安排', 'text-btn', userId, 'edit')}` : ''}${a.kind === 'todo' && userId ? actionButton(a, 'journey-todo-dialog', '编辑待办', 'text-btn', userId, 'edit') : ''}${a.kind === 'place' && userId && !a.places.length ? actionButton(a, 'journey-place-dialog', '编辑原地点记录', 'text-btn', userId, 'edit') : ''}</div><details class="journey-evidence"><summary>步骤与条件${a.unknowns.length ? ' · 有待核对的信息' : ''}</summary>${gift ? `${selection}<div class="row wrap">${giftNavigation.map((n) => navigation(n, index.entries.find((e) => e.id === n.id)?.name || '查看资料')).join('')}${!a.userDone ? actionButton(a, 'journey-handle', a.handled ? (ungiftable ? '撤回个人已处理' : '恢复待处理') : ungiftable ? '标记个人已处理' : '标记已处理 · 释放预留', 'text-btn', a.id, a.handled ? 'refresh' : 'check') : ''}</div>` : ''}${a.detail ? `<p class="preserve-text">${a.detailIsPublic ? richText(a.detail) : esc(a.detail)}</p>` : ''}${(a.materials || []).map((m) => `<div class="world-rule"><span>${itemLink(m.id)} × ${m.count}</span><span>${m.allocationKnown ? '为本任务预留 ' + m.reserved + ' · 已分配 ' + m.allocated + ' · 需求还缺 ' + m.missing : m.onHand === null ? '持有量未知' : '存档持有 ' + m.onHand + ' · 可用量另核对'}</span></div>`).join('')}${a.questId && a.materials?.length ? act('navigate', '核对任务物资预留', 'btn', 'materials', 'shield') : ''}${recipeInfo(a, index)}${processingInfo(a, index)}${a.prerequisites.map((r) => `<div class="detail-block"><strong>${esc(r.label)}</strong>${r.observedProgress ? '<p class="small">关联任务在存档中：' + esc(r.observedProgress) + '</p>' : ''}${r.navigation ? navigation(r.navigation, '查看关联资料') : ''}<p class="save-note">${r.semantics === 'uninterpreted' ? '条件值为原始资料，尚未解释为当前解锁或执行条件。' : r.satisfied === null ? '当前是否满足待核对。' : r.satisfied ? '选定存档已记录。' : '选定存档尚未记录。'}</p></div>`).join('')}${material?.hints?.map((h) => `<div class="detail-block"><h4>${esc(h.name)}的获取线索</h4><p class="preserve-text small">${richText(h.description || '资料尚未列出获取说明')}</p>${(h.merchants || []).map((m) => (m.navigation ? navigation(m.navigation, '售卖资料：' + m.name) : '')).join('')}</div>`).join('') || ''}${a.unknowns.map((u) => `<p class="save-note">${icon('info')} ${esc(u.message)}</p>`).join('')}</details></article>`;
   }
   return { page, itinerary, home };
 }

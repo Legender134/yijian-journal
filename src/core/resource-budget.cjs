@@ -151,6 +151,7 @@ function resourceBudget(
   const giftPlans = (profile.journey?.gifts || []).filter(
     (g) =>
       !g.done &&
+      gameEntries.find((entry) => entry.id === g.itemId)?.giftable !== false &&
       g.id !== excludeGiftId &&
       !handledGifts.has(
         'journey:gift:' +

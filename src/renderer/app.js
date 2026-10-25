@@ -3261,6 +3261,16 @@ function refreshGiftQuantityHint() {
     view = journeyDraft?.giftPicker?.item;
   if (!status || !view) return;
   const selected = gameIndex.entries.find((row) => row.id === view.selectedId && row.kind === '物品');
+  const ungiftable = selected?.giftable === false,
+    budgetNote = document.querySelector('#journey-gift-budget-note'),
+    doneLabel = document.querySelector('#journey-gift-done-label');
+  if (budgetNote) budgetNote.textContent = ungiftable ? '' : '赠礼安排会参与库存分配；实际赠送后再标为完成。';
+  if (doneLabel) doneLabel.textContent = ungiftable ? '这项个人安排已完成' : '我已经完成这份赠礼';
+  if (ungiftable) {
+    status.textContent = '';
+    status.className = 'small muted';
+    return;
+  }
   const quantity = Number(document.querySelector('#journey-quantity')?.value),
     available = selected && view.stock?.known ? view.stock.available[selected.gameId] || 0 : null;
   const missing =
@@ -3366,7 +3376,9 @@ function journeyDialog(kind, id = '', savedDraft = null) {
       },
     };
     title = record ? '调整赠礼' : '准备赠礼';
-    body = `${giftPicker.field(gameIndex, 'person', journeyDraft.giftPicker.person)}${giftPicker.field(gameIndex, 'item', journeyDraft.giftPicker.item)}<div class="field"><label for="journey-quantity">件数</label><input id="journey-quantity" type="number" min="1" max="999" step="1" required value="${record?.quantity || 1}"><p id="journey-gift-quantity-status" class="small" role="status"></p></div><details class="gift-more-details"${record?.placeId || record?.note || record?.done || savedDraft?.values.placeId || savedDraft?.values.note || savedDraft?.values.done ? ' open' : ''}><summary>地点、备注与完成状态</summary>${placePicker.field(gameIndex, journeyDraft.placePicker, '想在什么地点办理')}<div class="field"><label for="journey-note">备注</label><textarea id="journey-note" maxlength="1000">\n${esc(record?.note || '')}</textarea></div><label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> 我已经完成这份赠礼</label></details><p class="save-note">赠礼安排会参与库存分配；实际赠送后再标为完成。</p>`;
+    const ungiftable =
+      gameIndex.entries.find((row) => row.id === pair[1] && row.kind === '物品')?.giftable === false;
+    body = `${giftPicker.field(gameIndex, 'person', journeyDraft.giftPicker.person)}${giftPicker.field(gameIndex, 'item', journeyDraft.giftPicker.item)}<div class="field"><label for="journey-quantity">件数</label><input id="journey-quantity" type="number" min="1" max="999" step="1" required value="${record?.quantity || 1}"><p id="journey-gift-quantity-status" class="small" role="status"></p></div><details class="gift-more-details"${record?.placeId || record?.note || record?.done || savedDraft?.values.placeId || savedDraft?.values.note || savedDraft?.values.done ? ' open' : ''}><summary>地点、备注与完成状态</summary>${placePicker.field(gameIndex, journeyDraft.placePicker, '想在什么地点办理')}<div class="field"><label for="journey-note">备注</label><textarea id="journey-note" maxlength="1000">\n${esc(record?.note || '')}</textarea></div><label><input id="journey-done" type="checkbox" ${record?.done ? 'checked' : ''}> <span id="journey-gift-done-label">${ungiftable ? '这项个人安排已完成' : '我已经完成这份赠礼'}</span></label></details><p id="journey-gift-budget-note" class="save-note">${ungiftable ? '' : '赠礼安排会参与库存分配；实际赠送后再标为完成。'}</p>`;
   }
   modal(
     title,

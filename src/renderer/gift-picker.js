@@ -82,7 +82,7 @@ export function giftChoices(index, kind, view = {}) {
   const counts = new Map();
   for (const entry of entries) counts.set(identityKey(entry), (counts.get(identityKey(entry)) || 0) + 1);
   const allCandidates = entries.filter((entry) =>
-    kind === 'person' ? entry.kind === '人物' : entry.kind === '物品' && entry.giftable,
+    kind === 'person' ? entry.kind === '人物' : entry.kind === '物品',
   );
   const terms = String(view.query || '')
     .trim()
@@ -90,28 +90,34 @@ export function giftChoices(index, kind, view = {}) {
     .split(/\s+/)
     .filter(Boolean);
   const selected = allCandidates.find((entry) => entry.id === view.selectedId);
-  const candidates = allCandidates.filter((entry) => kind !== 'person' || !hasNoGiftEntry(entry));
+  const candidates = allCandidates.filter((entry) =>
+    kind === 'person' ? !hasNoGiftEntry(entry) : entry.giftable === true,
+  );
   const labels = new Map(candidates.map((entry) => [entry.id, giftChoiceLabel(entry, entries, counts)]));
   const person = entries.find((entry) => entry.id === view.personId && entry.kind === '人物');
+  const matchesQuery = (entry) =>
+    terms.every((term) =>
+      `${labels.get(entry.id) || giftChoiceLabel(entry, entries, counts)} ${entry.description || ''} ${entry.id}`
+        .toLocaleLowerCase('zh-CN')
+        .includes(term),
+    );
   const rows = candidates.filter(
     (entry) =>
       (kind !== 'item' || !view.preferredOnly || (person?.hobbyKeys || []).includes(entry.typeKey)) &&
       (kind !== 'item' || !view.stockOnly || (view.stock?.known && view.stock.available[entry.gameId] > 0)) &&
       (!view.quality || view.quality === 'all' || entry.quality === view.quality) &&
-      terms.every((term) =>
-        `${labels.get(entry.id)} ${entry.description || ''} ${entry.id}`
-          .toLocaleLowerCase('zh-CN')
-          .includes(term),
-      ),
+      matchesQuery(entry),
   );
   const excludedMatch =
-    kind === 'person' &&
     terms.length > 0 &&
-    allCandidates.some(
-      (entry) =>
-        hasNoGiftEntry(entry) &&
-        terms.every((term) => (entry.name + ' ' + entry.id).toLocaleLowerCase('zh-CN').includes(term)),
-    );
+    (kind === 'person'
+      ? allCandidates.some(
+          (entry) =>
+            hasNoGiftEntry(entry) &&
+            terms.every((term) => (entry.name + ' ' + entry.id).toLocaleLowerCase('zh-CN').includes(term)),
+        )
+      : allCandidates.some((entry) => entry.giftable !== true && matchesQuery(entry)) &&
+        !allCandidates.some((entry) => entry.giftable === true && matchesQuery(entry)));
   const query = terms.join(' ');
   rows.sort(
     (a, b) =>
@@ -194,7 +200,7 @@ export function createGiftPicker({ esc, act, picture, qualityText }) {
       minimum = qualities.indexOf(view.minimumQuality),
       quality = qualities.indexOf(selected.quality);
     const qualityHint =
-      kind === 'item' && minimum >= 0 && quality >= 0 && quality < minimum
+      kind === 'item' && selected.giftable === true && minimum >= 0 && quality >= 0 && quality < minimum
         ? `<p class="gift-condition-warning">礼物需要至少${esc(view.minimumQuality)}色品质。</p>`
         : '';
     const moreChecks = gateChecks
@@ -202,18 +208,18 @@ export function createGiftPicker({ esc, act, picture, qualityText }) {
       .map((check) => '<p class="small">' + condition(check) + '</p>')
       .join('');
     const stock =
-      kind === 'item'
+      kind === 'item' && selected.giftable === true
         ? view.stock?.known
           ? `<p class="gift-stock" role="status" title="保存于 ${esc(new Date(view.stock.modifiedAt).toLocaleString('zh-CN'))}">保存时持有 ${view.stock.counts[selected.gameId] || 0} · 其他安排 ${Math.max(0, (view.stock.used[selected.gameId] || 0) - (view.stock.own[selected.gameId] || 0))} · 这份可用 ${view.stock.available[selected.gameId] || 0}</p>`
           : '<p class="gift-stock" role="status">库存暂未读取，可先规划赠礼。</p>'
         : '';
-    return `<div class="gift-selected">${act('database-detail', esc(giftChoiceLabel(selected, index.entries)), 'text-btn gift-selected-link', selected.id)}${stock}${gateHint}${qualityHint}${facts.length || moreChecks ? `<details class="gift-selected-facts"><summary>详情</summary>${moreChecks}${facts.map((text) => '<p class="small">' + esc(text) + '</p>').join('')}</details>` : ''}</div>${kind === 'person' && hasNoGiftEntry(selected) ? '<p class="notice">此人物暂无赠礼入口，请改选人物。已有安排仍保留。</p>' : ''}`;
+    return `<div class="gift-selected">${act('database-detail', esc(giftChoiceLabel(selected, index.entries)), 'text-btn gift-selected-link', selected.id)}${stock}${gateHint}${qualityHint}${facts.length || moreChecks ? `<details class="gift-selected-facts"><summary>详情</summary>${moreChecks}${facts.map((text) => '<p class="small">' + esc(text) + '</p>').join('')}</details>` : ''}</div>${kind === 'person' && hasNoGiftEntry(selected) ? '<p class="notice">此人物暂无赠礼入口，请改选人物。已有安排仍保留。</p>' : kind === 'item' && selected.giftable !== true ? '<p class="notice">此物品不可赠送，请改选物品。</p>' : ''}`;
   }
   function options(index, kind, view) {
     const result = giftChoices(index, kind, view),
       id = target(kind);
     const rows = result.pinned ? [result.pinned, ...result.rows] : result.rows;
-    return `<select id="${id}" class="gift-exact-select" required tabindex="-1" aria-hidden="true" aria-label="${kind === 'person' ? '送给谁' : '准备赠送的物品'}"><option value=""${!result.selected ? ' selected' : ''}>请选择${noun(kind)}</option>${rows.map((entry) => `<option value="${esc(entry.id)}"${entry.id === result.selected?.id ? ' selected' : ''}${kind === 'person' && hasNoGiftEntry(entry) ? ' disabled' : ''}>${esc(giftChoiceLabel(entry, index.entries))}${entry.id === result.pinned?.id ? ' · 当前已选' : ''}</option>`).join('')}</select><div class="gift-choice-grid" aria-label="${noun(kind)}候选">${result.rows.map((entry) => `<button type="button" class="gift-choice-card${entry.id === result.selected?.id ? ' selected' : ''}" data-action="journey-gift-select" data-id="${kind}:${esc(entry.id)}" aria-label="选择${esc(giftChoiceLabel(entry, index.entries))}" aria-pressed="${entry.id === result.selected?.id}">${picture(entry.id)}<span>${qualityText.name(entry.id, giftChoiceLabel(entry, index.entries))}</span></button>`).join('')}</div><div class="row between gift-choice-pagination"><span class="small" role="status">${result.total ? `${result.total} 项 · ${result.page}/${result.pages}` : result.excludedMatch ? '匹配的人物暂无赠礼入口。' : '没有匹配结果'}</span><span>${result.page > 1 ? act('journey-gift-page', '上一页', 'text-btn', kind + ':' + (result.page - 1)) : ''}${result.page < result.pages ? act('journey-gift-page', '下一页', 'text-btn', kind + ':' + (result.page + 1)) : ''}</span></div>`;
+    return `<select id="${id}" class="gift-exact-select" required tabindex="-1" aria-hidden="true" aria-label="${kind === 'person' ? '送给谁' : '准备赠送的物品'}"><option value=""${!result.selected ? ' selected' : ''}>请选择${noun(kind)}</option>${rows.map((entry) => `<option value="${esc(entry.id)}"${entry.id === result.selected?.id ? ' selected' : ''}${(kind === 'person' && hasNoGiftEntry(entry)) || (kind === 'item' && entry.giftable !== true) ? ' disabled' : ''}>${esc(giftChoiceLabel(entry, index.entries))}${entry.id === result.pinned?.id ? ' · 当前已选' : ''}</option>`).join('')}</select><div class="gift-choice-grid" aria-label="${noun(kind)}候选">${result.rows.map((entry) => `<button type="button" class="gift-choice-card${entry.id === result.selected?.id ? ' selected' : ''}" data-action="journey-gift-select" data-id="${kind}:${esc(entry.id)}" aria-label="选择${esc(giftChoiceLabel(entry, index.entries))}" aria-pressed="${entry.id === result.selected?.id}">${picture(entry.id)}<span>${qualityText.name(entry.id, giftChoiceLabel(entry, index.entries))}</span></button>`).join('')}</div><div class="row between gift-choice-pagination"><span class="small" role="status">${result.total ? `${result.total} 项 · ${result.page}/${result.pages}` : result.excludedMatch ? (kind === 'person' ? '匹配的人物暂无赠礼入口。' : '匹配的物品不可赠送。') : '没有匹配结果'}</span><span>${result.page > 1 ? act('journey-gift-page', '上一页', 'text-btn', kind + ':' + (result.page - 1)) : ''}${result.page < result.pages ? act('journey-gift-page', '下一页', 'text-btn', kind + ':' + (result.page + 1)) : ''}</span></div>`;
   }
   function field(index, kind, view) {
     const id = target(kind),
