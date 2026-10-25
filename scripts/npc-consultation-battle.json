@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "build": "21798996",
+  "alwaysBattleGrades": [
+    5,
+    6
+  ],
+  "extraBattle": {
+    "difficulty": "Hell",
+    "grade": 4
+  },
+  "difficultyValues": {
+    "None": 0,
+    "Easy": 1,
+    "Common": 2,
+    "Difficulty": 3,
+    "Hell": 4
+  },
+  "victoryRequired": true,
+  "settleConsultationOnVictory": true,
+  "requestedSkillLevel": 1,
+  "source": {
+    "kind": "owned-installed-game-native-and-blueprint",
+    "engine": "VER_UE4_26",
+    "build": "21798996",
+    "exeSha256": "946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c",
+    "members": [
+      {
+        "member": "Wandering_Sword/Content/JH/Core/GameSystem/BP_ConsultSystem_Base.uasset",
+        "sha256": "dadcdb0bae23279f1c8c9c10b3477dac9fd7a14d0656a0fb95572c25c3ad8bfb"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/GameSystem/BP_ConsultSystem_Base.uexp",
+        "sha256": "8261ed195dcbf3cc4470683ba31b6c32f0862102778f59f4d6711cd78cfefc58"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/JHNeoUI/Modules/Consult/BPMV_Consult.uasset",
+        "sha256": "c1c61351a1806536357d87ff2b7f5e833db255678ade761e5ac8a5b5ed201ca8"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/JHNeoUI/Modules/Consult/BPMV_Consult.uexp",
+        "sha256": "f9febdc38d59d58cba811d38d0b8259dcd046ba2a3093415e547db7256c01a6d"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/BP_GameInstance.uasset",
+        "sha256": "af1278bdf3f0bfeee1a9f1fa4d7a0495c308a3e2dc7b70cbdc6398c843d311db"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/BP_GameInstance.uexp",
+        "sha256": "1d6b0b77e6cef9e35ea7156a9846ccc4ae7de741b8c6d352582df38099c96d3f"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/BP_JHGameConfig.uasset",
+        "sha256": "5ce736d52f85a7b919dee515c406a1f43d049b41ba1fc25108eca0f53663d965"
+      },
+      {
+        "member": "Wandering_Sword/Content/JH/Core/BP_JHGameConfig.uexp",
+        "sha256": "3f31726ffcfa8286b6926100b49aefb27de450612b4405e207fcd9fd6fcd535a"
+      }
+    ],
+    "native": {
+      "confirm": "0x1412ece50",
+      "modernFlow": "0x14103bb20",
+      "decision": "0x140fe77d0",
+      "prerequisites": "0x140fd56e0",
+      "qualityField": "0x30",
+      "difficultyField": "0x9d",
+      "eventNameInitializer": "0x140609de0",
+      "eventNameCache": "0x1456ed9c0",
+      "battleEvent": "0x141278220",
+      "directSettlement": "0x140fd6870",
+      "skillGrant": "0x1412427a0",
+      "requestedLevel": 1
+    },
+    "blueprint": {
+      "class": "/Game/JH/Core/GameSystem/BP_ConsultSystem_Base.BP_ConsultSystem_Base_C",
+      "event": "BP_OnConsultSpell",
+      "entry": 3585,
+      "fightCall": 3651,
+      "fightType": "Compare",
+      "fightTypeId": 1,
+      "opponent": "selected-teacher-npc",
+      "callback": 3235,
+      "winCheck": 3254,
+      "winSettlement": 3268,
+      "lossReset": 3296
+    },
+    "settlement": {
+      "precheckBeforeBattle": true,
+      "consultationCostsAfterVictory": true,
+      "lossSkipsConsultationSettlement": true,
+      "scope": "Learning-specific skill-point/energy debit and skill grant. Generic battle side effects are outside this rule."
+    }
+  }
+}

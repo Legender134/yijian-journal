@@ -1,6 +1,7 @@
 import { entityCatalog } from './entity-catalog.js';
 import { itemEffectText } from './item-stat-views.js';
 import { questJumpEventText } from '../shared/task-completion.mjs';
+import { martialConsultation, martialConsultationHint } from '../shared/martial-consultation.mjs';
 
 // All cross-links use shipped entity IDs. Static outcomes never mutate or
 // forecast the active quest state, and rewards from branches are never added.
@@ -308,6 +309,10 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
     );
     const contract = index.skillConsultation?.[entry.gameId];
     const canConsult = contract && !contract.excluded && contract.openForPlayer !== false;
+    const consultation = canConsult
+      ? martialConsultation(contract.grade, progress?.difficulty, index.martialConsultation)
+      : null;
+    const methodHint = martialConsultationHint(consultation);
     const currentPeople = new Map((progress?.people || []).map((person) => [person.npcId, person]));
     const learningFor = (person) =>
       currentPeople.get(person.gameId)?.learning.find((row) => row.entityId === entry.id);
@@ -327,7 +332,9 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
       const current = currentPeople.get(person.gameId);
       const learning = learningFor(person);
       const label = learning
-        ? { met: '可请教', unmet: '条件未满足', unknown: '查看请教条件' }[learning.status]
+        ? learning.status === 'met' && learning.consultation?.method === 'battle'
+          ? '需比试'
+          : { met: '可请教', unmet: '条件未满足', unknown: '查看请教条件' }[learning.status]
         : current?.consult.status === 'unmet'
           ? '暂不能请教'
           : '查看人物条件';
@@ -356,7 +363,7 @@ export function createCodexDetailViews({ esc, act, richText = esc }) {
       ? `<section class="detail-block skill-level-unlocks"><h3>修炼突破</h3>${unlockRequirements.map((row) => `<div class="codex-source-row"><strong>突破 ${text(row.level)} 级</strong><span>${row.requirements.map(unlockCondition).join('；')}</span></div>`).join('')}</section>`
       : '';
     const consult = contract
-      ? `<details class="detail-block skill-consult"><summary>请教条件${!canConsult ? ' · 不可常规请教' : ` · 好感 ${text(contract.friendliness)}`}</summary>${!canConsult ? '' : `<p>基础消耗 ${text(contract.skillPointCost)} 武学点；门派、难度或天赋可能减免。</p>${contract.requirements.length && index.renderRequirements ? index.renderRequirements(contract.requirements, index, { reference: null }) : ''}`}<details><summary>资料来源</summary><p>游戏资料表 · Build ${text(index.build)}</p></details></details>`
+      ? `<details class="detail-block skill-consult"><summary>请教条件${!canConsult ? ' · 不可常规请教' : ` · 好感 ${text(contract.friendliness)}${methodHint ? ' · ' + methodHint : ''}`}</summary>${!canConsult ? '' : `<p>基础消耗 ${text(contract.skillPointCost)} 武学点；门派、难度或天赋可能减免。</p>${consultation ? `<p>初学 ${text(consultation.initialLevel)} 级${methodHint ? '；比试获胜才扣请教消耗' : ''}。</p>` : ''}${contract.requirements.length && index.renderRequirements ? index.renderRequirements(contract.requirements, index, { reference: null }) : ''}`}<details><summary>资料来源</summary><p>${methodHint ? '游戏资料与请教流程' : '游戏资料表'} · Build ${text(index.build)}</p></details></details>`
       : '';
     return `${manuals.length ? `<section class="detail-block skill-manuals"><h3>学习秘籍</h3><div class="related-items">${manuals.map((e) => link(index, e.id)).join('')}</div></section>` : ''}${story.length ? `<section class="detail-block skill-story-sources"><h3>剧情传授</h3>${more(story, (row) => `<div class="codex-source-row" data-quest-step="${text(row.q.gameId)}">${sourceLink(index, row.q)}<span>${text(row.label)}</span>${sequenceSourceDetails}</div>`)}</section>` : ''}${unlocks}${consult}${teachers.length ? `<details class="detail-block skill-teachers" data-persist-detail="skill-teachers-${text(entry.gameId)}"><summary>请教线索 · ${teachers.length} 位${progress && origin !== 'live' ? ' · 保存时状态' : ''}</summary>${more(teachers, teacher)}</details>` : ''}${levels.length ? `<details class="detail-block skill-growth"><summary>各级属性提升</summary><div class="codex-growth">${levels.map((r) => `<div><strong>${r.level} 级</strong><span>${r.rows.map((a) => text(a.name + ' ' + a.value)).join(' · ')}</span></div>`).join('')}</div></details>` : ''}`;
   }

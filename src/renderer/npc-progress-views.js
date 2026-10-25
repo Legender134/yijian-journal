@@ -1,12 +1,17 @@
+import { martialConsultationHint } from '../shared/martial-consultation.mjs';
+
 export function npcLearningSummary(learning = []) {
   if (!learning.length) return '';
-  const ready = learning.filter((item) => item.status === 'met').length;
+  const eligible = learning.filter((item) => item.status === 'met');
+  const battle = eligible.filter((item) => item.consultation?.method === 'battle').length;
+  const ready = eligible.length - battle;
   const blocked = learning.filter((item) => item.status === 'unmet').length;
-  const unknown = learning.length - ready - blocked;
+  const unknown = learning.length - eligible.length - blocked;
   return [
     ready ? `可请教 ${ready} 项` : '',
+    battle ? `需比试 ${battle} 项` : '',
     unknown ? `待确认 ${unknown} 项` : '',
-    blocked ? (ready || unknown ? `受限 ${blocked} 项` : '请教受限') : '',
+    blocked ? (eligible.length || unknown ? `受限 ${blocked} 项` : '请教受限') : '',
   ]
     .filter(Boolean)
     .join(' · ');
@@ -77,12 +82,24 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
   }
   function learning(row) {
     const excluded = new Set([...sharedChecks(row), ...row.consult.checks].map(checkKey));
+    const state = (item) => {
+      const hint = martialConsultationHint(item.consultation);
+      if (item.status === 'met' && item.consultation?.method === 'battle') return hint;
+      return [{ met: '可请教', unmet: '受限', unknown: '待确认' }[item.status] || '待确认', hint]
+        .filter(Boolean)
+        .join(' · ');
+    };
     return orderedLearning(row)
       .map(
         (item) =>
-          `<li><div class="npc-learning-heading"><span>${link(item)}${item.kind === 'life' ? ` · 你 ${text(item.playerLevel)} 级 · 对方 ${text(item.teacherLevel)} 级` : Number.isFinite(item.teacherLevel) && item.teacherLevel > 0 ? ` · 对方 ${text(item.teacherLevel)} 级` : ''}</span><small class="npc-learning-state" data-learning-status="${text(item.status)}">${{ met: '可请教', unmet: '受限', unknown: '待确认' }[item.status] || '待确认'}</small></div>${reason(item.checks, excluded) ? `<p class="small">${reason(item.checks, excluded)}</p>` : ''}</li>`,
+          `<li><div class="npc-learning-heading"><span>${link(item)}${item.kind === 'life' ? ` · 你 ${text(item.playerLevel)} 级 · 对方 ${text(item.teacherLevel)} 级` : Number.isFinite(item.teacherLevel) && item.teacherLevel > 0 ? ` · 对方 ${text(item.teacherLevel)} 级` : ''}</span><small class="npc-learning-state" data-learning-status="${text(item.status)}">${state(item)}</small></div>${reason(item.checks, excluded) ? `<p class="small">${reason(item.checks, excluded)}</p>` : ''}</li>`,
       )
       .join('');
+  }
+  function learningNote(row) {
+    const martial = row.learning.filter((item) => item.consultation);
+    if (!martial.length) return '';
+    return `<p class="small">武学初学 ${text(martial[0].consultation.initialLevel)} 级${martial.some((item) => ['battle', 'conditional'].includes(item.consultation.method)) ? '；比试获胜才扣请教消耗' : ''}。</p>`;
   }
   function gates(row, showPower = true) {
     const friend = row.friendship;
@@ -149,11 +166,12 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
             '</div></details>'
           : '')
       : '';
-    return `<section class="${embedded ? '' : 'detail-block '}npc-progress-detail" data-npc-progress="${text(row.npcId)}">${heading}${embedded ? '' : privatePreview}${gates(row, !embedded)}${embedded && remainingItems.length ? `<details data-persist-detail="npc-private-${text(row.npcId)}"><summary>${previewedItems.length ? '其余私物' : '剩余私物'} · ${remainingItems.length} 种</summary><div class="related-items mt">${items({ remainingItems })}</div></details>` : ''}${row.learning.length ? `<details data-persist-detail="npc-learning-${text(row.npcId)}"><summary>请教内容 · ${row.learning.length} 项</summary><ul>${learning(row)}</ul></details>` : ''}</section>`;
+    return `<section class="${embedded ? '' : 'detail-block '}npc-progress-detail" data-npc-progress="${text(row.npcId)}">${heading}${embedded ? '' : privatePreview}${gates(row, !embedded)}${embedded && remainingItems.length ? `<details data-persist-detail="npc-private-${text(row.npcId)}"><summary>${previewedItems.length ? '其余私物' : '剩余私物'} · ${remainingItems.length} 种</summary><div class="related-items mt">${items({ remainingItems })}</div></details>` : ''}${row.learning.length ? `<details data-persist-detail="npc-learning-${text(row.npcId)}"><summary>请教内容 · ${row.learning.length} 项</summary><ul>${learning(row)}</ul>${learningNote(row)}</details>` : ''}</section>`;
   }
   function card(row, tab, scope, filters) {
     const learning = orderedLearning(row);
     const ready = learning.filter((item) => item.status === 'met');
+    const allReadyBattle = ready.length > 0 && ready.every((item) => item.consultation?.method === 'battle');
     const missingOnly = filters.includes('missing');
     const loot = missingOnly
       ? row.remainingItems.filter((item) => item.important && item.owned === 0)
@@ -164,7 +182,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
             .slice(0, 2)
             .map(
               (item) =>
-                `${link(item)}${item.kind === 'life' ? ` 你${text(item.playerLevel)} · 对方${text(item.teacherLevel)}级` : ''}`,
+                `${link(item)}${item.kind === 'life' ? ` 你${text(item.playerLevel)} · 对方${text(item.teacherLevel)}级` : !allReadyBattle && martialConsultationHint(item.consultation) ? `（${martialConsultationHint(item.consultation)}）` : ''}`,
             )
             .join(' · ')
         : loot
@@ -183,7 +201,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
       tab === 'cleared'
         ? ''
         : gate?.status === 'met'
-          ? `<span class="npc-progress-status">${tab === 'learning' ? `可请教 ${ready.length} 项` : '可比武'}</span>`
+          ? `<span class="npc-progress-status">${tab === 'learning' ? npcLearningSummary(ready) : '可比武'}</span>`
           : `<span class="npc-progress-blocker">${blockerLabel}${firstBlocker ? checkText(firstBlocker) : '待确认'}</span>`;
     const power =
       row.power && row.ownPower

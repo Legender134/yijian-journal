@@ -3,8 +3,23 @@ const fs = require('node:fs');
 const path = require('node:path');
 const world = require('../src/data/world-index.json');
 const game = require('../src/data/game-index.json');
+const battleRule = require('./npc-consultation-battle.json');
 function project(raw) {
   if (raw.schema !== 1 || raw.source.build !== game.build) throw Error('NPC interaction build mismatch');
+  const consultMembers = battleRule.source.members.filter((member) =>
+    /\/BP_ConsultSystem_Base\.(?:uasset|uexp)$/.test(member.member),
+  );
+  if (
+    battleRule.build !== game.build ||
+    raw.source.exeSha256 !== battleRule.source.exeSha256 ||
+    consultMembers.length !== 2 ||
+    !consultMembers.every((member) =>
+      raw.source.blueprints?.some(
+        (original) => original.member === member.member && original.sha256 === member.sha256,
+      ),
+    )
+  )
+    throw Error('NPC consultation battle source mismatch');
   const guildFree = raw.friendlyLimits?.martialCost?.guildFree;
   const quality = (value) => Number.isInteger(value) && value >= 1 && value <= 6;
   if (
@@ -76,6 +91,7 @@ function project(raw) {
     gift: raw.friendlyLimits.gift,
     martialCost: raw.friendlyLimits.martialCost,
     vigorCost: raw.friendlyLimits.vigor,
+    martialConsultation: battleRule,
     people,
     skills,
   };

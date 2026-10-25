@@ -6,7 +6,8 @@ const images = require('../data/game-images.json');
 const itemStats = require('../data/item-stats.json');
 const npcFacts = require('../data/npc-facts.json');
 const codex = require('../data/codex-details.json');
-const skillConsultation = require('../data/npc-interactions.json').skills;
+const interactions = require('../data/npc-interactions.json');
+const skillConsultation = interactions.skills;
 const materialGuide = require('../data/material-guide.cjs');
 const taskTargets = require('./task-targets.cjs').createTaskTargetProjector(world, materialGuide.items);
 const taskObjectives = Object.fromEntries(world.quests.map((q) => [q.id, taskTargets.template(q)]));
@@ -31,7 +32,7 @@ const { createNpcProgressProjector } = require('./npc-progress.cjs');
 const projectNpcProgress = createNpcProgressProjector({
   world,
   game: data,
-  contracts: require('../data/npc-interactions.json'),
+  contracts: interactions,
   guide: require('../data/duel-guide.cjs'),
 });
 if (String(itemStats.build) !== String(data.build)) throw Error('物品数值与图鉴版本不一致');
@@ -157,6 +158,7 @@ function encyclopedia() {
     ],
     codex,
     skillConsultation,
+    martialConsultation: interactions.martialConsultation,
     images: images.entries,
     merchants: data.merchants || [],
     itemStats: {

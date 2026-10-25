@@ -1,5 +1,6 @@
 'use strict';
 const { currentNpcPower } = require('./npc-power.cjs');
+const { martialConsultation } = require('../shared/martial-consultation.mjs');
 
 // Compare complete saved NPC records, never initial item pools. A missing
 // record is unknown; an explicitly empty private bag is a completed collection.
@@ -321,6 +322,11 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         const setting = contracts.skills?.[skill.id];
         if (!entry) continue;
         if (setting?.excluded || setting?.openForPlayer === false) continue;
+        const consultation = martialConsultation(
+          setting?.grade,
+          metadata.difficulty,
+          contracts.martialConsultation,
+        );
         const checks = [...consult.checks, vigorCheck()];
         const threshold = setting?.friendliness;
         if (Number.isFinite(threshold)) checks.push(...affinityChecks(friend, threshold));
@@ -348,6 +354,7 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
           name: entry?.name || `武学 #${skill.id}`,
           teacherLevel: skill.level,
           threshold: threshold ?? null,
+          ...(consultation ? { consultation } : {}),
           status: mergeStatus(checks),
           checks,
         });
@@ -415,6 +422,7 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
     return {
       available: true,
       origin: combat.origin === 'live' ? 'live' : 'saved',
+      ...(contracts.martialConsultation ? { difficulty: metadata.difficulty ?? null } : {}),
       inventoryKnown: inventory !== null,
       placeKnown: !!metadata.map,
       people: rows,
