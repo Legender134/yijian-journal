@@ -467,6 +467,14 @@
     "evidenceQuestIds": [11657],
     "instruction": "将旺福带回南渝村洛员外家"
   },
+  "11686": {
+    "evidenceQuestIds": [11685, 11686],
+    "instruction": "前往百药谷收集蜂蜜，向石屏村的龙桑加交付蜂蜜"
+  },
+  "11687": {
+    "evidenceQuestIds": [11685, 11687],
+    "instruction": "前往百药谷收集蜂蜜，向石屏村的龙桑加交付蜂蜜"
+  },
   "11697": {
     "evidenceQuestIds": [11695, 11697],
     "instruction": "到谭城找晋大夫购买避障丹，再交给洛员外"

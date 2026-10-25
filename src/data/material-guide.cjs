@@ -4,6 +4,19 @@
 // Cooldown units, per-action quantities and actual drop probabilities remain unverified.
 module.exports = {
   sources: {
+    'material-honey-game': {
+      title: '游戏资料：百药谷取蜜与蜂蜜掉落配置',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/docs/DATA_PIPELINE.md#孙老思乡与南疆交花',
+      version: 'Build 21798996',
+      confidence: '同构建药谷取蜜任务描述与蜂群、蜜蜂的蜂蜜掉落配置；不把原始配置值换算成掉率或数量。',
+    },
+    'material-honey-location': {
+      title: '木林风：石屏村龙桑加的取蜜委托',
+      author: '木林风',
+      url: 'https://www.3dmgame.com/gl/3908832_70.html',
+      date: '2023-10-17',
+      confidence: '补充石屏村与蜜蜂取蜜做法；百药谷名称以同构建原表为准。',
+    },
     'material-scorpion-xu': {
       title: '虚饮茶：拜师后猴儿林寻蝎与交付分支',
       author: '虚饮茶',
@@ -197,6 +210,18 @@ module.exports = {
     },
   },
   items: {
+    10332: {
+      name: '蜂蜜',
+      routes: [
+        {
+          kind: 'drop',
+          label: '百药谷·击败蜜蜂',
+          placeId: 'place-903',
+          detail: '到石屏村西侧的百药谷，击败蜜蜂取得蜂蜜。',
+          sourceIds: ['material-honey-game', 'material-honey-location'],
+        },
+      ],
+    },
     10498: {
       name: '异种金蝎',
       routes: [

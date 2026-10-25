@@ -1028,7 +1028,7 @@ async function companionHomeInventorySync(page) {
     await win.locator('[data-action="close-overlay"]').click();
     await win.locator('[data-action="compact"]').first().click();
     assert.equal(await choiceCompact.locator('#global-search').inputValue(), '金疮药');
-    await choiceCompact.locator('[data-action="database-detail"][data-id="item-133"]').first().click();
+    await choiceCompact.locator('.search-modal .search-result[data-id="item-133"]').click();
     await choiceCompact.locator('.drawer h1').getByText('金疮药').waitFor();
     const readingFold = choiceCompact.locator('.drawer-body details').first();
     await readingFold.evaluate((el) => {

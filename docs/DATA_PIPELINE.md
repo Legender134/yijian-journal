@@ -219,3 +219,13 @@ Build 21798996 的 Quest_5317、Quest_5323、Quest_5982、挑战入口 Quest_531
 5317、5323在晋升剧情正常结束后到达属性调用；5858须正常结束晋升剧情并走过后续结算跳转；首座6261须比武胜利且结束结算对话，`OnFinished` 本身只进入比武，不能据此给出属性收益。序列中止、首座败北和选择选项的回调本身都不到属性动作。四入口各展示一次“晋升收益”，复用共享 `attributes[45]` / `itemEffectText` 输出“精力上限 +10 点”，不当作当前精力恢复、已获得的状态或当前存档已写盘的证明，也不按难度或任务清理循环累计。
 
 来源元数据分开标记 `owned-installed-game-blueprint`：Build 21798996，UE4.26静态解码，包含各原始uasset/uexp成员、解码JSON、表达式长度和解码API摘要，以及程序SHA-256 `946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c`。解码API为UAssetAPI `d7b9fd4341ac22dd9ab8d9f49455ea5ebcf571abced64313ab15eb1944de07d9`、Newtonsoft.Json `22c649f75fce5be7c7ccda8880473b634ef69ecf33f5d1ab8ad892caf47d5a07`、ZstdSharp `5d597fb07c93f99bcbbcf1265bfc60de1f1f8fc070a3acc36f0371a86c326b16`。原生枚举和ApplyAction分派确认4=CAttr、45=MaxJingLi；`GetNPCInfoById(0)` 传入主角Hero对象，原生modifier操作为Additive(0)。该结论限定于已pin构建的静态动作与回调控制流，不扩展为所有外部回调重入时序、属性间接联动、存档持久化时机或全局仅结算一次机制的实机验证。原包、程序和反汇编不分发，来源许可沿用游戏数据说明。
+
+### 孙老思乡与南疆交花
+
+孙老思乡11061、两路结算11062／11063、取蜜11686／11687及交花11689复用已有world-index.json与codex-details.json中的前置、选项及奖励数据，不新增重复机器契约。核对使用Build 21798996完整6437行Quests输入，SHA-256为 f1ddf79d01d5d143512ce55b1007b19cd8dc5c57c48ff00cb3ee396f5ef5fecf；名称另与同构建Items／NPCs交叉核对。原始全表和私有审计不分发。
+
+入口不再凭早期主线章节提前提醒，保留5059已完成的锚点及已激活任务家族，允许后期回村补做。两条后续保留作图鉴攻略和接取地点线索，不新增decisionSteps或重复advice卡；当前行动由flow.active与结构化材料行呈现，完成／失败后退场，历史guide仍可查。通用“未接任务线索”可保留异地委托，接取提示补明南疆石屏村，地点补充参照[木林风2023-10-17原站](https://www.3dmgame.com/gl/3908832_70.html)。
+
+蜂蜜10332仅补百药谷place-903“击败蜜蜂”的共享drop路线，复用于物品图鉴、缺料与采集目的地。11686／11687仅加instruction/evidenceQuestIds，沿用materialGate：持有0／4份时采集，5份时交付龙桑加并撤下采集目的地。百药谷名称及村西关系来自任务原文；Items另提桃花林／落英林，本次不扩展刷怪地点、等级或刷新机制。
+
+原表两路取蜜都列CItem(10273,2)，同构建1713行Items及公共物品索引却无该引用，本节仅记录缺引用，不编造名称／物品入口或实际到账保证。NPCs蜂群45265、蜜蜂45266／45322／45323的DropItems引用蜂蜜，原始Value60／100不解释成数量或掉率，也不由这些行推断地图分布。未穷举其他Blueprint和秋海棠来源，不据单条结算推断任一答法永久失去所有后续。
