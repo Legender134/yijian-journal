@@ -1,9 +1,12 @@
 import { placeEntityId, entityCatalog } from './entity-catalog.js';
 import { createCodexDetailViews } from './codex-detail-views.js';
 import { compileSearch, compareSearchTitles } from './search-query.js';
-import { createItemStatViews, itemNumericSummary } from './item-stat-views.js';
+import { createItemStatViews, itemNumericSummary, itemUseVariantLabel } from './item-stat-views.js';
 import { createNpcFactViews } from './npc-fact-views.js';
 import { createNpcProgressViews } from './npc-progress-views.js';
+import { storyNpcSkillClues, storyNpcInvitations, storyNpcAffectionClues, storyNpcTradeClues } from './story-npc-skill-clues.js';
+import { npcQuestAffectionSources } from './npc-affection-sources.js';
+import { defaultConsultationExcludedRows } from '../shared/martial-consultation.mjs';
 export const CODEX_PAGE_SIZE = 96;
 export function codexEntries(index, statuses = new Map()) {
   const kinds = new Map((index.world?.quests || []).map((q) => [q.id, q.kind]));
@@ -135,17 +138,27 @@ export function createGameViews({
     if (!e) return '';
     const itemLink = (id, name) =>
       byId(index, `item-${id}`) ? act('database-detail', esc(name), 'text-btn', `item-${id}`) : esc(name);
+    const itemVariantLabel = e.kind === '物品' ? itemUseVariantLabel(e, index) : '';
     let extra = '',
       recipeState = '';
     const reserved = Object.values(allocationTotals).reduce((a, b) => a + b, 0);
     if (e.kind === '物品')
-      extra = `${itemStats.detail(index, e)}${e.useLimit ? `<p class="item-use-limit">使用次数上限 ${esc(e.useLimit)} 次</p>` : ''}<details class="detail-block item-trade-details" data-persist-detail="item-trade-${esc(e.id)}"><summary>价格与赠礼</summary><div class="detail-stat-grid"><div><small>买入基础价</small><strong>${e.buyPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 文</strong></div><div>${e.stats?.cantSell === true ? '<small>卖出</small><strong>不可出售</strong>' : `<small>卖出基础价</small><strong>${e.sellPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 文</strong>`}</div><div><small>赠礼</small><strong>${e.giftable ? '可以赠送' : '不可赠送'}</strong></div></div></details>`;
+      extra = `${itemVariantLabel ? `<p class="item-use-limit">${esc(itemVariantLabel)}</p>` : ''}${itemStats.detail(index, e)}${e.stats?.cantTakeFromCompare ? '<p class="item-use-limit">普通比武私物不可抽取</p>' : ''}${e.useLimit ? `<p class="item-use-limit">使用次数上限 ${esc(e.useLimit)} 次</p>` : ''}<details class="detail-block item-trade-details" data-persist-detail="item-trade-${esc(e.id)}"><summary>价格与赠礼</summary><div class="detail-stat-grid"><div><small>买入基础价</small><strong>${e.buyPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 文</strong></div><div>${e.stats?.cantSell === true ? '<small>卖出</small><strong>不可出售</strong>' : `<small>卖出基础价</small><strong>${e.sellPrice.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 文</strong>`}</div><div><small>赠礼</small><strong>${e.giftable ? '可以赠送' : '不可赠送'}</strong></div></div></details>`;
     if (e.kind === '武学')
-      extra = `${stateNotice ? `<p class="notice info flow-state-notice" role="status">${esc(stateNotice)}</p>` : ''}${e.special ? `<div class="detail-block"><h3>特殊效果</h3><p class="preserve-text">${richText(e.special)}</p></div>` : ''}${codexDetails.skill(index, e, liveNpcProgress || reference?.metadata?.npcProgress, liveReference ? 'live' : 'saved')}`;
+      extra = `${stateNotice ? `<p class="notice info flow-state-notice" role="status">${esc(stateNotice)}</p>` : ''}${e.requiresDlc2 ? '<p class="item-use-limit">使用需要相应扩展内容</p>' : ''}${e.special ? `<div class="detail-block"><h3>特殊效果</h3><p class="preserve-text">${richText(e.special)}</p></div>` : ''}${e.castEffect ? `<details class="detail-block"><summary>施放效果</summary><p class="preserve-text">${richText(e.castEffect)}</p></details>` : ''}${codexDetails.skill(index, e, liveNpcProgress || reference?.metadata?.npcProgress, liveReference ? 'live' : 'saved')}`;
     if (e.kind === '人物') {
       const friendshipLocks = (e.friendshipLocks || []).filter(
         (lock) => !(lock.at === 0 && lock.requirements.length === 0),
       );
+      // Adjacent identical checks are one displayed condition; keep their
+      // configured caps in order without altering the actual evaluator.
+      const friendshipLockGroups = friendshipLocks.reduce((groups, lock) => {
+        const previous = groups.at(-1);
+        if (previous && JSON.stringify(previous.requirements) === JSON.stringify(lock.requirements))
+          previous.caps.push(lock.at);
+        else groups.push({ requirements: lock.requirements, caps: [lock.at] });
+        return groups;
+      }, []);
       const statusReference = liveReference || reference;
       const personProgress = (liveNpcProgress || reference?.metadata?.npcProgress)?.people.find(
         (row) => row.npcId === e.gameId,
@@ -163,7 +176,7 @@ export function createGameViews({
               .map(([, label]) => label)
           : [];
       const unavailableOperations = missingOperations.length
-        ? `<p class="npc-unavailable-entry">${missingOperations.map(esc).join('、')}：暂无入口</p>`
+        ? `<p class="npc-unavailable-entry">${missingOperations.map(esc).join('、')}：固定资料无常规入口，当前情况待确认</p>`
         : '';
       const qualities = ['白', '绿', '蓝', '金', '暗金', '红'];
       const minimumQuality = qualities.indexOf(giftGate?.minimumQuality);
@@ -171,7 +184,7 @@ export function createGameViews({
       for (const item of inventory ? statusReference.metadata.inventory : [])
         inventory.set(item.id, (inventory.get(item.id) || 0) + item.count);
       const gifts = index.entries
-        .filter((x) => x.kind === '物品' && x.giftable && e.hobbyKeys.includes(x.typeKey))
+        .filter((x) => x.kind === '物品' && x.giftable && (e.hobbyKeys.includes(x.typeKey) || x.gameId === 254))
         .filter((x) => minimumQuality < 0 || qualities.indexOf(x.quality) >= minimumQuality)
         .filter((x) => !inventory || inventory.get(x.gameId) > 0)
         .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN') || a.gameId - b.gameId);
@@ -181,18 +194,20 @@ export function createGameViews({
         personProgress,
         false,
         liveReference ? 'live' : 'saved',
-      )}${unavailableOperations}${initialFacts ? (personProgress ? `<details class="detail-block" data-persist-detail="npc-template-${esc(e.id)}"><summary>初始资料</summary>${initialFacts}</details>` : initialFacts) : ''}${personRelations(index, e, statusReference)}${
-        e.hobbies.length
+        [],
+        e.gameId,
+      )}${unavailableOperations}${initialFacts ? (personProgress ? `<details class="detail-block" data-persist-detail="npc-template-${esc(e.id)}"><summary>人物资料</summary>${initialFacts}</details>` : initialFacts) : ''}${personRelations(index, e, statusReference)}${
+        e.hobbies.length || (Array.isArray(e.functions) && e.functions.includes('Gift'))
           ? Array.isArray(e.functions) && !e.functions.includes('Gift')
             ? `<details class="detail-block" data-persist-detail="person-hobbies-${esc(e.id)}"><summary>初始偏好</summary><div class="tag-row">${e.hobbies.map((h) => pill(h, 'green')).join('')}</div></details>`
-            : `<details class="detail-block person-gifts" data-persist-detail="person-gifts-${esc(e.id)}"><summary>赠礼偏好 · ${e.hobbies.map(esc).join('、')}</summary><p>${inventory ? '背包中的偏好物品' : '符合偏好的物品'} · ${gifts.length} 种${minimumQuality >= 0 ? ` · ${esc(giftGate.minimumQuality)}色起` : ''}</p><div class="related-items">${
+            : `<details class="detail-block person-gifts" data-persist-detail="person-gifts-${esc(e.id)}"><summary>赠礼${e.hobbies.length ? ' · ' + e.hobbies.map(esc).join('、') : ''}</summary><p>${inventory ? '背包中' : '偏好及特殊礼物'} · ${gifts.length} 种${minimumQuality >= 0 ? ` · ${esc(giftGate.minimumQuality)}色起` : ''}</p><div class="related-items">${
                 gifts
                   .slice(giftPage * 24, giftPage * 24 + 24)
                   .map(
                     (g) =>
                       act(
                         'database-detail',
-                        esc(g.name) +
+                        esc(g.name) + (g.gameId === 254 ? ' · 特殊礼物' : '') +
                           (g.quality ? ` · ${esc(g.quality)}色` : '') +
                           (inventory ? ` · ${inventory.get(g.gameId)} 件` : ''),
                         'btn',
@@ -206,7 +221,38 @@ export function createGameViews({
                 `<p class="small muted">${inventory ? '背包中暂无符合条件的物品' : '暂无符合条件的物品'}</p>`
               }</div>${gifts.length > 24 ? `<div class="history-pagination"><button class="btn" data-action="gift-page" data-id="${giftPage - 1}" ${giftPage === 0 ? 'disabled' : ''}>上一页</button><span>共 ${gifts.length} 种 · 第 ${giftPage + 1} / ${pages} 页</span><button class="btn" data-action="gift-page" data-id="${giftPage + 1}" ${giftPage + 1 >= pages ? 'disabled' : ''}>下一页</button></div>` : ''}${reserved ? `<p class="save-note">${inventory ? '已扣除预留数量' : '库存未读取'}</p>` : ''}</details>`
           : ''
-      }${e.lifeSkills?.length ? `<details class="detail-block"><summary>初始生活技能</summary><div class="tag-row mt">${e.lifeSkills.map((s) => pill(`${s.name} ${s.level} 级`)).join('')}</div></details>` : ''}${e.skills?.length ? `<details class="detail-block"><summary>初始武学</summary><div class="related-items mt">${e.skills.map((s) => act('database-detail', esc(byId(index, s.id)?.name || s.id) + ` · ${s.level}`, 'btn', s.id)).join('')}</div></details>` : ''}${friendshipLocks.length && index.renderRequirements ? `<details class="detail-block"><summary>好感解锁条件</summary>${friendshipLocks.map((l) => `<h3 class="mt">${l.at} 好感</h3>${index.renderRequirements(l.requirements, index, { reference: statusReference })}`).join('')}</details>` : ''}${e.joinRequirements?.length && index.renderRequirements ? `<details class="detail-block"><summary>入队条件</summary>${index.renderRequirements(e.joinRequirements, index, { reference: statusReference })}</details>` : ''}${act('world-person', '全部相关任务', 'btn', e.id, 'scroll')}`;
+      }${e.lifeSkills?.length ? `<details class="detail-block"><summary>初始生活技能</summary><div class="tag-row mt">${e.lifeSkills.map((s) => pill(`${s.name} ${s.level} 级`)).join('')}</div></details>` : ''}${e.skills?.length ? `<details class="detail-block"><summary>初始武学${(e.npcExtraSkillClues || []).some((skill) => !(e.skills || []).some((known) => known.id === 'skill-' + skill.id && known.level === skill.level)) ? '（部分）' : ''}</summary><div class="related-items mt">${e.skills.map((s) => act('database-detail', esc(byId(index, s.id)?.name || s.id) + ` · ${s.level}` + (defaultConsultationExcludedRows.has(Number(String(s.id).replace(/^skill-/, ''))) ? ' · 默认请教列表通常不显示' : ''), 'btn', s.id)).join('')}</div></details>` : ''}${friendshipLockGroups.length && index.renderRequirements ? `<details class="detail-block"><summary>好感解锁条件</summary>${friendshipLocks.length > 1 ? '<p>按顺序检查，首个未满足项生效。</p>' : ''}${friendshipLockGroups.map((l) => `<h3 class="mt">未满足时上限 ${l.caps.map(esc).join(' / ')}</h3>${index.renderRequirements(l.requirements, index, { reference: statusReference })}`).join('')}</details>` : ''}${e.joinRequirements?.length && index.renderRequirements ? `<details class="detail-block"><summary>入队条件</summary>${index.renderRequirements(e.joinRequirements, index, { reference: statusReference })}</details>` : ''}${act('world-person', '全部相关任务', 'btn', e.id, 'scroll')}`;
+      const initialSkills = new Set((e.skills || []).map((skill) => `${skill.id}:${skill.level}`));
+      const extraSkills = (e.npcExtraSkillClues || []).filter(
+        (skill) => !initialSkills.has(`skill-${skill.id}:${skill.level}`),
+      );
+      if (extraSkills.length)
+        extra += `<details class="detail-block" data-persist-detail="npc-extra-skills-${esc(e.id)}"><summary>其他武学线索 · ${extraSkills.length} 项</summary><p class="small muted">来自人物原始模板；当前是否掌握、能否请教均需在游戏中核对。</p><div class="tag-row mt">${extraSkills.map((skill) => `<span>可能掌握 ${esc(skill.name)} · 原模板 ${esc(skill.level)} 级${defaultConsultationExcludedRows.has(skill.id) ? ' · 默认请教列表通常不显示' : ''}</span>`).join('')}</div></details>`;
+      const storySkills = storyNpcSkillClues.filter((clue) => clue.npcId === e.gameId);
+      if (storySkills.length)
+        extra += `<details class="detail-block"><summary>剧情武学线索</summary>${storySkills.map((clue) => `<p>${clue.questId ? act('world-quest', esc(index.world?.quests?.find((q) => q.gameId === clue.questId)?.name || '相关任务'), 'text-btn', `quest-${clue.questId}`) : clue.itemId ? act('database-detail', esc(byId(index, `item-${clue.itemId}`)?.name || '相关物品'), 'text-btn', `item-${clue.itemId}`) : clue.placeId ? act('world-place', esc(index.world?.maps?.find((p) => p.id === clue.placeId)?.name || '相关地点'), 'text-btn', clue.placeId) : act('database-detail', esc(byId(index, `npc-${clue.personId}`)?.name || '相关人物'), 'text-btn', `npc-${clue.personId}`)}相关剧情后可能掌握：</p><div class="related-items">${clue.skillIds.map((id) => byId(index, `skill-${id}`) ? act('database-detail', esc(clue.skillNames?.[id] || byId(index, `skill-${id}`).name), 'text-btn', `skill-${id}`) : `<span>${esc(clue.skillNames?.[id] || `未收录武学 #${id}`)}</span>`).join('')}</div>${clue.note ? `<p>${esc(clue.note)}</p>` : ''}`).join('')}</details>`;
+      const invitations = storyNpcInvitations.filter((clue) => clue.npcId === e.gameId);
+      if (invitations.length)
+      extra += `<details class="detail-block"><summary>剧情入队线索</summary>${invitations.map((clue) => `<p>${richText(clue.text)}</p>${clue.questId ? act('world-quest', esc(index.world?.quests?.find((q) => q.gameId === clue.questId)?.name || '相关任务'), 'text-btn', `quest-${clue.questId}`) : clue.placeId ? act('world-place', esc(index.world?.maps?.find((p) => p.id === clue.placeId)?.name || '相关地点'), 'text-btn', clue.placeId) : ''}`).join('')}</details>`;
+      const affectionClues = storyNpcAffectionClues.filter((clue) => clue.npcId === e.gameId);
+      const affectionSources = npcQuestAffectionSources(index, e.gameId, affectionClues.flatMap((clue) => clue.coveredQuestIds || []));
+      if (affectionClues.length || affectionSources.length) {
+        const formatChange = (value) => value === null ? '未列' : `${value > 0 ? '+' : ''}${value}`;
+        const sourceRow = ({ quest, values, kind, choice, stepIds }) => {
+          const amount = values.every((value) => value === values[0])
+            ? formatChange(values[0])
+            : values.map((value, position) => `${['普通', '困难', '极难'][position]} ${formatChange(value)}`).join(' · ');
+          const trigger = kind === 'choice' ? `选择「${esc(choice)}」` : kind === 'hidden-finish' ? (stepIds.length > 1 ? '不同后续结算' : '相关后续结算') : '结算';
+          return `<p>${act('world-quest', esc(quest.name), 'text-btn', quest.id)} · ${trigger}可能影响好感 ${esc(amount)}</p>`;
+        };
+        const extraSources = affectionSources.length
+          ? `<details><summary>其他剧情 · ${affectionSources.length}</summary>${affectionSources.map(sourceRow).join('')}</details>`
+          : '';
+        extra += `<details class="detail-block"><summary>剧情好感线索</summary><p>实际变化受当前好感与上限影响。</p>${affectionClues.map((clue) => `<p>${clue.placeId ? act('world-place', esc(index.world?.maps?.find((p) => p.id === clue.placeId)?.name || '相关地点'), 'text-btn', clue.placeId) + ' · ' : clue.questId ? act('world-quest', esc(index.world?.quests?.find((q) => q.gameId === clue.questId)?.name || '相关任务'), 'text-btn', `quest-${clue.questId}`) + ' · ' : ''}${richText(clue.text)}</p>`).join('')}${extraSources}</details>`;
+      }
+      const tradeClues = storyNpcTradeClues.filter((clue) => clue.npcId === e.gameId);
+      if (tradeClues.length)
+        extra += `<details class="detail-block"><summary>剧情交易线索</summary>${tradeClues.map((clue) => `<p>${act('world-quest', esc(index.world?.quests?.find((q) => q.gameId === clue.questId)?.name || '相关任务'), 'text-btn', `quest-${clue.questId}`)} · ${richText(clue.text)}</p>`).join('')}</details>`;
       const shop = index.merchants?.find((m) => m.id === e.gameId);
       if (shop)
         extra += `<details class="detail-block shop-stock"><summary>售卖清单 · ${shop.items.length} 种</summary><div class="related-items mt">${shop.items.map((id) => itemLink(id, byId(index, `item-${id}`)?.name || `物品 #${id}`)).join('')}</div></details>`;
@@ -230,7 +276,7 @@ export function createGameViews({
       extra += `<div class="detail-block recipe-learning"><h3>学习这份配方的图纸</h3><div class="related-items">${e.learningItems.map((id) => itemLink(id, byId(index, `item-${id}`)?.name || `物品 #${id}`)).join('')}</div></div>`;
     if (e.kind === '物品') {
       if (e.acquisitionRoutes?.length)
-        extra += `<section class="detail-block item-acquisition-routes"><h3>阶段获取线索</h3>${e.acquisitionRoutes.map((route) => `<h4>${esc(route.title)}</h4><p>${richText(route.detail)}</p>${act('world-quest', '查看对应任务步骤', 'text-btn', 'quest-' + route.questId)}<details><summary>资料来源</summary>${route.uncertainty ? `<p class="small">${esc(route.uncertainty)}</p>` : ''}${route.sources.map((source) => `<p>${act('source', esc(source.title), 'text-btn', source.id)}<span class="small muted"> · ${esc(source.date)} · ${esc(source.version)}</span></p>`).join('')}</details>`).join('')}</section>`;
+        extra += `<section class="detail-block item-acquisition-routes"><h3>阶段获取线索</h3>${e.acquisitionRoutes.map((route) => `<h4>${route.placeId && index.world?.maps?.some((place) => place.id === route.placeId) ? act('world-place', esc(route.title), 'text-btn', route.placeId) : esc(route.title)}</h4><p>${richText(route.detail)}</p>${route.questId ? act('world-quest', '查看对应任务步骤', 'text-btn', 'quest-' + route.questId) : ''}<details><summary>资料来源</summary>${route.uncertainty ? `<p class="small">${esc(route.uncertainty)}</p>` : ''}${route.sources.map((source) => `<p>${act('source', esc(source.title), 'text-btn', source.id)}<span class="small muted">${source.date ? ` · ${esc(source.date)}` : ''} · ${esc(source.version)}</span></p>`).join('')}</details>`).join('')}</section>`;
       extra += codexDetails.item(index, e);
       const holderProgress =
         liveReference?.origin === 'live'

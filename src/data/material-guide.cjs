@@ -17,6 +17,12 @@ module.exports = {
       date: '2023-10-17',
       confidence: '补充石屏村与蜜蜂取蜜做法；百药谷名称以同构建原表为准。',
     },
+    'material-scorpion-game': {
+      title: '游戏资料：异种金蝎获取与交付',
+      url: 'https://github.com/Legender134/yijian-journal/blob/main/docs/DATA_PIPELINE.md#异种金蝎的共享交付与其他来源',
+      version: 'Build 21798996',
+      confidence: '两条后续步骤均配置金蝎发放；交付和任务影响依赖各自条件，实际执行与路线兼容仍待核对。',
+    },
     'material-scorpion-xu': {
       title: '虚饮茶：拜师后猴儿林寻蝎与交付分支',
       author: '虚饮茶',
@@ -230,12 +236,10 @@ module.exports = {
           label: '猴儿林左上山洞 · 无名岩洞',
           placeId: 'place-75',
           detail:
-            '两位社区作者都在拜师武当后前往猴儿林左上、深处左侧的山洞寻找异种金蝎；先留可回读进度，击败洞内金蝎后核对背包。出洞遇娜乌时先选定路线，想走药圣线就拒绝索蝎、留给姑苏柳麻衣；娜乌与毒物商人路线的收益不同。',
-          efficiency:
-            '该委托需1只；已有可直接核对交付。需跑图和战斗，虚饮茶提醒初期可能打不过，可整备后再来。没有可确认的刷新、重复取得或单位时间产量，不按普通蝎子刷取。',
-          uncertainty:
-            '版本化社区来源，不证明当前洞内一定有金蝎或玩家一定能打赢；普通流程三条交付线互斥，不能把同一只交给多人，也不保证全部后续条件。',
-          sourceIds: ['material-scorpion-xu', 'material-scorpion-song'],
+            '社区路线记载拜师武当后可到猴儿林左上、深处左侧的无名岩洞寻找；相关战斗后检查背包。若只有一只，交付前先考虑是否留给姑苏柳麻衣。',
+          efficiency: '任务需1只；洞内战斗可能需要先整备。',
+          uncertainty: '相关交付配置消耗1只；实际执行、其他来源与路线兼容仍需核对。',
+          sourceIds: ['material-scorpion-game', 'material-scorpion-xu', 'material-scorpion-song'],
         },
       ],
     },

@@ -990,7 +990,7 @@ function createJourneyPlanner({ world: worldIndex, game: gameIndex }) {
       );
       const allocated = allocationKnown ? granted.allocated : null;
       addAction('gift', [g.id], {
-        title: `赠礼意图：${giftPersonLabel(person, giftPersonEntries)} · ${giftItemLabel(item)} × ${g.quantity}${noGiftEntry ? ' · 暂无赠礼入口' : ''}${ungiftable ? ' · 物品不可赠送' : ''}`,
+        title: `赠礼意图：${giftPersonLabel(person, giftPersonEntries)} · ${giftItemLabel(item)} × ${g.quantity}${noGiftEntry ? ' · 固定资料无常规赠礼入口，当前情况待确认' : ''}${ungiftable ? ' · 物品不可赠送' : ''}`,
         detail: g.note,
         userDone: g.done,
         gift: {

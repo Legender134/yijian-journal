@@ -92,7 +92,7 @@ function handbookContext(value) {
   result.databasePage = page(value.databasePage);
   const npc = value.npcProgress;
   result.npcProgress = {
-    tab: ['remaining', 'learning', 'locked', 'cleared'].includes(npc?.tab) ? npc.tab : 'remaining',
+    tab: ['remaining', 'learning', 'locked', 'unknown', 'cleared'].includes(npc?.tab) ? npc.tab : 'remaining',
     query: text(npc?.query, 100),
     page: page(npc?.page),
   };

@@ -91,7 +91,7 @@ export function giftChoices(index, kind, view = {}) {
     .filter(Boolean);
   const selected = allCandidates.find((entry) => entry.id === view.selectedId);
   const candidates = allCandidates.filter((entry) =>
-    kind === 'person' ? !hasNoGiftEntry(entry) : entry.giftable === true,
+    kind === 'person' || entry.giftable === true,
   );
   const labels = new Map(candidates.map((entry) => [entry.id, giftChoiceLabel(entry, entries, counts)]));
   const person = entries.find((entry) => entry.id === view.personId && entry.kind === '人物');
@@ -103,21 +103,15 @@ export function giftChoices(index, kind, view = {}) {
     );
   const rows = candidates.filter(
     (entry) =>
-      (kind !== 'item' || !view.preferredOnly || (person?.hobbyKeys || []).includes(entry.typeKey)) &&
+      (kind !== 'item' || !view.preferredOnly || entry.gameId === 254 || (person?.hobbyKeys || []).includes(entry.typeKey)) &&
       (kind !== 'item' || !view.stockOnly || (view.stock?.known && view.stock.available[entry.gameId] > 0)) &&
       (!view.quality || view.quality === 'all' || entry.quality === view.quality) &&
       matchesQuery(entry),
   );
   const excludedMatch =
-    terms.length > 0 &&
-    (kind === 'person'
-      ? allCandidates.some(
-          (entry) =>
-            hasNoGiftEntry(entry) &&
-            terms.every((term) => (entry.name + ' ' + entry.id).toLocaleLowerCase('zh-CN').includes(term)),
-        )
-      : allCandidates.some((entry) => entry.giftable !== true && matchesQuery(entry)) &&
-        !allCandidates.some((entry) => entry.giftable === true && matchesQuery(entry)));
+    kind === 'item' && terms.length > 0 &&
+    allCandidates.some((entry) => entry.giftable !== true && matchesQuery(entry)) &&
+    !allCandidates.some((entry) => entry.giftable === true && matchesQuery(entry));
   const query = terms.join(' ');
   rows.sort(
     (a, b) =>
@@ -148,7 +142,7 @@ export function createGiftPicker({ esc, act, picture, qualityText }) {
     if (kind !== 'item') return [];
     return [
       view.quality && view.quality !== 'all' ? view.quality + '色品质' : '',
-      view.preferredOnly ? '符合偏好' : '',
+      view.preferredOnly ? '偏好及特殊礼物' : '',
       view.stockOnly ? '有可用库存' : '',
     ].filter(Boolean);
   }
@@ -164,10 +158,12 @@ export function createGiftPicker({ esc, act, picture, qualityText }) {
       selected.description,
       kind === 'person' && selected.hobbies?.length ? '偏好：' + selected.hobbies.join('、') : '',
     ].filter(Boolean);
-    const gift = kind === 'person' && !hasNoGiftEntry(selected) ? view.progress?.gift : null;
+    const gift = kind === 'person' ? view.progress?.gift : null;
     const gateChecks = gift?.checks?.filter((check) => check.status !== 'met') || [];
     const primaryCheck =
-      gateChecks.find((check) => check.status === (gift?.status === 'unmet' ? 'unmet' : 'unknown')) ||
+      (gift?.status === 'unmet' ? gateChecks.find((check) => check.status === 'unmet') : null) ||
+      gateChecks.find((check) => check.status === 'unknown' && check.code === 'friendship-cap') ||
+      gateChecks.find((check) => check.status === 'unknown') ||
       gateChecks[0];
     const condition = (check) => {
       const name = String(check.name || '').replace(/^【[^】]+】\s*/, ''),
@@ -184,11 +180,11 @@ export function createGiftPicker({ esc, act, picture, qualityText }) {
         : esc(check.text);
     };
     const gateHint =
-      kind !== 'person' || hasNoGiftEntry(selected)
+      kind !== 'person' || (!gift && hasNoGiftEntry(selected))
         ? ''
         : gift?.status === 'unmet'
           ? '<p class="gift-condition-warning">' +
-            (view.progressOrigin === 'live' ? '暂不能赠礼' : '保存时暂不能赠礼') +
+            (view.progressOrigin === 'live' ? '常规赠礼暂受限' : '保存时常规赠礼受限') +
             (primaryCheck ? '：' + condition(primaryCheck) : '') +
             '</p>'
           : gift?.status === 'met'
@@ -203,8 +199,12 @@ export function createGiftPicker({ esc, act, picture, qualityText }) {
       kind === 'item' && selected.giftable === true && minimum >= 0 && quality >= 0 && quality < minimum
         ? `<p class="gift-condition-warning">礼物需要至少${esc(view.minimumQuality)}色品质。</p>`
         : '';
-    const moreChecks = gateChecks
-      .filter((check) => check !== primaryCheck)
+    const capChecks = primaryCheck?.code === 'friendship-cap'
+      ? (view.progress?.friendship?.checks || []).filter((check) => check.status !== 'met')
+      : [];
+    const moreChecks = [...gateChecks, ...capChecks]
+      .filter((check, index, checks) => check !== primaryCheck &&
+        checks.findIndex((other) => other.text === check.text && other.entityId === check.entityId) === index)
       .map((check) => '<p class="small">' + condition(check) + '</p>')
       .join('');
     const stock =
@@ -213,19 +213,19 @@ export function createGiftPicker({ esc, act, picture, qualityText }) {
           ? `<p class="gift-stock" role="status" title="保存于 ${esc(new Date(view.stock.modifiedAt).toLocaleString('zh-CN'))}">保存时持有 ${view.stock.counts[selected.gameId] || 0} · 其他安排 ${Math.max(0, (view.stock.used[selected.gameId] || 0) - (view.stock.own[selected.gameId] || 0))} · 这份可用 ${view.stock.available[selected.gameId] || 0}</p>`
           : '<p class="gift-stock" role="status">库存暂未读取，可先规划赠礼。</p>'
         : '';
-    return `<div class="gift-selected">${act('database-detail', esc(giftChoiceLabel(selected, index.entries)), 'text-btn gift-selected-link', selected.id)}${stock}${gateHint}${qualityHint}${facts.length || moreChecks ? `<details class="gift-selected-facts"><summary>详情</summary>${moreChecks}${facts.map((text) => '<p class="small">' + esc(text) + '</p>').join('')}</details>` : ''}</div>${kind === 'person' && hasNoGiftEntry(selected) ? '<p class="notice">此人物暂无赠礼入口，请改选人物。已有安排仍保留。</p>' : kind === 'item' && selected.giftable !== true ? '<p class="notice">此物品不可赠送，请改选物品。</p>' : ''}`;
+    return `<div class="gift-selected">${act('database-detail', esc(giftChoiceLabel(selected, index.entries)), 'text-btn gift-selected-link', selected.id)}${stock}${gateHint}${qualityHint}${facts.length || moreChecks ? `<details class="gift-selected-facts"><summary>详情</summary>${moreChecks}${facts.map((text) => '<p class="small">' + esc(text) + '</p>').join('')}</details>` : ''}</div>${kind === 'person' && !gift && hasNoGiftEntry(selected) ? '<p class="small">固定资料无常规赠礼入口，当前情况待确认。</p>' : kind === 'item' && selected.giftable !== true ? '<p class="notice">此物品不可赠送，请改选物品。</p>' : ''}`;
   }
   function options(index, kind, view) {
     const result = giftChoices(index, kind, view),
       id = target(kind);
     const rows = result.pinned ? [result.pinned, ...result.rows] : result.rows;
-    return `<select id="${id}" class="gift-exact-select" required tabindex="-1" aria-hidden="true" aria-label="${kind === 'person' ? '送给谁' : '准备赠送的物品'}"><option value=""${!result.selected ? ' selected' : ''}>请选择${noun(kind)}</option>${rows.map((entry) => `<option value="${esc(entry.id)}"${entry.id === result.selected?.id ? ' selected' : ''}${(kind === 'person' && hasNoGiftEntry(entry)) || (kind === 'item' && entry.giftable !== true) ? ' disabled' : ''}>${esc(giftChoiceLabel(entry, index.entries))}${entry.id === result.pinned?.id ? ' · 当前已选' : ''}</option>`).join('')}</select><div class="gift-choice-grid" aria-label="${noun(kind)}候选">${result.rows.map((entry) => `<button type="button" class="gift-choice-card${entry.id === result.selected?.id ? ' selected' : ''}" data-action="journey-gift-select" data-id="${kind}:${esc(entry.id)}" aria-label="选择${esc(giftChoiceLabel(entry, index.entries))}" aria-pressed="${entry.id === result.selected?.id}">${picture(entry.id)}<span>${qualityText.name(entry.id, giftChoiceLabel(entry, index.entries))}</span></button>`).join('')}</div><div class="row between gift-choice-pagination"><span class="small" role="status">${result.total ? `${result.total} 项 · ${result.page}/${result.pages}` : result.excludedMatch ? (kind === 'person' ? '匹配的人物暂无赠礼入口。' : '匹配的物品不可赠送。') : '没有匹配结果'}</span><span>${result.page > 1 ? act('journey-gift-page', '上一页', 'text-btn', kind + ':' + (result.page - 1)) : ''}${result.page < result.pages ? act('journey-gift-page', '下一页', 'text-btn', kind + ':' + (result.page + 1)) : ''}</span></div>`;
+    return `<select id="${id}" class="gift-exact-select" required tabindex="-1" aria-hidden="true" aria-label="${kind === 'person' ? '送给谁' : '准备赠送的物品'}"><option value=""${!result.selected ? ' selected' : ''}>请选择${noun(kind)}</option>${rows.map((entry) => `<option value="${esc(entry.id)}"${entry.id === result.selected?.id ? ' selected' : ''}${kind === 'item' && entry.giftable !== true ? ' disabled' : ''}>${esc(giftChoiceLabel(entry, index.entries))}${entry.id === result.pinned?.id ? ' · 当前已选' : ''}</option>`).join('')}</select><div class="gift-choice-grid" aria-label="${noun(kind)}候选">${result.rows.map((entry) => `<button type="button" class="gift-choice-card${entry.id === result.selected?.id ? ' selected' : ''}" data-action="journey-gift-select" data-id="${kind}:${esc(entry.id)}" aria-label="选择${esc(giftChoiceLabel(entry, index.entries))}" aria-pressed="${entry.id === result.selected?.id}">${picture(entry.id)}<span>${qualityText.name(entry.id, giftChoiceLabel(entry, index.entries))}</span></button>`).join('')}</div><div class="row between gift-choice-pagination"><span class="small" role="status">${result.total ? `${result.total} 项 · ${result.page}/${result.pages}` : result.excludedMatch ? '匹配的物品不可赠送。' : '没有匹配结果'}</span><span>${result.page > 1 ? act('journey-gift-page', '上一页', 'text-btn', kind + ':' + (result.page - 1)) : ''}${result.page < result.pages ? act('journey-gift-page', '下一页', 'text-btn', kind + ':' + (result.page + 1)) : ''}</span></div>`;
   }
   function field(index, kind, view) {
     const id = target(kind),
       selected = giftChoices(index, kind, view).selected,
       filters = filterLabels(kind, view);
-    return `<section class="field gift-field" data-gift-field="${kind}"><h3>${kind === 'person' ? '送给谁' : '赠送物品'}</h3><div id="${id}-selection">${selection(index, kind, view)}</div><details class="gift-choice-editor" id="${id}-picker"${selected ? '' : ' open'}><summary>${choiceSummary(kind, view, selected)}</summary><label for="${id}-search" class="visually-hidden">查找赠礼${noun(kind)}</label><input id="${id}-search" type="search" maxlength="100" value="${esc(view.query || '')}" placeholder="${kind === 'person' ? '搜索人物姓名' : '搜索物品、品质或类别'}" aria-label="查找赠礼${noun(kind)}">${kind === 'item' ? `<details class="gift-choice-filters"><summary>筛选${filters.length ? ' · ' + esc(filters.join('、')) : ''}</summary><label class="small" for="journey-item-quality">物品品质</label><select id="journey-item-quality"><option value="all">全部品质</option>${['白', '绿', '蓝', '金', '暗金', '红'].map((q) => `<option value="${q}"${view.quality === q ? ' selected' : ''}>${q}色品质</option>`).join('')}</select><label><input id="journey-item-preferred" type="checkbox"${view.preferredOnly ? ' checked' : ''}> 符合人物偏好</label><label><input id="journey-item-stock" type="checkbox"${view.stockOnly ? ' checked' : ''}${view.stock?.known ? '' : ' disabled'}> 有可用库存</label>${act('journey-gift-filter-clear', '清除筛选', 'text-btn', 'item')}</details>` : ''}<div id="${id}-options">${options(index, kind, view)}</div></details></section>`;
+    return `<section class="field gift-field" data-gift-field="${kind}"><h3>${kind === 'person' ? '送给谁' : '赠送物品'}</h3><div id="${id}-selection">${selection(index, kind, view)}</div><details class="gift-choice-editor" id="${id}-picker"${selected ? '' : ' open'}><summary>${choiceSummary(kind, view, selected)}</summary><label for="${id}-search" class="visually-hidden">查找赠礼${noun(kind)}</label><input id="${id}-search" type="search" maxlength="100" value="${esc(view.query || '')}" placeholder="${kind === 'person' ? '搜索人物姓名' : '搜索物品、品质或类别'}" aria-label="查找赠礼${noun(kind)}">${kind === 'item' ? `<details class="gift-choice-filters"><summary>筛选${filters.length ? ' · ' + esc(filters.join('、')) : ''}</summary><label class="small" for="journey-item-quality">物品品质</label><select id="journey-item-quality"><option value="all">全部品质</option>${['白', '绿', '蓝', '金', '暗金', '红'].map((q) => `<option value="${q}"${view.quality === q ? ' selected' : ''}>${q}色品质</option>`).join('')}</select><label><input id="journey-item-preferred" type="checkbox"${view.preferredOnly ? ' checked' : ''}> 偏好及特殊礼物</label><label><input id="journey-item-stock" type="checkbox"${view.stockOnly ? ' checked' : ''}${view.stock?.known ? '' : ' disabled'}> 有可用库存</label>${act('journey-gift-filter-clear', '清除筛选', 'text-btn', 'item')}</details>` : ''}<div id="${id}-options">${options(index, kind, view)}</div></details></section>`;
   }
   return { field, options, selection, choiceSummary };
 }

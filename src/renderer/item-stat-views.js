@@ -1,4 +1,5 @@
 import { questJumpEventText } from '../shared/task-completion.mjs';
+import { itemSkillNames } from './item-skill-names.js';
 
 const equipmentTypes = new Set([
   'Sword',
@@ -45,14 +46,27 @@ export function itemEffectText(action, data) {
   return null;
 }
 
+// Same-name quest items can represent usable and inactive story states.
+export function itemUseVariantLabel(entry, index) {
+  if (entry.kind !== '物品' || entry.typeKey !== 'QuestItem' ||
+      typeof entry.stats?.usable !== 'boolean') return '';
+  const different = index.entries.some((other) =>
+    other.id !== entry.id && other.kind === entry.kind && other.typeKey === entry.typeKey &&
+    other.name === entry.name && typeof other.stats?.usable === 'boolean' &&
+    other.stats.usable !== entry.stats.usable,
+  );
+  return different ? (entry.stats.usable ? '可使用版本' : '不可使用版本') : '';
+}
+
 export function itemNumericSummary(entry, index) {
   if (entry.kind !== '物品' || !entry.stats) return '';
-  return entry.stats.effects
+  const numeric = entry.stats.effects
     .map((action) => itemEffectText(action, index.itemStats))
     .filter(Boolean)
     .slice(0, 2)
     .map((row) => row.name + ' ' + row.value)
     .join(' · ');
+  return [itemUseVariantLabel(entry, index), numeric].filter(Boolean).join(' · ');
 }
 
 export function createItemStatViews({ esc, act }) {
@@ -92,8 +106,13 @@ export function createItemStatViews({ esc, act }) {
         return `<div class="item-effect-row"><span>获得物品：${link('item-' + action.id, '未收录物品')}（随机词条）</span><strong>× ${text(numberText(action.value))}</strong></div>`;
       if (action.type === 'AUpgradeExclusiveWeapon')
         return `<p class="small">专属武器强化：${link('item-' + action.id, '待核对武器')} → ${link('item-' + action.value, '强化结果待核对')}</p>`;
-      if (action.type === 'ASkill')
-        return `<div class="item-effect-buff"><p>学习武学：${link('skill-' + action.id, '未收录武学')}</p></div>`;
+      if (action.type === 'ASkill') {
+        // A source name is not evidence that this skill can be learned.
+        const sourceName = itemSkillNames[action.id] || '';
+        const indexed = byId.has('skill-' + action.id);
+        const label = sourceName && !indexed ? '关联武学' : '学习武学';
+        return `<div class="item-effect-buff"><p>${label}：${link('skill-' + action.id, sourceName || '未收录武学')}</p></div>`;
+      }
       if (action.type === 'JumpStep') {
         const quest = index.world?.quests?.find((row) => row.gameId === action.id);
         const event = questJumpEventText(action.value);
@@ -142,6 +161,8 @@ export function createItemStatViews({ esc, act }) {
       const parameter = text(numberText(r.value));
       if (r.type === 'WeaponRequirement')
         return `兵器类型条件：${text(weaponTypes[r.value] || '未识别类型')}`;
+      if (entry.gameId === 13866 && r.type === 'CurrentSkillLv' && r.id === 885 && r.value === 1)
+        return `使用对象的${link('skill-885', '五恒天经')}（红色）低于1级`;
       if (r.type === 'CurrentSkillLv')
         return `武学等级条件：${link('skill-' + r.id, '未收录武学')} · 判定条件待确认`;
       if (r.type === 'CheckNeiGong') return `内功条件待确认`;

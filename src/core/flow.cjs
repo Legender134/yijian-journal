@@ -291,6 +291,7 @@ function createFlowProjector({
       return false;
     }
     function requirement(r) {
+      if (r.type === 'None') return { text: '接取条件待确认', status: 'unknown' };
       const target = quests.get(r.id),
         name = content.questLabels?.[r.id] || r.name || target?.name || `记录 #${r.id}`;
       if (r.type === 'PreQuest')
@@ -375,6 +376,14 @@ function createFlowProjector({
         if (!npcs.some((p) => p.id === `npc-${id}`))
           npcs.push({ id: `npc-${id}`, name: rawName, role: '任务文字提及' });
       }
+      const action = blockedWindow
+        ? stepRule.blockedAction
+        : !q.parentId && children.get(q.gameId)?.length
+          ? targets.conditionHint
+            ? `下一步未识别，请查看游戏任务栏；${targets.conditionHint}`
+            : '下一步未识别，请查看游戏任务栏。'
+          : targets.nextAction || cleanName(q.name);
+      const completionWarning = content.stepCompletionWarnings?.[q.gameId];
       return {
         id: q.id,
         ...(q.detailId ? { detailId: q.detailId } : {}),
@@ -384,13 +393,7 @@ function createFlowProjector({
         name: cleanName(q.name),
         targets,
         blockedWindow,
-        nextAction: blockedWindow
-          ? stepRule.blockedAction
-          : !q.parentId && children.get(q.gameId)?.length
-            ? targets.conditionHint
-              ? `下一步未识别，请查看游戏任务栏；${targets.conditionHint}`
-              : '下一步未识别，请查看游戏任务栏。'
-            : targets.nextAction || cleanName(q.name),
+        nextAction: completionWarning ? `${action}；${completionWarning}` : action,
         description: q.description,
         people: npcs,
         places,
@@ -583,6 +586,7 @@ function createFlowProjector({
       // Side-story windows follow their saved steps, independently of the tracked main quest.
       const stageMatch =
         (main && (rule.chapterRoots || []).includes(main.gameId)) ||
+        (rule.trackedStages || []).some((id) => step(id) === 1) ||
         (rule.stageSteps || []).some((id) => {
           const task = quests.get(id);
           return task && step(id) === 1 && !blocked(task);
@@ -593,6 +597,7 @@ function createFlowProjector({
       });
       const relevant =
         (!rule.requireActiveRoot || status === 1) &&
+        (!rule.requireCompletedAnchors || anchorsMet) &&
         (pickupWindow
           ? stageMatch && pickupPrerequisitesKnown && (!anchors.length || anchorsMet)
           : activeRule ||
@@ -629,6 +634,9 @@ function createFlowProjector({
           const task = quests.get(id);
           return task && rootOf(task)?.gameId === rule.questId && step(id) === 1 && !blocked(task);
         }) ||
+        (status === 1 && (rule.decisionRecordedSteps || []).some(
+          (id) => step(id) === 1 && hiddenDecisionStepBelongs(id),
+        )) ||
         (status === 1 &&
           (rule.trackedDecisionSteps || []).some(
             (id) => metadata.trackingQuest === id && step(id) === 1 && hiddenDecisionStepBelongs(id),
@@ -666,6 +674,9 @@ function createFlowProjector({
         .filter(
           (effect) =>
             (!effect.onlyWhileActive || !available || step(effect.questId) === 1) &&
+            (!effect.onlyBeforeAccept || !quests.get(effect.questId) ||
+              (!family(quests.get(effect.questId)).some((task) => step(task.gameId) === 1) &&
+                ![2, 4].includes(step(effect.questId)))) &&
             (!effect.questId || ![2, 4].includes(step(effect.questId))),
         )
         .map((effect) => {
@@ -688,10 +699,10 @@ function createFlowProjector({
         const friendship = person?.friendship.value;
         checkpointWarning =
           friendship === null || friendship === undefined
-            ? `共饮前先核对陈麟熙好感：达到 ${c.threshold} 时，取胜会让他离场${step(c.affectedQuestId) === 1 ? '，进行中的灭门之案线索也会失败' : ''}。`
+            ? `共饮前先核对陈麟熙好感：判定时达到 ${c.threshold}，后续可能进入战斗并影响人物${step(c.affectedQuestId) === 1 ? '，也可能使进行中的灭门之案线索失败' : ''}。`
             : friendship >= c.threshold
-              ? `陈麟熙好感 ${friendship}：共饮后取胜会让他离场${step(c.affectedQuestId) === 1 ? '，进行中的灭门之案线索也会失败' : ''}。想保留人物内容，先不要推进。`
-              : `陈麟熙好感 ${friendship}：当前低于 ${c.threshold}，共饮会走保留人物的分支；此时继续赠礼可能改变结果。`;
+              ? `陈麟熙好感 ${friendship}：共饮判定时若仍不低于 ${c.threshold}，后续可能进入战斗并影响人物${step(c.affectedQuestId) === 1 ? '，也可能使进行中的灭门之案线索失败' : ''}。`
+              : `陈麟熙好感 ${friendship}：共饮判定时若仍低于 ${c.threshold}，可能进入另一段剧情并获得两本秘籍。`;
       }
       return {
         ...rule,

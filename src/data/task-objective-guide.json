@@ -9,7 +9,7 @@
   },
   "5068": {
     "evidenceQuestIds": [5068],
-    "instruction": "先送礼将卫霍好感提升至20以上，再与他切磋赢得高粱酒；精力不足可到客栈或江吟风家休息"
+    "instruction": "赠礼将卫霍好感提升至20，再与他切磋取酒；精力不足可休息"
   },
   "5153": {
     "evidenceQuestIds": [5153],
@@ -292,6 +292,11 @@
     "evidenceQuestIds": [6080, 6085],
     "instruction": "进入玄火教暗牢，营救瑶姬"
   },
+  "6259": {
+    "evidenceQuestIds": [6259],
+    "instruction": "在雷山清剿海盗并击败张破帆，回武当向清霄复命；奖励包括阮师刀精良图纸",
+    "currentNPCs": [5006]
+  },
   "7035": {
     "evidenceQuestIds": [7035],
     "instruction": "在景陇城与娜乌、顾思归等人商议，稍事休息"
@@ -495,7 +500,7 @@
   },
   "11708": {
     "evidenceQuestIds": [11708],
-    "instruction": "前往幽云泽与假扮驱虫药商人的买家接头，避开南疆士兵"
+    "instruction": "前往幽云泽与假扮驱虫药商人的买家接头，小心避开南疆士兵"
   },
   "11717": {
     "evidenceQuestIds": [11717],
@@ -1480,6 +1485,11 @@
   "32544": {
     "evidenceQuestIds": [32544],
     "instruction": "调查暗市中唯一的商人，寻找海寇线索"
+  },
+  "32776": {
+    "evidenceQuestIds": [32776],
+    "instruction": "准备五宝花蜜酒、波斯佳酿、琼华泉各1份，交给李清浊修复无底葫芦",
+    "currentNPCs": [19898]
   },
   "materialSources": {
     "10201": ["梧桐村", "碗子山"],

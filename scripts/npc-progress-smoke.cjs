@@ -183,6 +183,7 @@ const pulse = () => {
       env,
     });
     const main = await app.firstWindow();
+    main.setDefaultTimeout(20000);
     main.on('pageerror', (error) => errors.push(error.message));
     await main.locator('.layout').waitFor();
     await main.locator('.sidebar-nav [data-id="duels"]').click();
@@ -212,6 +213,7 @@ const pulse = () => {
     const opening = app.waitForEvent('window');
     await main.locator('[data-action="compact"]').click();
     const small = await opening;
+    small.setDefaultTimeout(20000);
     small.on('pageerror', (error) => errors.push(error.message));
     await small.locator('.compact-shell').waitFor();
     await small.locator('.companion-tabs [data-id="duels"]').click();

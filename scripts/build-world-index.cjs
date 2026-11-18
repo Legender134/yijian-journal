@@ -62,10 +62,13 @@ const storyCondition = (id, personName) => {
   }
   return { name: personName + '相关剧情' };
 };
-const requirement = (r, personName = '') => {
+const requirement = (r, personName = '', preserveNone = false) => {
   const type = enumName(r.Type),
     value = Number(r.Num);
-  if (type === 'None' || !Number.isFinite(value)) return null;
+  if (!Number.isFinite(value) || (type === 'None' && !preserveNone)) return null;
+  // An explicit None is not an empty request-condition array. The default
+  // native evaluator rejects it, but the actual caller may be overridden.
+  if (type === 'None') return { type, id: r.Id, value, name: '接取条件待确认' };
   const hiddenStory = personName && ['PreQuest', 'NoQuest'].includes(type) && !data.quests[r.Id];
   return {
     type,
@@ -83,8 +86,8 @@ const requirement = (r, personName = '') => {
         }),
   };
 };
-const requirements = (list, personName = '') =>
-  (list || []).map((r) => requirement(r, personName)).filter(Boolean);
+const requirements = (list, personName = '', preserveNone = false) =>
+  (list || []).map((r) => requirement(r, personName, preserveNone)).filter(Boolean);
 const quests = Object.entries(data.quests).map(([id, q]) => {
   const raw = allQuests.get(Number(id));
   const placements = [
@@ -107,7 +110,7 @@ const quests = Object.entries(data.quests).map(([id, q]) => {
     ...q,
     requestNPCs: names(raw.RequestNPCIds),
     finishNPCs: names(raw.FinishNPCIds),
-    requirements: requirements(raw.RequestRequirements),
+    requirements: requirements(raw.RequestRequirements, '', true),
     ...(raw.FinishingRequirements?.some((row) => enumName(row.Type) !== 'None')
       ? { finishingRequirements: projectCompletionRequirements(raw.FinishingRequirements, completionContext) }
       : {}),

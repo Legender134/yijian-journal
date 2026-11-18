@@ -160,12 +160,16 @@ function buildItemStats({ gameIndex, items, pools, buffs, formats, attributes, p
       poolIds.forEach((id) => neededPools.add(id));
       if (poolIds.length || range.length) random.push({ source, poolIds, range });
     }
-    if (!Array.isArray(raw.Actions) || !Array.isArray(raw.Requirements) || typeof raw.bCantUse !== 'boolean')
+    if (!Array.isArray(raw.Actions) || !Array.isArray(raw.Requirements) || typeof raw.bCantUse !== 'boolean' ||
+        typeof raw.bCanStack !== 'boolean' ||
+        typeof raw.bCantTakeFromCompare !== 'boolean')
       throw Error(`Invalid item data ${entry.gameId}`);
     outputItems[entry.gameId] = {
       equipmentRank: integer(raw.EquipmentRank, 'equipment rank'),
       usable: !raw.bCantUse,
+      canStack: raw.bCanStack,
       ...(raw.bCantSell === true || enumKey(raw.ItemType) === 'QuestItem' ? { cantSell: true } : {}),
+      ...(raw.bCantTakeFromCompare === true ? { cantTakeFromCompare: true } : {}),
       effects: raw.Actions.map((a) => remember(projectAction(a))),
       requirements: raw.Requirements.map((a) => remember(projectAction(a))),
       random,

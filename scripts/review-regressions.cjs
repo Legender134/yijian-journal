@@ -97,7 +97,7 @@ const launch = async (data, tray = false) => {
 };
 const nav = (win, id) => openMainPage(win, id);
 const close = async (win) => {
-  await win.keyboard.press('Escape');
+  await win.locator('.drawer [data-action="close-overlay"]').first().click();
   await win.locator('.drawer').waitFor({ state: 'detached' });
 };
 const stateSummary = (win) =>

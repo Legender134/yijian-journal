@@ -1,9 +1,9 @@
 'use strict';
 const { currentNpcPower } = require('./npc-power.cjs');
-const { martialConsultation } = require('../shared/martial-consultation.mjs');
+const { martialConsultation, defaultConsultationExcludedRows } = require('../shared/martial-consultation.mjs');
 
-// Compare complete saved NPC records, never initial item pools. A missing
-// record is unknown; an explicitly empty private bag is a completed collection.
+// Compare saved NPC records, never initial item pools. A missing record is
+// unknown; an empty eligible list does not prove all private items are gone.
 const lifeAttributes = [
   [27, '锻造'],
   [48, '制衣'],
@@ -19,7 +19,7 @@ const mergeStatus = (checks) =>
       ? 'unknown'
       : 'met';
 
-function createNpcProgressProjector({ world, game, contracts = {}, guide = {} }) {
+function createNpcProgressProjector({ world, game, itemStats = {}, contracts = {}, guide = {}, extraSkillClues = {} }) {
   const people = new Map(world.people.map((row) => [row.gameId, row]));
   const entries = new Map(game.entries.map((row) => [row.id, row]));
   const quests = new Map(world.quests.map((row) => [row.gameId, row]));
@@ -56,7 +56,9 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       const linkedQuest = quest || quests.get(raw.relatedQuestId);
       const name = raw.name || quest?.name || `任务 #${id}`;
       const result = { type, id, value, name, status: 'unknown' };
-      if (type === 'None') return { ...result, status: 'met', text: '' };
+      // An explicit None entry is not an empty array. The recovered default
+      // evaluator returns false; callers or overrides may differ.
+      if (type === 'None') return { ...result, status: 'unknown', text: '条件待确认' };
       if (type === 'PreQuest') {
         // The native GetQuestStep returns 0 for a missing key. This default is
         // valid only when the complete quest collection was parsed successfully.
@@ -90,8 +92,12 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       if (type === 'Money')
         return {
           ...result,
-          status: Number.isFinite(metadata.money) ? (metadata.money >= value ? 'met' : 'unmet') : 'unknown',
-          text: `铜钱 ${value}`,
+          // The native Money requirement compares the float32 balance strictly
+          // above the float32 threshold; it is not a payment affordability check.
+          status: Number.isFinite(metadata.money) && Number.isFinite(value)
+            ? (Math.fround(metadata.money) > Math.fround(value) ? 'met' : 'unmet')
+            : 'unknown',
+          text: Number.isFinite(value) ? `铜钱超过 ${value}` : '铜钱条件待确认',
         };
       return { ...result, text: raw.name || `${type} ${id} / ${value}` };
     }
@@ -129,9 +135,10 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       return setting.grade <= maxQuality;
     }
     function vigorCheck(normal = 60, reduced = 30) {
-      const value = player.attributes?.[44];
-      // The native UI needs 60, or 30 with a particular talent. Until the
-      // talent's saved ownership is proved, the middle range stays conditional.
+      // Saved attributes are base values, not the native current energy.
+      const value = combat.origin === 'live' ? player.attributes?.[44] : undefined;
+      // The extra-difficulty option 精力旺盛 halves energy costs. Its current
+      // selection is not read here, so the middle range stays conditional.
       return {
         status: !Number.isFinite(value)
           ? 'unknown'
@@ -145,23 +152,43 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
           : value < reduced
             ? `精力不足（当前 ${Math.floor(value)}，至少 ${reduced}）`
             : value < normal
-              ? `精力 ${Math.floor(value)}，需 ${normal}；相关天赋可降至 ${reduced}`
+              ? `精力 ${Math.floor(value)}，需 ${normal}；精力旺盛时需 ${reduced}`
               : '精力充足',
       };
     }
     function friendship(person, saved) {
-      for (const lock of person.friendshipLocks || []) {
+      const locks = person.friendshipLocks || [];
+      for (const [index, lock] of locks.entries()) {
         const checks = evaluate(lock.requirements);
         const status = mergeStatus(checks);
-        if (status !== 'met')
+        if (status !== 'met') {
+          // An unknown first failure may defer to any later lock or the default
+          // cap. The effective value is still known if none can lower raw.
+          let rawUnaffected = status === 'unknown' &&
+            Number.isFinite(saved.rawFriendliness) && saved.rawFriendliness <= 100;
+          let possibleCapReached = false;
+          if (status === 'unknown' && Number.isFinite(saved.rawFriendliness)) {
+            for (const [offset, candidate] of locks.slice(index).entries()) {
+              const candidateStatus = offset === 0 ? status : mergeStatus(evaluate(candidate.requirements));
+              if (candidateStatus !== 'met' &&
+                  (!Number.isFinite(candidate.at) || candidate.at < saved.rawFriendliness))
+                rawUnaffected = false;
+              if (candidateStatus !== 'met' && Number.isFinite(candidate.at) &&
+                  candidate.at < 100 && saved.rawFriendliness >= candidate.at)
+                possibleCapReached = true;
+              if (candidateStatus === 'unmet') break;
+            }
+          }
           return {
             raw: saved.rawFriendliness,
-            value: status === 'unmet' ? Math.min(saved.rawFriendliness, lock.at) : null,
+            value: status === 'unmet' ? Math.min(saved.rawFriendliness, lock.at) : rawUnaffected ? saved.rawFriendliness : null,
             cap: status === 'unmet' ? lock.at : null,
             possibleCap: lock.at,
+            possibleCapReached,
             checks,
             status,
           };
+        }
       }
       return {
         raw: saved.rawFriendliness,
@@ -195,11 +222,14 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
     function gate(person, saved, friendship, kind) {
       const checks = [];
       let minimumQuality = null;
-      if (!person.functions?.includes(kind))
-        checks.push({
-          status: 'unmet',
-          text: `暂无常规${{ Compare: '比武', Consult: '请教', Gift: '赠礼' }[kind]}入口`,
-        });
+      const declaredEntry = person.functions?.includes(kind);
+      checks.push({
+        status: 'unknown',
+        code: declaredEntry ? 'interaction-unverified' : 'interaction-not-declared',
+        text: declaredEntry
+          ? '当前入口待确认'
+          : '固定资料无常规入口，当前情况待确认',
+      });
       if (kind === 'Compare')
         checks.push(...evaluate(contracts.people?.[person.gameId]?.compareRequirements));
       const threshold = contracts.friendlyLimits?.[kind];
@@ -219,13 +249,16 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         friendship.raw >= friendship.cap &&
         friendship.cap < 100
       )
-        checks.push(
-          { status: 'unmet', text: `好感暂时上限 ${friendship.cap}，先解锁剧情` },
-          ...friendship.checks,
-        );
+        checks.push({
+          status: 'unknown',
+          code: 'friendship-cap',
+          text: `已达到剧情好感上限 ${friendship.cap}，赠礼情况待确认`,
+        });
+      if (kind === 'Gift' && friendship.cap === null && friendship.possibleCapReached)
+        checks.push({ status: 'unknown', code: 'friendship-cap', text: '可能已达到剧情好感上限，赠礼情况待确认' });
       if (kind === 'Gift') {
         if (friendship.value !== null && friendship.value >= 100)
-          checks.push({ status: 'unmet', text: '好感已满，无需继续送礼' });
+          checks.push({ status: 'unmet', text: '好感已满，常规赠礼受限' });
         const targetPower = combat.origin === 'live' ? currentNpcPower(saved.attributes) : null;
         checks.push(
           ownPower && targetPower
@@ -238,24 +271,26 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         if (friendship.value !== null) {
           const f = friendship.value;
           const rank =
-            f <= -80
-              ? -4
-              : f <= -60
-                ? -3
-                : f <= -40
-                  ? -2
-                  : f <= -20
-                    ? -1
-                    : f < 20
-                      ? 0
-                      : f < 40
-                        ? 1
-                        : f < 60
-                          ? 2
-                          : f < 80
-                            ? 3
-                            : 4;
-          minimumQuality = ['白', '绿', '蓝', '金', '暗金'][Math.abs(rank)];
+            f <= -100
+              ? -5
+              : f <= -80
+                ? -4
+                : f <= -60
+                  ? -3
+                  : f <= -40
+                    ? -2
+                    : f <= -20
+                      ? -1
+                      : f < 20
+                        ? 0
+                        : f < 40
+                          ? 1
+                          : f < 60
+                            ? 2
+                            : f < 80
+                              ? 3
+                              : 4;
+          minimumQuality = ['白', '绿', '蓝', '金', '暗金', '红'][Math.abs(rank)];
           checks.push({
             status: 'met',
             text: `礼物至少${minimumQuality}色品质`,
@@ -274,9 +309,20 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       const consult = gate(person, saved, friend, 'Consult');
       const gift = gate(person, saved, friend, 'Gift');
       const totals = new Map();
-      for (const item of saved.inventory) totals.set(item.id, (totals.get(item.id) || 0) + item.count);
-      const remainingItems = [...totals]
+      const uncertainCounts = new Set();
+      for (const item of saved.inventory) {
+        const definition = itemStats.items?.[item.id];
+        // ItemSpecs are object slots. A non-stackable or unknown row with
+        // Num > 1 does not establish that many transferable objects.
+        if (item.count > 1 && definition?.cantTakeFromCompare !== true && definition?.canStack !== true) {
+          uncertainCounts.add(item.id);
+          continue;
+        }
+        totals.set(item.id, (totals.get(item.id) || 0) + item.count);
+      }
+      const privateItems = [...totals]
         .map(([id, count]) => ({ id, count }))
+        // The native Compare reward picker excludes protected private items.
         .filter((row) => row.count > 0)
         .map((row) => {
           const item = entries.get('item-' + row.id);
@@ -293,6 +339,44 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
           };
         })
         .sort((a, b) => Number(b.important) - Number(a.important) || a.id - b.id);
+      const remainingItems = privateItems.filter((row) => itemStats.items?.[row.id] && !itemStats.items[row.id].cantTakeFromCompare);
+      const unknownItems = privateItems.filter((row) => !itemStats.items?.[row.id]);
+      for (const id of uncertainCounts) {
+        let item = unknownItems.find((row) => row.id === id);
+        if (!item) {
+          const entry = entries.get('item-' + id);
+          item = { id, count: 0, entityId: entry?.id || null, name: entry?.name || `物品 #${id}` };
+          unknownItems.push(item);
+        }
+        item.hasUncertainStackCount = true;
+      }
+      // A zero-count ItemInfoSpec is still an object in the observed picker;
+      // its selection and transfer cannot be inferred from the count alone.
+      for (const item of saved.inventory) {
+        if (item.count !== 0 || itemStats.items?.[item.id]?.cantTakeFromCompare === true) continue;
+        const existing = unknownItems.find((row) => row.id === item.id);
+        if (existing) {
+          existing.hasZeroCount = true;
+          continue;
+        }
+        const entry = entries.get('item-' + item.id);
+        unknownItems.push({
+          id: item.id,
+          count: 0,
+          entityId: entry?.id || null,
+          name: entry?.name || `物品 #${item.id}`,
+          hasZeroCount: true,
+        });
+      }
+      const protectedItems = privateItems.filter((row) => itemStats.items?.[row.id]?.cantTakeFromCompare === true);
+      const protectedCount = protectedItems.length;
+      // The tutorial victory path bypasses ordinary private-item rolls while
+      // quest 5068 is requested, even if the private bag still has items.
+      const privateSelection = id !== 10047 ? { status: 'met' } : !states
+        ? { status: 'unknown', text: '卫霍切磋任务状态待确认，普通比武私物挑选待核对' }
+        : states.get(5068) === 1
+          ? { status: 'unmet', text: '“与卫霍切磋，赢得高粱酒”进行中时，获胜不抽取普通私物' }
+          : { status: 'met' };
       const learning = [];
       for (const [attribute, name] of lifeAttributes) {
         const teacherValue = saved.attributes?.[attribute];
@@ -305,9 +389,18 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         const playerLevel = Math.trunc(playerValue);
         if (teacherLevel < 1 || playerLevel < 0 || playerLevel >= 10 || teacherLevel < playerLevel) continue;
         const threshold = 10 * teacherLevel;
-        const checks = [...consult.checks, ...affinityChecks(friend, threshold), vigorCheck()];
+        const checks = [...consult.checks, ...(combat.origin === 'live' ? affinityChecks(friend, threshold) : []), vigorCheck()];
+        if (combat.origin !== 'live')
+          checks.push({ status: 'unknown', text: '存档基础等级仅供筛选，当前等级和请教资格待确认' });
+        // The native confirmation can re-read the teacher's fractional level
+        // and use it for a stricter affinity check. Its dynamic branch is unknown.
+        const confirmationThreshold = Math.fround(Math.fround(teacherValue) * 10);
+        if (combat.origin === 'live' && Number.isFinite(friend.value) && confirmationThreshold > threshold &&
+            friend.value >= threshold && friend.value < confirmationThreshold)
+          checks.push({ status: 'unknown', text: '确认时的好感要求待核对' });
         learning.push({
           kind: 'life',
+          ...(combat.origin === 'live' ? {} : { levelSource: 'saved-base' }),
           name,
           teacherLevel,
           playerLevel,
@@ -319,15 +412,29 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       for (const skill of saved.skills) {
         if (learned.has(skill.id)) continue;
         const entry = entries.get('skill-' + skill.id);
+        const clue = (extraSkillClues.people?.[id] || []).find((row) => row.id === skill.id);
         const setting = contracts.skills?.[skill.id];
-        if (!entry) continue;
-        if (setting?.excluded || setting?.openForPlayer === false) continue;
+        // The observed default consultation path does not establish this
+        // flag as a hard gate for these skills. Preserve them as uncertain.
+        const uncertainOpen = setting?.openForPlayer === false;
+        if (setting?.excluded) continue;
         const consultation = martialConsultation(
           setting?.grade,
           metadata.difficulty,
           contracts.martialConsultation,
         );
         const checks = [...consult.checks, vigorCheck()];
+        if (!entry)
+          checks.push({
+            status: 'unknown',
+            text: defaultConsultationExcludedRows.has(skill.id)
+              ? '默认请教列表通常不显示，其他方式待确认'
+              : clue ? '武学详情未收录，请教资格待确认' : '武学资料未收录，请教资格待确认',
+          });
+        if (uncertainOpen)
+          checks.push({ status: 'unknown', text: `${entry?.name || '该武学'}的请教资格待确认` });
+        if (combat.origin !== 'live')
+          checks.push({ status: 'unknown', text: '存档武学仅供筛选，当前武学及请教资格待确认' });
         const threshold = setting?.friendliness;
         if (Number.isFinite(threshold)) checks.push(...affinityChecks(friend, threshold));
         else checks.push({ status: 'unknown', text: '功法请教条件待确认' });
@@ -335,23 +442,28 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         const baseCost = Number.isFinite(setting?.skillPointCost)
           ? Math.abs(Math.trunc(setting.skillPointCost))
           : null;
-        if (guildFreeConsultation(person, setting))
+        if (guildFreeConsultation(person, setting)) {
           checks.push({
             status: 'met',
             showWhenMet: true,
             text: '武学点消耗 0（门派免费请教）',
           });
-        else if (baseCost !== null)
+          if (!Number.isFinite(player.skillPoints) || player.skillPoints < 0)
+            checks.push({
+              status: Number.isFinite(player.skillPoints) ? 'unmet' : 'unknown',
+              text: Number.isFinite(player.skillPoints) ? '当前武学点不足' : '当前武学点待确认',
+            });
+        } else if (baseCost !== null)
           checks.push({
             status: Number.isFinite(player.skillPoints) && player.skillPoints >= baseCost ? 'met' : 'unknown',
             showWhenMet: true,
-            text: `武学点${Number.isFinite(player.skillPoints) ? ` ${player.skillPoints}` : '待确认'}，基础消耗 ${baseCost}（门派、难度或天赋可减免）`,
+            text: `武学点${Number.isFinite(player.skillPoints) ? ` ${player.skillPoints}` : '待确认'}，基础消耗 ${baseCost}（门派、难度或武力充裕可减免）`,
           });
         learning.push({
           kind: 'martial',
           id: skill.id,
           entityId: entry?.id || null,
-          name: entry?.name || `武学 #${skill.id}`,
+          name: entry?.name || clue?.name || defaultConsultationExcludedRows.get(skill.id) || '未收录武学',
           teacherLevel: skill.level,
           threshold: threshold ?? null,
           ...(consultation ? { consultation } : {}),
@@ -362,7 +474,9 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       const place = maps.get(saved.mapKey);
       const blockedLearning = learning.find((item) => item.status === 'unmet');
       const restriction =
-        remainingItems.length && compare.status === 'unmet'
+        remainingItems.length && privateSelection.status !== 'met'
+          ? { operation: '私物挑选', status: privateSelection.status, checks: [privateSelection] }
+          : remainingItems.length && compare.status === 'unmet'
           ? { operation: '比武', ...compare }
           : remainingItems.length &&
               Number.isFinite(friend.cap) &&
@@ -393,9 +507,14 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         consult,
         gift,
         remainingItems,
+        unknownItems,
+        protectedItems,
+        protectedCount,
+        privateSelection,
         importantCount: remainingItems.filter((row) => row.important).length,
-        collection: remainingItems.length ? 'remaining' : 'cleared',
+        collection: remainingItems.length ? 'remaining' : unknownItems.length ? 'unknown' : 'cleared',
         learning,
+        lifeCandidatesIncomplete: combat.origin !== 'live',
         restriction,
       });
     }
@@ -406,10 +525,16 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
         a.name.localeCompare(b.name, 'zh-CN'),
     );
     const actionableFirst = (kind) => (a, b) => {
+      const knownConditionsMet = (gate) => {
+        const checks = gate?.checks || [];
+        return checks.some((check) => check.status === 'met') &&
+          checks.every((check) => check.status === 'met' ||
+            (check.status === 'unknown' && check.code === 'interaction-unverified'));
+      };
       const ready = (row) =>
         kind === 'learning'
-          ? row.learning.some((item) => item.status === 'met')
-          : row.compare.status === 'met';
+          ? row.learning.some(knownConditionsMet)
+          : knownConditionsMet(row.compare);
       const missing = (row) => row.remainingItems.filter((item) => item.important && item.owned === 0).length;
       return (
         Number(ready(b)) - Number(ready(a)) ||
@@ -427,13 +552,14 @@ function createNpcProgressProjector({ world, game, contracts = {}, guide = {} })
       placeKnown: !!metadata.map,
       people: rows,
       remaining: rows
-        .filter((row) => row.remainingItems.length && row.compare.status !== 'unmet')
+        .filter((row) => row.remainingItems.length && row.compare.status !== 'unmet' && row.privateSelection.status === 'met')
         .sort(actionableFirst('remaining')),
       learning: rows
         .filter((row) => row.learning.some((item) => item.status !== 'unmet'))
         .sort(actionableFirst('learning')),
       locked: rows.filter((row) => row.restriction),
-      cleared: rows.filter((row) => !row.remainingItems.length),
+      unknown: rows.filter((row) => row.unknownItems.length),
+      cleared: rows.filter((row) => !row.remainingItems.length && !row.unknownItems.length),
     };
   };
 }

@@ -2,16 +2,20 @@
 const { createDuelReadiness } = require('./duel-readiness.cjs');
 const { createNpcProgressProjector } = require('./npc-progress.cjs');
 const npcContracts = require('../data/npc-interactions.json');
+const defaultItemStats = require('../data/item-stats.json');
+const npcExtraSkillClues = require('../data/npc-extra-skill-clues.json');
 
 // Curated challenge leads describe a story window, never a live NPC presence or
 // a victory prediction. Missing saved conditions remain unknown.
-function createDuelProjector({ guide, world, game }) {
+function createDuelProjector({ guide, world, game, itemStats = defaultItemStats }) {
   const people = new Map(
     [...game.entries, ...world.people].filter((row) => row.kind === '人物').map((row) => [row.gameId, row]),
   );
   const quests = new Map(world.quests.map((row) => [row.gameId, row]));
   const readiness = createDuelReadiness(game, world);
-  const projectProgress = createNpcProgressProjector({ game, world, contracts: npcContracts, guide });
+  const projectProgress = createNpcProgressProjector({
+    game, world, itemStats, contracts: npcContracts, guide, extraSkillClues: npcExtraSkillClues,
+  });
   const taskName = (id) => String(quests.get(id)?.name || `剧情记录 #${id}`).replace(/^【[^】]+】\s*/, '');
   return function project({
     available,

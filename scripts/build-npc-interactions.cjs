@@ -62,15 +62,20 @@ function project(raw) {
       ];
     }),
   );
+  // Retain verified default consultation fields for named skills without a
+  // public codex entry. Their eligibility remains uncertain.
+  const skillIds = new Set([
+    ...game.entries.filter((row) => row.kind === '武学').map((row) => row.gameId),
+    150, 250, 350, 450, 550, 881, 903,
+  ]);
   const skills = Object.fromEntries(
-    game.entries
-      .filter((row) => row.kind === '武学')
-      .map((entry) => {
-        const row = raw.skills[entry.gameId];
+    [...skillIds]
+      .map((id) => {
+        const row = raw.skills[id];
         if (!row || !Number.isInteger(row.friendliness)) throw Error('Skill interaction row missing');
         if (!quality(row.grade)) throw Error('Invalid skill interaction grade');
         return [
-          entry.gameId,
+          id,
           {
             friendliness: row.friendliness,
             requirements: row.requirements,

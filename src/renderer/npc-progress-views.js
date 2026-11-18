@@ -1,4 +1,6 @@
 import { martialConsultationHint } from '../shared/martial-consultation.mjs';
+import { storyNpcAvailabilityClues } from './story-npc-skill-clues.js';
+import { itemSkillNames } from './item-skill-names.js';
 
 export function npcLearningSummary(learning = []) {
   if (!learning.length) return '';
@@ -19,11 +21,17 @@ export function npcLearningSummary(learning = []) {
 
 export function createNpcProgressViews({ esc, act, richText = esc }) {
   const text = (value) => esc(String(value ?? ''));
+  const displayName = (row) =>
+    row.kind === 'martial' && row.name === '未收录武学' ? itemSkillNames[row.id] || row.name : row.name;
   const link = (row) =>
-    row.entityId ? act('database-detail', text(row.name), 'text-btn', row.entityId) : text(row.name);
+    row.entityId ? act('database-detail', text(displayName(row)), 'text-btn', row.entityId) : text(displayName(row));
   const unmet = (checks = []) => checks.filter((row) => row.status !== 'met');
-  const missingEntry = (gate) =>
-    unmet(gate.checks).find((check) => /^暂无常规(?:赠礼|比武|请教)入口$/.test(check.text));
+  const knownConditionsMet = (gate) => {
+    const checks = gate?.checks || [];
+    return checks.some((check) => check.status === 'met') &&
+      checks.every((check) => check.status === 'met' ||
+        (check.status === 'unknown' && check.code === 'interaction-unverified'));
+  };
   const orderedLearning = (row) =>
     [...row.learning].sort(
       (a, b) =>
@@ -61,7 +69,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
     return row.remainingItems
       .map(
         (item) =>
-          `<span class="npc-progress-item${item.important ? ' npc-key-item' : ''}">${link(item)} ×${text(item.count)}${item.owned > 0 ? `<small> · 已持有 ${text(item.owned)}</small>` : ''}</span>`,
+          `<span class="npc-progress-item${item.important ? ' npc-key-item' : ''}">${link(item)}${item.count > 0 ? ` ×${text(item.count)}` : ''}${item.hasZeroCount ? '<small> · 零数量记录，取物待确认</small>' : ''}${item.hasUncertainStackCount ? '<small> · 数量待确认</small>' : ''}${item.owned > 0 ? `<small> · 背包 ${text(item.owned)}</small>` : ''}</span>`,
       )
       .join('');
   }
@@ -92,14 +100,17 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
     return orderedLearning(row)
       .map(
         (item) =>
-          `<li><div class="npc-learning-heading"><span>${link(item)}${item.kind === 'life' ? ` · 你 ${text(item.playerLevel)} 级 · 对方 ${text(item.teacherLevel)} 级` : Number.isFinite(item.teacherLevel) && item.teacherLevel > 0 ? ` · 对方 ${text(item.teacherLevel)} 级` : ''}</span><small class="npc-learning-state" data-learning-status="${text(item.status)}">${state(item)}</small></div>${reason(item.checks, excluded) ? `<p class="small">${reason(item.checks, excluded)}</p>` : ''}</li>`,
+          `<li><div class="npc-learning-heading"><span>${link(item)}${item.kind === 'life' ? ` · ${item.levelSource === 'saved-base' ? '存档基础等级：' : ''}你 ${text(item.playerLevel)} 级 · 对方 ${text(item.teacherLevel)} 级` : Number.isFinite(item.teacherLevel) && item.teacherLevel > 0 ? ` · 对方 ${text(item.teacherLevel)} 级` : ''}</span><small class="npc-learning-state" data-learning-status="${text(item.status)}">${state(item)}</small></div>${reason(item.checks, excluded) ? `<p class="small">${reason(item.checks, excluded)}</p>` : ''}</li>`,
       )
       .join('');
   }
   function learningNote(row) {
+    const lifeNote = row.lifeCandidatesIncomplete ? '<p class="small">生活技能候选按存档基础等级筛选，可能遗漏其他可请教技能。</p>' : '';
+    const savedMartialNote = row.learning.some((item) => item.kind === 'martial' && item.checks.some((check) => check.text === '存档武学仅供筛选，当前武学及请教资格待确认'))
+      ? '<p class="small">武学候选来自存档快照，人物武学可能变化；当前是否可请教请在游戏中确认，清单也可能遗漏后来新增的武学。</p>' : '';
     const martial = row.learning.filter((item) => item.consultation);
-    if (!martial.length) return '';
-    return `<p class="small">武学初学 ${text(martial[0].consultation.initialLevel)} 级${martial.some((item) => ['battle', 'conditional'].includes(item.consultation.method)) ? '；比试获胜才扣请教消耗' : ''}。</p>`;
+    if (!martial.length) return lifeNote + savedMartialNote;
+    return lifeNote + savedMartialNote + `<p class="small">武学初学 ${text(martial[0].consultation.initialLevel)} 级${martial.some((item) => ['battle', 'conditional'].includes(item.consultation.method)) ? '；比试获胜才扣请教消耗' : ''}。</p>`;
   }
   function gates(row, showPower = true) {
     const friend = row.friendship;
@@ -107,13 +118,10 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
       showPower && row.power && row.ownPower
         ? `<p>战力参考：你 ${Math.round(row.ownPower.value)}，对方 ${Math.round(row.power.value)} · ${text(row.power.title)}${row.power.value > row.ownPower.value ? '。建议先检查主修武学与配装。' : ''}</p>`
         : '';
-    const giftQuality = missingEntry(row.gift)
-      ? ''
-      : row.gift.checks.find((check) => check.text.startsWith('礼物至少'))?.text;
+    const giftQuality = row.gift.checks.find((check) => check.text.startsWith('礼物至少'))?.text;
     const common = sharedChecks(row);
     const excluded = new Set(common.map(checkKey));
     const operation = (label, gate) => {
-      if (missingEntry(gate)) return `<p>${label}：暂无入口</p>`;
       const detail = reason(
         gate.checks.filter((check) => check.status !== 'met'),
         excluded,
@@ -137,12 +145,17 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
       .join('');
     return `<p>好感 ${friend.value === null ? '待确认' : text(friend.value)}${friend.cap !== null && friend.cap < 100 ? ` · 暂时上限 ${text(friend.cap)}` : ''}</p>${power}${common.length ? `<p>${reason(common)}</p>` : ''}${operation('赠礼', row.gift)}${operation('比武', row.compare)}${operation('请教', row.consult)}${fulfilled ? `<details class="npc-met-checks" data-persist-detail="npc-met-${text(row.npcId)}"><summary>已满足条件</summary>${fulfilled}</details>` : ''}`;
   }
-  function person(row, embedded = false, origin = 'saved', previewedItems = []) {
+  function person(row, embedded = false, origin = 'saved', previewedItems = [], npcId = row?.npcId) {
+    const availability = storyNpcAvailabilityClues[npcId];
+    const availabilityHint = availability ? `<p>${richText(availability)}</p>` : '';
     if (!row)
-      return `<section class="detail-block" data-npc-progress><h3>比武与请教</h3><p>还没有此人物的状态，${origin === 'live' ? '遇见后再查看' : '遇见并保存后再查看'}。</p></section>`;
+      return `<section class="detail-block" data-npc-progress><h3>比武与请教</h3>${availabilityHint}<p>还没有此人物的状态，${origin === 'live' ? '遇见后再查看' : '遇见并保存后再查看'}。</p></section>`;
+    const pendingItems = row.unknownItems || [];
+    const pendingNote = pendingItems.length ? `<p>比武取物资格待确认 ${pendingItems.length} 种</p><div class="related-items">${items({ remainingItems: pendingItems })}</div>` : '';
+    const protectedNote = row.protectedCount ? `<p class="small">另有 ${text(row.protectedCount)} 种私物在原资料中标记为普通比武不可抽取。</p>` : '';
     const heading = embedded
       ? ''
-      : `<h3>比武与请教${origin === 'live' ? '' : ' <span class="pill" data-npc-progress-origin="saved">保存时</span>'}</h3><p>${row.remainingItems.length ? `私物还剩 ${row.remainingItems.length} 种${row.importantCount && row.importantCount < row.remainingItems.length ? ` · 重点 ${row.importantCount} 种` : ''}` : '私物已清空'}${row.learning.length ? ' · ' + text(npcLearningSummary(row.learning)) : ''}</p>`;
+      : `<h3>比武与请教${origin === 'live' ? '' : ' <span class="pill" data-npc-progress-origin="saved">保存时</span>'}</h3><p>${row.remainingItems.length ? `剩余私物 ${row.remainingItems.length} 种${row.importantCount && row.importantCount < row.remainingItems.length ? ` · 重点 ${row.importantCount} 种` : ''}` : pendingItems.length ? '私物取物资格待确认' : '暂无可取私物'}${row.learning.length ? ' · ' + text(npcLearningSummary(row.learning)) : ''}</p>`;
     const orderedItems = [...row.remainingItems].sort((a, b) => Number(b.important) - Number(a.important));
     const remainingItems = row.remainingItems.filter(
       (item) =>
@@ -166,28 +179,31 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
             '</div></details>'
           : '')
       : '';
-    return `<section class="${embedded ? '' : 'detail-block '}npc-progress-detail" data-npc-progress="${text(row.npcId)}">${heading}${embedded ? '' : privatePreview}${gates(row, !embedded)}${embedded && remainingItems.length ? `<details data-persist-detail="npc-private-${text(row.npcId)}"><summary>${previewedItems.length ? '其余私物' : '剩余私物'} · ${remainingItems.length} 种</summary><div class="related-items mt">${items({ remainingItems })}</div></details>` : ''}${row.learning.length ? `<details data-persist-detail="npc-learning-${text(row.npcId)}"><summary>请教内容 · ${row.learning.length} 项</summary><ul>${learning(row)}</ul>${learningNote(row)}</details>` : ''}</section>`;
+    return `<section class="${embedded ? '' : 'detail-block '}npc-progress-detail" data-npc-progress="${text(row.npcId)}">${heading}${availabilityHint}${embedded ? '' : privatePreview}${pendingNote}${protectedNote}${gates(row, !embedded)}${row.remainingItems.length && row.privateSelection?.status !== 'met' && row.privateSelection?.text ? `<p>${text(row.privateSelection.text)}</p>` : ''}${embedded && remainingItems.length ? `<details data-persist-detail="npc-private-${text(row.npcId)}"><summary>${previewedItems.length ? '其余私物' : '剩余私物'} · ${remainingItems.length} 种</summary><div class="related-items mt">${items({ remainingItems })}</div></details>` : ''}${!row.learning.length && row.lifeCandidatesIncomplete ? '<p class="small">生活技能候选基于存档基础等级，其他可请教技能待确认。</p>' : ''}${row.learning.length ? `<details data-persist-detail="npc-learning-${text(row.npcId)}"><summary>请教候选 · ${row.learning.length} 项</summary><ul>${learning(row)}</ul>${learningNote(row)}</details>` : ''}</section>`;
   }
   function card(row, tab, scope, filters) {
     const learning = orderedLearning(row);
+    if (tab === 'learning' && filters.includes('ready'))
+      learning.sort((a, b) => Number(knownConditionsMet(b)) - Number(knownConditionsMet(a)));
     const ready = learning.filter((item) => item.status === 'met');
+    const candidates = learning.filter((item) => item.status !== 'unmet');
     const allReadyBattle = ready.length > 0 && ready.every((item) => item.consultation?.method === 'battle');
     const missingOnly = filters.includes('missing');
-    const loot = missingOnly
+    const loot = tab === 'unknown' ? (row.unknownItems || []) : missingOnly
       ? row.remainingItems.filter((item) => item.important && item.owned === 0)
       : row.remainingItems;
     const preview =
       tab === 'learning'
-        ? (ready.length ? ready : learning)
+        ? (ready.length ? ready : candidates.length ? candidates : learning)
             .slice(0, 2)
             .map(
               (item) =>
-                `${link(item)}${item.kind === 'life' ? ` 你${text(item.playerLevel)} · 对方${text(item.teacherLevel)}级` : !allReadyBattle && martialConsultationHint(item.consultation) ? `（${martialConsultationHint(item.consultation)}）` : ''}`,
+                `${link(item)}${item.kind === 'life' ? ` ${item.levelSource === 'saved-base' ? '存档基础等级 ' : ''}你${text(item.playerLevel)} · 对方${text(item.teacherLevel)}级` : !allReadyBattle && martialConsultationHint(item.consultation) ? `（${martialConsultationHint(item.consultation)}）` : ''}`,
             )
             .join(' · ')
         : loot
             .slice(0, 2)
-            .map((item) => `${link(item)} ×${text(item.count)}`)
+            .map((item) => `${link(item)}${item.count > 0 ? ` ×${text(item.count)}` : ''}${item.hasZeroCount ? '（零数量记录待确认）' : ''}${item.hasUncertainStackCount ? '（数量待确认）' : ''}`)
             .join(' · ');
     const [operation, gate] =
       tab === 'learning'
@@ -198,7 +214,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
     const firstBlocker = gate?.checks.find((check) => check.status === 'unmet') || unmet(gate?.checks)[0];
     const blockerLabel = firstBlocker?.text.startsWith(operation) ? '' : text(operation || '条件') + '：';
     const status =
-      tab === 'cleared'
+      tab === 'cleared' || tab === 'unknown'
         ? ''
         : gate?.status === 'met'
           ? `<span class="npc-progress-status">${tab === 'learning' ? npcLearningSummary(ready) : '可比武'}</span>`
@@ -207,18 +223,17 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
       row.power && row.ownPower
         ? `<small class="npc-power-reference">战力：你 ${Math.round(row.ownPower.value)} / 对方 ${Math.round(row.power.value)}</small>`
         : '';
-    const giftPreparation = missingEntry(row.gift)
-      ? ''
-      : `<div class="row mt">${act('journey-gift-dialog', '准备赠礼', 'btn', row.id, 'plus')}</div>`;
-    return `<details class="npc-progress-card" data-npc-progress-card="${text(row.npcId)}" data-persist-detail="npc-progress-${text(scope)}-${text(row.npcId)}"><summary><span class="row between"><strong>${act('database-detail', text(row.name), 'text-btn', row.id)}${gate?.status === 'met' ? status : ''}</strong><small>${row.place ? act('world-place', text(row.place.name), 'text-btn', row.place.id) : '位置待确认'}</small></span><span>${row.collection === 'cleared' && tab !== 'learning' ? '私物已清空' : preview}${tab === 'learning' ? '' : missingOnly ? `<small class="npc-preview-count">缺少 ${loot.length} 种</small>` : row.importantCount > 2 ? `<small class="npc-preview-count">重点 ${row.importantCount} 种</small>` : ''}</span>${(gate?.status !== 'met' && status) || power ? `<span class="npc-progress-action">${gate?.status === 'met' ? '' : status}${power}</span>` : ''}</summary><div class="npc-progress-body">${person(row, true, 'saved', tab === 'learning' ? [] : loot.slice(0, 2))}${giftPreparation}</div></details>`;
+    const giftPreparation = `<div class="row mt">${act('journey-gift-dialog', '准备赠礼', 'btn', row.id, 'plus')}</div>`;
+    return `<details class="npc-progress-card" data-npc-progress-card="${text(row.npcId)}" data-persist-detail="npc-progress-${text(scope)}-${text(row.npcId)}"><summary><span class="row between"><strong>${act('database-detail', text(row.name), 'text-btn', row.id)}${gate?.status === 'met' ? status : ''}</strong><small>${row.place ? act('world-place', text(row.place.name), 'text-btn', row.place.id) : '位置待确认'}</small></span><span>${row.collection === 'cleared' && tab !== 'learning' ? '暂无可取私物' : preview}${tab === 'learning' ? '' : missingOnly ? `<small class="npc-preview-count">背包无 ${loot.length} 种</small>` : row.importantCount > 2 ? `<small class="npc-preview-count">重点 ${row.importantCount} 种</small>` : ''}</span>${(gate?.status !== 'met' && status) || power ? `<span class="npc-progress-action">${gate?.status === 'met' ? '' : status}${power}</span>` : ''}</summary><div class="npc-progress-body">${person(row, true, 'saved', tab === 'learning' ? [] : loot.slice(0, 2))}${giftPreparation}</div></details>`;
   }
   function page(data, { tab = 'remaining', query = '', page = 0, filters = [], scope = '' } = {}) {
     if (!data?.available) return '';
     const tabs = [
-      ['remaining', '待比武'],
-      ['learning', '待请教'],
+      ['remaining', '比武候选'],
+      ['learning', '请教候选'],
       ['locked', '受限'],
-      ['cleared', '已清空'],
+      ...(data.unknown?.length || tab === 'unknown' ? [['unknown', '私物待确认']] : []),
+      ['cleared', '无可取私物'],
     ];
     if (!tabs.some(([id]) => id === tab)) tab = 'remaining';
     const needle = query.trim().toLocaleLowerCase('zh-CN');
@@ -228,22 +243,23 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
         row.name,
         row.place?.name,
         ...row.remainingItems.map((item) => item.name),
-        ...row.learning.map((item) => item.name),
+        ...(row.unknownItems || []).map((item) => item.name),
+        ...row.learning.map(displayName),
       ]
         .filter(Boolean)
         .some((value) => value.toLocaleLowerCase('zh-CN').includes(needle));
-    const matching = Object.fromEntries(tabs.map(([id]) => [id, data[id].filter(matches)]));
+    const matching = Object.fromEntries(tabs.map(([id]) => [id, (data[id] || []).filter(matches)]));
     const live = data.origin === 'live';
     const filterOptions = [
-      ...(['remaining', 'learning'].includes(tab)
+      ...(live && ['remaining', 'learning'].includes(tab)
         ? [
             [
               'ready',
-              (live ? '' : '保存时') + (tab === 'learning' ? '可请教' : '可比武'),
+              '已知条件满足',
               (row) =>
                 tab === 'learning'
-                  ? row.learning.some((item) => item.status === 'met')
-                  : row.compare.status === 'met',
+                  ? row.learning.some(knownConditionsMet)
+                  : knownConditionsMet(row.compare),
             ],
           ]
         : []),
@@ -252,7 +268,7 @@ export function createNpcProgressViews({ esc, act, richText = esc }) {
         ? [
             [
               'missing',
-              live ? '未持有重点私物' : '保存时未持有重点',
+              live ? '背包无重点私物' : '保存时背包无重点',
               (row) => row.remainingItems.some((item) => item.important && item.owned === 0),
             ],
           ]

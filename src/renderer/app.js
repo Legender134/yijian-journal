@@ -28,7 +28,7 @@ import {
   writeIntentValues,
   intentTarget,
 } from './intent-draft-views.js';
-import { createGiftPicker, giftStock, hasNoGiftEntry } from './gift-picker.js';
+import { createGiftPicker, giftStock } from './gift-picker.js';
 import { createPlacePicker, placeChoiceLabel } from './place-picker.js';
 import { createGameImages } from './game-images.js';
 import { createQualityText } from './quality.js';
@@ -6272,7 +6272,7 @@ async function handle(action, id, target, navigationFocused = false) {
         !journeyDraft?.giftPicker?.[kind] ||
         !selected ||
         (kind === 'person'
-          ? selected.kind !== '人物' || hasNoGiftEntry(selected)
+          ? selected.kind !== '人物'
           : kind !== 'item' || selected.kind !== '物品' || !selected.giftable)
       )
         throw Error('请重新选择有效的赠礼人物或物品');
@@ -6775,7 +6775,7 @@ async function handle(action, id, target, navigationFocused = false) {
       render(true);
       break;
     case 'npc-progress-tab':
-      if (!['remaining', 'learning', 'locked', 'cleared'].includes(id)) break;
+      if (!['remaining', 'learning', 'locked', 'unknown', 'cleared'].includes(id)) break;
       npcProgressView.tab = id;
       delete npcProgressView.filters;
       npcProgressView.page = 0;

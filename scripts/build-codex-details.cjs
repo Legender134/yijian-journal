@@ -34,6 +34,8 @@ const effectTypes = new Set([
   'ASkill',
   'ATeam',
   'RTeam',
+  'CNPCCantInviteFlag',
+  'CNPCCantLeaveFlag',
   'CGuildHonor',
 ]);
 const rewardTypes = new Set([...effectTypes].filter((type) => type !== 'CQuestStep'));
@@ -71,6 +73,7 @@ function outcome(raw) {
 }
 function project(questRows, skillRows, gameData = game, worldData = world) {
   const quests = {},
+    supplementalQuests = {},
     hiddenSteps = {};
   const published = new Map(worldData.quests.map((entry) => [entry.gameId, entry]));
   const byId = new Map();
@@ -166,6 +169,10 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
       actionLists(detail).some((rows) => rows.some((a) => effectTypes.has(a.type)))
     )
       quests[entry.gameId] = detail;
+    else if (actionLists(detail).some((rows) => rows.some((a) => a.type === 'JumpStep')))
+      // Preserve unclassified actions for later source work without turning
+      // event dispatch into a player-visible reward or proven quest state.
+      supplementalQuests[entry.gameId] = detail;
   }
   for (const raw of questRows) {
     if (published.has(raw.QuestId) || byId.get(raw.QuestId).length !== 1) continue;
@@ -213,7 +220,7 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
     }));
     skills[entry.gameId] = {
       growth: Array.from({ length: 10 }, (_, n) =>
-        triples(raw['LvUpAction' + (n + 1)]).filter((r) => r.type === 'CAttr'),
+        triples(raw['LvUpAction' + (n + 1)]).filter((r) => ['CAttr', 'AJingMaiPoint'].includes(r.type)),
       ),
       ...(levelUnlockRequirements.length ? { levelUnlockRequirements } : {}),
     };
@@ -262,6 +269,7 @@ function project(questRows, skillRows, gameData = game, worldData = world) {
       actionProgramSha256: '946bba89314d1f614a43485856f6e00beb265fbbbdf9d256a7e96c80e745c76c',
     },
     quests,
+    supplementalQuests,
     hiddenSteps,
     ...(gatherSources.length ? { gatherSources } : {}),
     skills,

@@ -28,6 +28,8 @@ function fixture() {
     ItemType: `EItemSubType::${e.typeKey}`,
     EquipmentRank: 0,
     bCantUse: e.gameId === 102,
+    bCanStack: e.gameId !== 100,
+    bCantTakeFromCompare: false,
     Actions: [],
     Requirements: [],
     RandActionPools: [],
@@ -163,6 +165,18 @@ test('random pools preserve weights and raw ranges without claiming drop rates o
   assert.deepEqual(out.buffs[100050].modifiers.slice(0, 4), [180, 190, 200, 210]);
   assert.equal(out.pools[700].candidates[0].probability, undefined);
   assert.deepEqual(stats.pools[8094], { candidates: [], unresolved: true });
+});
+
+test('stacking and compare restrictions retain the source flags', () => {
+  const input = fixture();
+  input.items[0].bCantTakeFromCompare = true;
+  const out = buildItemStats(input);
+  assert.equal(out.items[100].canStack, false);
+  assert.equal(out.items[100].cantTakeFromCompare, true);
+  assert.equal(out.items[101].canStack, true);
+  assert.equal(out.items[101].cantTakeFromCompare, undefined);
+  delete input.items[0].bCanStack;
+  assert.throws(() => buildItemStats(input), /Invalid item data 100/);
 });
 
 test('all referenced shared data resolves or carries the explicit source-table gap', () => {

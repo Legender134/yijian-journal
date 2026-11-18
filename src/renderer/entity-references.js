@@ -2,6 +2,7 @@ import { npcLearningSummary } from './npc-progress-views.js';
 import { entityCatalog, questStatus } from './entity-catalog.js';
 import { itemNumericSummary } from './item-stat-views.js';
 import { sharedEntityArtwork } from './game-images.js';
+import { completionChecks } from '../shared/task-completion.mjs';
 import { createPlaceMapViews } from './place-map-views.js';
 import {
   allObjectivePlaces,
@@ -231,6 +232,56 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
           : [...new Set(choices.map((row) => row.name))].join(' / ')
         : e.name;
     const groupLabel = new Set(choices.map((row) => row.name)).size > 1 ? '资料选择' : '同名资料';
+    const mapHints = choices.length === 1 && e.kind === '地点'
+      ? (index().questMapHints?.events || []).filter((row) => row.mapKey === e.key)
+      : [];
+    const mapCandidates = choices.length === 1 && e.kind === '地点'
+      ? (index().questMapHints?.streamingParentCandidates || []).filter((row) => row.mapKey === e.key)
+      : [];
+    const hints = mapHints.length
+      ? `<details class="entity-map-quest-hints"><summary>相关地图事件 · ${mapHints.length} 条</summary><p>静态线索，实际触发情况待确认。</p>${mapHints.map((row) => {
+          const quest = catalog().entries.get('quest-' + row.questId);
+          const recognized = [];
+          let unknown = !row.conditions.length;
+          for (const condition of row.conditions) {
+            const isQuest = condition.type === 'PreQuest' || condition.type === 'NoQuest';
+            const isItem = condition.type === 'Item' || condition.type === 'ItemMax';
+            const isTeam = condition.type === 'TeamMember';
+            const entity = catalog().entries.get(`${isQuest ? 'quest' : isTeam ? 'npc' : 'item'}-${condition.id}`);
+            if ((!isQuest && !isItem && !isTeam) || !entity ||
+                (condition.type === 'PreQuest' && ![0, 1, 2, 3, 4].includes(condition.value)) ||
+                (isItem && (!Number.isSafeInteger(condition.value) || condition.value < 1))) {
+              unknown = true;
+              continue;
+            }
+            recognized.push({ ...condition, name: entity.name });
+          }
+          const conditions = completionChecks(recognized).map((check) => esc(check.text));
+          if (unknown) conditions.push('其他条件待确认');
+          return `<div>${quest ? button('world-quest', esc(quest.name), 'text-btn', quest.id) : esc('相关任务')}<p>条件：${conditions.join('；')}</p></div>`;
+        }).join('')}</details>`
+      : '';
+    const candidateHints = mapCandidates.length
+      ? `<details class="entity-map-quest-hints"><summary>可能相关的任务 · ${mapCandidates.length} 条</summary><p>静态线索，实际触发情况待确认。</p>${mapCandidates.map((row) => {
+          const quest = catalog().entries.get('quest-' + row.questId);
+          let unknown = false;
+          const descriptions = row.conditions.flatMap((c) => {
+            const kind = ['PreQuest', 'NoQuest'].includes(c.type) ? 'quest' : c.type === 'TeamMember' ? 'npc' : ['Item', 'ItemMax'].includes(c.type) ? 'item' : '';
+            const entity = kind && catalog().entries.get(`${kind}-${c.id}`);
+            if (entity && kind === 'item' && Number.isSafeInteger(c.value) && c.value > 0) {
+              const name = button('database-detail', esc(entity.name), 'text-btn', entity.id);
+              return [c.type === 'Item' ? `${name} × ${c.value}` : `${name}：${c.value === 1 ? '未持有' : `数量少于 ${c.value}`}`];
+            }
+            if (entity && ((c.type === 'PreQuest' && [1, 4].includes(c.value)) || c.type === 'NoQuest' || c.type === 'TeamMember')) {
+              const suffix = c.type === 'PreQuest' ? (c.value === 1 ? '进行中' : '已完成') : c.type === 'NoQuest' ? '尚无记录' : '在队';
+              return [button(kind === 'quest' ? 'world-quest' : 'database-detail', esc(entity.name), 'text-btn', entity.id) + suffix];
+            }
+            unknown = true;
+            return [];
+          });
+          if (unknown) descriptions.push('其他条件待确认');
+          return `<div>${quest ? button('world-quest', esc(quest.name), 'text-btn', quest.id) : esc('相关任务')}${descriptions.length ? `<p>${descriptions.join('；')}</p>` : ''}</div>`;
+        }).join('')}</details>` : '';
     let lines = [];
     if (choices.length > 1) {
       lines = [
@@ -247,7 +298,9 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
       if (current) {
         lines.push(
           [
-            current.remainingItems.length ? `私物还剩 ${current.remainingItems.length} 种` : '私物已清空',
+            current.remainingItems.length ? `剩余私物 ${current.remainingItems.length} 种${current.privateSelection?.status !== 'met' && current.privateSelection?.text ? ' · ' + current.privateSelection.text : ''}` : current.unknownItems?.length ? '' : '暂无可取私物',
+            current.unknownItems?.length ? `私物取物资格待确认 ${current.unknownItems.length} 种` : '',
+            current.protectedCount ? `受保护私物 ${current.protectedCount} 种` : '',
             npcLearningSummary(current.learning),
           ]
             .filter(Boolean)
@@ -261,10 +314,10 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
         ];
         const missing = operations.filter(([, gate]) =>
           gate?.checks?.some(
-            (check) => check.status !== 'met' && /^暂无常规(?:比武|赠礼|请教)入口$/.test(check.text),
+            (check) => check.status !== 'met' && check.text === '固定资料无常规入口，当前情况待确认',
           ),
         );
-        if (missing.length) lines.push(missing.map(([label]) => label).join('、') + '：暂无入口');
+        if (missing.length) lines.push(missing.map(([label]) => label).join('、') + '：固定资料无常规入口，当前情况待确认');
         const blocked = operations.find(
           (operation) =>
             !missing.includes(operation) && operation[1]?.checks?.some((check) => check.status !== 'met'),
@@ -286,7 +339,7 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
               .filter(([, key]) => !e.functions.includes(key))
               .map(([label]) => label)
           : [];
-        if (missing.length) lines.push(missing.join('、') + '：暂无入口');
+        if (missing.length) lines.push(missing.join('、') + '：固定资料无常规入口，当前情况待确认');
         if (e.hobbies?.length) lines.push('初始偏好：' + e.hobbies.join('、'));
         const place = index().world?.maps?.find((m) => m.key === e.walkMap);
         if (place && !variant) lines.push('行走场景：' + place.name);
@@ -445,11 +498,11 @@ export function createEntityReferences({ index, esc, picture, icon, qualityText 
         .filter((line) => line !== '游戏场景')
         .map((line) => '<p>' + esc(line) + '</p>')
         .join('');
-      return '<div class="entity-preview-place">' + heading + map + facts + '</div>';
+      return '<div class="entity-preview-place">' + heading + map + facts + hints + candidateHints + '</div>';
     }
     return `<div class="entity-preview-heading">${artwork(id, 'card')}<div><small>${esc(choices.length > 1 ? groupLabel : e.kind)}${choices.length === 1 && e.quality ? ' · ' + esc(e.quality) + '色' : ''}</small><strong>${esc(name)}</strong></div></div>${description ? `<p class="entity-preview-description">${esc(description)}</p>` : ''}${lines
       .map((line) => `<p>${esc(line)}</p>`)
-      .join('')}${map}`;
+      .join('')}${map}${hints}${candidateHints}`;
   }
   return { button, text, preview, artwork, choices: rows, choiceSummary, variantSummary };
 }

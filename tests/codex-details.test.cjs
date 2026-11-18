@@ -169,7 +169,7 @@ test('same-build hidden choices and rewards are available through their public o
   assert.match(pili, /data-quest-step="16210"/);
   assert.match(pili, /data-quest-steps="16210,16211"/);
   assert.equal((pili.match(/×1/g) || []).length, 1);
-  assert.match(pili, /2 处独立剧情结算/);
+  assert.doesNotMatch(pili, /2 处独立剧情结算/);
   assert.doesNotMatch(pili, /×2|×6/);
   assert.match(pili, /不同分支不累计/);
 });
@@ -490,7 +490,7 @@ test('Qingyun Fan retains ten growth levels and all three exact story breakthrou
   assert.doesNotMatch(html, /升到 [189] 级/);
 });
 
-test('story-only Qingyun Fan has no regular consultation route even when a live NPC owns it', async () => {
+test('Qingyun Fan keeps uncertain consultation as a lead even when an NPC owns it', async () => {
   const { createCodexDetailViews } = await import('../src/renderer/codex-detail-views.js');
   const { createNpcProgressProjector } = require('../src/core/npc-progress.cjs');
   const contracts = require('../src/data/npc-interactions.json');
@@ -528,11 +528,14 @@ test('story-only Qingyun Fan has no regular consultation route even when a live 
     progress,
     'live',
   );
-  assert.match(html, /<summary>请教条件 · 不可常规请教<\/summary>/);
-  assert.doesNotMatch(html, /好感 70|基础消耗|skill-teachers|请教线索|>可请教<|data-id="npc-999001"/);
+  assert.match(html, /<summary>请教条件 · 资格待确认<\/summary>/);
+  assert.match(html, /若可请教.*好感 70/);
+  assert.match(html, /data-id="npc-999001"/);
+  assert.match(html, /请教资格待确认/);
+  assert.doesNotMatch(html, />可请教</);
   for (const id of [10438, 13480]) assert.match(html, new RegExp(`data-id="item-${id}"`));
   assert.match(html, /学习秘籍/);
-  assert.match(html, /各级属性提升/);
+  assert.match(html, /各级修炼效果/);
   assert.match(html, /修炼突破/);
   const ordinary = views.skill(
     index,
@@ -575,9 +578,12 @@ test('story-only Qingyun Fan has no regular consultation route even when a live 
   const before = structuredClone(metadata);
   const result = projectNpcProgress(metadata);
   assert.equal(result.available, true);
-  assert(!result.people[0].learning.some((row) => row.entityId === 'skill-480'));
-  assert(result.people[0].learning.some((row) => row.entityId === 'skill-101' && row.status === 'met'));
-  assert(!result.learning.flatMap((row) => row.learning).some((row) => row.entityId === 'skill-480'));
+  const fan = result.people[0].learning.find((row) => row.entityId === 'skill-480');
+  assert.equal(fan.status, 'unknown');
+  assert(fan.checks.some((check) => /请教资格待确认/.test(check.text)));
+  assert(result.people[0].learning.some((row) => row.entityId === 'skill-101' && row.status === 'unknown'));
+  assert(result.learning.flatMap((row) => row.learning).some((row) => row.entityId === 'skill-480'));
+  assert(fan.checks.some((check) => /存档武学仅供筛选/.test(check.text)));
   assert.deepEqual(metadata, before);
 });
 

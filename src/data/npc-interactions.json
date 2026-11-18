@@ -2602,6 +2602,30 @@
       "skillPointCost": 6900,
       "grade": 5
     },
+    "132": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 3400,
+      "grade": 4
+    },
+    "133": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 3400,
+      "grade": 4
+    },
+    "134": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 6900,
+      "grade": 5
+    },
     "135": {
       "friendliness": 80,
       "requirements": [],
@@ -2610,6 +2634,14 @@
       "skillPointCost": 6900,
       "grade": 5
     },
+    "136": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 12400,
+      "grade": 6
+    },
     "137": {
       "friendliness": 90,
       "requirements": [],
@@ -2617,6 +2649,14 @@
       "excluded": false,
       "skillPointCost": 12400,
       "grade": 6
+    },
+    "150": {
+      "friendliness": 40,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 40,
+      "grade": 1
     },
     "151": {
       "friendliness": 50,
@@ -2783,6 +2823,14 @@
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
+      "skillPointCost": 6900,
+      "grade": 5
+    },
+    "182": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
       "skillPointCost": 6900,
       "grade": 5
     },
@@ -3034,6 +3082,22 @@
       "skillPointCost": 6900,
       "grade": 5
     },
+    "232": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 12400,
+      "grade": 6
+    },
+    "250": {
+      "friendliness": 40,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 40,
+      "grade": 1
+    },
     "251": {
       "friendliness": 50,
       "requirements": [],
@@ -3129,6 +3193,14 @@
       "excluded": false,
       "skillPointCost": 12400,
       "grade": 6
+    },
+    "268": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 6900,
+      "grade": 5
     },
     "270": {
       "friendliness": 80,
@@ -3242,6 +3314,14 @@
       "skillPointCost": 12400,
       "grade": 6
     },
+    "350": {
+      "friendliness": 40,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 40,
+      "grade": 1
+    },
     "351": {
       "friendliness": 50,
       "requirements": [],
@@ -3337,6 +3417,22 @@
       "excluded": false,
       "skillPointCost": 6900,
       "grade": 5
+    },
+    "367": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 3400,
+      "grade": 4
+    },
+    "368": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "369": {
       "friendliness": 70,
@@ -3642,6 +3738,14 @@
       "skillPointCost": 12400,
       "grade": 6
     },
+    "450": {
+      "friendliness": 40,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 40,
+      "grade": 1
+    },
     "451": {
       "friendliness": 50,
       "requirements": [],
@@ -3767,6 +3871,30 @@
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
+      "skillPointCost": 6900,
+      "grade": 5
+    },
+    "472": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 12400,
+      "grade": 6
+    },
+    "473": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 6900,
+      "grade": 5
+    },
+    "474": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
       "skillPointCost": 6900,
       "grade": 5
     },
@@ -3937,6 +4065,14 @@
       "excluded": false,
       "skillPointCost": 6900,
       "grade": 5
+    },
+    "550": {
+      "friendliness": 40,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 40,
+      "grade": 1
     },
     "551": {
       "friendliness": 50,
@@ -4162,6 +4298,14 @@
       "skillPointCost": 6900,
       "grade": 5
     },
+    "723": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 3400,
+      "grade": 4
+    },
     "750": {
       "friendliness": 40,
       "requirements": [],
@@ -4169,6 +4313,14 @@
       "excluded": false,
       "skillPointCost": 40,
       "grade": 1
+    },
+    "751": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "752": {
       "friendliness": 80,
@@ -4322,6 +4474,14 @@
       "skillPointCost": 6900,
       "grade": 5
     },
+    "817": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 12400,
+      "grade": 6
+    },
     "818": {
       "friendliness": 50,
       "requirements": [],
@@ -4442,6 +4602,14 @@
       "skillPointCost": 12400,
       "grade": 6
     },
+    "838": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 12400,
+      "grade": 6
+    },
     "840": {
       "friendliness": 80,
       "requirements": [],
@@ -4466,6 +4634,14 @@
       "skillPointCost": 400,
       "grade": 2
     },
+    "852": {
+      "friendliness": 70,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 3400,
+      "grade": 4
+    },
     "853": {
       "friendliness": 60,
       "requirements": [],
@@ -4473,6 +4649,30 @@
       "excluded": false,
       "skillPointCost": 1300,
       "grade": 3
+    },
+    "854": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 6900,
+      "grade": 5
+    },
+    "856": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 12400,
+      "grade": 6
+    },
+    "857": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "860": {
       "friendliness": 70,
@@ -4602,6 +4802,38 @@
       "skillPointCost": 12400,
       "grade": 6
     },
+    "880": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 6900,
+      "grade": 5
+    },
+    "881": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 6900,
+      "grade": 5
+    },
+    "882": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 12400,
+      "grade": 6
+    },
+    "883": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 12400,
+      "grade": 6
+    },
     "884": {
       "friendliness": 90,
       "requirements": [],
@@ -4626,11 +4858,27 @@
       "skillPointCost": 6900,
       "grade": 5
     },
+    "893": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 12400,
+      "grade": 6
+    },
     "894": {
       "friendliness": 80,
       "requirements": [],
       "openForPlayer": true,
       "excluded": false,
+      "skillPointCost": 6900,
+      "grade": 5
+    },
+    "895": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
       "skillPointCost": 6900,
       "grade": 5
     },
@@ -4650,6 +4898,14 @@
       "skillPointCost": 3400,
       "grade": 4
     },
+    "898": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 6900,
+      "grade": 5
+    },
     "899": {
       "friendliness": 50,
       "requirements": [],
@@ -4657,6 +4913,30 @@
       "excluded": false,
       "skillPointCost": 400,
       "grade": 2
+    },
+    "903": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": false,
+      "skillPointCost": 12400,
+      "grade": 6
+    },
+    "904": {
+      "friendliness": 80,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 6900,
+      "grade": 5
+    },
+    "905": {
+      "friendliness": 90,
+      "requirements": [],
+      "openForPlayer": false,
+      "excluded": true,
+      "skillPointCost": 12400,
+      "grade": 6
     },
     "906": {
       "friendliness": 90,

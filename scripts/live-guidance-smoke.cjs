@@ -182,6 +182,8 @@ const pulse = () =>
     );
     await checkBodyPreviews(win, 2);
     await openMainPage(win, 'settings');
+    const about = win.locator('[data-persist-detail="settings-about"]');
+    if (!(await about.evaluate((el) => el.open))) await about.locator(':scope > summary').click();
     const readingSummary = win.locator('summary').filter({ hasText: '读取方式与资料说明' });
     await readingSummary.click();
     await readingSummary.evaluate((el) => {

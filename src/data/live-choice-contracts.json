@@ -548,6 +548,16 @@
           "choiceIndex": 1
         }
       ]
+    },
+    {
+      "ruleId": "yanxia-rescue-choice",
+      "questId": 12313,
+      "rootQuestId": 12310,
+      "npcPolicy": "contextual",
+      "options": [
+        { "text": "去", "choiceIndex": 0 },
+        { "text": "不去", "choiceIndex": 1 }
+      ]
     }
   ]
 }

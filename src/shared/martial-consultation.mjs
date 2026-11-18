@@ -1,3 +1,13 @@
+// Pinned PC skill rows excluded by the recovered default consultation list.
+// Runtime row mapping and other learning paths can differ.
+export const defaultConsultationExcludedRows = new Map([
+  [880, '白帝剑心（剑法精通）'], [882, '乘云御龙心诀'], [883, '韶华胜极神通'],
+  [751, '云涛晓雾凌波舞'], [817, '五灵心经'], [866, '五恒天经'],
+  [182, '白帝剑阵（剑法）'], [268, '白帝剑阵（刀法）'], [367, '飞将戟法'],
+  [368, '浑天梨花枪·极'], [473, '镜湖映月'], [474, '青玉手'],
+  [895, '万里平戎策'], [898, '白帝剑心（刀法精通）'], [904, '混沌武典·阴'], [905, '混沌武典'],
+]);
+
 // Martial consultation method is independent of entry eligibility and victory.
 export function martialConsultation(grade, difficulty, rule) {
   if (

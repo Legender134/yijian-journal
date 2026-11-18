@@ -134,8 +134,19 @@ for (const r of read('Quests'))
   }
 const skills = read('Skills')
   // Item 10438 teaches skill 480 to the hero during quest 28003 (PreQuest = 1).
-  // Keep this story-learning exception narrow; other closed skills stay excluded.
-  .filter((r) => (r.bOpenForPlayer || r.Id === 480) && validName(r.ViewName))
+  // Skills 817 and 838 have bound protagonist story-sequence actions; this does not enable consultation.
+  // Skills 852, 854, 856 and 857 have bound protagonist story-sequence actions.
+  // Skills 132, 133, 134 and 723 have a bound protagonist sequence clue.
+  // Skill 136 has a conditional protagonist quest action.
+  // Skill 232 has a conditional story request for NPC 5513.
+  // Skills 472 and 893 have conditional story requests for NPC 19830.
+  // Skill 367 has a static manual action clue; its eligible learner remains unconfirmed.
+  // Skills 882, 883, 895, 904 and 905 have identified NPC story-learning paths.
+  // Skills 182, 268 and 473 are distinct NPC story skills from the eastern sea.
+  // Skills 368, 474, 751, 880 and 898 have documented NPC or item sources.
+  // Inclusion in the codex does not make them available through consultation.
+  // Keep story-learning exceptions narrow; other closed skills stay excluded.
+  .filter((r) => (r.bOpenForPlayer || r.Id === 132 || r.Id === 133 || r.Id === 134 || r.Id === 136 || r.Id === 182 || r.Id === 232 || r.Id === 268 || r.Id === 367 || r.Id === 368 || r.Id === 472 || r.Id === 473 || r.Id === 474 || r.Id === 723 || r.Id === 751 || r.Id === 480 || r.Id === 817 || r.Id === 838 || r.Id === 852 || r.Id === 854 || r.Id === 856 || r.Id === 857 || r.Id === 880 || r.Id === 882 || r.Id === 883 || r.Id === 893 || r.Id === 895 || r.Id === 898 || r.Id === 904 || r.Id === 905) && validName(r.ViewName))
   .map((r) => ({
     id: `skill-${r.Id}`,
     gameId: r.Id,
@@ -143,6 +154,8 @@ const skills = read('Skills')
     name: clean(r.ViewName),
     description: clean(r.Description),
     special: clean(r.SpecialEffectDesc),
+    ...(r.CastEffectDesc ? { castEffect: clean(r.CastEffectDesc) } : {}),
+    ...((r.UseRequirements || []).some((req) => enumName(req.Type) === 'bBuyDLC2' && Number(req.Num) === 1) ? { requiresDlc2: true } : {}),
     type: types[enumName(r.WeaponType)] || '心法 / 轻功',
     quality: quality[enumName(r.Quality)] || '',
     consultCost: Number(r.ConsultSExpCost) || 0,

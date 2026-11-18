@@ -5,13 +5,16 @@ const mapAtlas = require('../data/world-map.json');
 const images = require('../data/game-images.json');
 const itemStats = require('../data/item-stats.json');
 const npcFacts = require('../data/npc-facts.json');
+const npcExtraSkillClues = require('../data/npc-extra-skill-clues.json');
 const codex = require('../data/codex-details.json');
+const questMapHints = require('../data/quest-map-hints.json');
 const interactions = require('../data/npc-interactions.json');
 const skillConsultation = interactions.skills;
 const materialGuide = require('../data/material-guide.cjs');
 const taskTargets = require('./task-targets.cjs').createTaskTargetProjector(world, materialGuide.items);
 const taskObjectives = Object.fromEntries(world.quests.map((q) => [q.id, taskTargets.template(q)]));
 if (String(codex.build) !== String(data.build)) throw Error('图鉴详情版本不一致');
+if (String(questMapHints.build) !== String(data.build)) throw Error('任务地图线索版本不一致');
 const flowGuide = require('../data/flow-guide.cjs');
 const { giftPersonHint } = require('./gift-labels.cjs');
 const identityEntries = [...new Map([...data.entries, ...world.people].map((row) => [row.id, row])).values()];
@@ -32,11 +35,14 @@ const { createNpcProgressProjector } = require('./npc-progress.cjs');
 const projectNpcProgress = createNpcProgressProjector({
   world,
   game: data,
+  itemStats,
   contracts: interactions,
   guide: require('../data/duel-guide.cjs'),
+  extraSkillClues: npcExtraSkillClues,
 });
 if (String(itemStats.build) !== String(data.build)) throw Error('物品数值与图鉴版本不一致');
 if (String(npcFacts.build) !== String(data.build)) throw Error('人物私物与图鉴版本不一致');
+if (String(npcExtraSkillClues.build) !== String(data.build)) throw Error('人物武学线索与图鉴版本不一致');
 if (String(mapAtlas.build) !== String(data.build)) throw Error('地图与图鉴版本不一致');
 const { recipeOutputs } = require('./recipe-outputs.cjs');
 const entries = new Map(data.entries.map((e) => [e.id, e]));
@@ -150,6 +156,7 @@ function encyclopedia() {
                 ? {
                     ...e,
                     npcFacts: npcFacts.people[e.gameId] || null,
+                    npcExtraSkillClues: npcExtraSkillClues.people[e.gameId] || [],
                     identityHint: giftPersonHint(e, identityEntries),
                   }
                 : e,
@@ -157,6 +164,7 @@ function encyclopedia() {
       ).values(),
     ],
     codex,
+    questMapHints,
     skillConsultation,
     martialConsultation: interactions.martialConsultation,
     images: images.entries,

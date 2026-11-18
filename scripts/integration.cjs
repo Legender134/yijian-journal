@@ -171,18 +171,18 @@ async function firstBackupFlow() {
     }, firstData);
     await openMainPage(firstWin, 'saves');
     const beforeCancel = fs.readFileSync(path.join(firstData, 'journal.json'));
-    await firstWin.locator('.page-header [data-action="backup"]').click();
-    await firstWin.waitForFunction(() => !document.querySelector('.page-header [data-action="backup"]').disabled);
+    await firstWin.locator('.page-actions [data-action="backup"]').click();
+    await firstWin.waitForFunction(() => !document.querySelector('.page-actions [data-action="backup"]').disabled);
     assert.deepEqual(await firstApp.evaluate(() => globalThis.firstFolderCalls), [{
       title: '选择逸剑风云决 SaveGames 文件夹', defaultPath: firstSaveBase,
     }]);
-    assert.equal(await firstWin.locator('.page-header h1').innerText(), '存档');
+    assert.equal(await firstWin.locator('.content').getAttribute('aria-label'), '存档');
     assert.equal(await firstWin.locator('#backup-label').count(), 0);
     assert.equal(await firstWin.locator('.toast.error').count(), 0);
     assert.deepEqual(fs.readFileSync(path.join(firstData, 'journal.json')), beforeCancel);
     await firstApp.evaluate(() => { globalThis.firstFolderDeferred = true; });
-    await firstWin.locator('.page-header [data-action="backup"]').click();
-    assert.equal(await firstWin.locator('.page-header [data-action="backup"]').isDisabled(), true);
+    await firstWin.locator('.page-actions [data-action="backup"]').click();
+    assert.equal(await firstWin.locator('.page-actions [data-action="backup"]').isDisabled(), true);
     await firstApp.evaluate((_electron, folder) => {
       if (!globalThis.finishFirstFolder) throw Error('Directory choice was not requested');
       globalThis.finishFirstFolder({ canceled: false, filePaths: [folder] });
@@ -192,7 +192,7 @@ async function firstBackupFlow() {
     assert.equal(connected.state.settings.savePath, firstSource);
     assert.equal(connected.state.profiles[0].stageConfirmed, false);
     assert.ok((await firstWin.locator('#backup-label').inputValue()).startsWith(connected.environment.recent.mapName + ' · '));
-    assert.equal(await firstWin.locator('.page-header h1').innerText(), '存档');
+    assert.equal(await firstWin.locator('.content').getAttribute('aria-label'), '存档');
     await firstWin.locator('#backup-label').fill('直接选择目录后的第一份备份');
     await firstWin.locator('[data-action="backup-confirm"]').click();
     await firstWin.locator('.backup-row').filter({ hasText: '直接选择目录后的第一份备份' }).waitFor();
